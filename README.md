@@ -1,4 +1,4 @@
-# Probabilist Forecasting of Nocturnal Hypoglycemia
+# Probabilistic Forecasting of Nocturnal Hypoglycemia
 
 Fear of nocturnal hypoglycemic events continues to be one of the most significant contributors to diabetes distress.
 Developing improved nocturnal hypoglycemic forecasting techniques would likely improve diabetes distress [(D. Ehrmann et al., 2024)](https://doi.org/10.1177/19322968241267886), but even short 2-hour blood glucose level (BGL) forecasting remains challenging [(H. Nemat et al., 2024)](https://www.nature.com/articles/s41598-024-70277-x).
