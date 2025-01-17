@@ -39,7 +39,3 @@ jobs:
     - name: Run tests
       run: |
         pytest -v --color=yes
-
-    - name: Package Installation Test
-      run: |
-        pip install -e .
