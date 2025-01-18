@@ -3,6 +3,9 @@ import importlib
 from sktime.registry import all_estimators
 import importlib
 import pandas as pd
+import yaml
+from sktime.datasets import load_airline
+from sktime.forecasting.model_selection import temporal_train_test_split
 
 def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperparameters={}):
     '''
@@ -65,3 +68,21 @@ def get_quantile_forecasts(models, y_test, forecast_horizon=None, quantiles=[0.0
             )
     
     return quantile_forecasts
+
+if __name__ == "__main__":
+    # load hyperparameters from YAML file
+    yaml_file_path = "./quantile_forecast_hyperparameters.yaml"
+    with open(yaml_file_path, "r") as file:
+        config = yaml.safe_load(file)
+    # load model hyperparameters
+    model_hyperparameters = config.get("model_hyperparameters", {})
+
+    # TODO: load data (split into train and test)
+    sample_y = load_airline()
+    y_train, y_test = temporal_train_test_split(sample_y, test_size=36)
+
+    # train models
+    models = quantile_forecast_model_loop(y_train, model_hyperparameters=model_hyperparameters)
+    # get quantile forecasts
+    quantile_forecasts = get_quantile_forecasts(models, y_test)
+    # TODO: plot forecasts and store in "results" folder
