@@ -1,0 +1,6 @@
+model_hyperparameters:
+  ARIMA: 
+    order: [1, 1, 0]
+  ETS:
+    trend: "add"
+training_data_path: "path_to_training_data.csv"
