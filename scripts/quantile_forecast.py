@@ -1,5 +1,8 @@
 from sktime.registry import all_estimators
 import importlib
+from sktime.registry import all_estimators
+import importlib
+import pandas as pd
 
 def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperparameters={}):
     '''
@@ -23,17 +26,11 @@ def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperpar
 
     models = {}
     # loop through each row, and import from all_models["Object"]
-    for row in all_models.iterrows():
+    for index, row in all_models.iterrows():
+        # print(row)
         model_name = row["name"]
-        model_class = row["Object"]
-        # split the fully qualified name into module and class
-        module_name, class_name = model_class.rsplit(".", 1)
-        
-        # import the module
-        module = importlib.import_module(module_name)
-        
-        # get the class from the module
-        cls = getattr(module, class_name)
+        cls = row["object"]
+
         instance = cls(**model_hyperparameters.get(model_name, {}))
         # fit the model
         instance.fit(y_train)
@@ -60,6 +57,11 @@ def get_quantile_forecasts(models, y_test, forecast_horizon=None, quantiles=[0.0
     '''
     quantile_forecasts = {}
     for model_name, model in models.items():
-        quantile_forecasts[model_name] = model.predict_quantiles(X=y_test, alpha=quantiles, fh=forecast_horizon)
+        predictions = model.predict_quantiles(X=y_test, alpha=quantiles, fh=forecast_horizon)
+        # Ensure predictions are handled correctly (e.g., as a DataFrame or array)
+        quantile_forecasts[model_name] = pd.DataFrame(
+                predictions, 
+                columns=[f"quantile_{q}" for q in quantiles]
+            )
     
     return quantile_forecasts
