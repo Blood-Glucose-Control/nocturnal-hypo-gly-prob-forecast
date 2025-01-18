@@ -6,6 +6,7 @@ import pandas as pd
 import yaml
 from sktime.datasets import load_airline
 from sktime.forecasting.model_selection import temporal_train_test_split
+from itertools import product
 
 def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperparameters={}):
     '''
@@ -16,11 +17,11 @@ def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperpar
         y_train (pd.DataFrame): The features to train on.
         quantiles (list): The quantiles to predict (eg: [0.05, 0.95] predicts for the quantiles 0.05 and 0.95).
         model_hyperparameters (dict): A dictionary of model hyperparameters to pass to the model. The keys should be the model names.
-            And the values should be a dictionary of hyperparameters for that model.
+            And the values should be a list of dictionaries, where each dictionary represents a set of hyperparameters.
 
     Returns:
         models (dict): A dictionary of trained model objects. The keys will be the model names, 
-            and the values will be the trained model objects.
+            and the values will be a list of trained model objects corresponding to the different hyperparameter sets.
     '''
     # loads models that support interval prediction
     all_models = all_estimators(
@@ -30,18 +31,24 @@ def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperpar
     models = {}
     # loop through each row, and import from all_models["Object"]
     for index, row in all_models.iterrows():
-        # print(row)
         model_name = row["name"]
         cls = row["object"]
 
-        instance = cls(**model_hyperparameters.get(model_name, {}))
-        # fit the model
-        instance.fit(y_train)
+        # get the list of hyperparameter sets for this model, if available
+        param_sets = model_hyperparameters.get(model_name, [{}])  # default to [{}] if no hyperparameters are provided
+        
+        # loop over each parameter set and train a separate model
+        model_instances = []
+        for param_set in param_sets:
+            instance = cls(**param_set)
+            instance.fit(y_train)
+            model_instances.append(instance)
 
-        # store the model
-        models[model_name] = instance
+        # store the list of trained models
+        models[model_name] = model_instances
     
-    return models 
+    return models
+
 
 def get_quantile_forecasts(models, y_test, forecast_horizon=None, quantiles=[0.05, 0.95]):
     '''
