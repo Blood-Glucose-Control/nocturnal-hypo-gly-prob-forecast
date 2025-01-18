@@ -42,3 +42,24 @@ def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperpar
         models[model_name] = instance
     
     return models 
+
+def get_quantile_forecasts(models, y_test, forecast_horizon=None, quantiles=[0.05, 0.95]):
+    '''
+    Loops through the trained models, and returns the quantile forecasts for each model.
+
+    Args:
+        models (dict): A dictionary of trained model objects. The keys will be the model names, 
+            and the values will be the trained model objects.
+        y_test (pd.DataFrame): The features to predict on.
+        forecast_horizon (list[int]): The forecast horizon for each model. If None, the forecast horizon will be the same as the training data.
+        quantiles (list): The quantiles to predict (eg: [0.05, 0.95] predicts for the quantiles 0.05 and 0.95).
+
+    Returns:
+        quantile_forecasts (dict): A dictionary of quantile forecasts. The keys will be the model names, 
+            and the values will be the quantile forecasts for each model.
+    '''
+    quantile_forecasts = {}
+    for model_name, model in models.items():
+        quantile_forecasts[model_name] = model.predict_quantiles(X=y_test, alpha=quantiles, fh=forecast_horizon)
+    
+    return quantile_forecasts
