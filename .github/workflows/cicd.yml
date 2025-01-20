@@ -1,8 +1,8 @@
 name: You shall not pass
 on:
-  push:
-    branches: [ main ]
   pull_request:
+    branches: [ main ]
+  pull_request_target:
     branches: [ main ]
 
 jobs:
