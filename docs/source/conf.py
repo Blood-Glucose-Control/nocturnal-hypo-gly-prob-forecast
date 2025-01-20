@@ -1,4 +1,3 @@
-import sphinx_rtd_theme
 # Configuration file for the Sphinx documentation builder.
 #
 # For the full list of built-in configuration values, see the documentation:
@@ -7,26 +6,25 @@ import sphinx_rtd_theme
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'nocturnal-hypoglycemic-sphinx'
-copyright = '2025, BGC'
-author = 'BGC'
+project = "nocturnal-hypoglycemic-sphinx"
+copyright = "2025, BGC"
+author = "BGC"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-  'sphinx.ext.autodoc',
-  'sphinx.ext.napoleon',  # For Google-style docstrings
-  'sphinx_rtd_theme',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",  # For Google-style docstrings
+    "sphinx_rtd_theme",
 ]
 
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = []
-
 
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'alabaster'
-html_static_path = ['_static']
+html_theme = "alabaster"
+html_static_path = ["_static"]
