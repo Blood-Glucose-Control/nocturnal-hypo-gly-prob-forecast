@@ -17,12 +17,31 @@ def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperpar
         y_train (pd.DataFrame): The features to train on.
         quantiles (list): The quantiles to predict (eg: [0.05, 0.95] predicts for the quantiles 0.05 and 0.95).
         model_hyperparameters (dict): A dictionary of model hyperparameters to pass to the model. The keys should be the model names.
-            And the values should be a list of dictionaries, where each dictionary represents a set of hyperparameters.
+            And the values should be a list of dictionaries, where each dictionary represents a set of hyperparameters. Eg:
+            model_hyperparameters = {
+                "NaiveForecaster": [
+                    {
+                        "strategy": "last",
+                        "sp": 12,
+                        ... [other hyperparameters]
+                    },
+                    {
+                        "strategy": "last",
+                        "sp": 24,
+                        ... Another set of parameters
+                    }
+                ]
+                "Model2": [
+                    ...
+                ]
+            }
 
     Returns:
         models (dict): A dictionary of trained model objects. The keys will be the model names, 
             and the values will be a list of trained model objects corresponding to the different hyperparameter sets.
     '''
+    # TODO: skip model / add defaults if required hyperparameters exist
+    
     # loads models that support interval prediction
     all_models = all_estimators(
         "forecaster", filter_tags={"capability:pred_int": True}, as_dataframe=True
@@ -31,6 +50,7 @@ def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperpar
     models = {}
     # loop through each row, and import from all_models["Object"]
     for index, row in all_models.iterrows():
+        print("Training model "+row["name"]+"...")
         model_name = row["name"]
         cls = row["object"]
 
@@ -40,6 +60,7 @@ def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperpar
         # loop over each parameter set and train a separate model
         model_instances = []
         for param_set in param_sets:
+            print("Training on hyperparameters: ", param_set)
             instance = cls(**param_set)
             instance.fit(y_train)
             model_instances.append(instance)
