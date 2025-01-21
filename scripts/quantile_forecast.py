@@ -8,7 +8,12 @@ from sktime.datasets import load_airline
 from sktime.forecasting.model_selection import temporal_train_test_split
 from itertools import product
 
-def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperparameters={}):
+def quantile_forecast_model_loop(
+    y_train,
+    quantiles=[0.05, 0.95], 
+    model_hyperparameters={},
+    skip_models = []                                    
+):
     '''
     Loops through all models that support interval prediction (specifically quantile prediction),
     trains the model on the given data, and returns the trained model objects.
@@ -35,13 +40,14 @@ def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperpar
                     ...
                 ]
             }
+        skip_models (list): a list of model names you want to skip training
 
     Returns:
         models (dict): A dictionary of trained model objects. The keys will be the model names, 
             and the values will be a list of trained model objects corresponding to the different hyperparameter sets.
     '''
     # TODO: skip model / add defaults if required hyperparameters exist
-    
+
     # loads models that support interval prediction
     all_models = all_estimators(
         "forecaster", filter_tags={"capability:pred_int": True}, as_dataframe=True
@@ -50,6 +56,9 @@ def quantile_forecast_model_loop(y_train, quantiles=[0.05, 0.95], model_hyperpar
     models = {}
     # loop through each row, and import from all_models["Object"]
     for index, row in all_models.iterrows():
+        if (row["name"] in skip_models):
+            print("Skipping model " + row["name"])
+            continue 
         print("Training model "+row["name"]+"...")
         model_name = row["name"]
         cls = row["object"]
