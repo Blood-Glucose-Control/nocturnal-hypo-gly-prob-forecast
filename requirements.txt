@@ -12,9 +12,10 @@ notebook
 numba
 
 # Data Science & ML
+kaggle
 numpy
 pandas
-kaggle
+
 # Development tools
 pre-commit
 pydantic
