@@ -30,8 +30,8 @@ class ModelLogger:
         X_train: pd.DataFrame,
         model_save_path: str,
         params: Optional[dict] = None,
-        metrics: Optional[dict] = None
-        ) -> None:
+        metrics: Optional[dict] = None,
+    ) -> None:
         """
         Logs hyperparameters, metrics, and artifacts along with the model to MLflow.
 
@@ -44,8 +44,10 @@ class ModelLogger:
         Returns:
             None
         """
-        input_example = X_train[:2] # Used 2 arbitrarily here
-        predictions = model.predict(input_example)  # Replace with specific model prediction logic (e.g., predict_var)
+        input_example = X_train[:2]  # Used 2 arbitrarily here
+        predictions = model.predict(
+            input_example
+        )  # Replace with specific model prediction logic (e.g., predict_var)
         signature = infer_signature(input_example, predictions)
 
         with mlflow.start_run():
@@ -70,7 +72,11 @@ class ModelLogger:
             print("Experiment and model logged successfully!")
 
     def deploy_model(
-        self, X_test: pd.DataFrame, run_id: str, deployment_type: str = "local", port: int = 5000
+        self,
+        X_test: pd.DataFrame,
+        run_id: str,
+        deployment_type: str = "local",
+        port: int = 5000,
     ) -> None:
         """
         Deploys the logged model for inference. Supports local or REST API deployment.
@@ -95,27 +101,29 @@ class ModelLogger:
             # Serve the model as a REST API
             import subprocess
 
-            subprocess.run(["mlflow", "models", "serve", "-m", model_uri, "-p", str(port)])
+            subprocess.run(
+                ["mlflow", "models", "serve", "-m", model_uri, "-p", str(port)]
+            )
             print(f"Model served at http://localhost:{port}")
 
         else:
             raise ValueError("Invalid deployment type. Choose 'local' or 'rest'.")
 
 
-
 if __name__ == "__main__":
-
     RANDOM_SEED = 101
     test_size = 0.3
-    data_path = './data/example.csv'
-    model_save_path = './src/models/example.pkl'
+    data_path = "./data/example.csv"
+    model_save_path = "./src/models/example.pkl"
     fh = np.arange(1, 6)
 
     # Step 1: Train
     data_handler = DataHandler(test_size=test_size, random_seed=RANDOM_SEED)
     data = data_handler.load_data(data_path)
     cleaned_data = data_handler.clean_data(data)
-    X_train, X_test, y_train, y_test = data_handler.split_data(cleaned_data, target_column="target")
+    X_train, X_test, y_train, y_test = data_handler.split_data(
+        cleaned_data, target_column="target"
+    )
 
     forecaster = NaiveForecaster(strategy="last")
     handler = ModelHandler(forecaster)

@@ -1,6 +1,7 @@
 import mlflow
 import pandas as pd
 
+
 class ExperimentAnalyzer:
     """
     A class to handle analysis of MLflow experiments, including finding best models,
@@ -19,7 +20,9 @@ class ExperimentAnalyzer:
             raise ValueError(f"Experiment '{experiment_name}' does not exist.")
         self.experiment_id = self.experiment.experiment_id
 
-    def find_best_models(self, metric_name: str = "MAE", threshold: float = 0.1) -> pd.DataFrame:
+    def find_best_models(
+        self, metric_name: str = "MAE", threshold: float = 0.1
+    ) -> pd.DataFrame:
         """
         Find the best-performing models based on a metric threshold.
 
@@ -33,7 +36,7 @@ class ExperimentAnalyzer:
         runs = mlflow.search_runs(
             experiment_ids=[self.experiment_id],
             filter_string=f"metrics.{metric_name} < {threshold}",
-            order_by=[f"metrics.{metric_name} ASC"]
+            order_by=[f"metrics.{metric_name} ASC"],
         )
         print(f"Found {len(runs)} runs with {metric_name} < {threshold}.")
         return runs
@@ -73,7 +76,7 @@ class ExperimentAnalyzer:
         best_models: pd.DataFrame,
         hyperparameter_comparison: pd.DataFrame,
         change_point_eval: pd.DataFrame,
-        output_file: str = "experiment_analysis.xlsx"
+        output_file: str = "experiment_analysis.xlsx",
     ) -> None:
         """
         Generate a summary report from the queried data.
@@ -89,15 +92,18 @@ class ExperimentAnalyzer:
         """
         with pd.ExcelWriter(output_file) as writer:
             best_models.to_excel(writer, sheet_name="Best Models", index=False)
-            hyperparameter_comparison.to_excel(writer, sheet_name="Hyperparameter Comparison", index=False)
-            change_point_eval.to_excel(writer, sheet_name="Change Point Evaluation", index=False)
+            hyperparameter_comparison.to_excel(
+                writer, sheet_name="Hyperparameter Comparison", index=False
+            )
+            change_point_eval.to_excel(
+                writer, sheet_name="Change Point Evaluation", index=False
+            )
 
         print(f"Report generated and saved to {output_file}.")
 
 
 # Example Usage
 if __name__ == "__main__":
-
     experiment_name = "My Experiment"
 
     analyzer = ExperimentAnalyzer(experiment_name=experiment_name)
@@ -113,5 +119,8 @@ if __name__ == "__main__":
 
     # Generate report
     analyzer.generate_report(
-        best_models, hyperparameter_comparison, change_point_eval, output_file="experiment_analysis.xlsx"
+        best_models,
+        hyperparameter_comparison,
+        change_point_eval,
+        output_file="experiment_analysis.xlsx",
     )
