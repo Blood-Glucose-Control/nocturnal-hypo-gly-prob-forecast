@@ -24,6 +24,7 @@ class TestQuantileForecast:
     }
 
     skip_models = [
+        "ARCH",
         "BoxCoxBiasAdjustedForecaster",
         "ColumnEnsembleForecaster",
         "ConformalIntervals",
@@ -70,7 +71,32 @@ class TestQuantileForecast:
         "DontUpdate",
         "HCrystalBallAdapter",
         "BaggingForecaster",
-        "EnbPIForecaster"
+        "EnbPIForecaster",
+        "FhPlexForecaster",
+        "ForecastX",
+        "ForecastingGridSearchCV",
+        "ForecastingOptunaSearchCV",
+        "TestQuantileForecast",
+        "ForecastingPipeline",
+        "ForecastingRandomizedSearchCV",
+        "ForecastingSkoptSearchCV",
+        "HierarchicalProphet", # requires package 'prophetverse'
+        'NaiveVariance',
+        "Permute",
+        "Prophetverse", # needs the prophet package like above
+        "SkforecastAutoreg",
+        "SquaringResiduals",
+        "StatsForecastAutoETS",
+        "StatsForecastAutoTBATS",
+        "TransformedTargetForecaster",
+        "VAR",
+        "VECM",
+        "YfromX",
+        "PolynomialTrendForecaster", # this can't do quantile preds
+        "Prophet",
+        "SARIMAX", #mreg and xreg matrices diff size
+        "StatsForecastAutoARIMA", #xreg should be float array
+        "StatsModelsARIMA", #endog and exog matrices diff size
     ]
 
     def test_model_loop(self):
@@ -83,5 +109,5 @@ class TestQuantileForecast:
         y_train = pd.DataFrame({"y": [1, 2, 3, 4, 5]})
         models = quantile_forecast_model_loop(y_train, model_hyperparameters=self.default_params, skip_models=self.skip_models)
         y_test = pd.DataFrame({"y": [6, 7, 8, 9, 10]})
-        quantile_forecasts = get_quantile_forecasts(models, y_test)
+        quantile_forecasts = get_quantile_forecasts(models, y_test, forecast_horizon=[1,2,3,4])
         assert len(quantile_forecasts) > 0

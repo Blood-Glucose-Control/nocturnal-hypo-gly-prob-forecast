@@ -12,6 +12,7 @@ def quantile_forecast_model_loop(
     y_train,
     quantiles=[0.05, 0.95], 
     model_hyperparameters={},
+    fit_hyperparameters={},
     skip_models = []                                    
 ):
     '''
@@ -40,6 +41,7 @@ def quantile_forecast_model_loop(
                     ...
                 ]
             }
+        fit_hyperparameters: a dictionary from model name to hyperparameters used while calling fit()
         skip_models (list): a list of model names you want to skip training
 
     Returns:
@@ -68,15 +70,18 @@ def quantile_forecast_model_loop(
         
         # loop over each parameter set and train a separate model
         model_instances = []
+        fit_hypers = fit_hyperparameters.get(model_name, {})
         for param_set in param_sets:
             print("Training on hyperparameters: ", param_set)
             instance = cls(**param_set)
-            instance.fit(y_train)
+            instance.fit(y_train, **fit_hypers)
             model_instances.append(instance)
 
         # store the list of trained models
         models[model_name] = model_instances
     
+    print("TOTAL MODELS")
+    print(len(models))
     return models
 
 
@@ -86,22 +91,27 @@ def get_quantile_forecasts(models, y_test, forecast_horizon=None, quantiles=[0.0
 
     Args:
         models (dict): A dictionary of trained model objects. The keys will be the model names, 
-            and the values will be the trained model objects.
+            and the values will be the list of trained model objects (list because you may have used different hyperparameters!).
         y_test (pd.DataFrame): The features to predict on.
         forecast_horizon (list[int]): The forecast horizon for each model. If None, the forecast horizon will be the same as the training data.
         quantiles (list): The quantiles to predict (eg: [0.05, 0.95] predicts for the quantiles 0.05 and 0.95).
 
     Returns:
         quantile_forecasts (dict): A dictionary of quantile forecasts. The keys will be the model names, 
-            and the values will be the quantile forecasts for each model.
+            and the values will be a list of the quantile forecasts for each model.
     '''
     quantile_forecasts = {}
-    for model_name, model in models.items():
-        predictions = model.predict_quantiles(X=y_test, alpha=quantiles, fh=forecast_horizon)
-        # Ensure predictions are handled correctly (e.g., as a DataFrame or array)
-        quantile_forecasts[model_name] = pd.DataFrame(
-                predictions, 
-                columns=[f"quantile_{q}" for q in quantiles]
+    for model_name, models in models.items():
+        print("Forecasting for model ", model_name)
+        quantile_forecasts[model_name] = []
+        for model in models:
+            predictions = model.predict_quantiles(X=y_test, alpha=quantiles, fh=forecast_horizon)
+            # Ensure predictions are handled correctly (e.g., as a DataFrame or array)
+            quantile_forecasts[model_name].append(
+                pd.DataFrame(
+                    predictions, 
+                    columns=[f"quantile_{q}" for q in quantiles]
+                )
             )
     
     return quantile_forecasts
