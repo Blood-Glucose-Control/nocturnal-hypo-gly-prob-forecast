@@ -1,7 +1,12 @@
 import pandas as pd
 import os
 
-def load_data(data_source_name: str = 'kaggle_brisT1D', dataset_type: str = 'train', keep_columns: list = None) -> pd.DataFrame:
+
+def load_data(
+    data_source_name: str = "kaggle_brisT1D",
+    dataset_type: str = "train",
+    keep_columns: list = None,
+) -> pd.DataFrame:
     """
     Load data from a specified dataset and type, optionally selecting specific columns.
 
@@ -17,8 +22,8 @@ def load_data(data_source_name: str = 'kaggle_brisT1D', dataset_type: str = 'tra
     ValueError: If the specified file does not exist.
     """
     local_path = os.path.dirname(__file__)
-    if data_source_name == 'kaggle_brisT1D':
-        file_path = os.path.join(local_path, f'kaggle_brisT1D/{dataset_type}.csv')
+    if data_source_name == "kaggle_brisT1D":
+        file_path = os.path.join(local_path, f"kaggle_brisT1D/{dataset_type}.csv")
 
     if not os.path.exists(file_path):
         raise ValueError("Invalid dataset_name or dataset_type")
