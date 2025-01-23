@@ -3,6 +3,9 @@ ipython
 
 # Jupyter environment
 jupyterlab
+
+# Data Science & ML
+kaggle
 loguru
 
 # Visualization
@@ -10,10 +13,9 @@ matplotlib
 mkdocs
 notebook
 numba
-
-# Data Science & ML
 numpy
 pandas
+
 # Development tools
 pre-commit
 pydantic
