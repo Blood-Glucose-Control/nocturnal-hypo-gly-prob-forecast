@@ -1,21 +1,18 @@
 from sktime.registry import all_estimators
-import importlib
-from sktime.registry import all_estimators
-import importlib
 import pandas as pd
 import yaml
 from sktime.datasets import load_airline
 from sktime.forecasting.model_selection import temporal_train_test_split
-from itertools import product
+
 
 def quantile_forecast_model_loop(
     y_train,
-    quantiles=[0.05, 0.95], 
+    quantiles=[0.05, 0.95],
     model_hyperparameters={},
     fit_hyperparameters={},
-    skip_models = []                                    
+    skip_models=[],
 ):
-    '''
+    """
     Loops through all models that support interval prediction (specifically quantile prediction),
     trains the model on the given data, and returns the trained model objects.
 
@@ -45,9 +42,9 @@ def quantile_forecast_model_loop(
         skip_models (list): a list of model names you want to skip training
 
     Returns:
-        models (dict): A dictionary of trained model objects. The keys will be the model names, 
+        models (dict): A dictionary of trained model objects. The keys will be the model names,
             and the values will be a list of trained model objects corresponding to the different hyperparameter sets.
-    '''
+    """
     # TODO: skip model / add defaults if required hyperparameters exist
 
     # loads models that support interval prediction
@@ -58,16 +55,18 @@ def quantile_forecast_model_loop(
     models = {}
     # loop through each row, and import from all_models["Object"]
     for index, row in all_models.iterrows():
-        if (row["name"] in skip_models):
+        if row["name"] in skip_models:
             print("Skipping model " + row["name"])
-            continue 
-        print("Training model "+row["name"]+"...")
+            continue
+        print("Training model " + row["name"] + "...")
         model_name = row["name"]
         cls = row["object"]
 
         # get the list of hyperparameter sets for this model, if available
-        param_sets = model_hyperparameters.get(model_name, [{}])  # default to [{}] if no hyperparameters are provided
-        
+        param_sets = model_hyperparameters.get(
+            model_name, [{}]
+        )  # default to [{}] if no hyperparameters are provided
+
         # loop over each parameter set and train a separate model
         model_instances = []
         fit_hypers = fit_hyperparameters.get(model_name, {})
@@ -79,42 +78,44 @@ def quantile_forecast_model_loop(
 
         # store the list of trained models
         models[model_name] = model_instances
-    
+
     print("TOTAL MODELS")
     print(len(models))
     return models
 
 
-def get_quantile_forecasts(models, y_test, forecast_horizon=None, quantiles=[0.05, 0.95]):
-    '''
+def get_quantile_forecasts(
+    models, y_test, forecast_horizon=None, quantiles=[0.05, 0.95]
+):
+    """
     Loops through the trained models, and returns the quantile forecasts for each model.
 
     Args:
-        models (dict): A dictionary of trained model objects. The keys will be the model names, 
+        models (dict): A dictionary of trained model objects. The keys will be the model names,
             and the values will be the list of trained model objects (list because you may have used different hyperparameters!).
         y_test (pd.DataFrame): The features to predict on.
         forecast_horizon (list[int]): The forecast horizon for each model. If None, the forecast horizon will be the same as the training data.
         quantiles (list): The quantiles to predict (eg: [0.05, 0.95] predicts for the quantiles 0.05 and 0.95).
 
     Returns:
-        quantile_forecasts (dict): A dictionary of quantile forecasts. The keys will be the model names, 
+        quantile_forecasts (dict): A dictionary of quantile forecasts. The keys will be the model names,
             and the values will be a list of the quantile forecasts for each model.
-    '''
+    """
     quantile_forecasts = {}
     for model_name, models in models.items():
         print("Forecasting for model ", model_name)
         quantile_forecasts[model_name] = []
         for model in models:
-            predictions = model.predict_quantiles(X=y_test, alpha=quantiles, fh=forecast_horizon)
+            predictions = model.predict_quantiles(
+                X=y_test, alpha=quantiles, fh=forecast_horizon
+            )
             # Ensure predictions are handled correctly (e.g., as a DataFrame or array)
             quantile_forecasts[model_name].append(
-                pd.DataFrame(
-                    predictions, 
-                    columns=[f"quantile_{q}" for q in quantiles]
-                )
+                pd.DataFrame(predictions, columns=[f"quantile_{q}" for q in quantiles])
             )
-    
+
     return quantile_forecasts
+
 
 if __name__ == "__main__":
     # load hyperparameters from YAML file
@@ -129,7 +130,9 @@ if __name__ == "__main__":
     y_train, y_test = temporal_train_test_split(sample_y, test_size=36)
 
     # train models
-    models = quantile_forecast_model_loop(y_train, model_hyperparameters=model_hyperparameters)
+    models = quantile_forecast_model_loop(
+        y_train, model_hyperparameters=model_hyperparameters
+    )
     # get quantile forecasts
     quantile_forecasts = get_quantile_forecasts(models, y_test)
     # TODO: plot forecasts and store in "results" folder
