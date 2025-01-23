@@ -73,9 +73,13 @@ def quantile_forecast_model_loop(
         fit_hypers = fit_hyperparameters.get(model_name, {})
         for param_set in param_sets:
             print("Training on hyperparameters: ", param_set)
-            instance = cls(**param_set)
-            instance.fit(y_train, **fit_hypers)
-            model_instances.append(instance)
+            try:
+                instance = cls(**param_set)
+                instance.fit(y_train, **fit_hypers)
+                model_instances.append(instance)
+            except Exception as e:
+                print(f"Error with model {model_name}: {e}")
+                continue
 
         # store the list of trained models
         models[model_name] = model_instances
