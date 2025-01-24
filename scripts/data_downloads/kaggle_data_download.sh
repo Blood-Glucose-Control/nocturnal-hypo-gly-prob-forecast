@@ -1,7 +1,5 @@
 #!/bin/bash
 
-
-
 # Define the target directory
 TARGET_DIR="src/data/kaggle_brisT1D"
 
