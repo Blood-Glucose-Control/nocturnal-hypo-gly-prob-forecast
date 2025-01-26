@@ -9,4 +9,3 @@ model_hyperparameters:
     - trend: "add"
       seasonal: "add"
       sp: 4
-
