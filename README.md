@@ -1,3 +1,5 @@
+![Nocturnal Forecasting Logo](images/Wat.AI_Card_-_Nocturnal_Forecasting.png)
+
 # Probabilistic Forecasting of Nocturnal Hypoglycemia
 
 Fear of nocturnal hypoglycemic events continues to be one of the most significant contributors to diabetes distress.

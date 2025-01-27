@@ -22,6 +22,7 @@ def load_data(
     ValueError: If the specified file does not exist.
     """
     local_path = os.path.dirname(__file__)
+    file_path = ""
     if data_source_name == "kaggle_brisT1D":
         file_path = os.path.join(local_path, f"kaggle_brisT1D/{dataset_type}.csv")
 
