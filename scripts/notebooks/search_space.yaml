@@ -1,0 +1,38 @@
+models:
+  AutoETS:
+    auto: 
+      type: categorical
+      values: [true, false]
+    sp: 
+      type: int
+      low: 1
+      high: 12
+
+  NaiveForecaster:
+    strategy: 
+      type: categorical
+      values: ["last", "mean", "drift"]
+    sp: 
+      type: int
+      low: 1
+      high: 12
+
+  SARIMAX:
+    order_p: 
+      type: int
+      low: 0
+      high: 3
+    order_d: 
+      type: int
+      low: 0
+      high: 2
+    order_q: 
+      type: int
+      low: 0
+      high: 3
+
+  ThetaForecaster:
+    sp: 
+      type: int
+      low: 1
+      high: 12

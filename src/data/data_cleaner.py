@@ -1,5 +1,5 @@
 import pandas as pd
-
+from sktime.split import temporal_train_test_split
 
 # Simulate insulin on board
 # Convert each row to a single df
@@ -36,9 +36,28 @@ def _clean_bris_data(data: pd.DataFrame):
     Mutations:
         Modifies the data in place
     '''
-    # get columns with bg- or activity-
-    columns_to_drop = [col for col in data.columns if (('activity' in col or 'bg' in col or 'cals' in col or 'insulin' in col) and '-' in col and not col.endswith('-0:00'))]
+    prefixes_to_check = ['activity', 'bg', 'cals', 'insulin', 'steps', 'carbs', 'hr']
+
+    # Create the list of columns to drop
+    columns_to_drop = [
+        col for col in data.columns
+        if any(prefix in col for prefix in prefixes_to_check) and '-' in col and not col.endswith('-0:00')
+    ]
     data.drop(columns=columns_to_drop, inplace=True)
+
+def perform_train_test_split(df: pd.DataFrame, target_col = 'bg-0:00', test_size=0.2):
+    '''
+    Splits the data into training and testing sets
+    Args:
+        df: the dataframe to split
+        target_col: the column that you are trying to predict (i.e the "y" column)
+        test_size: the size of the test data (0.0 - 1.0)
+    Returns:
+        y_train, y_test, X_train, X_test
+    '''
+    y = df[target_col]
+    x = df.drop(columns=[target_col])
+    return temporal_train_test_split(y, x, test_size=test_size)
 
 def melt_data(data: pd.DataFrame, id_vars: list, value_vars: list) -> pd.DataFrame:
     """
