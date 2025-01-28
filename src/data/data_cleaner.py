@@ -1,6 +1,6 @@
 import pandas as pd
 from sktime.split import temporal_train_test_split
-
+from sktime.transformations.series.impute import Imputer
 # Simulate insulin on board
 # Convert each row to a single df
 def clean_data(
@@ -23,9 +23,10 @@ def clean_data(
     if (data_source_name == "kaggle_brisT1D"):
         # modifies in place
         _clean_bris_data(data)
-        return
+    
+    data = handle_missing_values(data)
 
-    pass
+    return data
 
 def _clean_bris_data(data: pd.DataFrame):
     '''
@@ -44,6 +45,26 @@ def _clean_bris_data(data: pd.DataFrame):
         if any(prefix in col for prefix in prefixes_to_check) and '-' in col and not col.endswith('-0:00')
     ]
     data.drop(columns=columns_to_drop, inplace=True)
+
+def handle_missing_values(data: pd.DataFrame, strategy="mean") -> pd.DataFrame:
+    """
+    Handles missing values in the DataFrame using sktime's Imputer.
+
+    Args:
+        data: Input DataFrame with possible missing values.
+        strategy: Imputation strategy ('mean', 'median', 'constant', etc.).
+    Returns:
+        DataFrame with missing values handled.
+    """
+    # Create an Imputer instance
+    imputer = Imputer(method=strategy)
+
+    # Apply the imputer to all columns
+    for col in data.columns:
+        if pd.api.types.is_numeric_dtype(data[col]):
+            data[col] = imputer.fit_transform(data[col])
+
+    return data
 
 def perform_train_test_split(df: pd.DataFrame, target_col = 'bg-0:00', test_size=0.2):
     '''
