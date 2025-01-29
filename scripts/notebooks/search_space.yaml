@@ -3,46 +3,19 @@ models:
     auto:
       type: categorical
       values: [true, false]
-    sp: 
-      type: int
-      low: 1
-      high: 12
-    bounds:
-      smoothing_level: 
-        type: float
-        low: 0.01
-        high: 0.5
-      smoothing_trend: 
-        type: float
-        low: 0.01
-        high: 0.5
-      smoothing_seasonal: 
-        type: float
-        low: 0.01
-        high: 0.5
-      damping_trend: 
-        type: float
-        low: 0.8
-        high: 1.0
-      initial_level: 
-        type: int
-        low: 50
-        high: 200
-      initial_trend: 
-        type: int
-        low: -10
-        high: 10
-      initial_seasonal_0: 
-        type: int
-        low: 0
-        high: 20
-      initial_seasonal_1: 
-        type: int
-        low: 0
-        high: 20
+    sp: 7
     seasonal: 
       type: categorical
       values: ["add", "mul", "none"]
+
+  ColumnEnsembleForecaster:
+    forecasters:
+      type: list
+      values:
+        - ["naive", NaiveForecaster, 0]
+    naive__strategy:
+      type: categorical
+      values: ["last"] # add more values as needed
 
   NaiveForecaster:
     strategy:

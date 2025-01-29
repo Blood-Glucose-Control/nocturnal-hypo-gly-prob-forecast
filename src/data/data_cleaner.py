@@ -32,6 +32,7 @@ def _clean_bris_data(data: pd.DataFrame):
     '''
     Cleans the bris1TD Kaggle data with the following transformations:
         1. Deletes columns of historic data (eg: bg-5:55, ..., activity-5:55, ...) --> but does not remove -0:00 timestamp
+        2. Deletes activity-0:00
     Args:
         data: the df for the Bris1TD dataset
     Mutations:
@@ -44,6 +45,7 @@ def _clean_bris_data(data: pd.DataFrame):
         col for col in data.columns
         if any(prefix in col for prefix in prefixes_to_check) and '-' in col and not col.endswith('-0:00')
     ]
+    columns_to_drop.append('activity-0:00')
     data.drop(columns=columns_to_drop, inplace=True)
 
 def handle_missing_values(data: pd.DataFrame, strategy="mean") -> pd.DataFrame:
