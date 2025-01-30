@@ -17,6 +17,7 @@ numpy
 pandas
 
 # Development tools
+optuna
 pre-commit
 pydantic
 pytest
