@@ -4,7 +4,7 @@ models:
       type: categorical
       values: [true, false]
     sp: 7
-    seasonal: 
+    seasonal:
       type: categorical
       values: ["add", "mul", "none"]
 
