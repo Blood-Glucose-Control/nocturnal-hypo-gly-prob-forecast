@@ -1,0 +1,56 @@
+models:
+  AutoETS:
+    auto:
+      type: categorical
+      values: [true, false]
+    sp: 7
+    seasonal: 
+      type: categorical
+      values: ["add", "mul", "none"]
+
+  ColumnEnsembleForecaster:
+    forecasters:
+      type: list
+      values:
+        - ["naive", NaiveForecaster, 0]
+    naive__strategy:
+      type: categorical
+      values: ["last"] # add more values as needed
+
+  DirRecTabularRegressionForecaster:
+    window_length: 10
+    fh:
+      type: optuna_param
+      value: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    estimator__param:
+      type: sk_model_param
+      model_name: DecisionTreeRegressor
+      hyperparams:
+    estimator:
+      type: sk_categorical
+      values:
+        RandomForestRegressor:
+          n_estimators: 100
+          max_depth: 10
+        ARDRegression:
+
+
+  SARIMAX:
+    order_p:
+      type: int
+      low: 0
+      high: 1
+    order_d:
+      type: int
+      low: 0
+      high: 2
+    order_q:
+      type: int
+      low: 0
+      high: 2
+
+  ThetaForecaster:
+    sp:
+      type: int
+      low: 1
+      high: 2
