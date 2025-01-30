@@ -82,7 +82,7 @@ def perform_train_test_split(df: pd.DataFrame, target_col = 'bg-0:00', test_size
     x = df.drop(columns=[target_col])
     return temporal_train_test_split(y, x, test_size=test_size)
 
-def melt_data(data: pd.DataFrame, id_vars: list, value_vars: list) -> pd.DataFrame:
+def melt_data(df: pd.DataFrame, id_vars: list, value_vars: list) -> pd.DataFrame:
     """
     Transforms column data into row data using pandas melt.
 
