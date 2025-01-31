@@ -18,4 +18,3 @@ We will contrast our forecasts over various categories, including age groups, ge
 ## Project Setup
 
 For instructions on getting started with our project and the commmit/PR procedure please see our wiki article: [Getting Started Developing with this Repo](https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast/wiki/Get-Started-Developing-with-this-Repo)
-
