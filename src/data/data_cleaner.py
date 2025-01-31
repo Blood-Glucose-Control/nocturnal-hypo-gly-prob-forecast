@@ -19,14 +19,13 @@ def clean_data(data: pd.DataFrame, data_source_name="kaggle_brisT1D") -> pd.Data
     if data_source_name == "kaggle_brisT1D":
         _clean_bris_data(data) # modifies in place
 
-    return handle_missing_values(data)
+    return data
 
 
 def _clean_bris_data(data: pd.DataFrame):
     """
     Cleans the bris1TD Kaggle data with the following transformations:
         1. Deletes columns of historic data (eg: bg-5:55, ..., activity-5:55, ...) --> but does not remove -0:00 timestamp
-        2. Deletes activity-0:00
     Args:
         data: the df for the Bris1TD dataset
     Mutations:
@@ -37,18 +36,18 @@ def _clean_bris_data(data: pd.DataFrame):
     # Create the list of columns to drop
     # Identify columns to drop based on the following conditions:
     # - The column name contains any of the specified prefixes.
-    # - The column name includes a "-" character.
     # - The column name does not end with "-0:00".
     columns_to_drop = [
         col
         for col in data.columns
         if any(prefix in col for prefix in prefixes_to_check)
-        and "-" in col
         and not col.endswith("-0:00")
     ]
     data.drop(columns=columns_to_drop, inplace=True)
 
-
+# this is not an appropriate helper fuction for this module, one it should be
+# put into a sktime pipeline, but also this is being applied to 
+# sparse data. This does not make sense.
 def handle_missing_values(data: pd.DataFrame, strategy="mean") -> pd.DataFrame:
     """
     Handles missing values in the DataFrame using sktime's Imputer.
@@ -69,8 +68,31 @@ def handle_missing_values(data: pd.DataFrame, strategy="mean") -> pd.DataFrame:
 
     return data
 
+## AI GENERATED NOT TESTED 
+def downsample_missing_values(data: pd.DataFrame, freq="5T") -> pd.DataFrame:
+    """
+    Downsamples the data to the specified frequency and fills missing values.
 
-def perform_train_test_split(df: pd.DataFrame, target_col="bg+1:00", test_size=0.2):
+    Args:
+        data: Input DataFrame.
+        freq: Frequency string ('5T', '10T', etc.).
+    Returns:
+        DataFrame with missing values handled.
+    """
+    # Convert the index to datetime
+    data.index = pd.to_datetime(data.index)
+
+    # Downsample the data
+    data = data.resample(freq).mean()
+
+    # Fill missing values with the mean
+    data = data.fillna(data.mean())
+
+    return data 
+
+
+# This will be deleted, not necesary, and hides import function.
+def perform_train_test_split(df: pd.DataFrame, target_col="bg-0:00", test_size=0.2):
     """
     Splits the data into training and testing sets
     Args:
