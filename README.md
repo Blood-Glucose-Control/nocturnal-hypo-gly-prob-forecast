@@ -17,21 +17,5 @@ We will contrast our forecasts over various categories, including age groups, ge
 
 ## Project Setup
 
-### Create virtual environment </br>
-`python -m venv venv`
+For instructions on getting started with our project and the commmit/PR procedure please see our wiki article: [Getting Started Developing with this Repo](https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast/wiki/Get-Started-Developing-with-this-Repo)
 
-### Activate virtual environment </br>
-On Windows: </br>
-`venv\Scripts\activate`
-
-On Unix/MacOS: </br>
-`source venv/bin/activate`
-
-### Install dependencies </br>
-`pip install -r requirements.txt`
-
-## Run pre-commit
-`pre-commit run --all-files`
-
-### Testing
-`pytest -v`
