@@ -3,29 +3,23 @@ from sktime.split import temporal_train_test_split
 from sktime.transformations.series.impute import Imputer
 
 
-# Simulate insulin on board
-# Convert each row to a single df
+# TODO: Simulate insulin on board
 def clean_data(data: pd.DataFrame, data_source_name="kaggle_brisT1D") -> pd.DataFrame:
-    # keep_columns = [
-    #     "id",
-    #     "p_num",
-    #     "time",
-    #     "bg",
-    #     "insulin",
-    #     "carbs",
-    #     "hr",
-    #     "steps",
-    #     "cals",
-    #     "activity",
-    # ]
+    '''    
+    Cleans the input data based on the specified data source name.
+
+    Args:
+        data (pd.DataFrame): The input data to be cleaned.
+        data_source_name (str): The name of the data source. Default is "kaggle_brisT1D".
+
+    Returns:
+        pd.DataFrame: The cleaned data.
+    '''
 
     if data_source_name == "kaggle_brisT1D":
-        # modifies in place
-        _clean_bris_data(data)
+        _clean_bris_data(data) # modifies in place
 
-    data = handle_missing_values(data)
-
-    return data
+    return handle_missing_values(data)
 
 
 def _clean_bris_data(data: pd.DataFrame):
@@ -41,6 +35,10 @@ def _clean_bris_data(data: pd.DataFrame):
     prefixes_to_check = ["activity", "bg", "cals", "insulin", "steps", "carbs", "hr"]
 
     # Create the list of columns to drop
+    # Identify columns to drop based on the following conditions:
+    # - The column name contains any of the specified prefixes.
+    # - The column name includes a "-" character.
+    # - The column name does not end with "-0:00".
     columns_to_drop = [
         col
         for col in data.columns
@@ -48,7 +46,6 @@ def _clean_bris_data(data: pd.DataFrame):
         and "-" in col
         and not col.endswith("-0:00")
     ]
-    columns_to_drop.append("activity-0:00")
     data.drop(columns=columns_to_drop, inplace=True)
 
 
@@ -73,7 +70,7 @@ def handle_missing_values(data: pd.DataFrame, strategy="mean") -> pd.DataFrame:
     return data
 
 
-def perform_train_test_split(df: pd.DataFrame, target_col="bg-0:00", test_size=0.2):
+def perform_train_test_split(df: pd.DataFrame, target_col="bg+1:00", test_size=0.2):
     """
     Splits the data into training and testing sets
     Args:
