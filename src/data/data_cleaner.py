@@ -5,7 +5,7 @@ from sktime.transformations.series.impute import Imputer
 
 # TODO: Simulate insulin on board
 def clean_data(data: pd.DataFrame, data_source_name="kaggle_brisT1D") -> pd.DataFrame:
-    '''    
+    """
     Cleans the input data based on the specified data source name.
 
     Args:
@@ -14,10 +14,10 @@ def clean_data(data: pd.DataFrame, data_source_name="kaggle_brisT1D") -> pd.Data
 
     Returns:
         pd.DataFrame: The cleaned data.
-    '''
+    """
 
     if data_source_name == "kaggle_brisT1D":
-        _clean_bris_data(data) # modifies in place
+        _clean_bris_data(data)  # modifies in place
 
     return data
 
@@ -45,8 +45,9 @@ def _clean_bris_data(data: pd.DataFrame):
     ]
     data.drop(columns=columns_to_drop, inplace=True)
 
+
 # this is not an appropriate helper fuction for this module, one it should be
-# put into a sktime pipeline, but also this is being applied to 
+# put into a sktime pipeline, but also this is being applied to
 # sparse data. This does not make sense.
 def handle_missing_values(data: pd.DataFrame, strategy="mean") -> pd.DataFrame:
     """
@@ -68,7 +69,8 @@ def handle_missing_values(data: pd.DataFrame, strategy="mean") -> pd.DataFrame:
 
     return data
 
-## AI GENERATED NOT TESTED 
+
+## AI GENERATED NOT TESTED
 def downsample_missing_values(data: pd.DataFrame, freq="5T") -> pd.DataFrame:
     """
     Downsamples the data to the specified frequency and fills missing values.
@@ -88,7 +90,7 @@ def downsample_missing_values(data: pd.DataFrame, freq="5T") -> pd.DataFrame:
     # Fill missing values with the mean
     data = data.fillna(data.mean())
 
-    return data 
+    return data
 
 
 # This will be deleted, not necesary, and hides import function.
