@@ -45,7 +45,6 @@ def _clean_bris_data(data: pd.DataFrame):
         col
         for col in data.columns
         if any(prefix in col for prefix in prefixes_to_check)
-        and "-" in col
         and not col.endswith("-0:00")
     ]
     columns_to_drop.append("activity-0:00")
