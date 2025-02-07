@@ -39,7 +39,7 @@ def transform_rows_to_timeseries(df: pd.DataFrame, patient_id: str):
     """
 
     all_value_var_lists = create_time_variable_lists()
-    patient_dfs = []
+    patient_dfs = {}
     for _, row in df[df["p_num"] == patient_id].iterrows():
         row_df = pd.DataFrame([row])  # Convert single row to DataFrame
         df_list = []
@@ -75,7 +75,27 @@ def transform_rows_to_timeseries(df: pd.DataFrame, patient_id: str):
             ],
             axis=1,
         )
-        patient_dfs.append(new_df)
+
+        # Convert time to datetime
+        new_df["time"] = pd.to_datetime(new_df["time"])
+
+        # Extract hours and minutes separately
+        time_parts = new_df["bg-time"].str.extract(r"bg-(\d+):(\d+)")
+        # Calculate total hours as timedelta (hours + minutes/60)
+        total_hours = pd.to_timedelta(
+            time_parts[0].astype(float) + time_parts[1].astype(float) / 60, unit="h"
+        )
+
+        # Subtract offset from time and format to HH:MM:SS
+        new_df["time"] = (new_df["time"] - total_hours).dt.strftime("%H:%M:%S")
+
+        row_id = new_df["id"].iloc[0]
+        # Drop the bg-time column
+        new_df = new_df.drop("bg-time", axis=1)
+        new_df = new_df.drop("p_num", axis=1)
+        new_df = new_df.drop("id", axis=1)
+
+        patient_dfs[row_id] = new_df
 
     return patient_dfs
 
@@ -83,7 +103,10 @@ def transform_rows_to_timeseries(df: pd.DataFrame, patient_id: str):
 def main():
     df = load_data(dataset_type="test")
     dfs = transform_rows_to_timeseries(df, "p01")
-    print(dfs[0])
+
+    first_key = next(iter(dfs))
+    print(f"Key: {first_key}")
+    print(f"Value:\n{dfs[first_key]}")
 
 
 if __name__ == "__main__":
