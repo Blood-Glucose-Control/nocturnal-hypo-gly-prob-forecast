@@ -29,4 +29,4 @@ def load_data(
     if not os.path.exists(file_path):
         raise ValueError("Invalid dataset_name or dataset_type")
 
-    return pd.read_csv(file_path, usecols=keep_columns)
+    return pd.read_csv(file_path, usecols=keep_columns, low_memory=False)
