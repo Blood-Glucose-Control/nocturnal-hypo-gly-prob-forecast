@@ -81,10 +81,10 @@ def transform_rows_to_timeseries(df: pd.DataFrame, patient_id: str):
 
         # Extract hours and minutes separately
         time_parts = new_df["bg-time"].str.extract(r"bg-(\d+):(\d+)")
-        # Calculate total hours as timedelta (hours + minutes/60)
-        total_hours = pd.to_timedelta(
-            time_parts[0].astype(float) + time_parts[1].astype(float) / 60, unit="h"
-        )
+
+        hours = pd.to_timedelta(time_parts[0].astype(int), unit="h")
+        minutes = pd.to_timedelta(time_parts[1].astype(int), unit="m")
+        total_hours = hours + minutes
 
         # Subtract offset from time and format to HH:MM:SS
         new_df["time"] = (new_df["time"] - total_hours).dt.strftime("%H:%M:%S")
@@ -102,7 +102,7 @@ def transform_rows_to_timeseries(df: pd.DataFrame, patient_id: str):
 
 def main():
     df = load_data(dataset_type="test")
-    dfs = transform_rows_to_timeseries(df, "p01")
+    dfs = transform_rows_to_timeseries(df, "p02")
 
     first_key = next(iter(dfs))
     print(f"Key: {first_key}")
