@@ -11,12 +11,13 @@ loguru
 # Visualization
 matplotlib
 mkdocs
+
+# Development tools
+mlflow
 notebook
 numba
 numpy
 pandas
-
-# Development tools
 pre-commit
 pydantic
 pytest
