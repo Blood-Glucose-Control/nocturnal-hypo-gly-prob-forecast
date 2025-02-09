@@ -6,11 +6,35 @@ from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
 import pandas as pd
 from src.data.data_loader import load_data
 from src.data.data_cleaner import clean_data
+from src.data.data_transforms import (
+    create_cob_and_carb_availability_cols,
+    create_iob_and_ins_availability_cols,
+    create_time_diff_cols,
+)
+from src.data.carb_model.constants import (
+    COB_COL,
+    CARB_AVAIL_COL,
+)
+from src.data.insulin_model.constants import (
+    IOB_COL,
+    INSULIN_AVAIL_COL,
+)
 import time
 
+
 # TODO:
-# 1. Create a function that reads the ymal file
-# 2. Add other features
+# 1. Integrate the function that reads the ymal file and generates the param grid
+# 2. Create script to run the benchmark for WatGPU
+#    - Use CPUs
+#    - Figure out how to submit batch jobs (loops through models and param grids)
+# 3. Make sure Alyssa's code is working for one patient for 10 days
+# 4. Add docuemntation on how to get the data setup and cache
+# 5. Cache the patient data
+# 6. Add other features (all the columns)
+# 7. Normalize the input?
+# 8. Convert the activity columns to binary
+# 9. Interpolate the time jump
+# 10. Simple progress bar
 
 
 def parse_output(benchmark):
@@ -42,7 +66,17 @@ def load_diabetes_data(patient_id, df=None):
     patient_data["time"] = pd.to_datetime(patient_data["time"])
 
     y = patient_data["bg-0:00"]
-    X = patient_data[["insulin-0:00", "carbs-0:00", "hr-0:00"]]
+    X = patient_data[
+        [
+            "insulin-0:00",
+            "carbs-0:00",
+            "hr-0:00",
+            COB_COL,
+            IOB_COL,
+            CARB_AVAIL_COL,
+            INSULIN_AVAIL_COL,
+        ]
+    ]
 
     return y, X
 
@@ -50,6 +84,9 @@ def load_diabetes_data(patient_id, df=None):
 def get_dataset_loaders():
     # Create dataset loaders for each patient
     df = clean_data(load_data())
+    df = create_time_diff_cols(df)
+    df = create_cob_and_carb_availability_cols(df)
+    df = create_iob_and_ins_availability_cols(df)
     patient_ids = df["p_num"].unique()
 
     dataset_loaders = []
