@@ -197,3 +197,92 @@ PytorchForecastingDeepAR:
   random_log_path:
     type: bool
     values: [true, false]
+
+StatsForecastARCH:
+  p:
+    type: int
+    values: [1, 2, 3, 4, 5]  # p=1 is the default; consider increasing p if higher-order dependencies are expected.
+
+StatsForecastAutoTBATS:
+  seasonal_periods:
+    type: "int or list of int"
+    values: [12, 24, [12]]
+  use_boxcox:
+    type: "bool or None"
+    values: [null, true, false]
+  use_trend:
+    type: "bool or None"
+    values: [null, true, false]
+  use_damped_trend:
+    type: "bool or None"
+    values: [null, true, false]
+  use_arma_errors:
+    type: bool
+    values: [true, false]
+  bc_lower_bound:
+    type: float
+    values: [0.0, -0.5, -1.0]
+  bc_upper_bound:
+    type: float
+    values: [1.0, 1.5, 2.0]
+
+TBATS:
+  use_box_cox:
+    type: "bool or None"
+    values: [null, true, false]
+  box_cox_bounds:
+    type: tuple
+    values: [(0, 1), (0.5, 1.5)]
+  use_trend:
+    type: "bool or None"
+    values: [null, true, false]
+  use_damped_trend:
+    type: "bool or None"
+    values: [null, true, false]
+  sp:
+    type: "iterable or array-like of floats or int"
+    values: [null, 12, [12], [12, 24]]
+  use_arma_errors:
+    type: bool
+    values: [true, false]
+  show_warnings:
+    type: bool
+    values: [true, false]
+  n_jobs:
+    type: "int or None"
+    values: [null, 1, -1]
+  multiprocessing_start_method:
+    type: str
+    values: ["spawn", "fork", "forkserver"]
+  context:
+    type: "ContextInterface or None"
+    values: [null]
+
+VAR:
+  maxlags:
+    type: "int or None"
+    values: [null, 5, 10, 15]
+  method:
+    type: str
+    values: ["ols"]  # Default estimation method; adjust if additional methods become available.
+  verbose:
+    type: bool
+    values: [true, false]
+  trend:
+    type: str
+    values: ["c", "ct", "ctt", "n"]
+  missing:
+    type: str
+    values: ["none", "drop", "raise"]
+  freq:
+    type: "str, tuple, datetime.timedelta, DateOffset, or None"
+    values: [null, "D", "M", "H"]  # Examples: "D" for daily, "M" for monthly, "H" for hourly.
+  dates:
+    type: "array_like or None"
+    values: [null]  # Typically, dates are inferred from the index; specify if necessary.
+  ic:
+    type: "str or None"
+    values: [null, "aic", "fpe", "hqic", "bic"]
+  random_state:
+    type: "int, RandomState instance, or None"
+    values: [null, 0, 42]
