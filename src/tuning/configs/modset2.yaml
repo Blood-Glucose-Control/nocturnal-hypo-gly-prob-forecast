@@ -1,0 +1,199 @@
+AutoARIMA:
+  start_p:
+    type: int
+    values: [1, 2, 3, 4]  # Starting AR order; explore lower or higher depending on autocorrelation.
+  max_p:
+    type: int
+    values: [3, 5, 7]  # Maximum AR order; higher values allow for longer memory but increase complexity.
+  start_q:
+    type: int
+    values: [1, 2, 3]  # Starting MA order; adjust based on residual autocorrelation.
+  max_q:
+    type: int
+    values: [3, 5, 7]  # Maximum MA order.
+  d:
+    type: "int or None"
+    values: [0, 1, 2, null]  # Differencing order; use null (auto-detect) or set manually if stationarity is known.
+  max_d:
+    type: int
+    values: [1, 2, 3]  # Maximum non-seasonal differencing allowed.
+  start_P:
+    type: int
+    values: [0, 1, 2]  # Starting seasonal AR order.
+  max_P:
+    type: int
+    values: [1, 2, 3]  # Maximum seasonal AR order.
+  D:
+    type: "int or None"
+    values: [0, 1, null]  # Seasonal differencing order; null allows auto-selection.
+  max_D:
+    type: int
+    values: [0, 1, 2]  # Maximum seasonal differencing.
+  start_Q:
+    type: int
+    values: [0, 1, 2]  # Starting seasonal MA order.
+  max_Q:
+    type: int
+    values: [1, 2, 3]  # Maximum seasonal MA order.
+  sp:
+    type: int
+    values: [1, 4, 7, 12]  # Seasonal period; e.g., 12 for monthly data with yearly seasonality.
+  seasonal:
+    type: bool
+    values: [true, false]  # Whether to include a seasonal component.
+  max_order:
+    type: int
+    values: [3, 5, 7]  # Total order constraint (p+q+P+Q) to prevent overfitting.
+  information_criterion:
+    type: str
+    values: ["aic", "aicc", "bic", "hqic", "oob"]  # Criterion used to select the optimal model.
+  alpha:
+    type: float
+    values: [0.01, 0.05, 0.1]  # Significance level for stationarity tests.
+  test:
+    type: str
+    values: ["kpss", "adf", "pp"]  # Unit root tests for non-seasonal differencing.
+  seasonal_test:
+    type: str
+    values: ["ocsb"]  # Seasonal unit root test (default is "ocsb"); add alternatives if applicable.
+  stepwise:
+    type: bool
+    values: [true, false]  # Stepwise search (faster) versus full grid search.
+  n_jobs:
+    type: int
+    values: [1, -1]  # Number of parallel jobs; -1 to use all available cores.
+  random:
+    type: bool
+    values: [true, false]  # Toggle between exhaustive and random search.
+  random_state:
+    type: int
+    values: [0, 42, 100]  # For reproducibility in random search.
+  n_fits:
+    type: int
+    values: [10, 20, 50]  # Number of models to fit when using random search.
+  trend:
+    type: str
+    values: ["n", "c", "t", "ct"]  # Trend options: none, constant, trend, constant+trend.
+  method:
+    type: str
+    values: ["newton", "nm", "bfgs", "lbfgs", "powell", "cg", "ncg", "basinhopping"]  # Optimization solver options.
+  maxiter:
+    type: int
+    values: [50, 100, 200]  # Maximum iterations for the optimizer.
+  start_params:
+    type: list
+    values: [null]  # Initial parameters (usually left as default/null unless prior estimates are available).
+  suppress_warnings:
+    type: bool
+    values: [true, false]  # Whether to suppress model warnings.
+  error_action:
+    type: str
+    values: ["warn", "raise", "ignore"]  # How to handle errors during fitting.
+  trace:
+    type: bool
+    values: [true, false]  # Toggle detailed output during fitting.
+  out_of_sample_size:
+    type: int
+    values: [0, 5, 10]  # Number of hold-out observations for validation.
+  scoring:
+    type: str
+    values: ["mse", "mae"]  # Metric for out-of-sample scoring.
+  with_intercept:
+    type: bool
+    values: [true, false]  # Whether to include an intercept term.
+  update_pdq:
+    type: bool
+    values: [true, false]  # Whether to update ARIMA orders when new data are observed.
+  time_varying_regression:
+    type: bool
+    values: [true, false]  # Allow regression coefficients to vary over time.
+  enforce_stationarity:
+    type: bool
+    values: [true, false]  # Enforce stationarity in the AR parameters.
+  enforce_invertibility:
+    type: bool
+    values: [true, false]  # Enforce invertibility in the MA parameters.
+  simple_differencing:
+    type: bool
+    values: [true, false]  # Use simple (pre-)differencing for computational speed.
+  measurement_error:
+    type: bool
+    values: [true, false]  # Assume measurement error in the observed series.
+  mle_regression:
+    type: bool
+    values: [true, false]  # Whether to estimate regression coefficients via MLE.
+  hamilton_representation:
+    type: bool
+    values: [true, false]  # Choose between Hamilton and Harvey state-space representations.
+  concentrate_scale:
+    type: bool
+    values: [true, false]  # Concentrate the scale parameter out of the likelihood.
+
+BoxCoxBiasAdjustedForecaster:
+  lambda_fixed:
+    type: "float or None"
+    values: [null, -2.0, -1.0, 0.0, 1.0, 2.0]
+
+DartsXGBModel:
+  lags:
+    type: "int, list, or dict"
+    values: [null, 5, [-1, -2, -3], {"component": [-1, -2]}]
+  lags_past_covariates:
+    type: "int, list, or dict"
+    values: [null, 3, [-1, -2, -3], {"cov1": [-1, -2]}]
+  lags_future_covariates:
+    type: "tuple, list, or dict"
+    values: [null, [3, 3], [-1, 0, 1], {"cov1": [-1, 0, 1]}]
+  output_chunk_length:
+    type: int
+    values: [1, 3, 5]
+  add_encoders:
+    type: dict
+    values: [null, {"cyclic": {"future": ["month"]}}, {"datetime_attribute": {"future": ["hour", "dayofweek"]}}]
+  likelihood:
+    type: str
+    values: [null, "poisson", "quantile"]
+  quantiles:
+    type: list
+    values: [null, [0.1, 0.5, 0.9]]
+  random_state:
+    type: int
+    values: [null, 0, 42]
+  multi_models:
+    type: bool
+    values: [true, false]
+  use_static_covariates:
+    type: bool
+    values: [true, false]
+  past_covariates:
+    type: list
+    values: [null, ["cov1", "cov2"]]
+  num_samples:
+    type: int
+    values: [500, 1000, 2000]
+  kwargs:
+    type: dict
+    values: [null, {"max_depth": 3, "learning_rate": 0.1}, {"max_depth": 5, "learning_rate": 0.05}]
+
+PytorchForecastingDeepAR:
+  model_params:
+    type: dict
+    values: [null, {"cell_type": "GRU", "rnn_layers": 3}]
+  dataset_params:
+    type: dict
+    values: [null, {"batch_size": 64, "num_workers": 4}]
+  train_to_dataloader_params:
+    type: dict
+    values: [null, {"train": True}]
+  validation_to_dataloader_params:
+    type: dict
+    values: [null, {"train": False}]
+  model_path:
+    type: str
+    values: [null, "/path/to/model"]
+  deterministic:
+    type: bool
+    values: [true, false]
+  random_log_path:
+    type: bool
+    values: [true, false]
