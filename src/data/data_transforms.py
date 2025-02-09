@@ -10,6 +10,10 @@ from src.data.carb_model.constants import (
     COB_COL,
     CARB_AVAIL_COL,
 )
+from src.data.insulin_model.constants import IOB_COL, INSULIN_AVAIL_COL
+from src.data.insulin_model.insulin_model import (
+    calculate_insulin_availability_and_iob_single_delivery,
+)
 
 
 def create_time_diff_cols(df: pd.DataFrame) -> pd.DataFrame:
@@ -72,6 +76,59 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
             if time_since_meal < T_ACTION_MAX_MIN:
                 df.loc[next_index, CARB_AVAIL_COL] += meal_avail[time_since_meal]
                 df.loc[next_index, COB_COL] += cob[time_since_meal]
+
+            next_index += 1
+
+    return df
+
+
+def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Computes the insulin availability (INS_AVAIL_COL) and insulin on board (IOB_COL)
+    for each insulin dose in the dataframe.
+
+    Process:
+    - Identify rows where insulin is administered (`insulin-0:00` is not null and greater than 0).
+    - Simulate insulin availability and IOB for each dose using the `calculate_insulin_availability_and_iob_single_delivery` function.
+    - Iterate through subsequent time steps until the full insulin absorption time is covered.
+    - Handles missing `time_diff` values by skipping affected rows.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame containing insulin administration times and time differences.
+
+    Returns:
+    pd.DataFrame: Updated DataFrame with computed `ins_availability` and `iob` columns.
+    """
+
+    # Add new columns initialized to 0
+    df[INSULIN_AVAIL_COL] = 0.0
+    df[IOB_COL] = 0.0
+
+    # Loop through each insulin injection event, excluding 0.0 values
+    for ins_time in df.index[(df["insulin-0:00"].notna()) & (df["insulin-0:00"] > 0)]:
+        insulin_dose = df.loc[ins_time, "insulin-0:00"]
+
+        # Simulate insulin dynamics
+        ins_avail, iob, _, _, _ = (
+            calculate_insulin_availability_and_iob_single_delivery(
+                insulin_dose, TS_MIN, T_ACTION_MAX_MIN
+            )
+        )
+
+        next_index = ins_time + 1
+        time_since_insulin = 0
+
+        while next_index in df.index and time_since_insulin < T_ACTION_MAX_MIN:
+            time_diff = df.loc[next_index, "time_diff"]
+            if pd.isna(time_diff):
+                break  # Stop processing if time_diff is missing
+
+            time_diff_int = abs(time_diff.components.minutes)
+            time_since_insulin += time_diff_int
+
+            if time_since_insulin < T_ACTION_MAX_MIN:
+                df.loc[next_index, INSULIN_AVAIL_COL] += ins_avail[time_since_insulin]
+                df.loc[next_index, IOB_COL] += iob[time_since_insulin]
 
             next_index += 1
 
