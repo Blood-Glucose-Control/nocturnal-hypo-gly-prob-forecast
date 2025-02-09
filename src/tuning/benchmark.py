@@ -1,13 +1,35 @@
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.forecasting.naive import NaiveForecaster
-from sktime.performance_metrics.forecasting import (
-    MeanSquaredPercentageError,
-)
+from sktime.performance_metrics.forecasting import MeanSquaredError
 from sktime.split import ExpandingWindowSplitter
 from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
 import pandas as pd
 from src.data.data_loader import load_data
 from src.data.data_cleaner import clean_data
+import time
+
+# TODO:
+# 1. Create a function that reads the ymal file
+# 2. Add other features
+
+
+def parse_output(benchmark):
+    # Get current datetime
+    current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
+    raw_output_dir = f"./results/raw/{current_time}_forecasting_results.csv"
+    processed_output_dir = f"./results/processed/{current_time}_forecasting_results.csv"
+
+    benchmark.run(raw_output_dir)
+
+    # Load the forecasting results from CSV
+    results_df = pd.read_csv(raw_output_dir)
+
+    # Drop columns containing 'fold'
+    results_df = results_df.loc[:, ~results_df.columns.str.contains("fold")]
+
+    results_df.to_csv(processed_output_dir, index=False)
+
+    return results_df
 
 
 def load_diabetes_data(patient_id, df=None):
@@ -19,7 +41,6 @@ def load_diabetes_data(patient_id, df=None):
     # Set datetime index
     patient_data["time"] = pd.to_datetime(patient_data["time"])
 
-    # TODO: Add other features
     y = patient_data["bg-0:00"]
     X = patient_data[["insulin-0:00", "carbs-0:00", "hr-0:00"]]
 
@@ -62,30 +83,30 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers):
         estimator_id="NaiveForecaster-last",
     )
 
-    for dataset_loader in [dataset_loaders[:1]]:
+    for idx, dataset_loader in enumerate(dataset_loaders):
         benchmark.add_task(
             dataset_loader,
             cv_splitter,
             scorers,
+            task_id=f"patient_{idx}",
         )
     return benchmark
 
 
 def run_benchmark():
-    dataset_loaders = get_dataset_loaders()
+    dataset_loaders = get_dataset_loaders()[:2]
 
     cv_splitter = get_cv_splitter()
 
-    scorers = [
-        MeanSquaredPercentageError(),
-        PinballLoss(),
-        # MeanSquaredError(square_root=True)
-    ]
+    scorers = [PinballLoss(), MeanSquaredError(square_root=True)]
 
     benchmark = get_benchmark(dataset_loaders, cv_splitter, scorers)
-    results_df = benchmark.run("./forecasting_results.csv")
-    return results_df.T
+
+    return parse_output(benchmark)
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     run_benchmark()
+    end_time = time.time()
+    print(f"Benchmark completed in {end_time - start_time:.2f} seconds")
