@@ -125,6 +125,7 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers):
 
 
 def run_benchmark():
+    # TODO: Remove this
     dataset_loaders = get_dataset_loaders()[:2]
 
     steps_per_hour = 12
