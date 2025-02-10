@@ -1,0 +1,165 @@
+ARCH:
+  mean:
+    type: str
+    values: ["Constant", "Zero", "LS", "AR", "ARX", "HAR", "HARX"]
+  lags:
+    type: int
+    values: [1, 5]
+  vol:
+    type: str
+    values: ["GARCH", "ARCH", "EGARCH", "FIARCH", "HARCH"]
+  p:
+    type: int
+    values: [1, 2, 5, 10]
+  o:
+    type: int
+    values: [0, 2]
+  q:
+    type: int
+    values: [1, 2, 5, 10]
+  power:
+    type: float
+    values: [1.0, 1.5, 2.0]  
+  dist:
+    type: str
+    values: ["normal", "t", "skewstudent", "ged"]
+  update_freq:
+    type: int
+    values: [0, 1, 10]  # Controls how often updates are displayed
+  cov_type:
+    type: str
+    values: ["robust", "classic"]
+  tol:
+    type: float
+    values: [0.000001, 0.00001, 0.0001]  # Tolerance for optimization
+  options:
+    type: str
+    values: ["ftol", "eps", "disp", "maxiter"]
+  align:
+    types: str
+    values: ["origin", 'target']
+  method:
+    type: str
+    values: ["analytic", "simulation", "bootstrap"]
+  simulations:
+    type: int
+    values: [100, 1000, 10000]  # Number of simulations for bootstrapping
+  random_state:
+    type: int
+    values: [42, 123, None]  # Common seeds for reproducibility
+  show_warnings:
+    type: bool
+    values: [False]
+
+BATS:
+  use_box_cox:
+    type: "bool or None"
+    values: [True, False, None]  # Whether to apply Box-Cox transformation
+  box_cox_bounds:
+    type: tuple
+    values: [[0, 1], [0.1, 1.5], [0, 2]]  # Bounds for Box-Cox parameter (range selection)
+  use_trend:
+    type: "bool or None"
+    values: [True, False, None]  # Whether to include trend in the model
+  use_damped_trend:
+    type: "bool or None"
+    values: [True, False, None]  # Whether to include damping in the trend
+  sp:
+    type: list
+    values: [[7, 365], [7, 30], [1, 7, 365]]  # Seasonal periods (e.g., weekly, yearly)
+  use_arma_errors:
+    type: bool
+    values: [True, False]  # Whether to model residuals with ARMA
+  show_warnings:
+    type: bool
+    values: [False]
+
+
+
+
+
+HierarchicalProphet
+  changepoint_interval:
+    type: int
+    values: [25, 50, 100]
+  changepoint_range:
+    type: "float or int"
+    values: [0.8, 0.5, 1.0, -10, 10]
+  changepoint_prior_scale:
+    type: float
+    values: [0.001, 0.1, 0.5]
+  offset_prior_scale:
+    type: float
+    values: [0.1, 0.5, 1.0]
+  capacity_prior_scale:
+    type: float
+    values: [0.2, 0.5, 1.0]
+  capacity_prior_loc:
+    type: float
+    values: [1.1, 1.5, 2.0]
+  noise_scale:
+    type: float
+    values: [0.05, 0.1, 0.2]
+  trend:
+    type: str
+    values: ["linear", "logistic"]
+  mcmc_samples:
+    type: int
+    values: [2000, 5000, 10000]
+  mcmc_warmup:
+    type: int
+    values: [200, 500, 1000]
+  mcmc_chains:
+    type: int
+    values: [4, 8, 16]
+  inference_method:
+    type: str
+    values: ["mcmc", "map"]
+  optimizer_name:
+    type: str
+    values: ["Adam", "RMSProp", "SGD"]
+  optimizer_steps:
+    type: int
+    values: [100000, 200000, 500000]
+
+
+
+ProphetPiecewiseLinearTrendForecaster:
+  n_changepoints:
+    type: int
+    values: [25, 50, 100]
+  changepoint_range:
+    type: float
+    values: [0.8, 0.5, 1.0]
+  changepoint_prior_scale:
+    type: float
+    values: [0.05, 0.1, 0.2]
+  verbose:
+    type: int
+    values: [0, 1, 2]
+  yearly_seasonality:
+    type: str | bool | int
+    values: [False, "auto", True, 10]
+  weekly_seasonality:
+    type: str | bool | int
+    values: [False, "auto", True, 5]
+  daily_seasonality:
+    type: str | bool | int
+    values: [False, "auto", True, 3]
+
+
+StatsForecastAutoCES:
+  season_length:
+    type: int
+    values: [24]
+  model:
+    type: str
+    values: ["N", "S", "P", "F"] # idk about this one
+
+StatsForecastGARCH:
+  p:
+    type: int
+    values: [1]
+  q:
+    type: int
+    values: [1]
