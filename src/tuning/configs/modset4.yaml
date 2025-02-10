@@ -19,7 +19,7 @@ ARCH:
     values: [1, 2, 5, 10]
   power:
     type: float
-    values: [1.0, 1.5, 2.0]  
+    values: [1.0, 1.5, 2.0]
   dist:
     type: str
     values: ["normal", "t", "skewstudent", "ged"]
@@ -74,11 +74,7 @@ BATS:
     type: bool
     values: [False]
 
-
-
-
-
-HierarchicalProphet
+HierarchicalProphet:
   changepoint_interval:
     type: int
     values: [25, 50, 100]
