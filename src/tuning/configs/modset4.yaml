@@ -118,8 +118,6 @@ HierarchicalProphet:
     type: int
     values: [100000, 200000, 500000]
 
-
-
 ProphetPiecewiseLinearTrendForecaster:
   n_changepoints:
     type: int
@@ -143,19 +141,18 @@ ProphetPiecewiseLinearTrendForecaster:
     type: str | bool | int
     values: [False, "auto", True, 3]
 
-
 StatsForecastAutoCES:
   season_length:
     type: int
-    values: [24]
+    values: [1, 7, 12, 24, 52]  # Common seasonal periods: daily, weekly, monthly, hourly, yearly.
   model:
     type: str
-    values: ["N", "S", "P", "F"] # idk about this one
+    values: ["N", "S", "P", "F", "Z"]  # Different CES model types.
 
 StatsForecastGARCH:
   p:
     type: int
-    values: [1]
+    values: [1, 2, 3, 5, 10]
   q:
     type: int
-    values: [1]
+    values: [1, 2, 3, 5, 10]
