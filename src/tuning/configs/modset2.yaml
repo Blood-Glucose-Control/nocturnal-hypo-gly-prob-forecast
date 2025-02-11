@@ -1,255 +1,146 @@
 AutoARIMA:
   start_p:
     type: int
-    values: [1, 2, 3, 4]  # Starting AR order; explore lower or higher depending on autocorrelation.
+    range: [1, 20]
   max_p:
     type: int
-    values: [3, 5, 7]  # Maximum AR order; higher values allow for longer memory but increase complexity.
+    range: [1, 20]
   start_q:
     type: int
-    values: [1, 2, 3]  # Starting MA order; adjust based on residual autocorrelation.
+    range: [1, 20]
   max_q:
     type: int
-    values: [3, 5, 7]  # Maximum MA order.
+    range: [1, 20]
   d:
     type: list
-    values: [0, 1, 2, None]  # Differencing order; use None (auto-detect) or set manually if stationarity is known.
+    values: [0, 1, 2, None]
   max_d:
-    type: int
-    values: [1, 2, 3]  # Maximum non-seasonal differencing allowed.
+    type: list
+    values: [1, 2, 3]
   start_P:
-    type: int
-    values: [0, 1, 2]  # Starting seasonal AR order.
+    type: list
+    values: [0, 1, 2]
   max_P:
-    type: int
-    values: [1, 2, 3]  # Maximum seasonal AR order.
+    type: list
+    values: [1, 2, 3]
   D:
     type: list
-    values: [0, 1, None]  # Seasonal differencing order; None allows auto-selection.
+    values: [0, 1, None]
   max_D:
     type: int
-    values: [0, 1, 2]  # Maximum seasonal differencing.
+    range: [1, 20]
   start_Q:
     type: int
-    values: [0, 1, 2]  # Starting seasonal MA order.
+    range: [1, 20]
   max_Q:
     type: int
-    values: [1, 2, 3]  # Maximum seasonal MA order.
+    range: [1, 20]
   sp:
     type: int
-    values: [1, 4, 7, 12]  # Seasonal period; e.g., 12 for monthly data with yearly seasonality.
+    range: [1, 20]
   seasonal:
     type: bool
-    values: [True, False]  # Whether to include a seasonal component.
   max_order:
     type: int
-    values: [3, 5, 7]  # Total order constraint (p+q+P+Q) to prevent overfitting.
+    range: [1, 20]
   information_criterion:
-    type: str
-    values: ["aic", "bic"]  # Criterion used to select the optimal model.
+    type: list
+    values: ["aic", "bic", "hqic", "oob"]
   alpha:
-    type: float
-    values: [0.01, 0.05, 0.1]  # Significance level for stationarity tests.
-  test:
-    type: str
-    values: ["kpss", "adf", "pp"]  # Unit root tests for non-seasonal differencing.
-  seasonal_test:
-    type: str
-    values: ["ocsb"]  # Seasonal unit root test (default is "ocsb"); add alternatives if applicable.
+    type: list
+    values: [0.01, 0.05, 0.1]
   stepwise:
     type: bool
-    values: [True, False]  # Stepwise search (faster) versus full grid search.
-  n_jobs:
-    type: int
-    values: [1, -1]  # Number of parallel jobs; -1 to use all available cores.
   random:
     type: bool
-    values: [True, False]  # Toggle between exhaustive and random search.
-  random_state:
-    type: int
-    values: [0, 42, 100]  # For reproducibility in random search.
   n_fits:
     type: int
-    values: [10, 20, 50]  # Number of models to fit when using random search.
-  trend:
-    type: str
-    values: ["n", "c", "t", "ct"]  # Trend options: none, constant, trend, constant+trend.
+    range: [1, 30]
   method:
-    type: str
-    values: ["newton", "nm", "bfgs", "lbfgs", "powell", "cg", "ncg", "basinhopping"]  # Optimization solver options.
+    type: list
+    values: ["newton", "nm", "bfgs", "lbfgs", "powell", "cg", "ncg", "basinhopping"]
   maxiter:
     type: int
-    values: [50, 100, 200]  # Maximum iterations for the optimizer.
-  trace:
-    type: bool
-    values: [True, False]  # Toggle detailed output during fitting.
+    range: [50, 100]
   out_of_sample_size:
     type: int
-    values: [0, 5, 10]  # Number of hold-out observations for validation.
-  scoring:
-    type: str
-    values: ["mse", "mae"]  # Metric for out-of-sample scoring.
+    range: [0, 20]
   with_intercept:
     type: bool
-    values: [True, False]  # Whether to include an intercept term.
   update_pdq:
     type: bool
-    values: [True, False]  # Whether to update ARIMA orders when new data are observed.
   time_varying_regression:
     type: bool
-    values: [True, False]  # Allow regression coefficients to vary over time.
   enforce_stationarity:
     type: bool
-    values: [True, False]  # Enforce stationarity in the AR parameters.
   enforce_invertibility:
     type: bool
-    values: [True, False]  # Enforce invertibility in the MA parameters.
   simple_differencing:
     type: bool
-    values: [True, False]  # Use simple (pre-)differencing for computational speed.
   measurement_error:
     type: bool
-    values: [True, False]  # Assume measurement error in the observed series.
   mle_regression:
     type: bool
-    values: [True, False]  # Whether to estimate regression coefficients via MLE.
   hamilton_representation:
     type: bool
-    values: [True, False]  # Choose between Hamilton and Harvey state-space representations.
   concentrate_scale:
     type: bool
-    values: [True, False]  # Concentrate the scale parameter out of the likelihood.
-
-BoxCoxBiasAdjustedForecaster:
-  lambda_fixed:
-    type: list
-    values: [None, -2.0, -1.0, 0.0, 1.0, 2.0]
 
 DartsXGBModel:
   lags:
-    type: list
-    values: [None, 5, [-1, -2, -3], {"component": [-1, -2]}]
-  lags_past_covariates:
-    type: list
-    values: [None, 3, [-1, -2, -3], {"cov1": [-1, -2]}]
-  lags_future_covariates:
-    type: list
-    values: [None, [3, 3], [-1, 0, 1], {"cov1": [-1, 0, 1]}]
-  output_chunk_length:
     type: int
-    values: [1, 3, 5]
+    range: [1,20]
   add_encoders:
-    type: dict
-    values: [None, {"cyclic": {"future": ["month"]}}, {"datetime_attribute": {"future": ["hour", "dayofweek"]}}]
-  likelihood:
-    type: str
-    values: [None, "poisson", "quantile"]
-  quantiles:
     type: list
-    values: [None, [0.1, 0.5, 0.9]]
+    values: [None, {'cyclic': {'future': ['month']}}, {'datetime_attribute': {'future': ['hour', 'dayofweek']}}]
   multi_models:
     type: bool
-    values: [True, False]
   use_static_covariates:
     type: bool
-    values: [True, False]
-  past_covariates:
-    type: list
-    values: [None, ["cov1", "cov2"]]
   num_samples:
     type: int
-    values: [500, 1000, 2000]
+    range: [100, 200]
 
 PytorchForecastingDeepAR:
   model_params:
-    type: dict
-    values: [None, {"cell_type": "GRU", "rnn_layers": 3}]
-  dataset_params:
-    type: dict
-    values: [None, {"batch_size": 64, "num_workers": 4}]
-  deterministic:
-    type: bool
-    values: [True, False]
-  random_log_path:
-    type: bool
-    values: [True, False]
+    type: list
+    values: [{"cell_type": "GRU", "rnn_layers": 3}]
 
 StatsForecastARCH:
   p:
     type: int
-    values: [1, 2, 3, 4, 5]  # p=1 is the default; consider increasing p if higher-order dependencies are expected.
+    range: [0, 20]
 
 StatsForecastAutoTBATS:
   seasonal_periods:
-    type: "int or list of int"
-    values: [12, 24, [12]]
-  use_boxcox:
-    type: "bool or None"
-    values: [None, True, False]
-  use_trend:
-    type: "bool or None"
-    values: [None, True, False]
-  use_damped_trend:
-    type: "bool or None"
-    values: [None, True, False]
+    type: int
+    range: [1, 80]
   use_arma_errors:
     type: bool
-    values: [True, False]
   bc_lower_bound:
-    type: float
+    type: list
     values: [0.0, -0.5, -1.0]
   bc_upper_bound:
-    type: float
+    type: list
     values: [1.0, 1.5, 2.0]
 
 TBATS:
-  use_box_cox:
-    type: "bool or None"
-    values: [None, True, False]
   box_cox_bounds:
-    type: tuple
+    type: list
     values: [(0, 1), (0.5, 1.5)]
-  use_trend:
-    type: "bool or None"
-    values: [None, True, False]
-  use_damped_trend:
-    type: "bool or None"
-    values: [None, True, False]
   sp:
-    type: "iterable or array-like of floats or int"
-    values: [None, 12, [12], [12, 24]]
+    type: list
+    values: [None, 12, [12], [12, 24], [12, 24, 48], [12, 24, 48, 96]]
   use_arma_errors:
     type: bool
-    values: [True, False]
-  multiprocessing_start_method:
-    type: str
-    values: ["spawn", "fork", "forkserver"]
 
 VAR:
   maxlags:
     type: list
     values: [None, 5, 10, 15]
-  method:
-    type: str
-    values: ["ols"]  # Default estimation method; adjust if additional methods become available.
-  verbose:
-    type: bool
-    values: [True, False]
   trend:
-    type: str
+    type: list
     values: ["c", "ct", "ctt", "n"]
-  missing:
-    type: str
-    values: ["none", "drop", "raise"]
-  freq:
-    type: "str, tuple, datetime.timedelta, DateOffset, or None"
-    values: [None, "D", "M", "H"]  # Examples: "D" for daily, "M" for monthly, "H" for hourly.
-  dates:
-    type: "array_like or None"
-    values: [None]  # Typically, dates are inferred from the index; specify if necessary.
   ic:
-    type: "str or None"
-    values: [None, "aic", "bic"]
-  random_state:
-    type: "int, RandomState instance, or None"
-    values: [None, 0, 42]
+    type: str
+    values: [None, "aic", "bic", "fpe", "hqic"]
