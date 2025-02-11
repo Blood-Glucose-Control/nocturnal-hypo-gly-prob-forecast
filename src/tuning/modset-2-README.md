@@ -1,0 +1,13 @@
+# List of skipped models in modset 2
+
+DirectTimeSeriesRegressionForecaster
+
+ForecastX
+
+ForecastingRandomizedSearchCV
+
+MultioutputTimeSeriesRegressionForecaster
+
+PolynomialTrendForecaster
+
+RecursiveTimeSeriesRegressionForecaster
