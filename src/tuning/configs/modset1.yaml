@@ -7,28 +7,28 @@ ARIMA:
         [0, 1, 1], [1, 1, 1], [2, 1, 1],
         [0, 2, 1], [1, 2, 1], [2, 2, 1]
     ]
-  seasonal_order:
-    type: list
-    values: [
-      [0, 0, 0, 0], [1, 0, 0, 4], [1, 0, 0, 12],
-      [0, 1, 0, 4], [0, 1, 0, 12], [1, 1, 0, 4], [1, 1, 0, 12],
-      [0, 1, 1, 4], [0, 1, 1, 12], [1, 1, 1, 4], [1, 1, 1, 12],
-      [0, 2, 1, 4], [0, 2, 1, 12], [1, 2, 1, 4], [1, 2, 1, 12]
-    ]
-  method:
-    type: list
-    values: ['lbfgs', 'newton', 'nm', 'bfgs', 'powell', 'cg', 'ncg', 'basinhopping']
-  scoring:
-    type: list
-    values: ['mse', 'mae', 'rmse', 'mape']
-  enforce_stationarity:
-    type: bool
-  enforce_invertibility:
-    type: bool
-  mle_regression:
-    type: bool
-  concentrate_scale:
-    type: bool
+  # seasonal_order:
+  #   type: list
+  #   values: [
+  #     [0, 0, 0, 0], [1, 0, 0, 4], [1, 0, 0, 12],
+  #     [0, 1, 0, 4], [0, 1, 0, 12], [1, 1, 0, 4], [1, 1, 0, 12],
+  #     [0, 1, 1, 4], [0, 1, 1, 12], [1, 1, 1, 4], [1, 1, 1, 12],
+  #     [0, 2, 1, 4], [0, 2, 1, 12], [1, 2, 1, 4], [1, 2, 1, 12]
+  #   ]
+  # method:
+  #   type: list
+  #   values: ['lbfgs', 'newton', 'nm', 'bfgs', 'powell', 'cg', 'ncg', 'basinhopping']
+  # scoring:
+  #   type: list
+  #   values: ['mse']
+  # enforce_stationarity:
+  #   type: bool
+  # enforce_invertibility:
+  #   type: bool
+  # mle_regression:
+  #   type: bool
+  # concentrate_scale:
+  #   type: bool
   suppress_warnings:
     type: list
     values: [True]
