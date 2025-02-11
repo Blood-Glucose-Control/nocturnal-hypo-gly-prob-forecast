@@ -1,3 +1,8 @@
+NaiveForecaster:
+  strategy:
+    type: list
+    values: ["last", "mean", "drift"]
+
 ARIMA:
   order:
     type: list
