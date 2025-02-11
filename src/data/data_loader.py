@@ -35,7 +35,7 @@ def load_data(
             raise ValueError(
                 f"Unable to find train_cached.csv at "
                 f"\n {cached_path}. \n"
-                f"Verify that the file exists if you want to use the cached version." 
+                f"Verify that the file exists if you want to use the cached version."
             )
 
     if not os.path.exists(file_path):
