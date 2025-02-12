@@ -136,6 +136,7 @@ def get_dataset_loaders(
     hr_method="linear",
     step_method="constant",
     cal_method="constant",
+    n_patients=-1,
 ) -> list[Callable]:
     """Create the dataset, impute the x_features and y_feature, and create dataset loader functions for each patient.
 
@@ -150,7 +151,8 @@ def get_dataset_loaders(
             Valid values: 'constant'.
         cal_method (str, optional): Imputation method for calorie data.
             Valid values: 'constant'.
-
+        n_patients (int, optional): Number of patients to load.
+            If -1, all patients are loaded.
     Returns:
         list[Callable]: List of dataset loader functions, one for each patient.
     """
@@ -167,10 +169,13 @@ def get_dataset_loaders(
         cal_method=cal_method,
     )
 
+    if n_patients == -1:
+        n_patients = len(df["p_num"].unique())
+
     # Create dataset loaders for each patient
     patient_ids = df["p_num"].unique()
     dataset_loaders = []
-    for patient_id in patient_ids:
+    for patient_id in patient_ids[:n_patients]:
         dataset_loaders.append(
             lambda p=patient_id: load_diabetes_data(p, df, y_feature, x_features)
         )
@@ -282,7 +287,7 @@ def run_benchmark(
     hr_method="linear",
     step_method="constant",
     cal_method="constant",
-    n_patients=2,
+    n_patients=-1,
 ) -> None:
     current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
     processed_output_dir = f"./results/processed/{current_time}_forecasting_results.csv"
@@ -296,7 +301,8 @@ def run_benchmark(
         hr_method=hr_method,
         step_method=step_method,
         cal_method=cal_method,
-    )[:n_patients]
+        n_patients=n_patients,
+    )
 
     # ADD THE SCORERS HERE
     scorers = [
