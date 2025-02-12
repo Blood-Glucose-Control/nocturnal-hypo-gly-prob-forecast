@@ -10,3 +10,6 @@ The following models were skipped in adding hyperparameters for tuning because t
 - RecursiveTabularRegressionForecaster
 - SquaringResiduals
 - StatsForecastAutoETS
+
+Other excluded forecasters
+- ARIMA: not included becasue this is already covered by autoARIMA
