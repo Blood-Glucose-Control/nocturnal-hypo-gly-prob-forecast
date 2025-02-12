@@ -48,25 +48,52 @@ def parse_output(processed_output_dir, raw_output_dir) -> pd.DataFrame:
     return results_df
 
 
-def impute_missing_values(df, columns_to_impute, method="ffill") -> pd.DataFrame:
-    """Imputes missing values in specified columns of a dataframe.
-        Probably won't work with categorical features.
+def impute_missing_values(
+    df,
+    columns,
+    bg_method="linear",
+    hr_method="linear",
+    step_method="constant",
+    cal_method="constant",
+) -> pd.DataFrame:
+    """Imputes missing values in specified columns of a dataframe using different methods based on the data type.
 
     Args:
         df (pd.DataFrame): Input dataframe containing missing values
-        columns_to_impute (list): List of column names to impute missing values for
-        method (str, optional): Imputation method to use.
-            Valid values are: 'drift', 'linear', 'nearest', 'constant', 'mean', 'median', 'bfill', 'ffill', 'random'. Defaults to "ffill".
+        columns (list): List of column names to impute missing values for
+        bg_method (str, optional): Imputation method for blood glucose data.
+            Valid values: 'linear', 'nearest'. Defaults to "linear".
+        hr_method (str, optional): Imputation method for heart rate data.
+            Valid values: 'linear', 'nearest'. Defaults to "linear".
+        step_method (str, optional): Imputation method for step count data.
+            Valid values: 'constant'.
+        cal_method (str, optional): Imputation method for calorie data.
+            Valid values: 'constant'.
 
     Returns:
-        pd.DataFrame: Copy of input dataframe with missing values imputed
+        pd.DataFrame: Copy of input dataframe with missing values imputed using appropriate methods for each data type
     """
     df_imputed = df.copy()
+    transform = None
 
-    transform = Imputer(method=method)
-    for col in columns_to_impute:
+    for col in columns:
         if col in df.columns:
-            df_imputed[col] = transform.fit_transform(df[col].to_frame())
+            if "bg" in col.lower():
+                transform = Imputer(method=bg_method)
+            elif "hr" in col.lower():
+                # Use linear or nearest neighbor interpolation for heart rate
+                # TODO: Need more research on this
+                transform = Imputer(method=hr_method)
+            elif "step" in col.lower():
+                # Use constant imputation with 0 for steps
+                transform = Imputer(method=step_method, value=0)
+            elif "cal" in col.lower():
+                # Use constant imputation with minimum value for calories
+                min_val = df[col].min()
+                transform = Imputer(method=cal_method, value=min_val)
+
+            if transform is not None:
+                df_imputed[col] = transform.fit_transform(df[col].to_frame())
 
     return df_imputed
 
@@ -102,26 +129,53 @@ def load_diabetes_data(patient_id, df=None, y_feature=None, x_features=[]):
     return y, X
 
 
-def get_dataset_loaders(x_features, y_feature, impute_method="ffill") -> list[Callable]:
-    """Creates dataset loader functions for each patient in the diabetes dataset and imputes missing values.
+def get_dataset_loaders(
+    x_features,
+    y_feature,
+    bg_method="linear",
+    hr_method="linear",
+    step_method="constant",
+    cal_method="constant",
+    n_patients=-1,
+) -> list[Callable]:
+    """Create the dataset, impute the x_features and y_feature, and create dataset loader functions for each patient.
 
     Args:
         x_features (list): List of feature column names to use as predictors.
-        y_feature (str): Name of the target variable column to predict.
-
+        y_feature (str): Name of the target variable column to predict. (bg-0:00)
+        bg_method (str, optional): Imputation method for blood glucose data.
+            Valid values: 'linear', 'nearest'. Defaults to "linear".
+        hr_method (str, optional): Imputation method for heart rate data.
+            Valid values: 'linear', 'nearest'. Defaults to "linear".
+        step_method (str, optional): Imputation method for step count data.
+            Valid values: 'constant'.
+        cal_method (str, optional): Imputation method for calorie data.
+            Valid values: 'constant'.
+        n_patients (int, optional): Number of patients to load.
+            If -1, all patients are loaded.
     Returns:
         list[Callable]: List of dataset loader functions, one for each patient.
     """
-    # Create dataset loaders for each patient
+    # Load and clean data
     df = clean_data(load_data())
+
+    # TODO: Impute Missing values for each columns
+    df = impute_missing_values(df, columns=x_features, bg_method=bg_method)
+    df = impute_missing_values(
+        df,
+        columns=y_feature,
+        hr_method=hr_method,
+        step_method=step_method,
+        cal_method=cal_method,
+    )
+
+    if n_patients == -1:
+        n_patients = len(df["p_num"].unique())
+
+    # Create dataset loaders for each patient
     patient_ids = df["p_num"].unique()
-
-    # TODO: Won't work with categorical features, probably will need a seperate list of x_features we want to impuate and combine them later
-    df = impute_missing_values(df, columns_to_impute=x_features, method=impute_method)
-    df = impute_missing_values(df, columns_to_impute=y_feature, method=impute_method)
-
     dataset_loaders = []
-    for patient_id in patient_ids:
+    for patient_id in patient_ids[:n_patients]:
         dataset_loaders.append(
             lambda p=patient_id: load_diabetes_data(p, df, y_feature, x_features)
         )
@@ -223,22 +277,32 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, ymal_path):
     return benchmark
 
 
-def run_benchmark() -> None:
-    # Variables:
-    y_features = ["bg-0:00"]
-    x_features = ["insulin-0:00", "carbs-0:00", "hr-0:00"]
-    steps_per_hour = 12
-    hours_to_forecast = 6
-    ymal_path = "./src/tuning/configs/modset1.yaml"
-
+def run_benchmark(
+    y_features=["bg-0:00"],
+    x_features=["insulin-0:00", "carbs-0:00", "hr-0:00"],
+    steps_per_hour=12,
+    hours_to_forecast=6,
+    ymal_path="./src/tuning/configs/modset1.yaml",
+    bg_method="linear",
+    hr_method="linear",
+    step_method="constant",
+    cal_method="constant",
+    n_patients=-1,
+) -> None:
     current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
     processed_output_dir = f"./results/processed/{current_time}_forecasting_results.csv"
     raw_output_dir = f"./results/raw/{current_time}_forecasting_results.csv"
 
     # Get dataset loaders with imputed missing values
-    dataset_loaders = get_dataset_loaders(x_features, y_features)[:2]
-
-    cv_splitter = get_cv_splitter(steps_per_hour, hours_to_forecast)
+    dataset_loaders = get_dataset_loaders(
+        x_features=x_features,
+        y_feature=y_features,
+        bg_method=bg_method,
+        hr_method=hr_method,
+        step_method=step_method,
+        cal_method=cal_method,
+        n_patients=n_patients,
+    )
 
     # ADD THE SCORERS HERE
     scorers = [
@@ -246,15 +310,28 @@ def run_benchmark() -> None:
         MeanSquaredError(square_root=True),
     ]
 
-    benchmark = get_benchmark(dataset_loaders, cv_splitter, scorers, ymal_path)
+    # Get the cross-validation splitter
+    cv_splitter = get_cv_splitter(
+        steps_per_hour=steps_per_hour, hours_to_forecast=hours_to_forecast
+    )
 
+    # Get the benchmark
+    benchmark = get_benchmark(
+        dataset_loaders=dataset_loaders,
+        cv_splitter=cv_splitter,
+        scorers=scorers,
+        ymal_path=ymal_path,
+    )
+
+    # Run the benchmark
     benchmark.run(raw_output_dir)
 
+    # Process the results
     parse_output(processed_output_dir, raw_output_dir)
 
 
 if __name__ == "__main__":
     start_time = time.time()
-    run_benchmark()
+    run_benchmark(n_patients=2)
     end_time = time.time()
     print(f"Benchmark completed in {end_time - start_time:.2f} seconds")
