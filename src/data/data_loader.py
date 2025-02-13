@@ -1,5 +1,7 @@
-import pandas as pd
+"""Data loading functions for the various datasets."""
+
 import os
+import pandas as pd
 
 
 def load_data(
@@ -14,7 +16,8 @@ def load_data(
     Parameters:
     data_source_name (str): The name of the data source. Default is 'kaggle_brisT1D'.
     dataset_type (str): The type of the dataset, e.g., 'train' or 'test'. Default is 'train'.
-    columns_to_keep (list): A list of column names to keep. If None, all columns are loaded. Default is None.
+    columns_to_keep (list): A list of column names to keep. If None, all columns are loaded.
+        Default is None.
 
     Returns:
     pd.DataFrame: The loaded data as a pandas DataFrame.
@@ -23,6 +26,7 @@ def load_data(
     ValueError: If the specified file does not exist.
     """
     local_path = os.path.dirname(__file__)
+    file_path = None
     if data_source_name == "kaggle_brisT1D":
         default_path = os.path.join(local_path, f"kaggle_brisT1D/{dataset_type}.csv")
         cached_path = os.path.join(local_path, "kaggle_brisT1D/train_cached.csv")
