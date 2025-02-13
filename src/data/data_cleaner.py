@@ -5,6 +5,7 @@ import pandas as pd
 from sktime.split import temporal_train_test_split
 from sktime.transformations.series.impute import Imputer
 
+
 def clean_data(
     data: pd.DataFrame, data_source_name="kaggle_brisT1D", data_type="train"
 ) -> pd.DataFrame:
@@ -23,9 +24,12 @@ def clean_data(
         if data_type == "train":
             _clean_bris_data(data)
         else:
-            raise NotImplementedError("Use method clean_bris1d_test_data for test brist1d data")
+            raise NotImplementedError(
+                "Use method clean_bris1d_test_data for test brist1d data"
+            )
 
     return data
+
 
 def clean_brist1d_test_data(df: pd.DataFrame):
     """
@@ -90,10 +94,11 @@ def clean_brist1d_test_data(df: pd.DataFrame):
             new_df = new_df.drop("bg-time", axis=1)
             new_df = new_df.drop("p_num", axis=1)
             new_df = new_df.drop("id", axis=1)
-            
+
             patient_dfs[patient_id][row_id] = new_df
 
     return patient_dfs
+
 
 def _transform_rows_to_timeseries(df: pd.DataFrame, patient_ids: list[str]) -> dict:
     """Given a patient id, transform each row into a timeseries dataframe
