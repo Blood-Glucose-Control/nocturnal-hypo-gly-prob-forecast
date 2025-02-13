@@ -8,6 +8,7 @@
 #SBATCH --time=00:00:10
 #SBATCH --mem=3GB
 #SBATCH --cpus-per-task=4
+##SBATCH --gres=gpu:1
 
 # Set output file destinations (optional)
 # By default, output will appear in a file in the submission directory:
