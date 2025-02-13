@@ -9,7 +9,6 @@ from sktime.transformations.series.impute import Imputer
 import pandas as pd
 from src.data.data_loader import load_data
 from src.data.data_cleaner import clean_data
-import time
 
 from src.tuning.param_grid import generate_param_grid
 from src.utils.config_loader import load_yaml_config
@@ -243,7 +242,7 @@ def generate_estimators_from_param_grid(ymal_path) -> list[tuple[Callable, str]]
     return estimators
 
 
-def get_benchmark(dataset_loaders, cv_splitter, scorers, ymal_path):
+def get_benchmark(dataset_loaders, cv_splitter, scorers, ymal_path, cores_num=-1):
     """Creates and configures a ForecastingBenchmark instance for evaluating multiple forecasting models.
 
     Args:
@@ -257,7 +256,7 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, ymal_path):
     """
     benchmark = ForecastingBenchmark(
         backend="loky",  # Use parallel processing
-        backend_params={"n_jobs": -1},  # Use all available CPU cores
+        backend_params={"n_jobs": cores_num},  # Use all available CPU cores
     )
 
     # Generate all estimators
@@ -285,11 +284,14 @@ def run_benchmark(
     hr_method="linear",
     step_method="constant",
     cal_method="constant",
+    processed_dir="./results/processed",
+    raw_dir="./results/raw",
+    cores_num=-1,
     n_patients=-1,
 ) -> None:
     current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
-    processed_output_dir = f"./results/processed/{current_time}_forecasting_results.csv"
-    raw_output_dir = f"./results/raw/{current_time}_forecasting_results.csv"
+    processed_output_dir = f"{processed_dir}/{current_time}_forecasting_results.csv"
+    raw_output_dir = f"{raw_dir}/{current_time}_forecasting_results.csv"
 
     # Get dataset loaders with imputed missing values
     dataset_loaders = get_dataset_loaders(
@@ -319,6 +321,7 @@ def run_benchmark(
         cv_splitter=cv_splitter,
         scorers=scorers,
         ymal_path=ymal_path,
+        cores_num=cores_num,
     )
 
     # Run the benchmark
@@ -326,10 +329,3 @@ def run_benchmark(
 
     # Process the results
     parse_output(processed_output_dir, raw_output_dir)
-
-
-if __name__ == "__main__":
-    start_time = time.time()
-    run_benchmark(n_patients=2)
-    end_time = time.time()
-    print(f"Benchmark completed in {end_time - start_time:.2f} seconds")
