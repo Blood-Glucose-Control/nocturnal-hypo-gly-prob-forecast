@@ -1,10 +1,11 @@
 import itertools
 from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
-from sktime.forecasting.naive import NaiveForecaster
 from sktime.performance_metrics.forecasting import MeanSquaredError
 from sktime.split import ExpandingWindowSplitter
 from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
+from sktime.registry import all_estimators
+from sktime.transformations.series.impute import Imputer
 import pandas as pd
 from src.data.data_loader import load_data
 from src.data.data_cleaner import clean_data
@@ -13,20 +14,8 @@ import time
 from src.tuning.param_grid import generate_param_grid
 from src.utils.config_loader import load_yaml_config
 
-from sktime.forecasting.arima import AutoARIMA, ARIMA
-from sktime.forecasting.theta import ThetaForecaster
-from sktime.forecasting.exp_smoothing import ExponentialSmoothing
-from sktime.transformations.series.impute import Imputer
 
-# Dictionary mapping names to forecaster classes
-# Key is the key in the YMAL file and the value is the forecaster class
-FORECASTER_REGISTRY = {
-    "AutoARIMA": AutoARIMA,
-    "ARIMA": ARIMA,
-    "NaiveForecaster": NaiveForecaster,
-    "ThetaForecaster": ThetaForecaster,
-    "ExpSmoothing": ExponentialSmoothing,
-}
+forecasters = {name: est for name, est in all_estimators(estimator_types="forecaster")}
 
 
 def parse_output(processed_output_dir, raw_output_dir) -> pd.DataFrame:
@@ -204,6 +193,15 @@ def get_cv_splitter(steps_per_hour, hours_to_forecast) -> ExpandingWindowSplitte
     return cv_splitter
 
 
+def load_model(model_name):
+    """Loads the sktime model class given the model name"""
+    if model_name not in forecasters:
+        raise ValueError(f"Model {model_name} not found in sktime")
+
+    ForecasterClass = forecasters[model_name]  # Get the class
+    return ForecasterClass
+
+
 def generate_estimators_from_param_grid(ymal_path) -> list[tuple[Callable, str]]:
     """Generates a list of forecasting estimators with different parameter combinations.
        forecaster_name is the key in the YAML file and the value is the forecaster class.
@@ -237,7 +235,7 @@ def generate_estimators_from_param_grid(ymal_path) -> list[tuple[Callable, str]]
             estimator_id = f"{forecaster_name}-{param_str}"
 
             # Instantiate forecaster with parameters
-            forecaster_class = FORECASTER_REGISTRY[forecaster_name]
+            forecaster_class = load_model(forecaster_name)
             forecaster = forecaster_class(**param_dict)
 
             estimators.append((forecaster, estimator_id))
