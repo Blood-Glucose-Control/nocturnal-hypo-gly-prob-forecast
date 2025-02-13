@@ -25,13 +25,13 @@
 
 # Load up your conda environment
 # Set up environment on watgpu.cs or in interactive session (use `source` keyword instead of `conda`)
-source $HOME/bgc/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
+source $HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
 
 # Task to run
 
 # RUN THE PYTHON SCRIPT OVER HERE
-python $HOME/bgc/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/cores.py --device gpu
-python $HOME/bgc/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/cores.py --device cpu
+python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/cores.py --device gpu
+python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/cores.py --device cpu
 
 
 # ENTER `sbatch cores.sh` to run the script
