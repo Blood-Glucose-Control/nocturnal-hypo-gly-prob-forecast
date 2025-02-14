@@ -8,7 +8,6 @@ from sktime.registry import all_estimators
 from sktime.transformations.series.impute import Imputer
 import pandas as pd
 from src.data.data_loader import load_data
-from src.data.data_cleaner import clean_data
 
 from src.tuning.param_grid import generate_param_grid
 from src.utils.config_loader import load_yaml_config
@@ -114,6 +113,9 @@ def load_diabetes_data(patient_id, df=None, y_feature=None, x_features=[]):
     y = patient_data[y_feature]
     X = patient_data[x_features]
 
+    print("y: ", len(y))
+    print("X: ", len(X))
+
     return y, X
 
 
@@ -145,7 +147,7 @@ def get_dataset_loaders(
         list[Callable]: List of dataset loader functions, one for each patient.
     """
     # Load and clean data
-    df = clean_data(load_data())
+    df = load_data(use_cached=True)
 
     # TODO: Impute Missing values for each columns
     df = impute_missing_values(df, columns=x_features, bg_method=bg_method)
@@ -270,13 +272,14 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, ymal_path, cores_num=-1
             cv_splitter,
             scorers,
             task_id=f"patient_{idx}",
+            error_score="raise",
         )
     return benchmark
 
 
 def run_benchmark(
     y_features=["bg-0:00"],
-    x_features=["insulin-0:00", "carbs-0:00", "hr-0:00"],
+    x_features=["iob", "cob"],
     steps_per_hour=12,
     hours_to_forecast=6,
     ymal_path="./src/tuning/configs/modset1.yaml",
@@ -290,7 +293,7 @@ def run_benchmark(
     n_patients=-1,
 ) -> None:
     """
-    Run benchmarking experiments for diabetes forecasting models.
+    Run benchmarking experiments for diabetes forecasting models. Constants columns will not work with some forecasting models.
     Args:
         y_features (list[str], optional): Target variables to forecast. Defaults to ["bg-0:00"].
         x_features (list[str], optional): Input features for forecasting. Defaults to ["insulin-0:00", "carbs-0:00", "hr-0:00"].
