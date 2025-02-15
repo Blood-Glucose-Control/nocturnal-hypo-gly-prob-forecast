@@ -2,11 +2,13 @@ import itertools
 from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.performance_metrics.forecasting import MeanSquaredError
-from sktime.split import ExpandingWindowSplitter
+from sktime.split import ExpandingSlidingWindowSplitter
+from sktime.split.base import BaseWindowSplitter
 from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
 from sktime.registry import all_estimators
 from sktime.transformations.series.impute import Imputer
 import pandas as pd
+import numpy as np
 from src.data.data_loader import load_data
 
 from src.tuning.param_grid import generate_param_grid
@@ -172,7 +174,9 @@ def get_dataset_loaders(
     return dataset_loaders
 
 
-def get_cv_splitter(steps_per_hour, hours_to_forecast) -> ExpandingWindowSplitter:
+def get_cv_splitter(
+    steps_per_hour, hours_to_forecast, cv_type="expanding_sliding"
+) -> BaseWindowSplitter:
     """Creates an expanding window cross-validation splitter for time series forecasting.
 
     Args:
@@ -185,12 +189,23 @@ def get_cv_splitter(steps_per_hour, hours_to_forecast) -> ExpandingWindowSplitte
             - Step size of steps_per_hour between splits
             - Forecast horizon of steps_per_hour * hours_to_forecast
     """
-    cv_splitter = ExpandingWindowSplitter(
-        initial_window=steps_per_hour,
-        step_length=steps_per_hour,
-        fh=steps_per_hour * hours_to_forecast,
-    )
 
+    # ExpandingWindowSplitter aint' working
+    # if cv_type == "expanding":
+    #     cv_splitter = ExpandingWindowSplitter(
+    #         initial_window=steps_per_hour,
+    #         step_length=steps_per_hour,
+    #         fh=steps_per_hour * hours_to_forecast,
+    #     )
+    if cv_type == "expanding_sliding":
+        cv_splitter = ExpandingSlidingWindowSplitter(
+            initial_window=3,
+            step_length=1,
+            fh=np.arange(5),
+        )
+
+    else:
+        raise ValueError(f"Invalid cv_type: {cv_type}")
     return cv_splitter
 
 
@@ -344,7 +359,9 @@ def run_benchmark(
 
     # Get the cross-validation splitter
     cv_splitter = get_cv_splitter(
-        steps_per_hour=steps_per_hour, hours_to_forecast=hours_to_forecast
+        steps_per_hour=steps_per_hour,
+        hours_to_forecast=hours_to_forecast,
+        cv_type="expanding_sliding",
     )
 
     # Get the benchmark

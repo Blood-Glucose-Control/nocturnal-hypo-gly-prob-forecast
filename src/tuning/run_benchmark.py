@@ -8,7 +8,7 @@ if __name__ == "__main__":
     run_benchmark(
         y_features=["bg-0:00"],
         x_features=["iob", "cob"],
-        steps_per_hour=12 * 12,
+        steps_per_hour=12,
         hours_to_forecast=6,
         ymal_path="./src/tuning/configs/modset1.yaml",
         bg_method="linear",
