@@ -16,7 +16,7 @@ if __name__ == "__main__":
         step_method="constant",
         processed_dir="./results/processed",
         raw_dir="./results/raw",
-        cores_num=5,
+        cores_num=-1,
         n_patients=1,
     )
 

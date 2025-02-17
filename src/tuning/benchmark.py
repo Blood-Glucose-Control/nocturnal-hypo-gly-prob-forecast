@@ -4,7 +4,6 @@ from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.performance_metrics.forecasting import MeanSquaredError
 from sktime.split import ExpandingSlidingWindowSplitter
 from sktime.split.base import BaseWindowSplitter
-from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
 from sktime.registry import all_estimators
 from sktime.transformations.series.impute import Imputer
 import pandas as pd
@@ -199,9 +198,9 @@ def get_cv_splitter(
     #     )
     if cv_type == "expanding_sliding":
         cv_splitter = ExpandingSlidingWindowSplitter(
-            initial_window=3,
-            step_length=1,
-            fh=np.arange(5),
+            initial_window=steps_per_hour,
+            step_length=steps_per_hour,
+            fh=np.arange(1, steps_per_hour * hours_to_forecast + 1),
         )
 
     else:
@@ -353,7 +352,7 @@ def run_benchmark(
 
     # ADD THE SCORERS HERE
     scorers = [
-        PinballLoss(),
+        # PinballLoss(),
         MeanSquaredError(square_root=True),
     ]
 
