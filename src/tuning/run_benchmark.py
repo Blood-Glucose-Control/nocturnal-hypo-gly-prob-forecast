@@ -17,8 +17,9 @@ if __name__ == "__main__":
         cal_method="constant",
         processed_dir="./results/processed",
         raw_dir="./results/raw",
-        cores_num=-1,
-        n_patients=1,
+        cores_num=-1,  # All cores
+        n_patients=-1,  # All patients
+        is_5min=True,  # 5-minute interval patients
     )
 
     end_time = time.time()

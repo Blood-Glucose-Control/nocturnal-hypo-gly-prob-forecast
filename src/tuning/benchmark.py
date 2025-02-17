@@ -2,7 +2,7 @@ import itertools
 from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.performance_metrics.forecasting import MeanSquaredError
-from sktime.split import ExpandingSlidingWindowSplitter
+from sktime.split import ExpandingSlidingWindowSplitter, ExpandingWindowSplitter
 from sktime.split.base import BaseWindowSplitter
 from sktime.transformations.series.impute import Imputer
 import pandas as pd
@@ -122,6 +122,37 @@ def load_diabetes_data(patient_id, df=None, y_feature=None, x_features=[]):
     return y, X
 
 
+def get_patient_ids(df, is_5min, n_patients=-1):
+    """Get the patient ids from the dataframe based on the time interval and number of patients."""
+    patient_ids = df["p_num"].unique()
+    patients_15min = []
+    patients_5min = []
+
+    for patient_id in patient_ids:
+        patient_data = df[df["p_num"] == patient_id]
+        time_diff = pd.to_datetime(patient_data["time"].iloc[1]) - pd.to_datetime(
+            patient_data["time"].iloc[0]
+        )
+
+        if time_diff == pd.Timedelta(minutes=15):
+            patients_15min.append(patient_id)
+        elif time_diff == pd.Timedelta(minutes=5):
+            patients_5min.append(patient_id)
+
+    if is_5min:
+        n_patients = min(n_patients, len(patients_5min))
+        print(
+            f"Loading {n_patients} patients with 5-min interval: {patients_5min[:n_patients]}"
+        )
+        return patients_5min[:n_patients]
+    else:
+        n_patients = min(n_patients, len(patients_15min))
+        print(
+            f"Loading {n_patients} patients with 15-min interval: {patients_15min[:n_patients]}"
+        )
+        return patients_15min[:n_patients]
+
+
 def get_dataset_loaders(
     x_features,
     y_feature,
@@ -129,6 +160,7 @@ def get_dataset_loaders(
     hr_method="linear",
     step_method="constant",
     cal_method="constant",
+    is_5min=True,
     n_patients=-1,
 ) -> list[Callable]:
     """Create the dataset, impute the x_features and y_feature, and create dataset loader functions for each patient.
@@ -144,8 +176,10 @@ def get_dataset_loaders(
             Valid values: 'constant'.
         cal_method (str, optional): Imputation method for calorie data.
             Valid values: 'constant'.
+        is_5min (bool): Whether to use patients with 5-min interval.
+            if true, load 5-min patient, else load 15-min patients
         n_patients (int, optional): Number of patients to load.
-            If -1, all patients are loaded.
+            If -1, all patients with given interval are loaded.
     Returns:
         list[Callable]: List of dataset loader functions, one for each patient.
     """
@@ -166,7 +200,8 @@ def get_dataset_loaders(
         n_patients = len(df["p_num"].unique())
 
     # Create dataset loaders for each patient
-    patient_ids = df["p_num"].unique()
+    patient_ids = get_patient_ids(df, is_5min, n_patients)
+
     dataset_loaders = []
     for patient_id in patient_ids[:n_patients]:
         dataset_loaders.append(
@@ -176,7 +211,7 @@ def get_dataset_loaders(
 
 
 def get_cv_splitter(
-    steps_per_hour, hours_to_forecast, cv_type="expanding_sliding"
+    steps_per_hour, hours_to_forecast, cv_type="expanding"
 ) -> BaseWindowSplitter:
     """Creates an expanding window cross-validation splitter for time series forecasting.
 
@@ -192,13 +227,13 @@ def get_cv_splitter(
     """
 
     # ExpandingWindowSplitter aint' working
-    # if cv_type == "expanding":
-    #     cv_splitter = ExpandingWindowSplitter(
-    #         initial_window=steps_per_hour,
-    #         step_length=steps_per_hour,
-    #         fh=steps_per_hour * hours_to_forecast,
-    #     )
-    if cv_type == "expanding_sliding":
+    if cv_type == "expanding":
+        cv_splitter = ExpandingWindowSplitter(
+            initial_window=steps_per_hour,
+            step_length=steps_per_hour,
+            fh=steps_per_hour * hours_to_forecast,
+        )
+    elif cv_type == "expanding_sliding":
         cv_splitter = ExpandingSlidingWindowSplitter(
             initial_window=steps_per_hour,
             step_length=steps_per_hour,
@@ -306,6 +341,7 @@ def run_benchmark(
     processed_dir="./results/processed",
     raw_dir="./results/raw",
     cores_num=-1,
+    is_5min=True,
     n_patients=-1,
 ) -> None:
     """
@@ -328,7 +364,8 @@ def run_benchmark(
         raw_dir (str, optional): Directory for raw results. Defaults to "./results/raw".
 
         cores_num (int, optional): Number of CPU cores to use (-1 for all). Defaults to -1.
-        n_patients (int, optional): Number of patients to include (-1 for all). Defaults to -1.
+        is_5min (bool, optional): Whether the data is 5 minutes apart. Defaults to True.
+        n_patients (int, optional): Number of patients to include from the given interval patients (-1 for all). Defaults to -1.
 
     The function:
     1. Loads and preprocesses patient datasets with specified imputation methods
@@ -351,6 +388,7 @@ def run_benchmark(
         step_method=step_method,
         cal_method=cal_method,
         n_patients=n_patients,
+        is_5min=is_5min,
     )
 
     # ADD THE SCORERS HERE
