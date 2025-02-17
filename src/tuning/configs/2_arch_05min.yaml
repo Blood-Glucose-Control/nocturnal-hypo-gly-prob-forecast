@@ -1,0 +1,76 @@
+ARCH:
+  p:
+    type: list
+    values: 
+      [ # 5 min intervals. Try 25 min, 50 min, 75 min for the lookback window
+        5,
+        # 10,
+        # 15 
+      ]
+  q:
+    type: list
+    values: 
+      [ # 5 min intervals. Try 25 min, 50 min, 75 min for the lookback window
+        5,
+        # 10,
+        # 15 
+      ]
+  o:
+    type: list
+    values: 
+      [ # 5 min intervals. Try 25 min, 50 min, 75 min for the lookback window
+        5,
+        # 10,
+        # 15 
+      ]
+  lags:
+    type: list
+    values: 
+      [
+        24, # start from 2 hours
+        # 48,
+        # 72,
+        # 96,
+        # 120,
+        # 144,
+        # 180,
+        # 216 # up to 18 hours
+      ]
+  power:
+    type: list
+    values: 
+      [
+        2, 
+        # 4
+      ]
+  
+  dist:
+    type: list
+    values: 
+      [
+        "normal", 
+        # "t", 
+        # "skewstudent", 
+        # "ged"
+      ]
+  
+  mean:
+    type: list
+    values: 
+      [
+        "Constant", 
+        # "AR", 
+        # "ARX", 
+        # "HAR", 
+        # "HARX"
+      ]
+  
+  vol:
+    type: list
+    values: 
+      [
+        "GARCH", 
+        # "ARCH", 
+        # "EGARCH", 
+        # "HARCH"
+        ] # NOTE: FIARCH throws error
