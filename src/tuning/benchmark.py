@@ -229,15 +229,15 @@ def get_cv_splitter(
     # ExpandingWindowSplitter aint' working
     if cv_type == "expanding":
         cv_splitter = ExpandingWindowSplitter(
-            initial_window=steps_per_hour,
-            step_length=steps_per_hour,
-            fh=steps_per_hour * hours_to_forecast,
+            initial_window=steps_per_hour * 144,
+            step_length=steps_per_hour * 144,
+            fh=np.arange(steps_per_hour * hours_to_forecast),
         )
     elif cv_type == "expanding_sliding":
         cv_splitter = ExpandingSlidingWindowSplitter(
-            initial_window=steps_per_hour,
-            step_length=steps_per_hour,
-            fh=np.arange(1, steps_per_hour * hours_to_forecast + 1),
+            initial_window=steps_per_hour * 144,
+            step_length=steps_per_hour * 144,
+            fh=np.arange(steps_per_hour * hours_to_forecast),
         )
 
     else:
@@ -275,6 +275,8 @@ def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]
         param_lists = []
         param_names = []
 
+        count = 0
+
         for param_name, values in param_grid.items():
             param_names.append(param_name)
             param_lists.append(values)
@@ -291,6 +293,9 @@ def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]
             forecaster = forecaster_class(**param_dict)
 
             estimators.append((forecaster, estimator_id))
+            count += 1
+
+        print(f"Training {count} {forecaster_name} models with different parameters")
 
     return estimators
 
