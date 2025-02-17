@@ -8,18 +8,18 @@ if __name__ == "__main__":
     run_benchmark(
         y_features=["bg-0:00"],
         x_features=["iob", "cob"],
-        steps_per_hour=12,
+        steps_per_hour=4,
         hours_to_forecast=6,
-        yaml_path="./src/tuning/configs/old/modset1.yaml",
+        yaml_path="./src/tuning/configs/0_arma_15min.yaml",
         bg_method="linear",
         hr_method="linear",
         step_method="constant",
         cal_method="constant",
         processed_dir="./results/processed",
         raw_dir="./results/raw",
-        cores_num=-1,  # All cores
-        n_patients=-1,  # All patients
-        is_5min=True,  # 5-minute interval patients
+        cores_num=-1,  # Use all cores
+        n_patients=-1,  # Use all patients
+        is_5min=True,  # 5-min interval
     )
 
     end_time = time.time()

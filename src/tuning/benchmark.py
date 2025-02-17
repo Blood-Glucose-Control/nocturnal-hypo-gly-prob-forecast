@@ -229,19 +229,21 @@ def get_cv_splitter(
     # ExpandingWindowSplitter aint' working
     if cv_type == "expanding":
         cv_splitter = ExpandingWindowSplitter(
-            initial_window=steps_per_hour,
-            step_length=steps_per_hour,
-            fh=steps_per_hour * hours_to_forecast,
+            initial_window=steps_per_hour * 144,
+            step_length=steps_per_hour * 144,
+            fh=np.arange(steps_per_hour * hours_to_forecast),
         )
     elif cv_type == "expanding_sliding":
         cv_splitter = ExpandingSlidingWindowSplitter(
-            initial_window=steps_per_hour,
-            step_length=steps_per_hour,
-            fh=np.arange(1, steps_per_hour * hours_to_forecast + 1),
+            initial_window=steps_per_hour * 144,
+            step_length=steps_per_hour * 144,
+            fh=np.arange(steps_per_hour * hours_to_forecast),
         )
 
     else:
         raise ValueError(f"Invalid cv_type: {cv_type}")
+
+    print(f"CV Splitter: {cv_type}")
     return cv_splitter
 
 
@@ -279,7 +281,11 @@ def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]
             param_names.append(param_name)
             param_lists.append(values)
 
+        # Calculate total number of parameter combinations
+        count = 0
+
         for param_values in itertools.product(*param_lists):
+            count += 1
             param_dict = dict(zip(param_names, param_values))
 
             # Create identifier string
@@ -291,6 +297,8 @@ def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]
             forecaster = forecaster_class(**param_dict)
 
             estimators.append((forecaster, estimator_id))
+
+        print(f"Training {count} {forecaster_name} models with different parameters")
 
     return estimators
 
@@ -401,7 +409,7 @@ def run_benchmark(
     cv_splitter = get_cv_splitter(
         steps_per_hour=steps_per_hour,
         hours_to_forecast=hours_to_forecast,
-        cv_type="expanding_sliding",
+        cv_type="expanding",
     )
 
     # Get the benchmark
