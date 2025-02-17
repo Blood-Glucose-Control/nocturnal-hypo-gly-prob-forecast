@@ -1,4 +1,5 @@
 import numpy as np
+from src.tuning.load_forecasters import get_estimator, load_all_forecasters
 from src.utils.config_loader import load_yaml_config
 
 
@@ -35,6 +36,13 @@ def generate_param_grid(model_name, config):
             param_grid[param] = np.arange(start, end + step, step).tolist()
         elif param_type == "bool":
             param_grid[param] = [True, False]
+        elif param_type == "estimator":
+            estimators = details["estimators"]
+            estimator_kwargs = details["estimator_kwargs"]
+            param_grid[param] = [
+                get_estimator(load_all_forecasters(), estimator)(**kwargs)
+                for estimator, kwargs in zip(estimators, estimator_kwargs)
+            ]
         else:
             raise ValueError(f"Unsupported param type '{param_type}' for {param}")
 
