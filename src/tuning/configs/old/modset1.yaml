@@ -6,42 +6,20 @@
 
 AutoARIMA:
   start_p:
-    type: int
-    range: [1, 5]
+    type: list
+    values: [2]
   max_p:
-    type: int
-    range: [1, 5]
+    type: list
+    values: [216]
   start_q:
-    type: int
-    range: [1, 5]
+    type: list
+    values: [2]
   max_q:
-    type: int
-    range: [1, 5]
-  # d:
-  #   type: list
-  #   values: [0, 1, 2, None]
-  # max_d:
-  #   type: list
-  #   values: [1, 2, 3]
-  # start_P:
-  #   type: list
-  #   values: [0, 1, 2]
-  # max_P:
-  #   type: list
-  #   values: [1, 2, 3]
-  # D:
-  #   type: list
-  #   values: [0, 1, None]
-  # max_D:
-  #   type: int
-  #   range: [1, 20]
-  # start_Q:
-  #   type: int
-  #   range: [1, 20]
-  # max_Q:
-  #   type: int
-  #   range: [1, 20]
-
+    type: list
+    values: [216]
+  seasonal:
+    type: bool
+    values: [False]
 
 # DartsLinearRegressionModel:
 #   lags:
