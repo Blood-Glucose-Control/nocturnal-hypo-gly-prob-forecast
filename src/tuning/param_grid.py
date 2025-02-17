@@ -1,5 +1,9 @@
 import numpy as np
-from src.tuning.load_estimators import get_estimator, load_all_forecasters
+from src.tuning.load_estimators import (
+    get_estimator,
+    load_all_forecasters,
+    load_all_regressors,
+)
 from src.utils.config_loader import load_yaml_config
 
 
@@ -36,12 +40,20 @@ def generate_param_grid(model_name, config):
             param_grid[param] = np.arange(start, end + step, step).tolist()
         elif param_type == "bool":
             param_grid[param] = [True, False]
-        elif param_type == "estimator":
+        elif param_type == "forecaster":
             estimators = details["estimators"]
             estimator_kwargs = details["estimator_kwargs"]
             forecasters = load_all_forecasters()
             param_grid[param] = [
                 get_estimator(forecasters, estimator)(**kwargs)
+                for estimator, kwargs in zip(estimators, estimator_kwargs)
+            ]
+        elif param_type == "regressor":
+            estimators = details["estimators"]
+            estimator_kwargs = details["estimator_kwargs"]
+            regressors = load_all_regressors()
+            param_grid[param] = [
+                get_estimator(regressors, estimator)(**kwargs)
                 for estimator, kwargs in zip(estimators, estimator_kwargs)
             ]
         else:
