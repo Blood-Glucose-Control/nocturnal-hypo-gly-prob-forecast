@@ -1,5 +1,5 @@
 import numpy as np
-from src.tuning.load_forecasters import get_estimator, load_all_forecasters
+from src.tuning.load_estimators import get_estimator, load_all_forecasters
 from src.utils.config_loader import load_yaml_config
 
 
@@ -39,8 +39,9 @@ def generate_param_grid(model_name, config):
         elif param_type == "estimator":
             estimators = details["estimators"]
             estimator_kwargs = details["estimator_kwargs"]
+            forecasters = load_all_forecasters()
             param_grid[param] = [
-                get_estimator(load_all_forecasters(), estimator)(**kwargs)
+                get_estimator(forecasters, estimator)(**kwargs)
                 for estimator, kwargs in zip(estimators, estimator_kwargs)
             ]
         else:
