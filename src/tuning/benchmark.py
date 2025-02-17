@@ -2,19 +2,24 @@ import itertools
 from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.performance_metrics.forecasting import MeanSquaredError
-from sktime.split import ExpandingWindowSplitter
-from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
-from sktime.registry import all_estimators
+from sktime.split import ExpandingSlidingWindowSplitter
+from sktime.split.base import BaseWindowSplitter
 from sktime.transformations.series.impute import Imputer
 import pandas as pd
+import numpy as np
 from src.data.data_loader import load_data
-from src.data.data_cleaner import clean_data
 
 from src.tuning.param_grid import generate_param_grid
 from src.utils.config_loader import load_yaml_config
+from src.tuning.load_estimators import (
+    load_all_forecasters,
+    load_all_regressors,
+    get_estimator,
+)
 
 
-forecasters = {name: est for name, est in all_estimators(estimator_types="forecaster")}
+forecasters = load_all_forecasters()
+regressors = load_all_regressors()
 
 
 def parse_output(processed_output_dir, raw_output_dir) -> pd.DataFrame:
@@ -145,7 +150,7 @@ def get_dataset_loaders(
         list[Callable]: List of dataset loader functions, one for each patient.
     """
     # Load and clean data
-    df = clean_data(load_data())
+    df = load_data(use_cached=True)
 
     # TODO: Impute Missing values for each columns
     df = impute_missing_values(df, columns=x_features, bg_method=bg_method)
@@ -170,7 +175,9 @@ def get_dataset_loaders(
     return dataset_loaders
 
 
-def get_cv_splitter(steps_per_hour, hours_to_forecast) -> ExpandingWindowSplitter:
+def get_cv_splitter(
+    steps_per_hour, hours_to_forecast, cv_type="expanding_sliding"
+) -> BaseWindowSplitter:
     """Creates an expanding window cross-validation splitter for time series forecasting.
 
     Args:
@@ -183,12 +190,23 @@ def get_cv_splitter(steps_per_hour, hours_to_forecast) -> ExpandingWindowSplitte
             - Step size of steps_per_hour between splits
             - Forecast horizon of steps_per_hour * hours_to_forecast
     """
-    cv_splitter = ExpandingWindowSplitter(
-        initial_window=steps_per_hour,
-        step_length=steps_per_hour,
-        fh=steps_per_hour * hours_to_forecast,
-    )
 
+    # ExpandingWindowSplitter aint' working
+    # if cv_type == "expanding":
+    #     cv_splitter = ExpandingWindowSplitter(
+    #         initial_window=steps_per_hour,
+    #         step_length=steps_per_hour,
+    #         fh=steps_per_hour * hours_to_forecast,
+    #     )
+    if cv_type == "expanding_sliding":
+        cv_splitter = ExpandingSlidingWindowSplitter(
+            initial_window=steps_per_hour,
+            step_length=steps_per_hour,
+            fh=np.arange(1, steps_per_hour * hours_to_forecast + 1),
+        )
+
+    else:
+        raise ValueError(f"Invalid cv_type: {cv_type}")
     return cv_splitter
 
 
@@ -197,23 +215,23 @@ def load_model(model_name):
     if model_name not in forecasters:
         raise ValueError(f"Model {model_name} not found in sktime")
 
-    ForecasterClass = forecasters[model_name]  # Get the class
+    ForecasterClass = get_estimator(forecasters, model_name)  # Get the class
     return ForecasterClass
 
 
-def generate_estimators_from_param_grid(ymal_path) -> list[tuple[Callable, str]]:
+def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]:
     """Generates a list of forecasting estimators with different parameter combinations.
        forecaster_name is the key in the YAML file and the value is the forecaster class.
 
     Args:
-        ymal_path (str): Path to YAML config file containing forecaster parameters.
+        yaml_path (str): Path to YAML config file containing forecaster parameters.
 
     Returns:
         list[tuple[Callable, str]]: List of tuples containing (forecaster instance, estimator_id string).
             The forecaster instance is initialized with parameters from the config.
             The estimator_id uniquely identifies the forecaster and its parameters.
     """
-    config = load_yaml_config(ymal_path)
+    config = load_yaml_config(yaml_path)
 
     estimators = []
     for forecaster_name in config.keys():
@@ -242,14 +260,14 @@ def generate_estimators_from_param_grid(ymal_path) -> list[tuple[Callable, str]]
     return estimators
 
 
-def get_benchmark(dataset_loaders, cv_splitter, scorers, ymal_path, cores_num=-1):
+def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1):
     """Creates and configures a ForecastingBenchmark instance for evaluating multiple forecasting models.
 
     Args:
         dataset_loaders (list[Callable]): List of functions that load individual patient datasets
         cv_splitter (ExpandingWindowSplitter): Cross-validation splitter that defines train/test splits
         scorers: List of scoring metrics to evaluate forecasting performance
-        ymal_path (str): Path to YAML config file containing model parameters to test
+        yaml_path (str): Path to YAML config file containing model parameters to test
 
     Returns:
         ForecastingBenchmark: Configured benchmark object ready to run experiments
@@ -260,7 +278,7 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, ymal_path, cores_num=-1
     )
 
     # Generate all estimators
-    estimators = generate_estimators_from_param_grid(ymal_path)
+    estimators = generate_estimators_from_param_grid(yaml_path)
     for estimator, estimator_id in estimators:
         benchmark.add_estimator(estimator=estimator, estimator_id=estimator_id)
 
@@ -270,16 +288,17 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, ymal_path, cores_num=-1
             cv_splitter,
             scorers,
             task_id=f"patient_{idx}",
+            error_score="raise",
         )
     return benchmark
 
 
 def run_benchmark(
     y_features=["bg-0:00"],
-    x_features=["insulin-0:00", "carbs-0:00", "hr-0:00"],
+    x_features=["iob", "cob"],
     steps_per_hour=12,
     hours_to_forecast=6,
-    ymal_path="./src/tuning/configs/modset1.yaml",
+    yaml_path="./src/tuning/configs/modset1.yaml",
     bg_method="linear",
     hr_method="linear",
     step_method="constant",
@@ -290,7 +309,7 @@ def run_benchmark(
     n_patients=-1,
 ) -> None:
     """
-    Run benchmarking experiments for diabetes forecasting models.
+    Run benchmarking experiments for diabetes forecasting models. Constants columns will not work with some forecasting models.
     Args:
         y_features (list[str], optional): Target variables to forecast. Defaults to ["bg-0:00"].
         x_features (list[str], optional): Input features for forecasting. Defaults to ["insulin-0:00", "carbs-0:00", "hr-0:00"].
@@ -298,7 +317,7 @@ def run_benchmark(
         steps_per_hour (int, optional): Number of time steps per hour in the data. Defaults to 12.
         hours_to_forecast (int, optional): Number of hours to forecast ahead. Defaults to 6.
 
-        ymal_path (str, optional): Path to YAML config file with model parameters. Defaults to "./src/tuning/configs/modset1.yaml".
+        yaml_path (str, optional): Path to YAML config file with model parameters. Defaults to "./src/tuning/configs/modset1.yaml".
 
         bg_method (str, optional): Imputation method for blood glucose. Defaults to "linear".
         hr_method (str, optional): Imputation method for heart rate. Defaults to "linear".
@@ -319,8 +338,9 @@ def run_benchmark(
     5. Saves raw and processed results to specified directories
     """
     current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
-    processed_output_dir = f"{processed_dir}/{current_time}_forecasting_results.csv"
-    raw_output_dir = f"{raw_dir}/{current_time}_forecasting_results.csv"
+    yaml_name = yaml_path.split("/")[-1].replace(".yaml", "")
+    processed_output_dir = f"{processed_dir}/{current_time}_{yaml_name}.csv"
+    raw_output_dir = f"{raw_dir}/{current_time}_{yaml_name}.csv"
 
     # Get dataset loaders with imputed missing values
     dataset_loaders = get_dataset_loaders(
@@ -335,13 +355,15 @@ def run_benchmark(
 
     # ADD THE SCORERS HERE
     scorers = [
-        PinballLoss(),
+        # PinballLoss(),
         MeanSquaredError(square_root=True),
     ]
 
     # Get the cross-validation splitter
     cv_splitter = get_cv_splitter(
-        steps_per_hour=steps_per_hour, hours_to_forecast=hours_to_forecast
+        steps_per_hour=steps_per_hour,
+        hours_to_forecast=hours_to_forecast,
+        cv_type="expanding_sliding",
     )
 
     # Get the benchmark
@@ -349,7 +371,7 @@ def run_benchmark(
         dataset_loaders=dataset_loaders,
         cv_splitter=cv_splitter,
         scorers=scorers,
-        ymal_path=ymal_path,
+        yaml_path=yaml_path,
         cores_num=cores_num,
     )
 
