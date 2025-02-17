@@ -1,22 +1,22 @@
-# NaiveForecaster:
-#   strategy:
-#     type: list
-#     values: ["last", "mean", "drift"]
+NaiveForecaster:
+  strategy:
+    type: list
+    values: ["last", "mean", "drift"]
 
 
-AutoARIMA:
-  start_p:
-    type: int
-    range: [1, 5]
-  max_p:
-    type: int
-    range: [1, 5]
-  start_q:
-    type: int
-    range: [1, 5]
-  max_q:
-    type: int
-    range: [1, 5]
+# AutoARIMA:
+#   start_p:
+#     type: int
+#     range: [1, 5]
+#   max_p:
+#     type: int
+#     range: [1, 5]
+#   start_q:
+#     type: int
+#     range: [1, 5]
+#   max_q:
+#     type: int
+#     range: [1, 5]
   # d:
   #   type: list
   #   values: [0, 1, 2, None]
