@@ -72,20 +72,30 @@ AutoARIMA:
 
 ### Estimators
 - Generates an instance of an estimator. The `estimators` key should contain a list of the estimator types you want to use, and the `estimator_kwargs` key should contain a list of dictionaries, where each dictionary holds the arguments to pass into the corresponding estimator.
+  - Specify whether it's a regressor (`sklearn`) or a forecaster (`sktime`) in the `type` value
   - The position of each dictionary in `estimator_kwargs` should match the position of the estimator it is meant for in the `estimators` list. For no arguments, pass an empty dictionary.
   - The `estimators` entries should be the name of the estimators as listed in the sktime estimator registry.
 - Use for estimators that take other estimators as parameters (e.g. [DirectTabularRegressionForecaster](https://www.sktime.net/en/latest/api_reference/auto_generated/sktime.forecasting.compose.DirectTabularRegressionForecaster.html)).
 
-Example:
+Forecaster Example:
 ```yaml
 DirectTabularRegressionForecaster:
   estimator:
-    type: estimator
-	estimators: ["ARIMA"]
-	estimator_kwargs: [
-		{
-			order: [1, 0, 0],
-			suppress_warnings: True,
-		}
-	]
+    type: forecaster
+    estimators: ["ARIMA"]
+    estimator_kwargs: [
+        {
+            order: [1, 0, 0],
+            suppress_warnings: True,
+        }
+    ]
+```
+
+Regressor Example:
+```yaml
+VARReduce:
+  regressor:
+    type: regressor
+    estimators: ["LinearRegression"]
+    estimator_kwargs: [{}]
 ```
