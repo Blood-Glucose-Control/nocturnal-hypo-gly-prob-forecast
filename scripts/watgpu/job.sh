@@ -5,9 +5,9 @@
 
 # Set resource requirements: Queues are limited to seven day allocations
 # Time format: HH:MM:SS
-#SBATCH --time=00:00:10
-#SBATCH --mem=3GB
-#SBATCH --cpus-per-task=4
+#SBATCH --time=72:00:00
+#SBATCH --mem=10GB
+#SBATCH --cpus-per-task=16
 ##SBATCH --gres=gpu:1
 
 # Set output file destinations (optional)
@@ -28,10 +28,8 @@
 source $HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
 
 # Task to run
+# 5-min interval
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_arima_5.py
 
-# RUN THE PYTHON SCRIPT OVER HERE
-python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/cores.py --device gpu
-python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/cores.py --device cpu
-
-
-# ENTER `sbatch cores.sh` to run the script
+# 15-min interval
+python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_arima_15.py
