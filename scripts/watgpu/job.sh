@@ -28,10 +28,8 @@
 source $HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
 
 # Task to run
+# 5-min interval
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_arima_5.py
 
-# RUN THE PYTHON SCRIPT OVER HERE
-python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/cores.py --device gpu
-python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/cores.py --device cpu
-
-
-# ENTER `sbatch cores.sh` to run the script
+# 15-min interval
+python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_arima_15.py
