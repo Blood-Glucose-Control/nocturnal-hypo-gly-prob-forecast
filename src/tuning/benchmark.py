@@ -211,11 +211,13 @@ def get_dataset_loaders(
 
 
 def get_cv_splitter(
-    steps_per_hour, hours_to_forecast, cv_type="expanding"
+    initial_window, step_length, steps_per_hour, hours_to_forecast, cv_type="expanding"
 ) -> BaseWindowSplitter:
     """Creates an expanding window cross-validation splitter for time series forecasting.
 
     Args:
+        initial_window (int): Initial training window size in number of time steps
+        step_length (int): Step size between training windows in number of time steps
         steps_per_hour (int): Number of time steps per hour in the data
         hours_to_forecast (int): Number of hours to forecast ahead
 
@@ -226,17 +228,16 @@ def get_cv_splitter(
             - Forecast horizon of steps_per_hour * hours_to_forecast
     """
 
-    # ExpandingWindowSplitter aint' working
     if cv_type == "expanding":
         cv_splitter = ExpandingWindowSplitter(
-            initial_window=steps_per_hour,
-            step_length=steps_per_hour,
-            fh=steps_per_hour * hours_to_forecast,
+            initial_window=initial_window,
+            step_length=step_length,
+            fh=np.arange(1, steps_per_hour * hours_to_forecast + 1),
         )
     elif cv_type == "expanding_sliding":
         cv_splitter = ExpandingSlidingWindowSplitter(
-            initial_window=steps_per_hour,
-            step_length=steps_per_hour,
+            initial_window=initial_window,
+            step_length=step_length,
             fh=np.arange(1, steps_per_hour * hours_to_forecast + 1),
         )
 
@@ -331,9 +332,12 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
 def run_benchmark(
     y_features=["bg-0:00"],
     x_features=["iob", "cob"],
+    cv_type="expanding",
+    initial_cv_window=12 * 24 * 3,
+    cv_step_length=12 * 24 * 3,
     steps_per_hour=12,
     hours_to_forecast=6,
-    yaml_path="./src/tuning/configs/modset1.yaml",
+    yaml_path="./src/tuning/configs/old/modset1.yaml",
     bg_method="linear",
     hr_method="linear",
     step_method="constant",
@@ -399,9 +403,11 @@ def run_benchmark(
 
     # Get the cross-validation splitter
     cv_splitter = get_cv_splitter(
+        initial_window=initial_cv_window,
+        step_length=cv_step_length,
         steps_per_hour=steps_per_hour,
         hours_to_forecast=hours_to_forecast,
-        cv_type="expanding_sliding",
+        cv_type=cv_type,
     )
 
     # Get the benchmark
