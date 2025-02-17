@@ -6,6 +6,9 @@ Essentially, if you decided not to implement the model, document it here so that
 
 ## 0 ARMA
 
+StatsModelsARIMA - not needed AutoARIMA works fine.
+StatsForecastAutoARIMA - not needed AutoARIMA works fine.
+
 ## 1 Exponential Smoothing
 
 ## 2 ARCH
