@@ -1,0 +1,19 @@
+AutoETS:
+  auto:
+    type: list
+    values: [True]
+
+StatsForecastAutoETS:
+  model:
+    type: list
+    values: ["ANN", "MNN"]
+
+StatsForecastAutoCES:
+  model:
+    type: list
+    values: ["Z"]
+
+StatsForecastAutoTheta:
+  decomposition_type:
+    type: list
+    values: ["additive", "multiplicative"]
