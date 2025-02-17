@@ -162,7 +162,7 @@ def get_dataset_loaders(
     cal_method="constant",
     is_5min=True,
     n_patients=-1,
-) -> list[Callable]:
+) -> dict[str, Callable]:
     """Create the dataset, impute the x_features and y_feature, and create dataset loader functions for each patient.
 
     Args:
@@ -181,7 +181,7 @@ def get_dataset_loaders(
         n_patients (int, optional): Number of patients to load.
             If -1, all patients with given interval are loaded.
     Returns:
-        list[Callable]: List of dataset loader functions, one for each patient.
+        dict[str, Callable]: Dictionary of dataset loader functions, one for each patient.
     """
     # Load and clean data
     df = load_data(use_cached=True)
@@ -202,10 +202,11 @@ def get_dataset_loaders(
     # Create dataset loaders for each patient
     patient_ids = get_patient_ids(df, is_5min, n_patients)
 
-    dataset_loaders = []
+    # Create dictionary of dataset loaders mapping patient_id to dataset loader function so we can get the correct patient_id in the benchmark
+    dataset_loaders = {}
     for patient_id in patient_ids[:n_patients]:
-        dataset_loaders.append(
-            lambda p=patient_id: load_diabetes_data(p, df, y_feature, x_features)
+        dataset_loaders[patient_id] = lambda p=patient_id: load_diabetes_data(
+            patient_id=p, df=df, y_feature=y_feature, x_features=x_features
         )
     return dataset_loaders
 
@@ -304,7 +305,7 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
     """Creates and configures a ForecastingBenchmark instance for evaluating multiple forecasting models.
 
     Args:
-        dataset_loaders (list[Callable]): List of functions that load individual patient datasets
+        dataset_loaders (dict[str, Callable]): Dictionary of functions that load individual patient datasets: {patient_id: dataset_loader}
         cv_splitter (ExpandingWindowSplitter): Cross-validation splitter that defines train/test splits
         scorers: List of scoring metrics to evaluate forecasting performance
         yaml_path (str): Path to YAML config file containing model parameters to test
@@ -322,12 +323,12 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
     for estimator, estimator_id in estimators:
         benchmark.add_estimator(estimator=estimator, estimator_id=estimator_id)
 
-    for idx, dataset_loader in enumerate(dataset_loaders):
+    for patient_id, dataset_loader in dataset_loaders.items():
         benchmark.add_task(
             dataset_loader,
             cv_splitter,
             scorers,
-            task_id=f"patient_{idx}",
+            task_id=patient_id,
             error_score="raise",
         )
     return benchmark
