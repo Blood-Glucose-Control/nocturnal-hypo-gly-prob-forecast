@@ -134,12 +134,17 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-def create_datetime_index(df: pd.DataFrame, start_date: str = "2025-01-01") -> pd.DataFrame:
+
+def create_datetime_index(
+    df: pd.DataFrame, start_date: str = "2025-01-01"
+) -> pd.DataFrame:
     if "time_diff" not in df.columns:
         df = create_time_diff_cols(df)
 
     # Create a str datetime column
-    df["datetime"] = pd.to_datetime(start_date + " " + df["time"], format="%Y-%m-%d %H:%M:%S")
+    df["datetime"] = pd.to_datetime(
+        start_date + " " + df["time"], format="%Y-%m-%d %H:%M:%S"
+    )
 
     # Convert time_diff to a timedelta object
     # time_diff is the difference in time between the current row and the next row
@@ -150,12 +155,19 @@ def create_datetime_index(df: pd.DataFrame, start_date: str = "2025-01-01") -> p
     # Have to assume that two entries are not separated by more than 24 hours
     # Since we were not given date, only time, so not considering days in this calculation
     df["time_diff_abs"] = df["time_diff"].apply(
-        lambda x: pd.Timedelta(hours=x.components.hours, minutes=x.components.minutes, seconds=x.components.seconds) 
-        if pd.notna(x) else pd.Timedelta(0)
+        lambda x: pd.Timedelta(
+            hours=x.components.hours,
+            minutes=x.components.minutes,
+            seconds=x.components.seconds,
+        )
+        if pd.notna(x)
+        else pd.Timedelta(0)
     )
 
     # Create a cumulative sum of the absolute time differences
-    df["cumulative_diff"] = df.groupby("p_num")["time_diff_abs"].cumsum().fillna(pd.Timedelta(0))
+    df["cumulative_diff"] = (
+        df.groupby("p_num")["time_diff_abs"].cumsum().fillna(pd.Timedelta(0))
+    )
 
     # Create a fixed start timestamp for each patient
     start_times = df.groupby("p_num")["datetime"].transform("first")
