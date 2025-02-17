@@ -12,6 +12,8 @@ if __name__ == "__main__":
     run_benchmark(
         y_features=["bg-0:00"],
         x_features=["iob", "cob"],
+        initial_cv_window=12 * 24 * 3,  # 3 days
+        cv_step_length=12 * 24 * 3,  # 3 days
         steps_per_hour=12,
         hours_to_forecast=6,
         yaml_path=yaml_path,

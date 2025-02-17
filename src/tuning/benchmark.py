@@ -275,6 +275,7 @@ def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]
 
         param_lists = []
         param_names = []
+        count = 0
 
         for param_name, values in param_grid.items():
             param_names.append(param_name)
@@ -292,6 +293,9 @@ def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]
             forecaster = forecaster_class(**param_dict)
 
             estimators.append((forecaster, estimator_id))
+            count += 1
+
+        print(f"Training {count} {forecaster_name} models with different parameters")
 
     return estimators
 
