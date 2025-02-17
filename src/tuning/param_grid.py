@@ -1,5 +1,5 @@
 import numpy as np
-from src.tuning.load_forecasters import get_estimator, load_all_forecasters
+from src.tuning.load_estimators import get_estimator, load_all_forecasters
 from src.utils.config_loader import load_yaml_config
 
 
