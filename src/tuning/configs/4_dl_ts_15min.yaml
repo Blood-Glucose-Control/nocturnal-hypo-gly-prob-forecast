@@ -1,0 +1,4 @@
+NeuralForecastRNN:
+  input_size:
+    type: list
+    values: [72]
