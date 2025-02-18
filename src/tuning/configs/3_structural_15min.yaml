@@ -1,0 +1,10 @@
+ARDL:
+  auto_ardl:
+    type: list
+    values: [True]
+  maxlag:
+    type: list
+    values: [16]
+  maxorder:
+    type: list
+    values: [16]

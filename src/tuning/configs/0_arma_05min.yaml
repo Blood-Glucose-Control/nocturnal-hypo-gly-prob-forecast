@@ -52,6 +52,9 @@ AutoARIMA:
   seasonal:
     type: list
     values: [False]
+  n_jobs:
+    type: list
+    values: [-1]
 
 VARReduce:
   regressor:
