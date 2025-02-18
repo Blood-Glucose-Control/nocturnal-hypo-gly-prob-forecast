@@ -1,0 +1,80 @@
+ARCH:
+  p:
+    type: list
+    values:
+      [ # try lookbackwindows for epsilon
+        15,
+        36,
+        60
+      ]
+  q:
+    type: list
+    values:
+      [ # try 75 min, 180 min, 300 min for the lookback window of the std
+        15,
+        36,
+        60
+      ]
+  o:
+    type: list
+    values:
+      [
+        15,
+        36,
+        60
+      ]
+  lags:
+    type: list
+    values:
+      [ # the lookback points (2 hours through 18 hours). Used only for the mean
+        24,
+        36,
+        48,
+        60,
+        72,
+        84,
+        96,
+        108,
+        120,
+        144,
+        180,
+        216,
+      ]
+  power:
+    type: list
+    values:
+      [
+        2,
+        4
+      ]
+
+  dist:
+    type: list
+    values:
+      [
+        "normal",
+        "t",
+        "skewstudent",
+        "ged"
+      ]
+
+  mean:
+    type: list
+    values:
+      [
+        "Constant",
+        "AR",
+        "ARX",
+        "HAR",
+        "HARX"
+      ]
+
+  vol:
+    type: list
+    values:
+      [
+        "GARCH",
+        "ARCH",
+        "EGARCH",
+        "HARCH"
+        ]
