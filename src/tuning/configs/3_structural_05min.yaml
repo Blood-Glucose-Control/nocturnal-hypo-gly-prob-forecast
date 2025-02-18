@@ -8,8 +8,3 @@ ARDL:
   maxorder:
     type: list
     values: [16]
-
-
-  
-  
-  
