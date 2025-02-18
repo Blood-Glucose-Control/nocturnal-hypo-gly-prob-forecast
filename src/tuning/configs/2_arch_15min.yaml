@@ -1,7 +1,7 @@
 ARCH:
   p:
     type: list
-    values: 
+    values:
       [ # try lookbackwindows for epsilon
         8,
         20,
@@ -9,7 +9,7 @@ ARCH:
       ]
   q:
     type: list
-    values: 
+    values:
       [ # 15 min windows. So 8*15=120 min, 20*15=300 min, 30*15=450 min
         8,
         20,
@@ -17,7 +17,7 @@ ARCH:
       ]
   o:
     type: list
-    values: 
+    values:
       [
         8,
         20,
@@ -25,7 +25,7 @@ ARCH:
       ]
   lags:
     type: list
-    values: 
+    values:
       [ # the lookback points (2 hours through 18 hours). Used only for the mean
         8,
         12,
@@ -39,39 +39,39 @@ ARCH:
       ]
   power:
     type: list
-    values: 
+    values:
       [
-        2, 
+        2,
         4
       ]
-  
+
   dist:
     type: list
-    values: 
+    values:
       [
-        "normal", 
-        "t", 
-        "skewstudent", 
+        "normal",
+        "t",
+        "skewstudent",
         "ged"
       ]
-  
+
   mean:
     type: list
-    values: 
+    values:
       [
-        "Constant", 
-        "AR", 
-        "ARX", 
-        "HAR", 
+        "Constant",
+        "AR",
+        "ARX",
+        "HAR",
         "HARX"
       ]
-  
+
   vol:
     type: list
-    values: 
+    values:
       [
-        "GARCH", 
-        "ARCH", 
-        "EGARCH", 
+        "GARCH",
+        "ARCH",
+        "EGARCH",
         "HARCH"
         ]
