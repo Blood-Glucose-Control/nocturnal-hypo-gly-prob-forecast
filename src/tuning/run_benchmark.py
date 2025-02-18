@@ -16,9 +16,9 @@ if __name__ == "__main__":
             "insulin_availability",
             "iob",
         ],
-        initial_cv_window=12 * 24 * 3,  # 3 days
-        cv_step_length=12 * 24 * 3,  # 3 days
-        steps_per_hour=12,
+        initial_cv_window=4 * 24 * 3,  # 3 days
+        cv_step_length=4 * 24 * 3,  # 3 days
+        steps_per_hour=4,
         hours_to_forecast=6,
         yaml_path="./src/tuning/configs/0_arma_05min.yaml",
         bg_method="linear",
@@ -29,7 +29,7 @@ if __name__ == "__main__":
         raw_dir="./results/raw",
         cores_num=-1,  # All cores
         n_patients=-1,  # All patients
-        is_5min=True,  # 5-minute interval patients
+        is_5min=False,  # 5-minute interval patients
     )
 
     end_time = time.time()
