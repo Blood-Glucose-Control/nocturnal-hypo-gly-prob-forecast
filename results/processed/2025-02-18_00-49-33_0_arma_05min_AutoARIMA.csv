@@ -1,0 +1,7 @@
+validation_id,model_id,runtime_secs,MeanSquaredError_mean,MeanSquaredError_std
+p02,AutoARIMA-start_p_2-max_p_216-start_q_2-max_q_216-seasonal_False-n_jobs_-1,1127.911467075348,2.4389843605226655,1.576723177153364
+p03,AutoARIMA-start_p_2-max_p_216-start_q_2-max_q_216-seasonal_False-n_jobs_-1,1327.9888541698456,3.1064183612264187,1.83129655566097
+p04,AutoARIMA-start_p_2-max_p_216-start_q_2-max_q_216-seasonal_False-n_jobs_-1,764.780369758606,1.9608056601229096,0.8324461826697257
+p10,AutoARIMA-start_p_2-max_p_216-start_q_2-max_q_216-seasonal_False-n_jobs_-1,884.2034540176392,1.6361453815306557,0.9871574212471472
+p11,AutoARIMA-start_p_2-max_p_216-start_q_2-max_q_216-seasonal_False-n_jobs_-1,1520.4386749267578,3.2243885784577264,1.8602459409459724
+p12,AutoARIMA-start_p_2-max_p_216-start_q_2-max_q_216-seasonal_False-n_jobs_-1,3658.2595961093903,2.4258339503369704,1.6777454933023728
