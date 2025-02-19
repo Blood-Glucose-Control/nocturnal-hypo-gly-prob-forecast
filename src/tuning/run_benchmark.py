@@ -20,7 +20,7 @@ if __name__ == "__main__":
         cv_step_length=4 * 24 * 3,  # 3 days
         steps_per_hour=4,
         hours_to_forecast=6,
-        yaml_path="./src/tuning/configs/0_arma_05min.yaml",
+        yaml_path="./src/tuning/configs/1_exponential_smooth_15min.yaml",
         bg_method="linear",
         hr_method="linear",
         step_method="constant",
