@@ -5,7 +5,6 @@ ARCH:
       [ # try lookbackwindows for epsilon
         15,
         36,
-        60
       ]
   q:
     type: list
@@ -29,12 +28,6 @@ ARCH:
         24,
         36,
         48,
-        60,
-        72,
-        84,
-        96,
-        108,
-        120
       ]
   power:
     type: list

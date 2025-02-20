@@ -4,7 +4,7 @@ ARDL:
     values: [True]
   maxlag:
     type: list
-    values: [16]
+    values: [8]
   maxorder:
     type: list
-    values: [16]
+    values: [8]
