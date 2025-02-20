@@ -23,24 +23,14 @@
 # Set types of notifications (from the options: BEGIN, END, FAIL, REQUEUE, ALL):
 #SBATCH --mail-type=ALL
 
-# Load up your conda environment
-# Set up environment on watgpu.cs or in interactive session (use `source` keyword instead of `conda`)
+# Check if yaml file argument is provided
+if [ $# -eq 0 ]; then
+    echo "Usage: sbatch job.sh <yaml_config_file>"
+    echo "Example: sbatch job.sh 2_arch_EGARCH_05min.yaml"
+    exit 1
+fi
+
 source $HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
 
-# Task to run
-python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 0_arma_05min.yaml
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 0_arma_15min.yaml
-
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 1_exponential_smooth_05min.yaml
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 1_exponential_smooth_15min.yaml
-
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_EGARCH_05min.yaml
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_GARCH_05min.yaml
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_HARCH_05min.yaml
-
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_EGARCH_15min.yaml
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_GARCH_15min.yaml
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_HARCH_15min.yaml
-
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 3_structural_05min.yaml
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 3_structural_15min.yaml
+# Run the model with the provided yaml file
+python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py "$1"
