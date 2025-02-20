@@ -2,6 +2,7 @@ import itertools
 from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.performance_metrics.forecasting import MeanSquaredError
+from sktime.forecasting.compose import FallbackForecaster
 from sktime.split import ExpandingSlidingWindowSplitter, ExpandingWindowSplitter
 from sktime.split.base import BaseWindowSplitter
 from sktime.transformations.series.impute import Imputer
@@ -289,9 +290,14 @@ def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]
             param_str = "-".join(f"{k}_{str(v)}" for k, v in param_dict.items())
             estimator_id = f"{forecaster_name}-{param_str}"
 
-            # Instantiate forecaster with parameters
-            forecaster_class = load_model(forecaster_name)
-            forecaster = forecaster_class(**param_dict)
+            # Fallback to native forecaster if the main forecaster fails
+            forecaster = FallbackForecaster(
+                forecasters=[
+                    load_model(forecaster_name)(**param_dict),
+                    load_model("NaiveForecaster")(),
+                ],
+                verbose=True,
+            )
 
             estimators.append((forecaster, estimator_id))
             count += 1
