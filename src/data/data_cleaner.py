@@ -30,7 +30,7 @@ def clean_data(
     return data
 
 
-def clean_brist1d_test_data(df: pd.DataFrame):
+def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFrame]]:
     """
     Cleans the test data for the Bris1TD dataset by removing columns of historic data
     """
