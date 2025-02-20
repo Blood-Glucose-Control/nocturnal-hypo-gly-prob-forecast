@@ -5,9 +5,9 @@
 
 # Set resource requirements: Queues are limited to seven day allocations
 # Time format: HH:MM:SS
-#SBATCH --time=01:00:00
-#SBATCH --mem=5GB
-#SBATCH --cpus-per-task=12
+#SBATCH --time=12:00:00
+#SBATCH --mem=12GB
+#SBATCH --cpus-per-task=10
 ##SBATCH --gres=gpu:1
 
 # Set output file destinations (optional)
@@ -23,13 +23,14 @@
 # Set types of notifications (from the options: BEGIN, END, FAIL, REQUEUE, ALL):
 #SBATCH --mail-type=ALL
 
-# Load up your conda environment
-# Set up environment on watgpu.cs or in interactive session (use `source` keyword instead of `conda`)
+# Check if yaml file argument is provided
+if [ $# -eq 0 ]; then
+    echo "Usage: sbatch job.sh <yaml_config_file>"
+    echo "Example: sbatch job.sh 2_arch_EGARCH_05min.yaml"
+    exit 1
+fi
+
 source $HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
 
-# Task to run
-# 5-min interval
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_arima_5.py
-
-# 15-min interval
-python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_arima_15.py
+# Run the model with the provided yaml file
+python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py "$1"
