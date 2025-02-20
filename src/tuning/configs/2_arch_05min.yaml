@@ -11,17 +11,16 @@ ARCH:
     type: list
     values:
       [ # try 75 min, 180 min, 300 min for the lookback window of the std
-        15,
-        36,
-        60
+        12,
+        24,
+        36
       ]
   o:
     type: list
     values:
       [
-        15,
-        36,
-        60
+        12,
+        24
       ]
   lags:
     type: list
@@ -35,17 +34,14 @@ ARCH:
         84,
         96,
         108,
-        120,
-        144,
-        180,
-        216,
+        120
       ]
   power:
     type: list
     values:
       [
-        2,
-        4
+        1,
+        2
       ]
 
   dist:
@@ -53,8 +49,6 @@ ARCH:
     values:
       [
         "normal",
-        "t",
-        "skewstudent",
         "ged"
       ]
 
@@ -74,7 +68,6 @@ ARCH:
     values:
       [
         "GARCH",
-        "ARCH",
         "EGARCH",
         "HARCH"
         ]
