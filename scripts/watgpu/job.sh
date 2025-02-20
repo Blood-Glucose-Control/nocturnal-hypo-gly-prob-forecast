@@ -5,9 +5,9 @@
 
 # Set resource requirements: Queues are limited to seven day allocations
 # Time format: HH:MM:SS
-#SBATCH --time=01:00:00
-#SBATCH --mem=5GB
-#SBATCH --cpus-per-task=12
+#SBATCH --time=12:00:00
+#SBATCH --mem=12GB
+#SBATCH --cpus-per-task=10
 ##SBATCH --gres=gpu:1
 
 # Set output file destinations (optional)
@@ -28,8 +28,19 @@
 source $HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
 
 # Task to run
-# 5-min interval
-# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_arima_5.py
+python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 0_arma_05min.yaml
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 0_arma_15min.yaml
 
-# 15-min interval
-python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_arima_15.py
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 1_exponential_smooth_05min.yaml
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 1_exponential_smooth_15min.yaml
+
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_EGARCH_05min.yaml
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_GARCH_05min.yaml
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_HARCH_05min.yaml
+
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_EGARCH_15min.yaml
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_GARCH_15min.yaml
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 2_arch_HARCH_15min.yaml
+
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 3_structural_05min.yaml
+# python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py 3_structural_15min.yaml
