@@ -8,7 +8,7 @@ from sktime.split.base import BaseWindowSplitter
 from sktime.transformations.series.impute import Imputer
 import pandas as pd
 import numpy as np
-from src.data.data_loader import load_data
+from src.data.data_loader import load_data, get_train_validation_split
 
 from src.tuning.param_grid import generate_param_grid
 from src.utils.config_loader import load_yaml_config
@@ -186,6 +186,7 @@ def get_dataset_loaders(
     """
     # Load and clean data
     df = load_data(use_cached=True)
+    df, _ = get_train_validation_split(df)
 
     # TODO: Impute Missing values for each columns
     df = impute_missing_values(df, columns=x_features, bg_method=bg_method)
