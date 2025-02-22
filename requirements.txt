@@ -1,6 +1,6 @@
 ipynb
 ipython
-
+ipywidgets
 # Jupyter environment
 jupyterlab
 
@@ -14,6 +14,7 @@ mkdocs
 
 # Development tools
 mlflow
+neuralforecast
 notebook
 numba
 numpy
