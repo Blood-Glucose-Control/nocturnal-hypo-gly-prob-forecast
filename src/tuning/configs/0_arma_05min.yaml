@@ -1,0 +1,66 @@
+NaiveForecaster:
+  strategy:
+    type: list
+    values: ["last", "mean"]
+
+AutoREG:
+  lags:
+    type: list
+    values:
+      [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        12,
+        18,
+        24,
+        36,
+        48,
+        60,
+        72,
+        84,
+        96,
+        108,
+        120,
+        144,
+        180,
+        216,
+      ]
+  trend:
+    type: list
+    values: ["n", "c", "t", "ct"]
+  seasonal:
+    type: list
+    values: [False]
+
+AutoARIMA:
+  start_p:
+    type: list
+    values: [2]
+  max_p:
+    type: list
+    values: [216]
+  start_q:
+    type: list
+    values: [2]
+  max_q:
+    type: list
+    values: [216]
+  seasonal:
+    type: list
+    values: [False]
+  n_jobs:
+    type: list
+    values: [-1]
+
+VARReduce:
+  regressor:
+    type: regressor
+    estimators: ["LinearRegression", "Lasso", "Ridge", "ElasticNet"]
+    estimator_kwargs: [{}, {}, {}, {}]
+  lags:
+    type: int
+    range: [12, 216]

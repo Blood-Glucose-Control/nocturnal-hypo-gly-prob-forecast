@@ -1,0 +1,4 @@
+validation_id,model_id,runtime_secs,MeanSquaredError_fold_0_test,MeanSquaredError_fold_1_test,MeanSquaredError_fold_2_test,MeanSquaredError_fold_3_test,MeanSquaredError_fold_4_test,MeanSquaredError_fold_5_test,MeanSquaredError_fold_6_test,MeanSquaredError_fold_7_test,MeanSquaredError_fold_8_test,MeanSquaredError_fold_9_test,MeanSquaredError_fold_10_test,MeanSquaredError_mean,MeanSquaredError_std
+p01,ARDL-auto_ardl_True-maxlag_4-maxorder_4,2303.925883293152,5.583024582266208,2.4059327956874683,4.172531279637987,1.8830738799906475,2.4658564742614946,2.8398770679609626,3.058604305767336,6.178057658669025,5.281640019390195,2.827344003048188,2.525366855886935,3.5655735384151317,1.4833772006135106
+p05,ARDL-auto_ardl_True-maxlag_4-maxorder_4,2192.8676834106445,,,,,,,,,,,,,
+p06,ARDL-auto_ardl_True-maxlag_4-maxorder_4,2629.4957501888275,,,,,,,,,,,,,

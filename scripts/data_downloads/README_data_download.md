@@ -2,6 +2,10 @@
 
 ## kaggle_brisT1D
 
+Before following the steps below make sure your machine is configured to work with the kaggle public API:
+
+[How to Use Kaggle - Public API](https://www.kaggle.com/docs/api)
+
 To run the script from your main directory, use the following command:
 
 ```bash scripts/data_downloads/kaggle_data_download.sh```

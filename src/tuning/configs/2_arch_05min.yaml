@@ -1,0 +1,66 @@
+ARCH:
+  p:
+    type: list
+    values:
+      [ # try lookbackwindows for epsilon
+        15,
+        36,
+      ]
+  q:
+    type: list
+    values:
+      [ # try 75 min, 180 min, 300 min for the lookback window of the std
+        12,
+        24,
+        36
+      ]
+  o:
+    type: list
+    values:
+      [
+        12,
+        24
+      ]
+  lags:
+    type: list
+    values:
+      [ # the lookback points (2 hours through 18 hours). Used only for the mean
+        24,
+        36,
+        48,
+      ]
+  power:
+    type: list
+    values:
+      [
+        1,
+        2
+      ]
+
+  dist:
+    type: list
+    values:
+      [
+        "normal",
+        "ged"
+      ]
+
+  mean:
+    type: list
+    values:
+      [
+        "Constant",
+        "AR",
+        "ARX",
+        "HAR",
+        "HARX"
+      ]
+
+  vol:
+    type: list
+    values:
+      [
+        "GARCH",
+        "EGARCH",
+        "HARCH"
+        ]
