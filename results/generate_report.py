@@ -57,28 +57,52 @@ class ModelRun:
 
 
 def create_model_run_from_filename(filename):
+    # Try first with run number
     pattern = r"""
-    (\d{4}-\d{2}-\d{2})     # Date
+    (\d{4}-\d{2}-\d{2})      # Date
     _
-    (\d{2}-\d{2}-\d{2})     # Time
+    (\d{2}-\d{2}-\d{2})      # Time
     _
-    (\d+)                   # Run number
+    (\d+)                    # Run number
     _
-    (.+?)                   # Model specification (everything until the time interval)
+    (.+?)                    # Model specification
     _
-    (\d+min)                # Time interval
+    (\d+min)                 # Time interval
     """
 
     match = re.match(pattern, filename, re.VERBOSE)
     if match:
         return ModelRun(
             filename=filename,
-            date=match.group(1),
+            date=pd.to_datetime(match.group(1)),
             time=match.group(2),
             run=match.group(3),
             model_spec=match.group(4),
             interval=match.group(5),
         )
+
+    # If first pattern fails, try without run number
+    pattern = r"""
+    (\d{4}-\d{2}-\d{2})     # Date
+    _
+    (\d{2}-\d{2}-\d{2})     # Time
+    _
+    (.+?)                    # Model specification
+    _
+    (\d+min)                 # Time interval
+    """
+
+    match = re.match(pattern, filename, re.VERBOSE)
+    if match:
+        return ModelRun(
+            filename=filename,
+            date=pd.to_datetime(match.group(1)),
+            time=match.group(2),
+            run="0",  # Default run number
+            model_spec=match.group(3),
+            interval=match.group(4),
+        )
+
     return None
 
 
@@ -116,7 +140,7 @@ def get_best_model_idx(group):
 
 def main():
     all_csv_files = get_all_csv_files()
-    all_model_runs = []
+    all_model_runs: list[ModelRun] = []
 
     for file in all_csv_files:
         filename = file.split("/")[-1]
@@ -142,26 +166,39 @@ def main():
 
                 all_model_runs.append(
                     model_run.copy_with_results(
-                        patient,
-                        model,
-                        best_model["model_id"],
-                        best_model["runtime_secs"],
-                        best_model["MeanSquaredError_mean"],
-                        best_model["MeanSquaredError_std"],
-                        (
+                        pnum=patient,
+                        model=model,
+                        model_id=best_model["model_id"],
+                        runtime_secs=best_model["runtime_secs"],
+                        mse_mean=best_model["MeanSquaredError_mean"],
+                        mse_std=best_model["MeanSquaredError_std"],
+                        pinball_mean=(
                             best_model["PinballLoss_mean"]
                             if "PinballLoss_mean" in best_model
                             else None
                         ),
-                        (
+                        pinball_std=(
                             best_model["PinballLoss_std"]
                             if "PinballLoss_std" in best_model
                             else None
                         ),
                     )
                 )
+    deduped_model_runs_dict = {}
+    seen_keys = set()
+    for model_run in all_model_runs:
+        key = (model_run.pnum, model_run.model_id)
+        if key in seen_keys:
+            current_best = deduped_model_runs_dict[key]
+            if model_run.date >= current_best.date:
+                deduped_model_runs_dict[key] = model_run
+        else:
+            seen_keys.add(key)
+            deduped_model_runs_dict[key] = model_run
 
-    save_all_model_runs_to_csv(all_model_runs)
+    deduped_model_runs = list(deduped_model_runs_dict.values())
+    
+    save_all_model_runs_to_csv(deduped_model_runs)
 
 
 if __name__ == "__main__":
