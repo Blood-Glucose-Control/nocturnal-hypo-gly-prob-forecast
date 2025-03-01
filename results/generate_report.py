@@ -139,7 +139,7 @@ def main():
                     best_model = model_df.sort_values("MeanSquaredError_mean").iloc[0]
                 else:
                     best_model = model_df.sort_values("runtime_secs").iloc[0]
-                    
+
                 all_model_runs.append(
                     model_run.copy_with_results(
                         patient,
