@@ -16,12 +16,24 @@ class ModelRun:
         self.date = date
         self.mse_mean = None
         self.mse_std = None
+        self.pinball_mean = None
+        self.pinball_std = None
         self.runtime_secs = None
         self.filename = filename
         self.run = run
         self.time = time
 
-    def copy_with_results(self, pnum, model, model_id, runtime_secs, mse_mean, mse_std):
+    def copy_with_results(
+        self,
+        pnum,
+        model,
+        model_id,
+        runtime_secs,
+        mse_mean,
+        mse_std,
+        pinball_mean,
+        pinball_std,
+    ):
         new_run = ModelRun(
             filename=self.filename,
             date=self.date,
@@ -36,6 +48,8 @@ class ModelRun:
         new_run.runtime_secs = runtime_secs
         new_run.mse_mean = mse_mean
         new_run.mse_std = mse_std
+        new_run.pinball_mean = pinball_mean
+        new_run.pinball_std = pinball_std
         return new_run
 
     def __str__(self):
@@ -67,11 +81,15 @@ def create_model_run_from_filename(filename):
         )
     return None
 
-def save_all_model_runs_to_csv(model_runs: list[ModelRun], filename: str = "report.csv"):
+
+def save_all_model_runs_to_csv(
+    model_runs: list[ModelRun], filename: str = "report.csv"
+):
     df = pd.DataFrame([model_run.__dict__ for model_run in model_runs])
     # Sort by pnum so rows with same patient number are grouped together
-    df = df.sort_values(by='pnum')
+    df = df.sort_values(by="pnum")
     df.to_csv(f"{os.path.dirname(os.path.abspath(__file__))}/{filename}", index=False)
+
 
 def get_all_csv_files():
     all_csv_files = []
@@ -84,6 +102,11 @@ def get_all_csv_files():
 
 
 def get_best_model_idx(group):
+    # check if pinball loss is available
+    if "PinballLoss_mean" in group.columns:
+        valid_pinball = group[group["PinballLoss_mean"].notna()]
+        if not valid_pinball.empty:
+            return valid_pinball["PinballLoss_mean"].idxmin()
     valid_mse = group[group["MeanSquaredError_mean"].notna()]
     if not valid_mse.empty:
         return valid_mse["MeanSquaredError_mean"].idxmin()
@@ -105,22 +128,38 @@ def main():
         df = pd.read_csv(file)
         df["model"] = df["model_id"].apply(lambda x: x.split("-")[0])
 
-        # Group by both model type and patient
-        best_model_indices = df.groupby(["model", "validation_id"]).apply(
-            get_best_model_idx
-        )
-        best_models = df.loc[best_model_indices]
-        for _, row in best_models.iterrows():
-            all_model_runs.append(
-                model_run.copy_with_results(
-                    row["validation_id"],
-                    row["model"],
-                    row["model_id"],
-                    row["runtime_secs"],
-                    row["MeanSquaredError_mean"],
-                    row["MeanSquaredError_std"],
+        for patient, patient_df in df.groupby("validation_id"):
+            for model, model_df in patient_df.groupby("model"):
+                if (
+                    "PinballLoss_mean" in model_df.columns
+                    and not model_df["PinballLoss_mean"].isna().all()
+                ):
+                    best_model = model_df.sort_values("PinballLoss_mean").iloc[0]
+                elif not model_df["MeanSquaredError_mean"].isna().all():
+                    best_model = model_df.sort_values("MeanSquaredError_mean").iloc[0]
+                else:
+                    best_model = model_df.sort_values("runtime_secs").iloc[0]
+                    
+                all_model_runs.append(
+                    model_run.copy_with_results(
+                        patient,
+                        model,
+                        best_model["model_id"],
+                        best_model["runtime_secs"],
+                        best_model["MeanSquaredError_mean"],
+                        best_model["MeanSquaredError_std"],
+                        (
+                            best_model["PinballLoss_mean"]
+                            if "PinballLoss_mean" in best_model
+                            else None
+                        ),
+                        (
+                            best_model["PinballLoss_std"]
+                            if "PinballLoss_std" in best_model
+                            else None
+                        ),
+                    )
                 )
-            )
 
     save_all_model_runs_to_csv(all_model_runs)
 
