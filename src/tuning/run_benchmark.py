@@ -3,7 +3,7 @@ from benchmark import run_benchmark
 
 
 # Change this
-yaml_path = "./src/tuning/configs/1_exponential_smooth_15min.yaml"
+yaml_path = "./src/tuning/configs/1_exponential-smooth_15min.yaml"
 
 
 is_5min = "05min" in yaml_path  # Will be False since this is 15min

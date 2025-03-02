@@ -16,6 +16,9 @@ processed_dir = os.path.join(
 raw_dir = os.path.join(
     os.environ["HOME"], "nocturnal-hypo-gly-prob-forecast/results/raw"
 )
+config_dir = os.path.join(
+    os.environ["HOME"], "nocturnal-hypo-gly-prob-forecast/results/configs"
+)
 yaml_path = os.path.join(
     os.environ["HOME"],
     f"nocturnal-hypo-gly-prob-forecast/src/tuning/configs/{yaml_filename}",
@@ -57,6 +60,7 @@ if __name__ == "__main__":
             cal_method="constant",
             processed_dir=processed_dir,
             raw_dir=raw_dir,
+            config_dir=config_dir,
             cores_num=-1,  # All cores
             n_patients=-1,  # All patients
             is_5min=config["is_5min"],
