@@ -1,8 +1,8 @@
-p: 12
+p: 15
 q: 12
-o: 8
-lags: 8
+o: 12
+lags: 36
 power: 1
-dist: skewt
-mean: HARX
-vol: GARCH
+dist: ged
+mean: AR
+vol: EGARCH
