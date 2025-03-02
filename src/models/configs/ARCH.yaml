@@ -1,0 +1,8 @@
+p: 12
+q: 12
+o: 8
+lags: 8
+power: 1
+dist: skewt
+mean: HARX
+vol: GARCH
