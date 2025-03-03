@@ -1,4 +1,5 @@
 import itertools
+import time
 from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.performance_metrics.forecasting import MeanSquaredError
@@ -9,6 +10,8 @@ from sktime.split.base import BaseWindowSplitter
 from sktime.transformations.series.impute import Imputer
 import pandas as pd
 import numpy as np
+import os
+import json
 from src.data.data_loader import load_data, get_train_validation_split
 
 from src.tuning.param_grid import generate_param_grid
@@ -23,8 +26,31 @@ from src.tuning.load_estimators import (
 forecasters = load_all_forecasters()
 regressors = load_all_regressors()
 
+# Global variables
+run_config = {
+    "timestamp": "",
+    "yaml_path": "",
+    "dataset_name": "",
+    "interval": "",
+    "patient_numbers": [],
+    "scorers": {},
+    "cv_type": {},
+    "models_count": [],
+    "processed_output_dir": {},
+    "impute_methods": {},
+    "time_taken": 0,
+    "x_features": [],
+    "y_features": [],
+    "initial_window": 0,
+    "step_length": 0,
+    "steps_per_hour": 0,
+    "hours_to_forecast": 0,
+}
 
-def parse_output(processed_output_dir, raw_output_dir) -> pd.DataFrame:
+
+def parse_output(
+    current_time, yaml_name, raw_output_dir, processed_output_dir, scorers
+) -> pd.DataFrame:
     """Get the results from the raw output directory, filter out the fold columns, and save the processed results.
 
     Args:
@@ -36,9 +62,27 @@ def parse_output(processed_output_dir, raw_output_dir) -> pd.DataFrame:
     """
     results_df = pd.read_csv(raw_output_dir)
 
+    model_name = yaml_name.split("_")[1]
+    interval = yaml_name.split("_")[-1] + "s"
     # Drop columns containing 'fold'
     results_df = results_df.loc[:, ~results_df.columns.str.contains("fold")]
-    results_df.to_csv(processed_output_dir, index=False)
+    for scorer in scorers:
+        # Save results to {processed_output_dir}/{scorer_name}/{interval}/{model_name}.csv
+        scorer_dir = os.path.join(
+            processed_output_dir,
+            (scorer.__class__.__name__).lower(),
+            model_name,
+            interval,
+        )
+        os.makedirs(scorer_dir, exist_ok=True)
+        # Keep only validation_id, model_id, runtime_secs and scorer columns
+        keep_cols = ["validation_id", "model_id", "runtime_secs"] + [
+            col for col in results_df.columns if scorer.__class__.__name__ in col
+        ]
+        score_df = results_df[keep_cols]
+        score_df.to_csv(
+            os.path.join(scorer_dir, f"{current_time}_{model_name}.csv"), index=False
+        )
 
     return results_df
 
@@ -127,32 +171,29 @@ def load_diabetes_data(patient_id, df=None, y_feature=None, x_features=[]):
 def get_patient_ids(df, is_5min, n_patients=-1):
     """Get the patient ids from the dataframe based on the time interval and number of patients."""
     patient_ids = df["p_num"].unique()
-    patients_15min = []
-    patients_5min = []
+    selected_patients = []
 
     for patient_id in patient_ids:
         patient_data = df[df["p_num"] == patient_id]
+        expected_interval = pd.Timedelta(minutes=5 if is_5min else 15)
+        # Use the first two rows to determine the time interval
         time_diff = pd.to_datetime(patient_data["time"].iloc[1]) - pd.to_datetime(
             patient_data["time"].iloc[0]
         )
 
-        if time_diff == pd.Timedelta(minutes=15):
-            patients_15min.append(patient_id)
-        elif time_diff == pd.Timedelta(minutes=5):
-            patients_5min.append(patient_id)
+        if time_diff == expected_interval:
+            selected_patients.append(patient_id)
 
-    if is_5min:
-        n_patients = min(n_patients, len(patients_5min))
-        print(
-            f"Loading {n_patients} patients with 5-min interval: {patients_5min[:n_patients]}"
-        )
-        return patients_5min[:n_patients]
-    else:
-        n_patients = min(n_patients, len(patients_15min))
-        print(
-            f"Loading {n_patients} patients with 15-min interval: {patients_15min[:n_patients]}"
-        )
-        return patients_15min[:n_patients]
+    n_patients = min(n_patients, len(selected_patients))
+    interval = "5-min" if is_5min else "15-min"
+
+    print(
+        f"Loading {n_patients} patients with {interval} interval: {selected_patients[:n_patients]}"
+    )
+    run_config["interval"] = interval
+    run_config["patient_numbers"] = selected_patients[:n_patients]
+
+    return selected_patients[:n_patients]
 
 
 def get_dataset_loaders(
@@ -247,6 +288,13 @@ def get_cv_splitter(
 
     else:
         raise ValueError(f"Invalid cv_type: {cv_type}")
+
+    run_config["cv_type"] = cv_splitter.__class__.__name__
+    run_config["initial_window"] = initial_window
+    run_config["step_length"] = step_length
+    run_config["steps_per_hour"] = steps_per_hour
+    run_config["hours_to_forecast"] = hours_to_forecast
+
     return cv_splitter
 
 
@@ -272,6 +320,7 @@ def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]
             The estimator_id uniquely identifies the forecaster and its parameters.
     """
     config = load_yaml_config(yaml_path)
+    run_config["yaml_content"] = config
 
     estimators = []
     for forecaster_name in config.keys():
@@ -305,6 +354,7 @@ def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]
             count += 1
 
         print(f"Training {count} {forecaster_name} models with different parameters")
+        run_config["models_count"].append({forecaster_name: count})
 
     return estimators
 
@@ -342,6 +392,35 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
     return benchmark
 
 
+def save_config(run_config, config_dir, timestamp):
+    """Saves the run config to a JSON file."""
+    print(json.dumps(run_config, indent=4))
+    with open(f"{config_dir}/{timestamp}_run_config.json", "w") as f:
+        json.dump(run_config, f, indent=4)
+
+
+def save_init_config(
+    current_time: str,
+    yaml_path: str,
+    x_features: list[str],
+    y_features: list[str],
+    bg_method: str,
+    hr_method: str,
+    step_method: str,
+    cal_method: str,
+) -> None:
+    run_config["timestamp"] = current_time
+    run_config["yaml_path"] = yaml_path
+    run_config["x_features"] = x_features
+    run_config["y_features"] = y_features
+    run_config["impute_methods"] = {
+        "bg_method": bg_method,
+        "hr_method": hr_method,
+        "step_method": step_method,
+        "cal_method": cal_method,
+    }
+
+
 def run_benchmark(
     y_features=["bg-0:00"],
     x_features=["iob", "cob"],
@@ -357,6 +436,7 @@ def run_benchmark(
     cal_method="constant",
     processed_dir="./results/processed",
     raw_dir="./results/raw",
+    config_dir="./results/configs",
     cores_num=-1,
     is_5min=True,
     n_patients=-1,
@@ -393,8 +473,18 @@ def run_benchmark(
     """
     current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
     yaml_name = yaml_path.split("/")[-1].replace(".yaml", "")
-    processed_output_dir = f"{processed_dir}/{current_time}_{yaml_name}.csv"
     raw_output_dir = f"{raw_dir}/{current_time}_{yaml_name}.csv"
+
+    save_init_config(
+        current_time=current_time,
+        yaml_path=yaml_path,
+        x_features=x_features,
+        y_features=y_features,
+        bg_method=bg_method,
+        hr_method=hr_method,
+        step_method=step_method,
+        cal_method=cal_method,
+    )
 
     # Get dataset loaders with imputed missing values
     dataset_loaders = get_dataset_loaders(
@@ -413,6 +503,7 @@ def run_benchmark(
         PinballLoss(),
         MeanSquaredError(square_root=True),
     ]
+    run_config["scorers"] = [scorer.__class__.__name__ for scorer in scorers]
 
     # Get the cross-validation splitter
     cv_splitter = get_cv_splitter(
@@ -432,8 +523,12 @@ def run_benchmark(
         cores_num=cores_num,
     )
 
-    # Run the benchmark
+    # Run the benchmark with timer
+    save_config(run_config, config_dir, current_time)
+    start_time = time.time()
     benchmark.run(raw_output_dir)
+    end_time = time.time()
+    run_config["time_taken"] = end_time - start_time
 
     # Process the results
-    parse_output(processed_output_dir, raw_output_dir)
+    parse_output(current_time, yaml_name, raw_output_dir, processed_dir, scorers)
