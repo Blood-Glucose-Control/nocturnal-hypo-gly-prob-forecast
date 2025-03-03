@@ -169,7 +169,7 @@ class BrisT1DDataLoader:
                 - test_period is the data from 12am to 6am of the next day
         """
 
-        patient_data["datetime"] = pd.to_datetime(patient_data["datetime"])
+        patient_data.loc[:, "datetime"] = pd.to_datetime(patient_data["datetime"])
 
         # Ensure data is sorted by datetime
         patient_data = patient_data.sort_values("datetime")
