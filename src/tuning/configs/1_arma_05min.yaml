@@ -1,37 +1,10 @@
-NaiveForecaster:
-  strategy:
-    type: list
-    values: ["last", "mean"]
-
 AutoREG:
   lags:
     type: list
-    values:
-      [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        12,
-        18,
-        24,
-        36,
-        48,
-        60,
-        72,
-        84,
-        96,
-        108,
-        120,
-        144,
-        180,
-        216,
-      ]
+    values: [1, 2, 3, 4]
   trend:
     type: list
-    values: ["n", "c", "t", "ct"]
+    values: ["n", "c"]
   seasonal:
     type: list
     values: [False]

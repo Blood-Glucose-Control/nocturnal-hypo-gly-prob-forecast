@@ -3,11 +3,6 @@ AutoETS:
     type: list
     values: [True]
 
-StatsForecastAutoETS:
-  model:
-    type: list
-    values: ["ANN", "MNN"]
-
 StatsForecastAutoCES:
   model:
     type: list

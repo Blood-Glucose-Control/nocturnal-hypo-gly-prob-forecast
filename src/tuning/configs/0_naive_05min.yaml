@@ -1,0 +1,4 @@
+NaiveForecaster:
+  strategy:
+    type: list
+    values: ["last", "mean"]
