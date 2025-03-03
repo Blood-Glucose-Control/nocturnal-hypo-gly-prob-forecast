@@ -4,6 +4,7 @@ from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.forecasting.compose import FallbackForecaster
 from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
+from sktime.performance_metrics.forecasting import MeanSquaredError
 from sktime.split import ExpandingSlidingWindowSplitter, ExpandingWindowSplitter
 from sktime.split.base import BaseWindowSplitter
 from sktime.transformations.series.impute import Imputer
@@ -499,10 +500,7 @@ def run_benchmark(
     )
 
     # ADD THE SCORERS HERE
-    scorers = [
-        PinballLoss(),
-        # MeanSquaredError(square_root=True),
-    ]
+    scorers = [PinballLoss(), MeanSquaredError(square_root=True)]
     run_config["scorers"] = [scorer.__class__.__name__ for scorer in scorers]
 
     # Get the cross-validation splitter
