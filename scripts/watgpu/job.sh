@@ -6,7 +6,7 @@
 # Set resource requirements: Queues are limited to seven day allocations
 # Time format: HH:MM:SS
 #SBATCH --time=12:00:00
-#SBATCH --mem=12GB
+#SBATCH --mem=14GB
 #SBATCH --cpus-per-task=10
 ##SBATCH --gres=gpu:1
 
@@ -25,12 +25,12 @@
 
 # Check if yaml file argument is provided
 if [ $# -eq 0 ]; then
-    echo "Usage: sbatch job.sh <yaml_config_file>"
-    echo "Example: sbatch job.sh 2_arch_EGARCH_05min.yaml"
+    echo "Usage: sbatch job.sh <yaml_config_file> <description>"
+    echo "Example: sbatch job.sh 2_arch_EGARCH_05min.yaml 'This is a description of the model run'"
     exit 1
 fi
 
 source $HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
 
 # Run the model with the provided yaml file
-python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py "$1"
+python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py "$1" "$2"
