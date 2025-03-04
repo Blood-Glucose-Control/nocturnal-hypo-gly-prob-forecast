@@ -7,6 +7,7 @@ from src.data.data_transforms import (
     create_datetime_index,
     create_cob_and_carb_availability_cols,
     create_iob_and_ins_availability_cols,
+    ensure_regular_time_intervals
 )
 
 
@@ -152,6 +153,7 @@ class BrisT1DDataLoader:
         # Not cached, process the raw data
         self.processed_data = clean_data(self.raw_data)
         self.processed_data = create_datetime_index(self.processed_data)
+        self.processed_data = ensure_regular_time_intervals(self.processed_data)
         self.processed_data = create_cob_and_carb_availability_cols(self.processed_data)
         self.processed_data = create_iob_and_ins_availability_cols(self.processed_data)
         return self.processed_data
