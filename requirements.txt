@@ -33,6 +33,7 @@ skchange
 sktime[all_extras]
 torch
 tqdm
+transformers
 
 # Utilities
 typer
