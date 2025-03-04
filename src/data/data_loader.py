@@ -118,7 +118,7 @@ class BrisT1DDataLoader:
     def __init__(
         self,
         keep_columns: list = None,
-        use_cached: bool = False,
+        use_cached: bool = True,
         num_validation_days: int = 20,
     ):
         self.keep_columns = keep_columns

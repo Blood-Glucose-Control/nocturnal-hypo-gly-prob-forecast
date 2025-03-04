@@ -220,3 +220,62 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
                 next_index += 1
 
     return result_df
+
+
+def get_most_common_time_interval(df: pd.DataFrame) -> int:
+    df_copy = df.copy()
+    df_copy["datetime"] = pd.to_datetime(df_copy["datetime"])
+    df_copy["time_diff"] = (df_copy["datetime"] - df_copy["datetime"].shift(1)).apply(
+        lambda x: x.components.minutes if pd.notnull(x) else None
+    )
+
+    return df_copy["time_diff"].value_counts().index[0]
+
+
+def ensure_regular_time_intervals(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensures regular time intervals exist in the dataframe by adding rows with NaN values
+    where timestamps are missing.
+
+    Args:
+        df (pd.DataFrame): Input dataframe with datetime column
+
+    Returns:
+        pd.DataFrame: DataFrame with regular time intervals, missing times filled with NaN
+    """
+    result_df = df.copy()
+
+    # Process each patient separately
+    reindexed_dfs = []
+    for patient_id, patient_df in result_df.groupby("p_num"):
+        freq = get_most_common_time_interval(patient_df)
+
+        # Create complete time range for this patient
+        full_time_range = pd.date_range(
+            start=patient_df["datetime"].min(),
+            end=patient_df["datetime"].max(),
+            freq=f"{freq}min",
+        )
+
+        # Create a DataFrame with the complete time range and ensure datetime type
+        full_df = pd.DataFrame({"datetime": full_time_range})
+        full_df["datetime"] = pd.to_datetime(full_df["datetime"])
+
+        # Ensure patient_df datetime is also datetime type
+        patient_df["datetime"] = pd.to_datetime(patient_df["datetime"])
+
+        # Merge with original data
+        reindexed_df = pd.merge(full_df, patient_df, on="datetime", how="left")
+
+        # Restore patient ID for all rows
+        reindexed_df["p_num"] = patient_id
+
+        # Generate new sequential IDs for all rows
+        sequence_numbers = range(len(reindexed_df))
+        reindexed_df["id"] = [f"{patient_id}_{i}" for i in sequence_numbers]
+
+        reindexed_dfs.append(reindexed_df)
+
+    # Combine all reindexed patient data
+    result_df = pd.concat(reindexed_dfs)
+
+    return result_df
