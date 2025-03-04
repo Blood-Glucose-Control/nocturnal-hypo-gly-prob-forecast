@@ -7,7 +7,7 @@ from src.data.data_transforms import (
     create_datetime_index,
     create_cob_and_carb_availability_cols,
     create_iob_and_ins_availability_cols,
-    ensure_regular_time_intervals
+    ensure_regular_time_intervals,
 )
 
 
