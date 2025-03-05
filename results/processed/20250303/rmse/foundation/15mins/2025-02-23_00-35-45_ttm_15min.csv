@@ -1,0 +1,4 @@
+validation_id,model_id,runtime_secs,MeanSquaredError_mean,MeanSquaredError_std
+p01,ZeroShotTinyTimeMixerForecaster,7.044311285018921,3.3746133555230657,2.2123645118651263
+p05,ZeroShotTinyTimeMixerForecaster,6.405257225036621,2.328627778305264,0.6991955988592802
+p06,ZeroShotTinyTimeMixerForecaster,0.9011337757110596,3.1152419470006616,2.155532044009392

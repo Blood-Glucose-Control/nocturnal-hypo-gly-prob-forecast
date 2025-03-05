@@ -1,0 +1,4 @@
+validation_id,model_id,runtime_secs,MeanSquaredError_mean,MeanSquaredError_std
+p01,HFTransformersForecaster-AutoFormer,356.28434681892395,5.557851740406332,2.2128031532718664
+p05,HFTransformersForecaster-AutoFormer,347.59890723228455,3.1990279496568643,0.905598077871371
+p06,HFTransformersForecaster-AutoFormer,343.19124269485474,5.234872510795657,2.917011753826681

@@ -2,9 +2,9 @@ import itertools
 import time
 from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
-from sktime.performance_metrics.forecasting import MeanSquaredError
 from sktime.forecasting.compose import FallbackForecaster
 from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
+from sktime.performance_metrics.forecasting import MeanSquaredError
 from sktime.split import ExpandingSlidingWindowSplitter, ExpandingWindowSplitter
 from sktime.split.base import BaseWindowSplitter
 from sktime.transformations.series.impute import Imputer
@@ -30,13 +30,11 @@ regressors = load_all_regressors()
 run_config = {
     "timestamp": "",
     "yaml_path": "",
-    "dataset_name": "",
     "interval": "",
     "patient_numbers": [],
     "scorers": {},
     "cv_type": {},
     "models_count": [],
-    "processed_output_dir": {},
     "impute_methods": {},
     "time_taken": 0,
     "x_features": [],
@@ -394,7 +392,6 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
 
 def save_config(run_config, config_dir, timestamp):
     """Saves the run config to a JSON file."""
-    print(json.dumps(run_config, indent=4))
     with open(f"{config_dir}/{timestamp}_run_config.json", "w") as f:
         json.dump(run_config, f, indent=4)
 
@@ -408,6 +405,7 @@ def save_init_config(
     hr_method: str,
     step_method: str,
     cal_method: str,
+    description: str,
 ) -> None:
     run_config["timestamp"] = current_time
     run_config["yaml_path"] = yaml_path
@@ -419,6 +417,7 @@ def save_init_config(
         "step_method": step_method,
         "cal_method": cal_method,
     }
+    run_config["description"] = description
 
 
 def run_benchmark(
@@ -440,6 +439,7 @@ def run_benchmark(
     cores_num=-1,
     is_5min=True,
     n_patients=-1,
+    description="No description is provided for this run",
 ) -> None:
     """
     Run benchmarking experiments for diabetes forecasting models. Constants columns will not work with some forecasting models.
@@ -484,6 +484,7 @@ def run_benchmark(
         hr_method=hr_method,
         step_method=step_method,
         cal_method=cal_method,
+        description=description,
     )
 
     # Get dataset loaders with imputed missing values
@@ -499,10 +500,7 @@ def run_benchmark(
     )
 
     # ADD THE SCORERS HERE
-    scorers = [
-        PinballLoss(),
-        MeanSquaredError(square_root=True),
-    ]
+    scorers = [PinballLoss(), MeanSquaredError(square_root=True)]
     run_config["scorers"] = [scorer.__class__.__name__ for scorer in scorers]
 
     # Get the cross-validation splitter
@@ -524,11 +522,20 @@ def run_benchmark(
     )
 
     # Run the benchmark with timer
-    save_config(run_config, config_dir, current_time)
     start_time = time.time()
-    benchmark.run(raw_output_dir)
+    print(json.dumps(run_config, indent=4))
+
+    try:
+        benchmark.run(raw_output_dir)
+    except Exception as e:
+        run_config["error"] = str(e)
+        print(f"Error: {e}")
+        print(f"Benchmark failed after {time.time() - start_time:.2f} seconds")
+        return
+
     end_time = time.time()
     run_config["time_taken"] = end_time - start_time
+    save_config(run_config, config_dir, current_time)
 
     # Process the results
     parse_output(current_time, yaml_name, raw_output_dir, processed_dir, scorers)
