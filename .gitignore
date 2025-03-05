@@ -171,3 +171,5 @@ cython_debug/
 
 
 temp_train_models/
+
+scripts/notebooks/mlruns/
