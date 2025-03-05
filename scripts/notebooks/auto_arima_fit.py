@@ -1,8 +1,7 @@
 from src.data.data_loader import BrisT1DDataLoader
 from src.tuning.benchmark import impute_missing_values
-from src.utils.config_loader import load_yaml_config
 from sktime.forecasting.arima import AutoARIMA
-from sktime.utils import mlflow_sktime  
+from sktime.utils import mlflow_sktime
 
 PATIENT = "p04"
 MODEL = "AutoARIMA"
@@ -22,6 +21,7 @@ if TIME_STEP_SIZE != 5 and TIME_STEP_SIZE != 15:
     First time step is not 5 or 15 minutes. Look at the most common time step size.
     """
 
+
 def reduce_features(df):
     # Make sure index is set to datetime
     p_df = df.iloc[:]
@@ -29,7 +29,7 @@ def reduce_features(df):
     # Reduce features
     y_feature = ["bg-0:00"]
     x_features = [
-        "hr-0:00", # -> has too many NaNs
+        "hr-0:00",  # -> has too many NaNs
         "steps-0:00",
         "cals-0:00",
         "cob",
@@ -45,6 +45,7 @@ def reduce_features(df):
 
     y, X = p_df[y_feature], p_df[x_features]
     return y, X
+
 
 y_train, X_train = reduce_features(train_df)
 
@@ -63,12 +64,6 @@ forecaster.fit(y=y_train, X=X_train)
 print(forecaster.get_params())
 print(forecaster.get_fitted_params())
 
-mlflow_sktime.save_model(
-    sktime_model=forecaster, 
-    path="models/AutoARIMA"
-)
+mlflow_sktime.save_model(sktime_model=forecaster, path="models/AutoARIMA")
 
-forecaster = mlflow_sktime.load_model(
-    model_uri="models/AutoARIMA"
-)
-
+forecaster = mlflow_sktime.load_model(model_uri="models/AutoARIMA")
