@@ -1,5 +1,7 @@
-sp: 12
-d: 0
-max_p: 2
-max_q: 2
+start_p: 4
+max_p: 8
+start_q: 4
+max_q: 8
+seasonal: False
+n_jobs: -1
 suppress_warnings: True
