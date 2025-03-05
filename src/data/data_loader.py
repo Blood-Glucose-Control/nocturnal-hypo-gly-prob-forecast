@@ -7,6 +7,7 @@ from src.data.data_transforms import (
     create_datetime_index,
     create_cob_and_carb_availability_cols,
     create_iob_and_ins_availability_cols,
+    ensure_regular_time_intervals,
 )
 
 
@@ -59,7 +60,16 @@ def get_train_validation_split(
     num_validation_days: int = 20,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Split the data into train and validation sets based on the datetime column.
+    Split the data into train and validation sets based on complete days,
+    where a day is defined as 6am-6am.
+
+    Args:
+        df (pd.DataFrame): Input dataframe with datetime column
+        num_validation_days (int): Number of complete 6am-6am days to use for validation
+
+    Returns:
+        tuple[pd.DataFrame, pd.DataFrame]: (train_data, validation_data) where validation
+            contains exactly num_validation_days of complete 6am-6am days
     """
     if "datetime" not in df.columns:
         raise ValueError(
@@ -67,13 +77,41 @@ def get_train_validation_split(
         )
 
     df["datetime"] = pd.to_datetime(df["datetime"])
-    validation_days = df.groupby("p_num")["datetime"].max() - pd.Timedelta(
-        days=num_validation_days
-    )
-    validation_data = df[
-        df.apply(lambda x: x["datetime"] >= validation_days[x["p_num"]], axis=1)
-    ]
-    train_data = df[~df.index.isin(validation_data.index)]
+
+    # For each patient:
+    # 1. Find the last 6am timestamp
+    # 2. Go back num_validation_days to get the start of validation
+    # 3. Trim any data after the last 6am
+    validation_data_list = []
+    train_data_list = []
+
+    for patient_id, patient_df in df.groupby("p_num"):
+        # Get timestamps where hour is 6 (6am)
+        six_am_times = patient_df[patient_df["datetime"].dt.hour == 6]["datetime"]
+
+        if len(six_am_times) == 0:
+            continue
+
+        # Get the last 6am timestamp
+        last_six_am = six_am_times.max()
+
+        # Calculate the start of validation period (num_validation_days before last_six_am)
+        validation_start = last_six_am - pd.Timedelta(days=num_validation_days)
+
+        # Split the patient's data
+        patient_validation = patient_df[
+            (patient_df["datetime"] >= validation_start)
+            & (patient_df["datetime"] <= last_six_am)
+        ]
+        patient_train = patient_df[patient_df["datetime"] < validation_start]
+
+        validation_data_list.append(patient_validation)
+        train_data_list.append(patient_train)
+
+    # Combine all patients' data
+    validation_data = pd.concat(validation_data_list)
+    train_data = pd.concat(train_data_list)
+
     return train_data, validation_data
 
 
@@ -81,7 +119,7 @@ class BrisT1DDataLoader:
     def __init__(
         self,
         keep_columns: list = None,
-        use_cached: bool = False,
+        use_cached: bool = True,
         num_validation_days: int = 20,
     ):
         self.keep_columns = keep_columns
@@ -115,6 +153,7 @@ class BrisT1DDataLoader:
         # Not cached, process the raw data
         self.processed_data = clean_data(self.raw_data)
         self.processed_data = create_datetime_index(self.processed_data)
+        self.processed_data = ensure_regular_time_intervals(self.processed_data)
         self.processed_data = create_cob_and_carb_availability_cols(self.processed_data)
         self.processed_data = create_iob_and_ins_availability_cols(self.processed_data)
         return self.processed_data
@@ -132,7 +171,7 @@ class BrisT1DDataLoader:
                 - test_period is the data from 12am to 6am of the next day
         """
 
-        patient_data["datetime"] = pd.to_datetime(patient_data["datetime"])
+        patient_data.loc[:, "datetime"] = pd.to_datetime(patient_data["datetime"])
 
         # Ensure data is sorted by datetime
         patient_data = patient_data.sort_values("datetime")

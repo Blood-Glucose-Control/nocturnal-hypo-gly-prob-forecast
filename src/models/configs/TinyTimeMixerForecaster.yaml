@@ -1,0 +1,7 @@
+model_path: "ibm/TTM"
+training_args:
+  {
+    "num_train_epochs": 10000000,
+    "output_dir": "test_output",
+    "per_device_train_batch_size": 32,
+  }
