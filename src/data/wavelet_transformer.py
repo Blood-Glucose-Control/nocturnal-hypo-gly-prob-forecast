@@ -17,8 +17,8 @@ class WaveletTransformer(BaseTransformer):
 
     Parameters
     ----------
-    dwt_col: string
-        The column over which wavelet transform is applied
+    window_len: the window length to apply wavelet transform per
+        Eg: if this is 14, applies wavelet transform on a series partitioned into blocks of 14 rows
     wavelet: string (default is "sym16")
         The name of the wavelet to use. See pywt's documentation for list of all available wavelets
     threshold: int / float (default is computed based on data size)
@@ -51,10 +51,10 @@ class WaveletTransformer(BaseTransformer):
         "remember_data": False,
     }
 
-    def __init__(self, wavelet_col, wavelet="sym16", threshold=None, num_levels=3):
+    def __init__(self, window_len, wavelet="sym16", threshold=None, num_levels=3):
         self.num_levels = num_levels
+        self.window_len = window_len
         self.wavelet = wavelet
-        self.wavelet_col = wavelet_col
         self.threshold = threshold
         super().__init__()
 
@@ -81,7 +81,29 @@ class WaveletTransformer(BaseTransformer):
 
         # Get the wavelet coefficients, remove detailed coeffs (thresholding), reconstruct wave,
         # and return!
-        return self._extract_wavelet_coefficients(X)
+        Xt = X.copy()
+        Xt = self.apply_wavelet(X)
+        return Xt
+
+    def apply_wavelet(self, series):
+        # Partition the series into non-overlapping windows
+        windows = self.partition_series(series)
+        transformed_series = []
+
+        for window in windows:
+            transformed_series.append(self._extract_wavelet_coefficients(window))
+
+        # Concatenate the results for each window
+        return pd.Series(np.concatenate(transformed_series), index=series.index)
+
+    def partition_series(self, series):
+        """
+        Partition the series into non-overlapping windows of size `window_len`.
+        """
+        return [
+            series[i : i + self.window_len]
+            for i in range(0, len(series), self.window_len)
+        ]
 
     def _extract_wavelet_coefficients(self, data):
         """
@@ -145,5 +167,5 @@ class WaveletTransformer(BaseTransformer):
                 f"num_levels must be an 'int'. Found '{type(self.num_levels).__name__}' instead."
             )
 
-        if self.num_levels < 0:
-            raise ValueError("num_levels must be at least 0.")
+        if self.num_levels < 0 or self.window_len < 0:
+            raise ValueError("num_levels and window_len must be at least 0.")
