@@ -135,7 +135,7 @@ def impute_missing_values(
     return df_imputed
 
 
-def normalize_bgl_data(
+def smooth_bgl_data(
     df,
     bgl_column="bg-0:00",
     normalization_technique="wavelet_transform",
@@ -144,7 +144,7 @@ def normalize_bgl_data(
     exponential_smoothing_params=None,
 ):
     """
-    Normalizes the BGL data using one of the normalization techniques implemented (see below)
+    Normalizes ("smooths") the BGL data using one of the normalization techniques implemented (see below)
 
     Args:
         df: the dataframe consisting of all patients' data
@@ -270,6 +270,14 @@ def get_dataset_loaders(
         hr_method=hr_method,
         step_method=step_method,
         cal_method=cal_method,
+    )
+    # smooth the data
+    df = smooth_bgl_data(
+        df=df,
+        bgl_column="bg-0:00",
+        normalization_technique="wavelet_transform",
+        wavelet="sym16",
+        wavelet_window=288,
     )
 
     if n_patients == -1:
