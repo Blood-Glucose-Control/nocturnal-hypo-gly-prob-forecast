@@ -73,9 +73,7 @@ class WaveletTransformer(BaseTransformer):
 
         Returns
         -------
-        Xt : nested pandas DataFrame of shape [n_instances, n_features]
-            each cell of Xt contains pandas.Series
-            transformed version of X
+        X: a new pd.Series with wavelet transform applied on each window
         """
         self._check_parameters()
 
@@ -91,7 +89,11 @@ class WaveletTransformer(BaseTransformer):
         transformed_series = []
 
         for window in windows:
-            transformed_series.append(self._extract_wavelet_coefficients(window))
+            # NOTE: I am unsure why we have to slice [:len(window)]... DWT should return same size
+            # but usually is off by 1 here. This may affect outputs?
+            transformed_series.append(
+                self._extract_wavelet_coefficients(window)[: len(window)]
+            )
 
         # Concatenate the results for each window
         return pd.Series(np.concatenate(transformed_series), index=series.index)
@@ -99,11 +101,18 @@ class WaveletTransformer(BaseTransformer):
     def partition_series(self, series):
         """
         Partition the series into non-overlapping windows of size `window_len`.
+        If the last window goes out of range, clip it to the max available range.
+
+        Args:
+            series: The time series data to partition
         """
-        return [
-            series[i : i + self.window_len]
-            for i in range(0, len(series), self.window_len)
-        ]
+        windows = []
+        for i in range(0, len(series), self.window_len):
+            # Clip the last window if it exceeds the range of the series
+            window = series[i : min(i + self.window_len, len(series))]
+            windows.append(window)
+
+        return windows
 
     def _extract_wavelet_coefficients(self, data):
         """

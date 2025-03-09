@@ -13,7 +13,7 @@ import numpy as np
 import os
 import json
 from src.data.data_loader import load_data, get_train_validation_split
-
+from src.data.data_transforms import apply_wavelet_transform, take_moving_average
 from src.tuning.param_grid import generate_param_grid
 from src.utils.config_loader import load_yaml_config
 from src.tuning.load_estimators import (
@@ -133,6 +133,40 @@ def impute_missing_values(
                 df_imputed[col] = transform.fit_transform(df[col].to_frame())
 
     return df_imputed
+
+
+def normalize_bgl_data(
+    df,
+    bgl_column="bg-0:00",
+    normalization_technique="wavelet_transform",
+    wavelet=None,
+    wavelet_window=36,
+    exponential_smoothing_params=None,
+):
+    """
+    Normalizes the BGL data using one of the normalization techniques implemented (see below)
+
+    Args:
+        df: the dataframe consisting of all patients' data
+        bgl_column: the column name where the blood glucose levels are
+        normalization_technique: the normalization technique used.
+            Possible inputs are: 'wavelet_transform' (performs wavelet transform to smooth the data)
+                                 'exponential_smoothing' (performs exponential smoothing)
+                                 'moving_average' (applies a moving average)
+        wavelet: if normalization technique is 'wavelet_transform', which wavelet to use (see pywt docs; defaults to "sym16")
+        wavelet_window: window size in the partition to apply wavelet transform (see WaveletTransformer)
+        exponential_smoothing_params: A dictionary of parameters used for exponential smoothing (sktime's implementation)
+    """
+    if normalization_technique == "wavelet_transform":
+        result_df = apply_wavelet_transform(
+            df, wavelet, wavelet_window, patient_identifying_col="p_num"
+        )
+        return result_df
+    elif normalization_technique == "moving_average":
+        result_df = take_moving_average(df, window_size=36, bg_col=bgl_column)
+        return result_df
+    else:
+        raise ValueError(f"{normalization_technique} not implemented yet!")
 
 
 def load_diabetes_data(patient_id, df=None, y_feature=None, x_features=[]):
