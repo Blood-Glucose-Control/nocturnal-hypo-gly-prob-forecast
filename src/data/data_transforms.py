@@ -327,7 +327,9 @@ def apply_wavelet_transform(
     return result_df
 
 
-def take_moving_average(df: pd.DataFrame, window_size: int = 36, bg_col="bg-0:00"):
+def take_moving_average(
+    df: pd.DataFrame, window_size: int = 36, bg_col="bg-0:00"
+) -> pd.DataFrame:
     """
     Takes the moving average of the dataframe over bg_col
 
@@ -339,5 +341,11 @@ def take_moving_average(df: pd.DataFrame, window_size: int = 36, bg_col="bg-0:00
     if bg_col not in df.columns:
         raise ValueError(f"Column '{bg_col}' not found in the DataFrame")
 
-    # apply mving avg
-    df[bg_col] = df[bg_col].rolling(window=window_size, min_periods=1).mean()
+    # Create a copy to avoid modifying the original
+    result_df = df.copy()
+
+    # Apply moving average
+    result_df[bg_col] = (
+        result_df[bg_col].rolling(window=window_size, min_periods=1).mean()
+    )
+    return result_df

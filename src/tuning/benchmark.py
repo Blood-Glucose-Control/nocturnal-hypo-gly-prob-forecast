@@ -140,7 +140,8 @@ def smooth_bgl_data(
     bgl_column="bg-0:00",
     normalization_technique="wavelet_transform",
     wavelet=None,
-    wavelet_window=36,
+    wavelet_window=288,  # corresponds to 36 hours in 15 min intervals
+    moving_avg_window=10,
     exponential_smoothing_params=None,
 ):
     """
@@ -155,7 +156,8 @@ def smooth_bgl_data(
                                  'moving_average' (applies a moving average)
         wavelet: if normalization technique is 'wavelet_transform', which wavelet to use (see pywt docs; defaults to "sym16")
         wavelet_window: window size in the partition to apply wavelet transform (see WaveletTransformer)
-        exponential_smoothing_params: A dictionary of parameters used for exponential smoothing (sktime's implementation)
+        moving_avg_window: the window size for moving average (used only if technique is 'moving_average')
+        exponential_smoothing_params: A dictionary of parameters used for exponential smoothing (sktime's implementation). NOTE: unused right now
     """
     if normalization_technique == "wavelet_transform":
         result_df = apply_wavelet_transform(
@@ -163,7 +165,9 @@ def smooth_bgl_data(
         )
         return result_df
     elif normalization_technique == "moving_average":
-        result_df = take_moving_average(df, window_size=36, bg_col=bgl_column)
+        result_df = take_moving_average(
+            df, window_size=moving_avg_window, bg_col=bgl_column
+        )
         return result_df
     else:
         raise ValueError(f"{normalization_technique} not implemented yet!")
