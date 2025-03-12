@@ -13,7 +13,10 @@ loguru
 
 # Visualization
 matplotlib
+
+# Documentation
 mkdocs
+mkdocs-material
 mlflow
 neuralforecast
 notebook
