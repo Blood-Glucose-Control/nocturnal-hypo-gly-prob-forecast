@@ -1,3 +1,6 @@
+
+# Development tools
+accelerate>=0.26.0
 ipynb
 ipython
 ipywidgets
@@ -11,8 +14,6 @@ loguru
 # Visualization
 matplotlib
 mkdocs
-
-# Development tools
 mlflow
 neuralforecast
 notebook
