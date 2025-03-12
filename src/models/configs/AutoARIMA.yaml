@@ -1,7 +1,7 @@
 start_p: 4
-max_p: 8
+max_p: 16
 start_q: 4
-max_q: 8
+max_q: 16
 seasonal: False
 n_jobs: -1
 suppress_warnings: True
