@@ -1,2 +1,4 @@
-mkdocs-material
 mkdocs>=1.0.4
+
+# Documentation
+mkdocs-material
