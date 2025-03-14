@@ -1,47 +1,55 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NerveNet Paper</title>
+    <title>Forecasting Nocturnal Hypoglycemia</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Titillium+Web:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Titillium+Web:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700&display=swap"
+        rel="stylesheet">
 </head>
+
 <body>
     <div class="container">
         <h1>Probabilistic Forecasting of Nocturnal Hypoglycemia</h1>
 
         <div class="authors">
             <div class="author">
-                <a href="#" class="author-name">Christopher Risi</a>
+                <a href="https://github.com/RobotPsychologist" class="author-name">Christopher Risi</a>
             </div>
             <div class="author">
-                <a href="#" class="author-name">Tony Chan</a>
+                <a href="https://www.linkedin.com/in/tony-chan-a871a1254/" class="author-name">Tony Chan</a>
             </div>
             <div class="author">
-                <a href="#" class="author-name">Shivam Jindal</a>
+                <a href="https://www.linkedin.com/in/shivamj07/" class="author-name">Shivam Jindal</a>
             </div>
             <div class="author">
-                <a href="#" class="author-name">Alyssa D'Souza</a>
+                <a href="https://www.linkedin.com/in/alyssa-dsouza/" class="author-name">Alyssa D'Souza</a>
             </div>
             <div class="author">
-                <a href="#" class="author-name">Gavin Katz</a>
+                <a href="https://www.linkedin.com/in/gavin-katz-89990321b/" class="author-name">Gavin Katz</a>
             </div>
             <div class="author">
-                <a href="#" class="author-name">Julia</a>
+                <a href="https://www.linkedin.com/in/vilohith-rao-966295213/" class="author-name">Vilohith Rao</a>
             </div>
             <div class="author">
-                <a href="#" class="author-name">Christiano Da Silva</a>
+                <a href="https://www.linkedin.com/in/julia-liya-zhu/" class="author-name">Julia Zhu</a>
             </div>
             <div class="author">
-                <a href="#" class="author-name">Vilo</a>
+                <a href="https://www.linkedin.com/in/cristianofdasilva/" class="author-name">Christiano Da Silva</a>
             </div>
         </div>
 
         <div class="affiliations">
-            <p>University of Waterloo &nbsp;&nbsp;&&nbsp;&nbsp; Wat.AI</p>
+            <p><a href="https://cs.uwaterloo.ca/">University of Waterloo</a> &nbsp;&nbsp;&&nbsp;&nbsp;
+                <a href="https://watai.ca/">WAT.ai</a> &nbsp;&nbsp;&&nbsp;&nbsp;
+                <a href="https://gluroo.com/">Gluroo</a> &nbsp;&nbsp;&&nbsp;&nbsp;
+                <a href="skTime.org">skTime</a>
+            </p>
         </div>
 
         <div class="images">
@@ -52,11 +60,29 @@
             </div>
         </div>
 
-        <div class="abstract">
-            <p>Fear of nocturnal hypoglycemic events continues to be one of the most significant contributors to diabetes distress. Developing improved nocturnal hypoglycemic forecasting techniques would likely improve diabetes distress (D. Ehrmann et al., 2024), but even short 2-hour blood glucose level (BGL) forecasting remains challenging (H. Nemat et al., 2024). Forecasting BGL over an 8-hour time window does not seem feasible with SOTA techniques, likely due to the limited scale of most BGL time series datasets. The most popular open-source T1D dataset, OhioT1DM, only contains 12 patients over eight weeks (C. Marling,2020). Our student volunteer-based WAT.ai Blood Glucose Control Design Team, in partnership with Gluroo, aims to reframe the forecasting problem into a big data probabilistic forecasting problem.
-            <br>
-            <br>
-            Probabilistic forecasting is about producing low and high scenarios, quantifying their uncertainty, and delivering expected ranges of variation (T. Gneiting et al., 2014, F. Kiraly et al., 2022). Our view is that this framing is more technically feasible yet will be just as valuable in alleviating diabetes distress related to fears of nocturnal hypoglycemic events.</p>
+        <div class="Overview">
+            <p>Fear of nocturnal hypoglycemic events continues to be one of the most significant contributors to
+                diabetes distress. Developing improved nocturnal hypoglycemic forecasting techniques would likely
+                improve diabetes distress <a href="https://doi.org/10.1177/19322968241267886">(D. Ehrmann et al.,
+                    2024)</a>, but even short 2-hour blood glucose level (BGL) forecasting remains challenging <a
+                    href="https://doi.org/10.1038/s41598-024-70277-x">(H. Nemat et al., 2024)</a>. Forecasting BGL over
+                an 8-hour time window does not seem feasible with SOTA techniques, likely due to the limited scale of
+                most BGL time series
+                datasets. The most popular open-source T1D dataset, OhioT1DM, only contains 12 patients over eight weeks
+                <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7881904/">(C. Marling, 2020)</a>. Our student
+                volunteer-based WAT.ai Blood Glucose Control Design Team, in partnership
+                with <a href="https://gluroo.com/">Gluroo</a>", aims to reframe the forecasting problem into a big data
+                probabilistic forecasting problem.
+                <br>
+                <br>
+                Probabilistic forecasting is about producing low and high scenarios, quantifying their uncertainty, and
+                delivering expected ranges of variation <a
+                    href="https://www.annualreviews.org/content/journals/10.1146/annurev-statistics-062713-085831">(T.
+                    Gneiting et al., 2014)</a>.
+                Our view is that this framing is more technically feasible yet will be just as valuable in alleviating
+                diabetes
+                distress related to fears of nocturnal hypoglycemic events.
+            </p>
         </div>
 
         <hr>
@@ -70,23 +96,34 @@
         <hr> -->
 
         <!-- Methods -->
-         <div class="benchmarks-section">
+        <div class="benchmarks-section">
             <h2>Our Methods</h2>
             <p>
-                We are currently working with the open source  <a href="https://www.kaggle.com/competitions/brist1d/data">Kaggle BrisT1D dataset</a> and plan to scale this to thousands of patients (dataset provided by <a href="https://gluroo.com/">Gluroo</a>).
-                We evaluated over 20,000 model configurations (eg: ARIMA, ARCH, Exponential Smoothing, and more) using the <a href="https://www.sktime.net/en/latest/get_started.html">sktime</a> library.
-                We utilized feature engineering techniques to simulate insulin-on-board (IOB) and carbohydrates-on-board (COB) using differential equations (ODE). <br>
+                We are currently working with the open source <a
+                    href="https://www.kaggle.com/competitions/brist1d/data">Kaggle BrisT1D dataset</a> and are in the
+                process of scaling
+                this to thousands of de-identified patients (dataset provided by <a
+                    href="https://gluroo.com/">Gluroo</a>).
+                We evaluated over 20,000 model configurations (eg: ARIMA, ARCH, Exponential Smoothing, and more) using
+                the <a href="https://www.sktime.net/en/latest/get_started.html">sktime</a> library.
+                We utilized feature engineering techniques to simulate insulin-on-board (IOB) and carbohydrates-on-board
+                (COB) using differential equations (ODE). <br>
                 <br>
-                The source code can be found in the following url: <a href="https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast" class="https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast">Source code</a>
+                The source code can be found in the following url: <a
+                    href="https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast"
+                    class="https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast">Source code</a>
             </p>
-         </div>
+        </div>
 
-         <hr>
+        <hr>
         <!-- Benchmarks section -->
         <div class="benchmarks-section">
             <h2>Results on Kaggle's <a href="https://www.kaggle.com/competitions/brist1d/data">BRIST1D Dataset</a></h2>
             <p>
-                We evaluate various models on Kaggle's BrisT1D dataset. Based on preliminary results, foundational models (eg: TTM, Chonos Forecaster) outperform classical ML models (ARIMA, ARCH) with point forecast. Classical models show undesirable mean reversion, highlighting the pitfalls of RMSE optimization. Advanced models accurately capture spikes / drops in glucose levels.
+                We evaluate various models on Kaggle's BrisT1D dataset. Based on preliminary results, foundational
+                models (eg: TTM, Chonos Forecaster) outperform classical ML models (ARIMA, ARCH) with point forecast.
+                Classical models show undesirable mean reversion, highlighting the pitfalls of RMSE optimization.
+                Advanced models accurately capture spikes / drops in glucose levels.
             </p>
             <div class="benchmark-grid">
                 <div class="benchmark-item">
@@ -104,7 +141,9 @@
             </div>
 
 
-            <p>The table below summarizes model performance using RMSE. However, RMSE optimization can lead to common pitfalls (eg: constant predicts can outperform regressive models when using RMSE). We separate model performance by each patient, as we various individual factors influence blood glucose levels</p>
+            <p>The table below summarizes model performance using RMSE. However, RMSE optimization can lead to common
+                pitfalls (eg: constant predicts can outperform regressive models when using RMSE). We separate model
+                performance by each patient, as we various individual factors influence blood glucose levels</p>
 
 
             <div class="benchmark-grid-big">
@@ -332,12 +371,17 @@
         <hr> -->
 
         <!-- future work section -->
-         <div class="benchmarks-section">
+        <div class="benchmarks-section">
             <h2>Ongoing Research</h2>
             <p>
-                We continue to work on modelling capabilities to improve nocturnal forecasting. We plan on extending current models from point forecast to probabilistic forecasting (eg: interval, quantile, and distributional). Further, we will work on fine-tuning foundational models on our data, and against zero-shot forecasting performance. Data normalization / standardization techniques will also be developed to reduce the amount of "noise" in the data. All of this will be performed and validated on Gluroo's expanded dataset.
+                We continue to work on modelling capabilities to improve nocturnal forecasting. We plan on extending
+                current models from point forecast to probabilistic forecasting (eg: interval, quantile, and
+                distributional). Further, we will work on fine-tuning foundational models on our data, and against
+                zero-shot forecasting performance. Data normalization / standardization techniques will also be
+                developed to reduce the amount of "noise" in the data. All of this will be performed and validated on
+                Gluroo's expanded dataset.
             </p>
-         </div>
+        </div>
 
         <!-- Paper section -->
         <!-- <div class="paper-section">
@@ -353,11 +397,12 @@
 
                 <div class="paper-citation">
                     <h3>Citation</h3>
-                    <p class="authors-citation">Christopher Risi, Tony Chan, Shivam Jindal, Alyssa D'Souza, Gavin Katz, Julia, Christiano Da Silva, Vilo</p>
+                    <p class="authors-citation">Christopher Risi, Tony Chan, Shivam Jindal, Alyssa D'Souza, Gavin Katz, Julia Zhu, Christiano Da Silva, Vilohith Rao</p>
                     <p class="paper-title-citation">Probabilistic Forecasting of Nocturnal Hypoglycemia</p>
                 </div>
             </div>
         </div> -->
     </div>
 </body>
+
 </html>

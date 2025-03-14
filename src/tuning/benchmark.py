@@ -46,18 +46,19 @@ run_config = {
 }
 
 
-def parse_output(
-    current_time, yaml_name, raw_output_dir, processed_output_dir, scorers
-) -> pd.DataFrame:
+def parse_output(yaml_name, processed_dir, raw_output_dir, scorers) -> pd.DataFrame:
     """Get the results from the raw output directory, filter out the fold columns, and save the processed results.
+       Default save results to results/processed/{timestamp}/{scorer_name}/{interval}/{model_name}.csv
 
     Args:
-        processed_output_dir (str): Path to save the processed results CSV
+        yaml_name (str): Name of the YAML file used for the run
+        processed_dir (str): Path to save the processed results CSV
         raw_output_dir (str): Path to the raw results CSV file
 
     Returns:
         pd.DataFrame: Processed results dataframe with fold columns removed
     """
+    os.makedirs(processed_dir, exist_ok=True)
     results_df = pd.read_csv(raw_output_dir)
 
     model_name = yaml_name.split("_")[1]
@@ -65,9 +66,8 @@ def parse_output(
     # Drop columns containing 'fold'
     results_df = results_df.loc[:, ~results_df.columns.str.contains("fold")]
     for scorer in scorers:
-        # Save results to {processed_output_dir}/{scorer_name}/{interval}/{model_name}.csv
         scorer_dir = os.path.join(
-            processed_output_dir,
+            processed_dir,
             (scorer.__class__.__name__).lower(),
             model_name,
             interval,
@@ -78,9 +78,7 @@ def parse_output(
             col for col in results_df.columns if scorer.__class__.__name__ in col
         ]
         score_df = results_df[keep_cols]
-        score_df.to_csv(
-            os.path.join(scorer_dir, f"{current_time}_{model_name}.csv"), index=False
-        )
+        score_df.to_csv(os.path.join(scorer_dir, f"{model_name}.csv"), index=False)
 
     return results_df
 
@@ -440,9 +438,11 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
     return benchmark
 
 
-def save_config(run_config, config_dir, timestamp):
+def save_config(yaml_name, run_config, processed_dir):
     """Saves the run config to a JSON file."""
-    with open(f"{config_dir}/{timestamp}_run_config.json", "w") as f:
+    config_dir = os.path.join(processed_dir, "configs")
+    os.makedirs(config_dir, exist_ok=True)
+    with open(f"{config_dir}/{yaml_name}_run_config.json", "w") as f:
         json.dump(run_config, f, indent=4)
 
 
@@ -483,13 +483,12 @@ def run_benchmark(
     hr_method="linear",
     step_method="constant",
     cal_method="constant",
-    processed_dir="./results/processed",
-    raw_dir="./results/raw",
-    config_dir="./results/configs",
+    results_dir="./results",
     cores_num=-1,
     is_5min=True,
     n_patients=-1,
     description="No description is provided for this run",
+    timestamp="",
 ) -> None:
     """
     Run benchmarking experiments for diabetes forecasting models. Constants columns will not work with some forecasting models.
@@ -507,23 +506,29 @@ def run_benchmark(
         step_method (str, optional): Imputation method for steps. Defaults to "constant".
         cal_method (str, optional): Imputation method for calories. Defaults to "constant".
 
-        processed_dir (str, optional): Directory for processed results. Defaults to "./results/processed".
-        raw_dir (str, optional): Directory for raw results. Defaults to "./results/raw".
+        results_dir (str, optional): Directory for the results. Defaults to "./results".
 
         cores_num (int, optional): Number of CPU cores to use (-1 for all). Defaults to -1.
         is_5min (bool, optional): Whether the data is 5 minutes apart. Defaults to True.
         n_patients (int, optional): Number of patients to include from the given interval patients (-1 for all). Defaults to -1.
+
+        description (str, optional): Description of the run. Defaults to "No description is provided for this run".
+        timestamp (str, optional): Timestamp of the run. This will also be the name of the run. Defaults to "".
 
     The function:
     1. Loads and preprocesses patient datasets with specified imputation methods
     2. Configures cross-validation and scoring metrics
     3. Generates model configurations from YAML file
     4. Runs benchmarking experiments in parallel
-    5. Saves raw and processed results to specified directories
+    5. Saves config of the run, raw and processed results to specified directories
     """
-    current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
+    if timestamp == "":
+        current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
+    else:
+        current_time = timestamp
     yaml_name = yaml_path.split("/")[-1].replace(".yaml", "")
-    raw_output_dir = f"{raw_dir}/{current_time}_{yaml_name}.csv"
+    raw_output_dir = f"{results_dir}/raw/{current_time}_{yaml_name}.csv"
+    processed_dir = f"{results_dir}/processed/{current_time}"
 
     save_init_config(
         current_time=current_time,
@@ -571,10 +576,9 @@ def run_benchmark(
         cores_num=cores_num,
     )
 
-    # Run the benchmark with timer
+    # Run the benchmark with timer!
     start_time = time.time()
     print(json.dumps(run_config, indent=4))
-
     try:
         benchmark.run(raw_output_dir)
     except Exception as e:
@@ -582,10 +586,19 @@ def run_benchmark(
         print(f"Error: {e}")
         print(f"Benchmark failed after {time.time() - start_time:.2f} seconds")
         return
-
     end_time = time.time()
     run_config["time_taken"] = end_time - start_time
-    save_config(run_config, config_dir, current_time)
+
+    save_config(
+        yaml_name=yaml_name,
+        run_config=run_config,
+        processed_dir=processed_dir,
+    )
 
     # Process the results
-    parse_output(current_time, yaml_name, raw_output_dir, processed_dir, scorers)
+    parse_output(
+        yaml_name=yaml_name,
+        processed_dir=processed_dir,
+        raw_output_dir=raw_output_dir,
+        scorers=scorers,
+    )
