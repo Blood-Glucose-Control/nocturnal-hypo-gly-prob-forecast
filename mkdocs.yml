@@ -11,7 +11,7 @@ nav:
   - User Guide:
       - Installation: user-guide/installation.md
       - Usage: user-guide/usage.md
-      - WATGPU Benchmarking: user-guide/watgpu-benchmarking.md
+      - WATGPU Benchmarking: user-guide/watgpu-benchmark.md
   - API Reference: api-reference.md
   - Contributing: contributing.md
 
