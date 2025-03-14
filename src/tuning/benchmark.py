@@ -139,10 +139,7 @@ def smooth_bgl_data(
     df,
     bgl_column="bg-0:00",
     normalization_technique="wavelet_transform",
-    wavelet=None,
-    wavelet_window=288,  # corresponds to 36 hours in 15 min intervals
-    moving_avg_window=10,
-    exponential_smoothing_params=None,
+    normalization_params={},
 ):
     """
     Normalizes ("smooths") the BGL data using one of the normalization techniques implemented (see below)
@@ -154,20 +151,28 @@ def smooth_bgl_data(
             Possible inputs are: 'wavelet_transform' (performs wavelet transform to smooth the data)
                                  'exponential_smoothing' (performs exponential smoothing)
                                  'moving_average' (applies a moving average)
-        wavelet: if normalization technique is 'wavelet_transform', which wavelet to use (see pywt docs; defaults to "sym16")
-        wavelet_window: window size in the partition to apply wavelet transform (see WaveletTransformer)
-        moving_avg_window: the window size for moving average (used only if technique is 'moving_average')
-        exponential_smoothing_params: A dictionary of parameters used for exponential smoothing (sktime's implementation). NOTE: unused right now
+        normalization_params: dictionary of params to use for the normalization technique (keys are param names, values are the param values). Here are params based on the technique:
+            1. wavelet_transform:
+                - wavelet: the wavelet used. See pywt docs. Default is "sym16"
+                - wavelet_window: the number of timesteps to use for the wavelet transform. Default is 288 (36 hours in 15 min intervals)
+            2. moving_average:
+                - moving_avg_window: the number of timesteps to use for the moving average. Default is 10
     """
     if normalization_technique == "wavelet_transform":
+        wavelet_to_use = normalization_params.get("wavelet", "sym16")
+        wavelet_window = normalization_params.get(
+            "wavelet_window", 288
+        )  # 288 corresponds to 36 hours in 15 min intervals
         result_df = apply_wavelet_transform(
-            df, wavelet, wavelet_window, patient_identifying_col="p_num"
+            df,
+            wavelet=wavelet_to_use,
+            wavelet_window=wavelet_window,
+            patient_identifying_col="p_num",
         )
         return result_df
     elif normalization_technique == "moving_average":
-        result_df = take_moving_average(
-            df, window_size=moving_avg_window, bg_col=bgl_column
-        )
+        window_size = normalization_params.get("moving_avg_window", 10)
+        result_df = take_moving_average(df, window_size=window_size, bg_col=bgl_column)
         return result_df
     else:
         raise ValueError(f"{normalization_technique} not implemented yet!")
