@@ -5,9 +5,9 @@
 
 # Set resource requirements: Queues are limited to seven day allocations
 # Time format: HH:MM:SS
-#SBATCH --time=12:00:00
-#SBATCH --mem=14GB
-#SBATCH --cpus-per-task=10
+#SBATCH --time=03:00:00
+#SBATCH --mem=6GB
+#SBATCH --cpus-per-task=2
 ##SBATCH --gres=gpu:1
 
 # Set output file destinations (optional)
@@ -19,13 +19,13 @@
 
 # email notifications: Get email when your job starts, stops, fails, completes...
 # Set email address
-#SBATCH --mail-user=t3chan@uwaterloo.ca
+#SBATCH --mail-user=<your_email>@uwaterloo.ca
 # Set types of notifications (from the options: BEGIN, END, FAIL, REQUEUE, ALL):
 #SBATCH --mail-type=ALL
 
 # Check if yaml file argument is provided
 if [ $# -eq 0 ]; then
-    echo "Usage: sbatch job.sh <yaml_config_file> <description>"
+    echo "Usage: sbatch job.sh <yaml_config_file> <description> <timestamp>"
     echo "Example: sbatch job.sh 2_arch_EGARCH_05min.yaml 'This is a description of the model run'"
     exit 1
 fi
@@ -33,4 +33,4 @@ fi
 source $HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
 
 # Run the model with the provided yaml file
-python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py "$1" "$2"
+python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py "$1" "$2" "$3"

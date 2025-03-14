@@ -44,8 +44,7 @@ if __name__ == "__main__":
         hr_method="linear",
         step_method="constant",
         cal_method="constant",
-        processed_dir="./results/processed",
-        raw_dir="./results/raw",
+        results_dir="./results",
         cores_num=-1,  # All cores
         n_patients=-1,  # All patients
         is_5min=config["is_5min"],  # 5-minute interval patients

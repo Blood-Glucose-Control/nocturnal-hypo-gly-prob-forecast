@@ -4,21 +4,17 @@ import os
 import sys
 
 # Get yaml filename from command line argument
-if len(sys.argv) != 3:
-    print("Usage: python run_benchmark.py <yaml_filename> <description>")
+if len(sys.argv) != 4:
+    print("Usage: python run_benchmark.py <yaml_filename> <description> <timestamp>")
     sys.exit(1)
 
 yaml_filename = sys.argv[1]
 description = sys.argv[2]
+timestamp = sys.argv[3]
 
-processed_dir = os.path.join(
-    os.environ["HOME"], "nocturnal-hypo-gly-prob-forecast/results/processed"
-)
-raw_dir = os.path.join(
-    os.environ["HOME"], "nocturnal-hypo-gly-prob-forecast/results/raw"
-)
-config_dir = os.path.join(
-    os.environ["HOME"], "nocturnal-hypo-gly-prob-forecast/results/configs"
+# There is definitely a better way to do this
+results_dir = os.path.join(
+    os.environ["HOME"], "nocturnal-hypo-gly-prob-forecast/results"
 )
 yaml_path = os.path.join(
     os.environ["HOME"],
@@ -58,13 +54,12 @@ if __name__ == "__main__":
         hr_method="linear",
         step_method="constant",
         cal_method="constant",
-        processed_dir=processed_dir,
-        raw_dir=raw_dir,
-        config_dir=config_dir,
-        cores_num=-1,  # All cores
-        n_patients=-1,  # All patients
+        results_dir=results_dir,
+        cores_num=-1,  # Use all cores
+        n_patients=-1,  # Use all patients for the given interval
         is_5min=config["is_5min"],
         description=description,
+        timestamp=timestamp,
     )
 
     end_time = time.time()
