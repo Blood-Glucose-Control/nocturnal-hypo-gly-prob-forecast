@@ -285,8 +285,7 @@ def get_dataset_loaders(
         df=df,
         bgl_column="bg-0:00",
         normalization_technique="wavelet_transform",
-        wavelet="sym16",
-        wavelet_window=288,
+        normalization_params={"wavelet": "sym16", "wavelet_window": 288},
     )
 
     if n_patients == -1:
