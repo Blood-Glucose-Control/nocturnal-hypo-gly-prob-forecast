@@ -5,16 +5,16 @@ AutoEnsembleForecaster:
     # this is just an example. we can put whatever forecasters we want to combine here
     # the AutoEnsembleForecaster finds the optimal weights for each forecaster so we dont need to tune any parameters ourselves
     values: [
-      [["AutoARIMA", {}],
+      ["AutoARIMA", {}],
        ["ExponentialSmoothing", {}], # not sure about the format for this since AutoEnsembleForecaster expects a (str, forecaster) tuple for the forecasters parameter
-       ["ThetaForecaster", {}]]
+       ["ThetaForecaster", {}]
     ]
   method:
     type: list
     values: ["feature-importance", "inverse-variance"]
   test_size:
     type: list
-    range: [0.1, 0.15, 0.2, 0.25, 0.3]
+    values: [0.1, 0.15, 0.2, 0.25, 0.3]
 
 DartsXGBModel:
   lags:
@@ -31,7 +31,7 @@ DartsXGBModel:
     range: [0, 30]
   likelihood:
     type: list
-    range: ["poisson", "quantile"]
+    values: ["poisson", "quantile"]
   quantiles:
     type: int
     range: [1,30]
