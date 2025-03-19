@@ -236,6 +236,7 @@ def get_patient_ids(df, is_5min, n_patients=-1):
 
 
 def get_dataset_loaders(
+    data_source_name,
     x_features,
     y_feature,
     bg_method="linear",
@@ -248,6 +249,7 @@ def get_dataset_loaders(
     """Create the dataset, impute the x_features and y_feature, and create dataset loader functions for each patient.
 
     Args:
+        data_source_name (str, optional): Name of the data source. Defaults to "kaggle_brisT1D".
         x_features (list): List of feature column names to use as predictors.
         y_feature (str): Name of the target variable column to predict. (bg-0:00)
         bg_method (str, optional): Imputation method for blood glucose data.
@@ -266,7 +268,7 @@ def get_dataset_loaders(
         dict[str, Callable]: Dictionary of dataset loader functions, one for each patient.
     """
     # Load and clean data
-    df = load_data(use_cached=True)
+    df = load_data(data_source_name=data_source_name, use_cached=True)
     df, _ = get_train_validation_split(df)
 
     # TODO: Impute Missing values for each columns
@@ -471,6 +473,7 @@ def save_init_config(
 
 
 def run_benchmark(
+    data_source_name="kaggle_brisT1D",
     y_features=["bg-0:00"],
     x_features=["iob", "cob"],
     cv_type="expanding",
@@ -478,7 +481,7 @@ def run_benchmark(
     cv_step_length=12 * 24 * 3,
     steps_per_hour=12,
     hours_to_forecast=6,
-    yaml_path="./src/tuning/configs/old/modset1.yaml",
+    yaml_path="./src/tuning/configs/0_naive_05min.yaml",
     bg_method="linear",
     hr_method="linear",
     step_method="constant",
@@ -544,6 +547,7 @@ def run_benchmark(
 
     # Get dataset loaders with imputed missing values
     dataset_loaders = get_dataset_loaders(
+        data_source_name=data_source_name,
         x_features=x_features,
         y_feature=y_features,
         bg_method=bg_method,
