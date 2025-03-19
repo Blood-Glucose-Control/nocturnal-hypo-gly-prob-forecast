@@ -114,7 +114,7 @@ if __name__ == "__main__":
     RANDOM_SEED = 101
     test_size = 0.3
     data_path = "./data/example.csv"
-    model_save_path = "./src/models/example.pkl"
+    model_save_path = "./models/example.pkl"
     fh = np.arange(1, 6)
 
     # Step 1: Train
