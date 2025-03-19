@@ -70,7 +70,7 @@ h1 {
     border-radius: 8px;
 }
 
-.abstract {
+.abstract p {
     text-align: justify;
     color: #333;
     font-size: 16px;
@@ -144,28 +144,39 @@ h1 {
 }
 
 table {
-    width: auto; /* Shrinks to content */
-    max-width: 90%; /* Prevents it from being too wide */
-    margin: 0 auto; /* Centers the table */
+    width: auto;
+    /* Shrinks to content */
+    max-width: 90%;
+    /* Prevents it from being too wide */
+    margin: 0 auto;
+    /* Centers the table */
     border-collapse: collapse;
-    table-layout: fixed; /* Ensures uniform column widths */
+    table-layout: fixed;
+    /* Ensures uniform column widths */
 }
-th, td {
+
+th,
+td {
     padding: 8px;
     text-align: center;
     border: 1px solid #ddd;
     word-wrap: break-word;
-    white-space: normal; /* Allows wrapping */
+    white-space: normal;
+    /* Allows wrapping */
 }
 
 th {
-    max-width: 120px; /* Limits column width */
-    overflow-wrap: break-word; /* Ensures long words break */
+    max-width: 120px;
+    /* Limits column width */
+    overflow-wrap: break-word;
+    /* Ensures long words break */
 }
+
 .highlight {
     color: #0000ff;
     font-weight: bold;
 }
+
 .model-family {
     background-color: #f0f0f0;
 }
