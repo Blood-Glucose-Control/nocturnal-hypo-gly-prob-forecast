@@ -1,4 +1,4 @@
-# Setup Guide for Running Benchmark on WatGPU
+# Setup Guide for Running a Benchmark on WatGPU
 
 ## Prerequisites
 - Access to WATGPU cluster (UWaterloo CS department)
@@ -45,7 +45,6 @@ pip install -r requirements.txt
 # Install the project package in development mode
 pip install -e .
 ```
-
 
 ## How to Submit a Job
 
