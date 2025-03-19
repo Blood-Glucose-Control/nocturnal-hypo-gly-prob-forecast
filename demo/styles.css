@@ -64,6 +64,11 @@ h1 {
     margin-top: 20px;
 }
 
+.Overview {
+	text-align: left;
+	margin: 24px 0;
+}
+
 .diagram {
     width: 45%;
     max-width: 400px;
@@ -425,3 +430,36 @@ th {
     line-height: 1.6;
     color: #333;
 }
+
+@media only screen and (max-width: 1500px) {
+	/* Styles for tablets and smaller screens */
+	.benchmark-grid-big {
+		display: block;
+		width: 100%;
+		overflow-x: auto;
+	}
+}
+
+@media only screen and (max-width: 1024px) {
+	/* Styles for tablets and smaller screens */
+	body {
+		max-width: 600px;
+	}
+}
+
+@media only screen and (max-width: 640px) {
+	/* Styles for mobile phones */
+	body {
+		max-width: 100%;
+	}
+	.container {
+		margin: 14px;
+	}
+	.authors {
+		flex-wrap: wrap;
+	}
+	.image-container img {
+		width: 100%;
+	}
+}
+  
