@@ -6,7 +6,7 @@ AutoEnsembleForecaster:
     # the AutoEnsembleForecaster finds the optimal weights for each forecaster so we dont need to tune any parameters ourselves
     values: [
       [["AutoARIMA", {}],
-       ["ExponentialSmoothing", {}],
+       ["ExponentialSmoothing", {}], # not sure about the format for this since AutoEnsembleForecaster expects a (str, forecaster) tuple for the forecasters parameter
        ["ThetaForecaster", {}]]
     ]
   method:
@@ -15,54 +15,25 @@ AutoEnsembleForecaster:
   test_size:
     type: list
     range: [0.1, 0.15, 0.2, 0.25, 0.3]
-# ^^  COMPLETE ^^ #
 
-
-StackingForecaster:
-  forecasters:
-    type: list
-    values: [
-      [["NaiveForecaster", {"strategy": "last"}],
-       ["ExponentialSmoothing", {}],
-       ["AutoARIMA", {}]],
-      [["ExponentialSmoothing", {}],
-       ["ThetaForecaster", {}],
-       ["Prophet", {}]]
-    ]
-  meta_forecaster:
-    type: list
-    values: [
-      ["RandomForestRegressor", {"n_estimators": 100, "random_state": 42}],
-      ["LinearRegression", {}],
-      ["Ridge", {"alpha": 1.0}]
-    ]
-  cv:
-    type: int
-    values: [3, 5]
-
-# XGBoost model from Darts library
 DartsXGBModel:
   lags:
     type: int
     range: [1, 24]
   output_chunk_length:
+    type: int
+    range: [1, 24]
+  lags_past_covariates:
+    type: int
+    range: [0, 30]
+  lags_future_covariates:
+    type: int
+    range: [0, 30]
+  likelihood:
     type: list
-    values: [6, 12, 24]  # Corresponds to 30min, 1hr, 2hr future prediction
-  n_estimators:
+    range: ["poisson", "quantile"]
+  quantiles:
     type: int
-    range: [50, 200]
-  learning_rate:
-    type: float
-    range: [0.01, 0.3]
-  max_depth:
-    type: int
-    range: [3, 10]
-  subsample:
-    type: float
-    range: [0.6, 1.0]
-  colsample_bytree:
-    type: float
-    range: [0.6, 1.0]
-  reg_lambda:
-    type: float
-    range: [0.1, 10.0]
+    range: [1,30]
+  multi_models:
+    type: bool
