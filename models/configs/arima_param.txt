@@ -1,3 +1,4 @@
+# These configs are the best params for ARIMA from AutoARIMA
 p01 = {
     "params": {
         "D": None,
