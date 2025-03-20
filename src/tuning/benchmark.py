@@ -451,6 +451,7 @@ def save_config(yaml_name, run_config, processed_dir):
 def save_init_config(
     current_time: str,
     yaml_path: str,
+    data_source_name: str,
     x_features: list[str],
     y_features: list[str],
     bg_method: str,
@@ -461,6 +462,7 @@ def save_init_config(
 ) -> None:
     run_config["timestamp"] = current_time
     run_config["yaml_path"] = yaml_path
+    run_config["data_source_name"] = data_source_name
     run_config["x_features"] = x_features
     run_config["y_features"] = y_features
     run_config["impute_methods"] = {
@@ -543,6 +545,7 @@ def run_benchmark(
         step_method=step_method,
         cal_method=cal_method,
         description=description,
+        data_source_name=data_source_name,
     )
 
     # Get dataset loaders with imputed missing values
