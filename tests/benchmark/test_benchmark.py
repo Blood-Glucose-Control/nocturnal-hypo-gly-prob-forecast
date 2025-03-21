@@ -7,7 +7,6 @@ import json
 
 
 class TestBenchmark:
-    # Replace __init__ with class attributes
     timestamp = "2025-03-20_18-54-56"
     yaml_path = "./src/tuning/configs/0_naive_05min.yaml"
     config = {
