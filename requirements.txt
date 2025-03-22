@@ -30,6 +30,7 @@ pytest-mock
 python-dotenv
 pytorch-forecasting
 pytorch-lightning
+PyWavelets
 ruff>=0.3.0
 scikit-learn
 seaborn
