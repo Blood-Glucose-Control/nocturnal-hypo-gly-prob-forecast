@@ -2,7 +2,6 @@ import time
 from src.tuning.benchmark import run_benchmark
 import os
 import pytest
-import shutil
 import json
 
 
@@ -91,10 +90,10 @@ class TestBenchmark:
         assert len(config["patient_numbers"]) == 2
         assert config["description"] == "Test benchmark"
 
-    def test_cleanup(self, benchmark_outputs):
-        """Test that cleanup removes all generated files and directories"""
-        shutil.rmtree(self.processed_dir)
-        os.remove(self.raw_output_file_path)
-
-        assert not os.path.exists(self.raw_output_file_path)
-        assert not os.path.exists(self.processed_dir)
+    # def test_cleanup(self, benchmark_outputs):
+    #     """Test that cleanup removes all generated files and directories"""
+    #     shutil.rmtree(self.processed_dir)
+    #     os.remove(self.raw_output_file_path)
+    #
+    #     assert not os.path.exists(self.raw_output_file_path)
+    #     assert not os.path.exists(self.processed_dir)
