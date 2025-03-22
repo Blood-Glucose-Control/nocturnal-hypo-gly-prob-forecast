@@ -122,7 +122,7 @@ def impute_missing_values(
             elif "step" in col.lower():
                 # Use constant imputation with 0 for steps
                 transform = Imputer(method=step_method, value=0)
-            elif "cal" in col.lower():
+            elif "cals" in col.lower():
                 # Use constant imputation with minimum value for calories
                 min_val = df[col].min()
                 transform = Imputer(method=cal_method, value=min_val)
@@ -223,16 +223,21 @@ def get_patient_ids(df, is_5min, n_patients=-1):
         if time_diff == expected_interval:
             selected_patients.append(patient_id)
 
-    n_patients = min(n_patients, len(selected_patients))
+    # Handle cases where -1 is used
+    if n_patients < 0:
+        final_patients = selected_patients
+        n_patients = len(selected_patients)  # For print statement
+    else:
+        n_patients = min(n_patients, len(selected_patients))
+        final_patients = selected_patients[:n_patients]
+
     interval = "5-min" if is_5min else "15-min"
 
-    print(
-        f"Loading {n_patients} patients with {interval} interval: {selected_patients[:n_patients]}"
-    )
+    print(f"Loading {n_patients} patients with {interval} interval: {final_patients}")
     run_config["interval"] = interval
-    run_config["patient_numbers"] = selected_patients[:n_patients]
+    run_config["patient_numbers"] = final_patients
 
-    return selected_patients[:n_patients]
+    return final_patients
 
 
 def get_dataset_loaders(
@@ -321,17 +326,19 @@ def get_cv_splitter(
             - Forecast horizon of steps_per_hour * hours_to_forecast
     """
 
+    to = steps_per_hour * hours_to_forecast + 1
+
     if cv_type == "expanding":
         cv_splitter = ExpandingWindowSplitter(
             initial_window=initial_window,
             step_length=step_length,
-            fh=np.arange(1, steps_per_hour * hours_to_forecast + 1),
+            fh=np.arange(1, to),
         )
     elif cv_type == "expanding_sliding":
         cv_splitter = ExpandingSlidingWindowSplitter(
             initial_window=initial_window,
             step_length=step_length,
-            fh=np.arange(1, steps_per_hour * hours_to_forecast + 1),
+            fh=np.arange(1, to),
         )
 
     else:
