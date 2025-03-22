@@ -11,10 +11,10 @@ declare -A job_specs=(
 )
 
 # Set your email here for job notifications
-email="t3chan@uwaterloo.ca"
+email="Add your email here"
 
 # Change your description of the run here
-description="This is a test run"
+description="Add the description of the run here"
 
 
 
