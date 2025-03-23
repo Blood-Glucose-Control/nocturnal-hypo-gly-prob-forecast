@@ -1,36 +1,71 @@
 #!/bin/bash
 
-# To be submitted to the SLURM queue with the command:
-# sbatch batch-submit.sh
-
+# Specify your files and resources here
 # Set resource requirements: Queues are limited to seven day allocations
 # Time format: HH:MM:SS
-#SBATCH --time=03:00:00
-#SBATCH --mem=6GB
-#SBATCH --cpus-per-task=2
+# Format: [yaml_file]="cores memory(GB) time"
+# TODO: Add GPU resources once we need them
+declare -A job_specs=(
+    ["0_naive_05min.yaml"]="1 4 02:00:00"
+    ["0_naive_15min.yaml"]="1 3 02:00:00"
+)
+
+# Set your email here for job notifications
+email="Add your email here"
+
+# Change your description of the run here
+description="Add the description of the run here"
+
+
+
+# Get current timestamp in ISO 8601 format
+timestamp=$(date '+%Y-%m-%dT%H:%M:%S')
+init_msg="The run is initiated at $timestamp"
+message="${init_msg}\n${description}"
+
+submit_job() {
+    local yaml_file="$1"
+    local description="$2"
+    local timestamp="$3"
+    local mem="$4"
+    local cores="$5"
+    local email="$6"
+    local runtime="$7"
+
+    # Create a temporary script with the proper SBATCH directives
+    temp_script=$(mktemp -t temp_job.XXXXXX)
+    cat << EOF > "${temp_script}"
+#!/bin/bash
+#SBATCH --time=$runtime
+#SBATCH --cpus-per-task=$cores
+#SBATCH --mem=${mem}GB
 ##SBATCH --gres=gpu:1
 
-# Set output file destinations (optional)
-# By default, output will appear in a file in the submission directory:
-# slurm-$job_number.out
-# This can be changed:
-#SBATCH -o JOB%j.out # File to which STDOUT will be written
-#SBATCH -e JOB%j-err.out # File to which STDERR will be written
+#SBATCH -o JOB%j.out
+#SBATCH -e JOB%j-err.out
 
-# email notifications: Get email when your job starts, stops, fails, completes...
-# Set email address
-#SBATCH --mail-user=<your_email>@uwaterloo.ca
-# Set types of notifications (from the options: BEGIN, END, FAIL, REQUEUE, ALL):
+#SBATCH --mail-user=$email
 #SBATCH --mail-type=ALL
 
-# Check if yaml file argument is provided
-if [ $# -eq 0 ]; then
-    echo "Usage: sbatch job.sh <yaml_config_file> <description> <timestamp>"
-    echo "Example: sbatch job.sh 2_arch_EGARCH_05min.yaml 'This is a description of the model run'"
-    exit 1
-fi
-
-source $HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
+source \$HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
 
 # Run the model with the provided yaml file
-python $HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py "$1" "$2" "$3"
+python \$HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/run_model.py "$yaml_file" "$description" "$timestamp"
+EOF
+
+    # Submit the temporary script to SLURM
+    sbatch "${temp_script}"
+
+    # Clean up the temporary script
+    rm "${temp_script}"
+}
+
+# Process all YAML files
+yaml_files=(${!job_specs[@]})
+for yaml_file in "${yaml_files[@]}"; do
+    read -r cores mem runtime <<< "${job_specs[$yaml_file]}"
+    submit_job "$yaml_file" "$message" "$timestamp" "$mem" "$cores" "$email" "$runtime"
+    echo "Submitted job for $yaml_file with $cores cores, ${mem}GB memory, and $runtime runtime"
+    echo "----------------------------------------"
+    sleep 1
+done
