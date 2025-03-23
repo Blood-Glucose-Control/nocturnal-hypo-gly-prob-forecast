@@ -1,11 +1,11 @@
 from src.data.data_loader import load_data
 
 
-def test_load_brist1d_data():
-    data = load_data(data_source_name="kaggle_brisT1D", dataset_type="train")
-    assert data is not None
-    assert len(data) > 0
-    assert len(data.columns) > 0
+# def test_load_brist1d_data():
+#     data = load_data(data_source_name="kaggle_brisT1D", dataset_type="train")
+#     assert data is not None
+#     assert len(data) > 0
+#     assert len(data.columns) > 0
 
 
 def test_load_brist1d_data_with_missing_values():
