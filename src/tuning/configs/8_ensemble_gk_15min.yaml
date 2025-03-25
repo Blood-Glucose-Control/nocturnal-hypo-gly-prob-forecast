@@ -5,7 +5,7 @@ AutoEnsembleForecaster:
     # this is just an example. we can put whatever forecasters we want to combine here
     # the AutoEnsembleForecaster finds the optimal weights for each forecaster so we dont need to tune any parameters ourselves
     values: [
-      ["AutoARIMA", {"start_p": 2, "max_p": 216, "start_q": 2, "max_q": 216, "seasonal": false, "n_jobs": -1}],
+      ["AutoARIMA", {"start_p": 2, "max_p": 108, "start_q": 2, "max_q": 108, "seasonal": false, "n_jobs": -1}],
        ["ExponentialSmoothing", {}], # not sure about the format for this since AutoEnsembleForecaster expects a (str, forecaster) tuple for the forecasters parameter
        ["ThetaForecaster", {}],
        ["NaiveForecaster", {}],
@@ -16,7 +16,7 @@ AutoEnsembleForecaster:
     values: ["feature-importance", "inverse-variance"]
   test_size:
     type: list
-    values: [0.1, 0.15, 0.2, 0.25, 0.3]
+    values: [0.2]
 
 DartsXGBModel:
   lags:
