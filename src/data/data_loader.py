@@ -11,7 +11,8 @@ def load_data(
     use_cached: bool = False,
 ) -> pd.DataFrame:
     """
-    Load data from a specified dataset and type, optionally selecting specific columns.
+    Load RAW or CACHED data from a specified dataset and type, optionally selecting specific columns.
+    Cached data is already processed and cleaned.
 
     Parameters:
     data_source_name (str): The name of the data source. Default is 'kaggle_brisT1D'.
@@ -42,6 +43,7 @@ def load_data(
                 f"Verify that the file exists if you want to use the cached version."
             )
     elif data_source_name == "gluroo":
+        # Can't cache gluroo data because it's generated
         pass
     else:
         raise ValueError("Invalid dataset_name or dataset_type")
@@ -110,3 +112,6 @@ def get_train_validation_split(
     train_data = pd.concat(train_data_list)
 
     return train_data, validation_data
+
+
+# TODO: Add a function that returns the loader class for a given data source name

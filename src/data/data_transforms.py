@@ -288,6 +288,7 @@ def apply_wavelet_transform(
     wavelet_window=36,
     patient_identifying_col="p_num",
     bgl_column="bg-0:00",
+    level=3,
 ) -> pd.DataFrame:
     """
     Applies wavelet transform on each patient's data
@@ -307,7 +308,9 @@ def apply_wavelet_transform(
     for patient_id, patient_data in df.groupby(patient_identifying_col):
         bgl_series = patient_data[bgl_column]
         # Initialize the WaveletTransformer for the current patient
-        transformer = WaveletTransformer(window_len=wavelet_window, wavelet=wavelet)
+        transformer = WaveletTransformer(
+            window_len=wavelet_window, wavelet=wavelet, num_levels=level
+        )
 
         transformed_bgl = transformer.fit_transform(bgl_series)
 
@@ -338,6 +341,8 @@ def take_moving_average(
         window_size: the moving average window size
         bg_col: the column take moving average over
     """
+    if window_size <= 0:
+        raise ValueError("Window size must be greater than 0")
     if bg_col not in df.columns:
         raise ValueError(f"Column '{bg_col}' not found in the DataFrame")
 
