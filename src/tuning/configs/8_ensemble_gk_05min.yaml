@@ -16,7 +16,7 @@ AutoEnsembleForecaster:
     values: ["feature-importance", "inverse-variance"]
   test_size:
     type: list
-    values: [0.1, 0.15, 0.2, 0.25, 0.3]
+    values: [0.2]
 
 DartsXGBModel:
   lags:
