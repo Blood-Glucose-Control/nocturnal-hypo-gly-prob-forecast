@@ -3,8 +3,8 @@ import pandas as pd
 
 # Gluroo data one dataframe per patient
 def clean_gluroo_data(
-    df: pd.DataFrame,
-    config: dict,
+    df_raw: pd.DataFrame,
+    config: dict = None,
 ) -> pd.DataFrame:
     """
     Cleans the Gluroo dataset by applying several transformations:
@@ -34,6 +34,16 @@ def clean_gluroo_data(
         Cleaned DataFrame with all transformations applied
     """
 
+    if config is None:
+        config = {
+            "max_consecutive_nan_values_per_day": 36,
+            "coerse_time_interval": pd.Timedelta(minutes=5),
+            "day_start_time": pd.Timedelta(hours=4),
+            "min_carbs": 5,
+            "meal_length": pd.Timedelta(hours=2),
+            "n_top_carb_meals": 3,
+        }
+
     max_consecutive_nan_values_per_day: int = config[
         "max_consecutive_nan_values_per_day"
     ]
@@ -43,7 +53,7 @@ def clean_gluroo_data(
     meal_length: pd.Timedelta = config["meal_length"]
     n_top_carb_meals: int = config["n_top_carb_meals"]
 
-    df = df.copy()
+    df = df_raw.copy()
     df = ensure_datetime_index(df)
     df.index = df.index.tz_localize(None)
 
@@ -52,22 +62,20 @@ def clean_gluroo_data(
     df = erase_consecutive_nan_values(df, max_consecutive_nan_values_per_day)
     df = erase_meal_overlap_fn(df, meal_length, min_carbs)
     df = keep_top_n_carb_meals(df, n_top_carb_meals=n_top_carb_meals)
+    df = data_translation(df)
     return df
 
 
-def data_translation(df: pd.DataFrame) -> pd.DataFrame:
+def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
     Translates the data to the correct format.
-    """
-
-    """
     TODO:
     - Translate dose units to iob and insulin_availability
     - Translate carbs to cob, carb_availability
     - Greg's data might have HR, steps and activity data?
     """
 
-    df = df.copy()
+    df = df_raw.copy()
     df = df.rename(
         columns={
             "date": "datetime",
