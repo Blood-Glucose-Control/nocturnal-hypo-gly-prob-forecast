@@ -59,6 +59,7 @@ def clean_gluroo_data(
     df = erase_meal_overlap_fn(df, meal_length, min_carbs)
     df = keep_top_n_carb_meals(df, n_top_carb_meals=n_top_carb_meals)
     df = data_translation(df)
+
     return df
 
 
@@ -74,10 +75,13 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     df = df_raw.copy()
     df = df.rename(
         columns={
-            "date": "datetime",
             "bgl": "bg-0:00",
             "food_g": "carbs-0:00",
         }
+    )
+    df["datetime"] = df.index
+    df["p_num"] = (
+        "glu001"  # TODO: Remove the dependency of p_num. Kaggle data is the very few dataset where there are multiple patients in the same file.
     )
 
     # Convert blood glucose from mg/dL to mmol/L

@@ -1,6 +1,7 @@
 import pandas as pd
 from src.data.DatasetBase import DatasetBase
 from src.data.gluroo.data_cleaner import clean_gluroo_data
+from src.data.data_loader import get_train_validation_split
 
 
 class Gluroo(DatasetBase):
@@ -42,9 +43,9 @@ class Gluroo(DatasetBase):
         """Load and process the raw data, setting up train/validation splits."""
         self.raw_data = self.load_raw()
         self.processed_data = self._process_raw_data()
-        # self.train_data, self.validation_data = get_train_validation_split(
-        #     self.processed_data, num_validation_days=self.num_validation_days
-        # )
+        self.train_data, self.validation_data = get_train_validation_split(
+            self.processed_data, num_validation_days=self.num_validation_days
+        )
 
     def _process_raw_data(self):
         """Process the raw data using the Gluroo-specific cleaning function.
