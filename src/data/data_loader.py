@@ -54,6 +54,7 @@ def load_data(
     return pd.read_csv(file_path, usecols=keep_columns, low_memory=False)
 
 
+# TODO: Remove the dependency of p_num. Kaggle data is the very few dataset where there are multiple patients in the same file.
 def get_train_validation_split(
     df: pd.DataFrame,
     num_validation_days: int = 20,

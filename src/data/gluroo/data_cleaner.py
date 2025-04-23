@@ -3,8 +3,8 @@ import pandas as pd
 
 # Gluroo data one dataframe per patient
 def clean_gluroo_data(
-    df: pd.DataFrame,
-    config: dict,
+    df_raw: pd.DataFrame,
+    config: dict = None,
 ) -> pd.DataFrame:
     """
     Cleans the Gluroo dataset by applying several transformations:
@@ -15,10 +15,8 @@ def clean_gluroo_data(
     5. Handles meal overlaps
     6. Keeps only top N carb meals
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input DataFrame containing Gluroo data. One dataframe per patient.
+    Args:
+        df_raw (pd.DataFrame): Input DataFrame containing Gluroo data. One dataframe per patient.
     config : dict
         Configuration dictionary containing:
         - max_consecutive_nan_values_per_day: Maximum allowed consecutive NaN values per day. The entire day is removed if this threshold is exceeded.
@@ -28,11 +26,19 @@ def clean_gluroo_data(
         - meal_length: Time window for considering meal duration
         - n_top_carb_meals: Number of highest-carb meals to keep per day
 
-    Returns
-    -------
-    pd.DataFrame
-        Cleaned DataFrame with all transformations applied
+    Returns:
+        pd.DataFrame: Cleaned DataFrame with all transformations applied
     """
+
+    if config is None:
+        config = {
+            "max_consecutive_nan_values_per_day": 36,
+            "coerse_time_interval": pd.Timedelta(minutes=5),
+            "day_start_time": pd.Timedelta(hours=4),
+            "min_carbs": 5,
+            "meal_length": pd.Timedelta(hours=2),
+            "n_top_carb_meals": 3,
+        }
 
     max_consecutive_nan_values_per_day: int = config[
         "max_consecutive_nan_values_per_day"
@@ -43,7 +49,7 @@ def clean_gluroo_data(
     meal_length: pd.Timedelta = config["meal_length"]
     n_top_carb_meals: int = config["n_top_carb_meals"]
 
-    df = df.copy()
+    df = df_raw.copy()
     df = ensure_datetime_index(df)
     df.index = df.index.tz_localize(None)
 
@@ -52,28 +58,30 @@ def clean_gluroo_data(
     df = erase_consecutive_nan_values(df, max_consecutive_nan_values_per_day)
     df = erase_meal_overlap_fn(df, meal_length, min_carbs)
     df = keep_top_n_carb_meals(df, n_top_carb_meals=n_top_carb_meals)
+    df = data_translation(df)
+
     return df
 
 
-def data_translation(df: pd.DataFrame) -> pd.DataFrame:
+def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
     Translates the data to the correct format.
-    """
-
-    """
     TODO:
     - Translate dose units to iob and insulin_availability
     - Translate carbs to cob, carb_availability
     - Greg's data might have HR, steps and activity data?
     """
 
-    df = df.copy()
+    df = df_raw.copy()
     df = df.rename(
         columns={
-            "date": "datetime",
             "bgl": "bg-0:00",
             "food_g": "carbs-0:00",
         }
+    )
+    df["datetime"] = df.index
+    df["p_num"] = (
+        "glu001"  # TODO: Remove the dependency of p_num. Kaggle data is the very few dataset where there are multiple patients in the same file.
     )
 
     # Convert blood glucose from mg/dL to mmol/L
@@ -88,16 +96,12 @@ def ensure_datetime_index(
     """
     Ensures DataFrame has a datetime index.
 
-    Parameters
-    ----------
-    data : pd.DataFrame
-        Input DataFrame that either has a datetime index or a 'date' column
+    Args:
+        data (pd.DataFrame): Input DataFrame that either has a datetime index or a 'date' column
         that can be converted to datetime.
 
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with sorted datetime index.
+    Returns:
+        pd.DataFrame: DataFrame with sorted datetime index.
     """
     df = data.copy()
 
@@ -120,17 +124,12 @@ def coerce_time_fn(data, coerse_time_interval):
     """
     Coerce the time interval of the data.
 
-    Parameters
-    ----------
-    data : pd.DataFrame
-        The input DataFrame with a 'date' index.
-    coerse_time_interval : pd.Timedelta
-        The interval for coarse time resampling.
+    Args:
+        data (pd.DataFrame): The input DataFrame with a 'date' index.
+        coerse_time_interval (pd.Timedelta): The interval for coarse time resampling.
 
-    Returns
-    -------
-    pd.DataFrame
-        The coerced DataFrame with a DatetimeIndex.
+    Returns:
+        pd.DataFrame: The coerced DataFrame with a DatetimeIndex.
     """
     # Ensure 'date' column exists
     if "date" != data.index.name:
@@ -183,17 +182,13 @@ def remove_num_meal(patient_df, num_meal):
     """
     Remove all days that have meals with the specified num_meal number of meals.
 
-    Parameters
-    ----------
-    patient_df : pd.DataFrame
-        The input DataFrame with columns 'msg_type', 'food_g', and a datetime index.
-    num_meal : int
-        The specific number of meals in a day to identify and remove.
+    Args:
+        patient_df (pd.DataFrame): The input DataFrame with columns 'msg_type', 'food_g', and a datetime index.
+        num_meal (int): The specific number of meals in a day to identify and remove.
 
     Returns
     -------
-    pd.DataFrame
-        The processed DataFrame with days containing num_meal meals removed.
+        pd.DataFrame: The processed DataFrame with days containing num_meal meals removed.
     """
     # Ensure a 'day' column based on the date from the datetime index
     patient_df = patient_df.copy()
