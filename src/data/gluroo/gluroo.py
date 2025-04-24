@@ -4,6 +4,7 @@ from src.data.gluroo.data_cleaner import clean_gluroo_data
 from src.data.data_loader import get_train_validation_split
 
 
+# TODO: Maybe need to return the test set too.
 class Gluroo(DatasetBase):
     def __init__(
         self,
@@ -47,6 +48,7 @@ class Gluroo(DatasetBase):
             self.processed_data, num_validation_days=self.num_validation_days
         )
 
+    # TODO: Add iob and cob processing functions
     def _process_raw_data(self):
         """Process the raw data using the Gluroo-specific cleaning function.
 
