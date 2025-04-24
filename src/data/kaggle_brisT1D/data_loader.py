@@ -32,6 +32,11 @@ class BrisT1DDataLoader(DatasetBase):
         # Preload data
         self.load_data()
 
+    @property
+    def dataset_name(self):
+        """Return the name of the dataset."""
+        return "kaggle_brisT1D"
+
     def load_raw(self):
         """Load the raw dataset.
 
