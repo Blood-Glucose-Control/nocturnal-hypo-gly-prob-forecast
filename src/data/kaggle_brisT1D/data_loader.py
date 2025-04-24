@@ -6,27 +6,70 @@ from src.data.data_transforms import (
     create_iob_and_ins_availability_cols,
     ensure_regular_time_intervals,
 )
-from src.data.data_loader import load_data, get_train_validation_split
+from src.data.data_loader import get_train_validation_split
+from src.data.DatasetBase import DatasetBase
+import os
 
 
-class BrisT1DDataLoader:
+class BrisT1DDataLoader(DatasetBase):
     def __init__(
         self,
         keep_columns: list = None,
-        use_cached: bool = True,
         num_validation_days: int = 20,
+        file_path: str = None,
+        use_cached: bool = True,
+        dataset_type: str = "train",
     ):
         self.keep_columns = keep_columns
-        self.use_cached = use_cached
-        self.raw_data = load_data(
-            data_source_name="kaggle_brisT1D",
-            dataset_type="train",
-            keep_columns=keep_columns,
-            use_cached=use_cached,
+        self.num_validation_days = num_validation_days
+        self.default_path = os.path.join(
+            os.path.dirname(__file__), f"{dataset_type}.csv"
         )
-        self.processed_data = self._process_raw_data()
+        self.cached_path = os.path.join(os.path.dirname(__file__), "train_cached.csv")
+        self.file_path = file_path if file_path is not None else self.default_path
+        self.use_cached = use_cached
+        self.dataset_type = dataset_type
+        # Preload data
+        self.load_data()
+
+    def load_raw(self):
+        """Load the raw dataset.
+
+        Returns:
+            pd.DataFrame: The raw data loaded from the CSV file.
+
+        """
+        return pd.read_csv(self.file_path, usecols=self.keep_columns, low_memory=False)
+
+    def load_data(self) -> pd.DataFrame:
+        """
+        Kaggle dataset is not big and can have multiple patients in the same file. We can cache the dataset
+        and load it from the cache.
+        The function will load the raw data, process data and split it into train and validation.
+        If the dataset is not cached, the function will process the raw data and save it to the cache.
+
+        Returns:
+            pd.DataFrame: The loaded data as a pandas DataFrame.
+
+        """
+        self.raw_data = self.load_raw()
+        if self.dataset_type == "train":
+            if self.use_cached:
+                # Check if cache exists, if not process and save
+                if not os.path.exists(self.cached_path):
+                    self.processed_data = self._process_raw_data()
+                    # Save processed data to cache
+                    self.processed_data.to_csv(self.cached_path, index=True)
+                else:
+                    self.processed_data = pd.read_csv(self.cached_path)
+            else:
+                # Not using cache, process and save
+                self.processed_data = self._process_raw_data()
+                self.processed_data.to_csv(self.cached_path, index=True)
+
+        # Split data into train and validation
         self.train_data, self.validation_data = get_train_validation_split(
-            self.processed_data, num_validation_days=num_validation_days
+            self.processed_data, num_validation_days=self.num_validation_days
         )
 
     def get_validation_day_splits(self, patient_id: str):
@@ -41,16 +84,13 @@ class BrisT1DDataLoader:
             yield patient_id, train_period, test_period
 
     def _process_raw_data(self) -> pd.DataFrame:
-        if self.use_cached:
-            self.processed_data = self.raw_data
-            return self.processed_data
         # Not cached, process the raw data
-        self.processed_data = clean_data(self.raw_data)
-        self.processed_data = create_datetime_index(self.processed_data)
-        self.processed_data = ensure_regular_time_intervals(self.processed_data)
-        self.processed_data = create_cob_and_carb_availability_cols(self.processed_data)
-        self.processed_data = create_iob_and_ins_availability_cols(self.processed_data)
-        return self.processed_data
+        data = clean_data(self.raw_data)
+        data = create_datetime_index(data)
+        data = ensure_regular_time_intervals(data)
+        data = create_cob_and_carb_availability_cols(data)
+        data = create_iob_and_ins_availability_cols(data)
+        return data
 
     def _get_day_splits(self, patient_data: pd.DataFrame):
         """
