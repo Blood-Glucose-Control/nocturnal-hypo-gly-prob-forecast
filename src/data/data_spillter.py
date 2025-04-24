@@ -3,6 +3,7 @@ from data_loader import load_data
 from data_cleaner import clean_data
 
 
+# TODO: Move this to somewhere else (Don't think it is being used anywhere now but can be useful in the future)
 def split_patient_data_by_day(patients_dfs: pd.DataFrame, patient_id: str) -> dict:
     """
     Split patient data into daily dataframes based on 6am transitions.

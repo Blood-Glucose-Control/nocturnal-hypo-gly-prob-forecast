@@ -1,7 +1,8 @@
 """Data loading functions for the various datasets."""
 
-import os
 import pandas as pd
+from src.data.kaggle_brisT1D.data_loader import BrisT1DDataLoader
+from src.data.gluroo.gluroo import Gluroo
 
 
 def load_data(
@@ -9,49 +10,40 @@ def load_data(
     dataset_type: str = "train",
     keep_columns: list = None,
     use_cached: bool = False,
+    num_validation_days: int = 20,
+    file_path: str = None,
+    config: dict = None,
 ) -> pd.DataFrame:
     """
-    Load RAW or CACHED data from a specified dataset and type, optionally selecting specific columns.
-    Cached data is already processed and cleaned.
+    Get the data loader for the given data source name.
 
     Parameters:
-    data_source_name (str): The name of the data source. Default is 'kaggle_brisT1D'.
-    dataset_type (str): The type of the dataset, e.g., 'train' or 'test'. Default is 'train'.
-    columns_to_keep (list): A list of column names to keep. If None, all columns are loaded.
-        Default is None.
+        data_source_name (str): The name of the data source. Default is 'kaggle_brisT1D'.
+        dataset_type (str): The type of the dataset, e.g., 'train' or 'test'. Default is 'train'.
+        keep_columns (list): A list of column names to keep. If None, all columns are loaded.
+            Default is None.
 
     Returns:
-    pd.DataFrame: The loaded data as a pandas DataFrame.
-
-    Raises:
-    ValueError: If the specified file does not exist.
+        pd.DataFrame: The loaded data as a pandas DataFrame.
     """
-    local_path = os.path.dirname(__file__)
-    file_path = None
     if data_source_name == "kaggle_brisT1D":
-        default_path = os.path.join(local_path, f"kaggle_brisT1D/{dataset_type}.csv")
-        cached_path = os.path.join(local_path, "kaggle_brisT1D/train_cached.csv")
-        file_path = (
-            cached_path
-            if use_cached and dataset_type == "train" and os.path.exists(cached_path)
-            else default_path
+        return BrisT1DDataLoader(
+            keep_columns=keep_columns,
+            num_validation_days=num_validation_days,
+            file_path=file_path,
+            use_cached=use_cached,
+            dataset_type=dataset_type,
         )
-        if use_cached and dataset_type == "train" and not os.path.exists(cached_path):
-            raise ValueError(
-                f"Unable to find train_cached.csv at "
-                f"\n {cached_path}. \n"
-                f"Verify that the file exists if you want to use the cached version."
-            )
     elif data_source_name == "gluroo":
-        # Can't cache gluroo data because it's generated
-        pass
+        return Gluroo(
+            keep_columns=keep_columns,
+            num_validation_days=num_validation_days,
+            dataset_type=dataset_type,
+            file_path=file_path,
+            config=config,
+        )
     else:
         raise ValueError("Invalid dataset_name or dataset_type")
-
-    if not os.path.exists(file_path):
-        raise ValueError("Invalid dataset_name or dataset_type")
-
-    return pd.read_csv(file_path, usecols=keep_columns, low_memory=False)
 
 
 # TODO: Remove the dependency of p_num. Kaggle data is the very few dataset where there are multiple patients in the same file.
@@ -113,6 +105,3 @@ def get_train_validation_split(
     train_data = pd.concat(train_data_list)
 
     return train_data, validation_data
-
-
-# TODO: Add a function that returns the loader class for a given data source name
