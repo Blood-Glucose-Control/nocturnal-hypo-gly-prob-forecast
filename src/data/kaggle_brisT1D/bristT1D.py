@@ -22,9 +22,11 @@ class BrisT1DDataLoader(DatasetBase):
     ):
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
-        self.default_path = os.path.join(
-            os.path.dirname(__file__), f"{dataset_type}.csv"
-        )
+        # TODO: Raw train.csv is quite large. Need to download from kaggle
+        # Set this to the cached path for now as it is already processed
+        # self.default_path = os.path.join(
+        #     os.path.dirname(__file__), f"{dataset_type}.csv"
+        # self.default_path = os.path.join(os.path.dirname(__file__), "train_cached.csv")
         self.cached_path = os.path.join(os.path.dirname(__file__), "train_cached.csv")
         self.file_path = file_path if file_path is not None else self.default_path
         self.use_cached = use_cached
