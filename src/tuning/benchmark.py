@@ -12,7 +12,8 @@ import pandas as pd
 import numpy as np
 import os
 import json
-from src.data.data_loader import load_data, get_train_validation_split
+from src.data.data_loader import get_loader
+from src.data.data_spillter import get_train_validation_split
 from src.data.data_transforms import apply_wavelet_transform, take_moving_average
 from src.tuning.param_grid import generate_param_grid
 from src.utils.config_loader import load_yaml_config
@@ -256,7 +257,7 @@ def get_dataset_loaders(
     Args:
         data_source_name (str, optional): Name of the data source. Defaults to "kaggle_brisT1D".
         x_features (list): List of feature column names to use as predictors.
-        y_feature (str): Name of the target variable column to predict. (bg-0:00)
+        y_feature (list): Name of the target variable column to predict. (bg-0:00)
         bg_method (str, optional): Imputation method for blood glucose data.
             Valid values: 'linear', 'nearest'. Defaults to "linear".
         hr_method (str, optional): Imputation method for heart rate data.
@@ -273,7 +274,8 @@ def get_dataset_loaders(
         dict[str, Callable]: Dictionary of dataset loader functions, one for each patient.
     """
     # Load and clean data
-    df = load_data(data_source_name=data_source_name, use_cached=True)
+    loader = get_loader(data_source_name=data_source_name, use_cached=True)
+    df = loader.processed_data
     df, _ = get_train_validation_split(df)
 
     # TODO: Impute Missing values for each columns

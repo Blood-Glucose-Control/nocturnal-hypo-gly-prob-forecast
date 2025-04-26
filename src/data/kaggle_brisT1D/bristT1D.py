@@ -6,7 +6,7 @@ from src.data.data_transforms import (
     create_iob_and_ins_availability_cols,
     ensure_regular_time_intervals,
 )
-from src.data.data_loader import get_train_validation_split
+from src.data.data_spillter import get_train_validation_split
 from src.data.DatasetBase import DatasetBase
 import os
 
@@ -44,9 +44,10 @@ class BrisT1DDataLoader(DatasetBase):
             pd.DataFrame: The raw data loaded from the CSV file.
 
         """
-        return pd.read_csv(self.file_path, usecols=self.keep_columns, low_memory=False)
+        # Return all columns
+        return pd.read_csv(self.file_path, low_memory=False)
 
-    def load_data(self) -> pd.DataFrame:
+    def load_data(self):
         """
         Kaggle dataset is not big and can have multiple patients in the same file. We can cache the dataset
         and load it from the cache.
@@ -66,7 +67,9 @@ class BrisT1DDataLoader(DatasetBase):
                     # Save processed data to cache
                     self.processed_data.to_csv(self.cached_path, index=True)
                 else:
-                    self.processed_data = pd.read_csv(self.cached_path)
+                    self.processed_data = pd.read_csv(
+                        self.cached_path, usecols=self.keep_columns
+                    )
             else:
                 # Not using cache, process and save
                 self.processed_data = self._process_raw_data()
@@ -77,6 +80,16 @@ class BrisT1DDataLoader(DatasetBase):
             self.processed_data, num_validation_days=self.num_validation_days
         )
 
+    def _process_raw_data(self) -> pd.DataFrame:
+        # Not cached, process the raw data
+        data = clean_data(self.raw_data)
+        data = create_datetime_index(data)
+        data = ensure_regular_time_intervals(data)
+        data = create_cob_and_carb_availability_cols(data)
+        data = create_iob_and_ins_availability_cols(data)
+        return data
+
+    # TODO: MOVE THIS TO THE spillter.py
     def get_validation_day_splits(self, patient_id: str):
         """
         Get day splits for validation data for a single patient.
@@ -88,15 +101,7 @@ class BrisT1DDataLoader(DatasetBase):
         for train_period, test_period in self._get_day_splits(patient_data):
             yield patient_id, train_period, test_period
 
-    def _process_raw_data(self) -> pd.DataFrame:
-        # Not cached, process the raw data
-        data = clean_data(self.raw_data)
-        data = create_datetime_index(data)
-        data = ensure_regular_time_intervals(data)
-        data = create_cob_and_carb_availability_cols(data)
-        data = create_iob_and_ins_availability_cols(data)
-        return data
-
+    # TODO: MOVE THIS TO THE spillter.py
     def _get_day_splits(self, patient_data: pd.DataFrame):
         """
         Split each day's data into training period (6am-12am) and test period (12am-6am next day).
