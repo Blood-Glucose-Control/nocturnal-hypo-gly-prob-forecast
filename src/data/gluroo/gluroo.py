@@ -1,7 +1,7 @@
 import pandas as pd
 from src.data.DatasetBase import DatasetBase
 from src.data.gluroo.data_cleaner import clean_gluroo_data
-from src.data.data_spillter import get_train_validation_split
+from src.data.data_splitter import get_train_validation_split
 
 
 # TODO: Maybe need to return the test set too.

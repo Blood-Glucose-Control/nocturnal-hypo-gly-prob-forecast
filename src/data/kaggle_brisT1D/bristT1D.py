@@ -6,7 +6,7 @@ from src.data.data_transforms import (
     create_iob_and_ins_availability_cols,
     ensure_regular_time_intervals,
 )
-from src.data.data_spillter import get_train_validation_split
+from src.data.data_splitter import get_train_validation_split
 from src.data.DatasetBase import DatasetBase
 import os
 
@@ -91,7 +91,7 @@ class BrisT1DDataLoader(DatasetBase):
         data = create_iob_and_ins_availability_cols(data)
         return data
 
-    # TODO: MOVE THIS TO THE spillter.py
+    # TODO: MOVE THIS TO THE splitter.py
     def get_validation_day_splits(self, patient_id: str):
         """
         Get day splits for validation data for a single patient.
@@ -103,7 +103,7 @@ class BrisT1DDataLoader(DatasetBase):
         for train_period, test_period in self._get_day_splits(patient_data):
             yield patient_id, train_period, test_period
 
-    # TODO: MOVE THIS TO THE spillter.py
+    # TODO: MOVE THIS TO THE splitter.py
     def _get_day_splits(self, patient_data: pd.DataFrame):
         """
         Split each day's data into training period (6am-12am) and test period (12am-6am next day).
