@@ -1,4 +1,4 @@
-from src.data.data_loader import load_data
+from src.data.data_loader import get_loader
 
 
 # def test_load_brist1d_data():
@@ -10,24 +10,26 @@ from src.data.data_loader import load_data
 
 def test_load_brist1d_data_with_missing_values():
     # This test checks that it works even if data is cached
-    data = load_data(
+    kaggle_loader = get_loader(
         data_source_name="kaggle_brisT1D", dataset_type="train", use_cached=True
     )
-    assert data is not None
+    assert kaggle_loader is not None
+    data = kaggle_loader.processed_data
     assert len(data) > 0
     assert len(data.columns) > 0
 
 
 def test_keep_columns():
-    data = load_data(
+    kaggle_loader = get_loader(
         data_source_name="kaggle_brisT1D",
         dataset_type="train",
-        keep_columns=["bg-0:00", "p_num"],
+        keep_columns=["bg-0:00", "p_num", "datetime"],
         use_cached=True,
     )
-    assert data is not None
+    assert kaggle_loader is not None
+    data = kaggle_loader.processed_data
     assert len(data) > 0
-    assert len(data.columns) == 2
+    assert len(data.columns) == 3
     assert "bg-0:00" in data.columns
     assert "p_num" in data.columns
 

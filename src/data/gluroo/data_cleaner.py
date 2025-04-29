@@ -53,11 +53,14 @@ def clean_gluroo_data(
     df = ensure_datetime_index(df)
     df.index = df.index.tz_localize(None)
 
+    # From meal identification repo
     df = coerce_time_fn(data=df, coerse_time_interval=coerse_time_interval)
     df["day_start_shift"] = (df.index - day_start_time).date
     df = erase_consecutive_nan_values(df, max_consecutive_nan_values_per_day)
     df = erase_meal_overlap_fn(df, meal_length, min_carbs)
     df = keep_top_n_carb_meals(df, n_top_carb_meals=n_top_carb_meals)
+
+    # Translate data to the correct format
     df = data_translation(df)
 
     return df

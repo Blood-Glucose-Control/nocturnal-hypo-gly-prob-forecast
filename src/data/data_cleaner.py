@@ -5,6 +5,7 @@ from src.data.kaggle_brisT1D.data_cleaner import clean_brist1d_train_data
 from src.data.gluroo.data_cleaner import clean_gluroo_data
 
 
+# TODO: Maybe remove this. Data should be cleaned in the loader automatically.
 def clean_data(
     data: pd.DataFrame,
     data_source_name="kaggle_brisT1D",

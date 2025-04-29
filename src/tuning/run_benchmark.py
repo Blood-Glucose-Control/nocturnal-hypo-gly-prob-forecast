@@ -19,7 +19,6 @@ else:
         "is_5min": False,
     }
 
-
 if __name__ == "__main__":
     start_time = time.time()
     print(f"Starting..... {yaml_path.split('/')[-1]}")

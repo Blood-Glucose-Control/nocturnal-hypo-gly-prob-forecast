@@ -1,15 +1,17 @@
-from src.data.data_loader import load_data
-from src.data.data_loader import get_train_validation_split
+from src.data.data_loader import get_loader
+from src.data.data_splitter import get_train_validation_split
 import pytest
 import pandas as pd
 
 
 @pytest.fixture
 def dataset():
-    data = load_data(
-        data_source_name="kaggle_brisT1D", dataset_type="train", use_cached=True
+    loader = get_loader(
+        data_source_name="kaggle_brisT1D",
+        dataset_type="train",
+        use_cached=True,
     )
-    return data
+    return loader.processed_data
 
 
 def test_get_train_validation_split(dataset):

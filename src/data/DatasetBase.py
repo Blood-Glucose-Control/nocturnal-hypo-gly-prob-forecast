@@ -9,6 +9,10 @@ class DatasetBase(ABC):
     All dataset loaders should inherit from this class and implement its methods.
     """
 
+    def __init__(self):
+        self.processed_data = None
+        self.raw_data = None
+
     @abstractmethod
     def load_raw(self):
         """Load the raw dataset without any processing.
