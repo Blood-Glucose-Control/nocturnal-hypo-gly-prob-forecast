@@ -47,7 +47,7 @@ class Gluroo(DatasetBase):
         # self.processed_data = self._process_raw_data()
         cached_data = pd.read_csv(
             "src/data/gluroo/gluroo_cached.csv"
-        )  ## TODO: Remove this. This is a hack to get the data to work now
+        )  ## TODO: Remove this. This is a hack to get the data to work now for the benchmark
         # cached_data = create_datetime_index(cached_data)
         self.processed_data = cached_data
         self.train_data, self.validation_data = get_train_validation_split(
