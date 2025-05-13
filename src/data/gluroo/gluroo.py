@@ -21,8 +21,9 @@ class Gluroo(DatasetBase):
         self.processed_data = None
         self.train_data = None
         self.validation_data = None
-        if file_path is not None:
-            self.load_data()
+        self.load_data()  # TODO:TONY: Remove this. This is a hack to get the data to work now
+        # if file_path is not None:
+        #     self.load_data()
 
     @property
     def dataset_name(self):
@@ -42,8 +43,13 @@ class Gluroo(DatasetBase):
 
     def load_data(self):
         """Load and process the raw data, setting up train/validation splits."""
-        self.raw_data = self.load_raw()
-        self.processed_data = self._process_raw_data()
+        # self.raw_data = self.load_raw()
+        # self.processed_data = self._process_raw_data()
+        cached_data = pd.read_csv(
+            "src/data/gluroo/gluroo_cached.csv"
+        )  ## TODO: Remove this. This is a hack to get the data to work now
+        # cached_data = create_datetime_index(cached_data)
+        self.processed_data = cached_data
         self.train_data, self.validation_data = get_train_validation_split(
             self.processed_data, num_validation_days=self.num_validation_days
         )
@@ -93,3 +99,16 @@ class Gluroo(DatasetBase):
 
             if len(next_day_data) > 0 and len(current_day_data) > 0:
                 yield current_day_data, next_day_data
+
+
+if __name__ == "__main__":
+    keep_columns = ["date", "bgl", "food_g", "msg_type", "dose_units"]
+    gluroo = Gluroo(
+        file_path="src/data/gluroo/chris/gluroo_data.csv",
+        keep_columns=keep_columns,
+        num_validation_days=0,
+    )
+    # print(gluroo.processed_data)
+    print("length of processed data: ", len(gluroo.processed_data))
+    # print(gluroo.train_data)
+    print("length of train data: ", len(gluroo.train_data))

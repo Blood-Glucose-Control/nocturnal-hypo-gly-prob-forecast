@@ -51,7 +51,6 @@ def clean_gluroo_data(
 
     df = df_raw.copy()
     df = ensure_datetime_index(df)
-    df.index = df.index.tz_localize(None)
 
     # From meal identification repo
     df = coerce_time_fn(data=df, coerse_time_interval=coerse_time_interval)
@@ -80,6 +79,7 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
         columns={
             "bgl": "bg-0:00",
             "food_g": "carbs-0:00",
+            "dose_units": "insulin-0:00",
         }
     )
     df["datetime"] = df.index
@@ -118,7 +118,8 @@ def ensure_datetime_index(
                 "DataFrame must have either a 'date' column or a DatetimeIndex."
             )
 
-    df.index = pd.DatetimeIndex(df.index)
+    # Convert to UTC to handle DST transitions
+    df.index = pd.to_datetime(df.index, utc=True)
 
     return df
 

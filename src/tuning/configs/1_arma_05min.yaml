@@ -1,13 +1,13 @@
-AutoREG:
-  lags:
-    type: list
-    values: [1, 2, 3, 4]
-  trend:
-    type: list
-    values: ["n", "c"]
-  seasonal:
-    type: list
-    values: [False]
+# AutoREG:
+#   lags:
+#     type: list
+#     values: [1, 2, 3, 4]
+#   trend:
+#     type: list
+#     values: ["n", "c"]
+#   seasonal:
+#     type: list
+#     values: [False]
 
 AutoARIMA:
   start_p:
@@ -29,11 +29,11 @@ AutoARIMA:
     type: list
     values: [-1]
 
-VARReduce:
-  regressor:
-    type: regressor
-    estimators: ["LinearRegression", "Lasso", "Ridge", "ElasticNet"]
-    estimator_kwargs: [{}, {}, {}, {}]
-  lags:
-    type: int
-    range: [12, 216]
+# VARReduce:
+#   regressor:
+#     type: regressor
+#     estimators: ["LinearRegression", "Lasso", "Ridge", "ElasticNet"]
+#     estimator_kwargs: [{}, {}, {}, {}]
+#   lags:
+#     type: int
+#     range: [12, 216]
