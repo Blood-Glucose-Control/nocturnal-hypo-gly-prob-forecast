@@ -7,7 +7,7 @@ def clean_aleppo_data(
     config: dict = None,
 ) -> pd.DataFrame:
     """
-    Cleans the Gluroo dataset by applying several transformations:
+    Cleans Aleppo dataset
     1. Ensures datetime index
     2. Coerces timestamps to regular intervals
     3. Groups data by day starting at configured time
@@ -20,10 +20,6 @@ def clean_aleppo_data(
         - max_consecutive_nan_values_per_day: Maximum allowed consecutive NaN values per day. The entire day is removed if this threshold is exceeded.
         - coerse_time_interval: Time interval to coerce timestamps to
         - day_start_time: Time of day to use as start of day
-        - min_carbs: Minimum carbs threshold for meal. Meal less than this threshold are filtered out.
-        - meal_length: Time window for considering meal duration
-        - n_top_carb_meals: Number of highest-carb meals to keep per day
-
     Returns:
         pd.DataFrame: Cleaned DataFrame with all transformations applied
     """
@@ -73,9 +69,6 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
         }
     )
     df["datetime"] = df.index
-    df["p_num"] = (
-        "glu001"  # TODO: Remove the dependency of p_num. Kaggle data is the very few dataset where there are multiple patients in the same file.
-    )
 
     # Convert blood glucose from mg/dL to mmol/L
     df["bg-0:00"] = (df["bg-0:00"] / 18.0).round(2)
