@@ -3,6 +3,7 @@
 # Date: Febuary 4th, 2020, edited June 14th, by Elizabeth Chun
 
 import datetime
+import pandas as pd
 # For working with dates and times
 
 # This study downloads as a zipped folder containing data tables and forms
@@ -66,3 +67,8 @@ with open(file) as file:  # Open the data file
             # Write all the data to the export file in the working directory
 
 # this is a large dataset, so do not be surprised is the runtime is somewhat long
+
+# rename columns for compatibility with current data loaders
+file = pd.read_csv(newfile)
+file = file.rename(columns={"id": "p_num", "gl": "bgl", "time": "datetime"})
+file.to_csv(newfile, index=False)

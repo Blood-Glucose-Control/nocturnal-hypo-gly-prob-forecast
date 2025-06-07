@@ -2,7 +2,7 @@ import pandas as pd
 
 
 # Gluroo data one dataframe per patient
-def clean_aleppo_data(
+def clean_cgm_data(
     df_raw: pd.DataFrame,
     config: dict = None,
 ) -> pd.DataFrame:

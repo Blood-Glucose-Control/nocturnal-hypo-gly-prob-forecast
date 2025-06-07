@@ -1,17 +1,16 @@
 import pandas as pd
-from src.data.aleppo.clean_data import clean_aleppo_data
+from src.data.awesome_cgm.clean_data import clean_cgm_data
 from src.data.data_splitter import get_train_validation_split
 from src.data.DatasetBase import DatasetBase
 
 
-class AleppoDataLoader(DatasetBase):
+class BaseAwesomeCGMLoader(DatasetBase):
     def __init__(
         self,
         keep_columns: list = None,
         num_validation_days: int = 20,
         file_path: str = None,
         config: dict = None,
-        dataset_type: str = "train",
     ):
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
@@ -39,14 +38,11 @@ class AleppoDataLoader(DatasetBase):
 
     def load_data(self):
         """
-        Kaggle dataset is not big and can have multiple patients in the same file. We can cache the dataset
-        and load it from the cache.
         The function will load the raw data, process data and split it into train and validation.
         If the dataset is not cached, the function will process the raw data and save it to the cache.
 
         Returns:
             pd.DataFrame: The loaded data as a pandas DataFrame.
-
         """
         self.raw_data = self.load_raw()
         self.processed_data = self._process_raw_data()
@@ -58,7 +54,7 @@ class AleppoDataLoader(DatasetBase):
         if self.raw_data is None:
             raise ValueError("Raw data is not loaded.")
         raw_df = self.raw_data[self.keep_columns].copy()
-        return clean_aleppo_data(raw_df, self.config)
+        return clean_cgm_data(raw_df, self.config)
 
     # TODO: MOVE THIS TO THE splitter.py
     def get_validation_day_splits(self, patient_id: str):
