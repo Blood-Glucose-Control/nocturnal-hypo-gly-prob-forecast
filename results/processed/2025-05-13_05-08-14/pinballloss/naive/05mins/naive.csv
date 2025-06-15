@@ -1,0 +1,3 @@
+validation_id,model_id,runtime_secs,PinballLoss_mean,PinballLoss_std
+glu001,NaiveForecaster-strategy_last,3.1489107608795166,0.3794659155749316,0.5820746134957776
+glu001,NaiveForecaster-strategy_mean,0.0835480690002441,0.2035682126987848,0.0144775823912697

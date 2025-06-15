@@ -1,4 +1,0 @@
-validation_id,model_id,runtime_secs,MeanSquaredError_mean,MeanSquaredError_std
-p01,HFTransformersForecaster-TimeSeriesTransformer,61.748910665512085,4.57648079089359,2.4877404258154834
-p05,HFTransformersForecaster-TimeSeriesTransformer,52.595316886901855,2.996682890579878,1.3065336388400246
-p06,HFTransformersForecaster-TimeSeriesTransformer,52.9386510848999,4.197127912849325,2.5567114952017373

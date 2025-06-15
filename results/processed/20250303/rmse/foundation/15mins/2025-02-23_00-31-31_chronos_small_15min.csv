@@ -1,4 +1,0 @@
-validation_id,model_id,runtime_secs,MeanSquaredError_mean,MeanSquaredError_std
-p01,ChronosForecaster-T5-Small,9.561509132385254,4.125183534151286,1.741283416034716
-p05,ChronosForecaster-T5-Small,6.441213130950928,2.3300243890195533,0.9406859246429244
-p06,ChronosForecaster-T5-Small,1.1112565994262695,2.7579049272189127,2.152250286708832

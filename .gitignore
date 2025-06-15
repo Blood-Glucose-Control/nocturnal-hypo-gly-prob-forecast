@@ -54,6 +54,7 @@ cover/
 
 # Ignore all csv files in the src/data directory
 src/data/**/*.csv
+scripts/notebooks/**/*.csv
 
 # Translations
 *.mo
