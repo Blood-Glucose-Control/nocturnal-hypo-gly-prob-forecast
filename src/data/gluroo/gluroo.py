@@ -2,9 +2,9 @@ import pandas as pd
 from src.data.DatasetBase import DatasetBase
 from src.data.gluroo.data_cleaner import clean_gluroo_data
 from src.data.data_splitter import get_train_validation_split
+import src.data.data_transforms as data_transforms
 
 
-# TODO: Maybe need to return the test set too.
 class Gluroo(DatasetBase):
     def __init__(
         self,
@@ -12,18 +12,18 @@ class Gluroo(DatasetBase):
         num_validation_days: int = 20,
         file_path: str = None,
         config: dict = None,
+        use_cached: bool = False,
     ):
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
-        self.file_path = file_path
+        self.file_path = file_path  # Raw file path
         self.config = config
+        self.use_cached = use_cached
         self.raw_data = None
         self.processed_data = None
         self.train_data = None
         self.validation_data = None
-        self.load_data()  # TODO:TONY: Remove this. This is a hack to get the data to work now
-        # if file_path is not None:
-        #     self.load_data()
+        self.load_data()
 
     @property
     def dataset_name(self):
@@ -43,18 +43,18 @@ class Gluroo(DatasetBase):
 
     def load_data(self):
         """Load and process the raw data, setting up train/validation splits."""
-        # self.raw_data = self.load_raw()
-        # self.processed_data = self._process_raw_data()
-        cached_data = pd.read_csv(
-            "src/data/gluroo/gluroo_cached.csv"
-        )  ## TODO: Remove this. This is a hack to get the data to work now for the benchmark
-        # cached_data = create_datetime_index(cached_data)
-        self.processed_data = cached_data
+        if self.use_cached:
+            cached_data = pd.read_csv("gluroo_cached.csv")
+            self.processed_data = cached_data
+        else:
+            self.raw_data = self.load_raw()
+            self.processed_data = self._process_raw_data()
+            self.processed_data.to_csv("/gluroo_cached.csv", index=False, mode="w")
+
         self.train_data, self.validation_data = get_train_validation_split(
             self.processed_data, num_validation_days=self.num_validation_days
         )
 
-    # TODO: Add iob and cob processing functions
     def _process_raw_data(self):
         """Process the raw data using the Gluroo-specific cleaning function.
 
@@ -65,7 +65,15 @@ class Gluroo(DatasetBase):
         if self.raw_data is None:
             raise ValueError("Raw data is required")
         raw = self.raw_data[self.keep_columns].copy()
-        return clean_gluroo_data(raw, self.config)
+        cleaned_df = clean_gluroo_data(raw, self.config)
+        processed_df_regular = data_transforms.ensure_regular_time_intervals(cleaned_df)
+        processed_df_cob = data_transforms.create_cob_and_carb_availability_cols(
+            processed_df_regular
+        )
+        processed_df_iob = data_transforms.create_iob_and_ins_availability_cols(
+            processed_df_cob
+        )
+        return processed_df_iob
 
     def get_validation_day_splits(self, patient_id: str):
         patient_data = self.validation_data[self.validation_data["p_num"] == patient_id]
