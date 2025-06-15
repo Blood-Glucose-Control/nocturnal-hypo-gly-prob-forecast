@@ -5,6 +5,7 @@ from src.data.data_splitter import get_train_validation_split
 import src.data.data_transforms as data_transforms
 
 
+# TODO: Maybe need to return the test set too.
 class Gluroo(DatasetBase):
     def __init__(
         self,
@@ -107,16 +108,3 @@ class Gluroo(DatasetBase):
 
             if len(next_day_data) > 0 and len(current_day_data) > 0:
                 yield current_day_data, next_day_data
-
-
-if __name__ == "__main__":
-    keep_columns = ["date", "bgl", "food_g", "msg_type", "dose_units"]
-    gluroo = Gluroo(
-        file_path="src/data/gluroo/chris/gluroo_data.csv",
-        keep_columns=keep_columns,
-        num_validation_days=0,
-    )
-    # print(gluroo.processed_data)
-    print("length of processed data: ", len(gluroo.processed_data))
-    # print(gluroo.train_data)
-    print("length of train data: ", len(gluroo.train_data))
