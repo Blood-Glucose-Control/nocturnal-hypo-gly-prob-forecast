@@ -26,6 +26,8 @@ from src.tuning.load_estimators import (
 forecasters = load_all_forecasters()
 regressors = load_all_regressors()
 
+# TODO:Time is a column from Kaggle dataset. Might need to use datetime instead which is the index we will be using for all datasets
+
 # Global variables
 run_config = {
     "timestamp": "",

@@ -76,6 +76,7 @@ class Gluroo(DatasetBase):
         )
         return processed_df_iob
 
+    # Split the validation data into train and validation sets
     def get_validation_day_splits(self, patient_id: str):
         patient_data = self.validation_data[self.validation_data["p_num"] == patient_id]
         for train_period, test_period in self._get_day_splits(patient_data):

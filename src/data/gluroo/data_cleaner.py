@@ -69,8 +69,6 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
     Translates the data to the correct format.
     TODO:
-    - Translate dose units to iob and insulin_availability
-    - Translate carbs to cob, carb_availability
     - Greg's data might have HR, steps and activity data?
     """
 
