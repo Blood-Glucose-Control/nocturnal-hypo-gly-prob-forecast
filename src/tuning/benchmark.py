@@ -199,7 +199,7 @@ def load_diabetes_data(patient_id, df=None, y_feature=None, x_features=[]):
         raise ValueError("dataframe must be provided")
 
     patient_data = df[df["p_num"] == patient_id].copy()
-    # patient_data["time"] = pd.to_datetime(patient_data["time"], format="%H:%M:%S")
+    patient_data["time"] = pd.to_datetime(patient_data["time"], format="%H:%M:%S")
 
     y = patient_data[y_feature]
     X = patient_data[x_features]
@@ -299,8 +299,8 @@ def get_dataset_loaders(
         n_patients = len(df["p_num"].unique())
 
     # Create dataset loaders for each patient
-    # patient_ids = get_patient_ids(df, is_5min, n_patients)
-    patient_ids = df["p_num"].unique()
+    patient_ids = get_patient_ids(df, is_5min, n_patients)
+    # patient_ids = df["p_num"].unique() // TODO: Probably need this for gluroot to work
 
     # Create dictionary of dataset loaders mapping patient_id to dataset loader function so we can get the correct patient_id in the benchmark
     dataset_loaders = {}
