@@ -105,6 +105,7 @@ src/data/
 - Create a new file: `src/data/${dataset_name}/${dataset_name}.py`
 - Inherit from `DatasetBase` class
 - Implement caching mechanism to avoid reprocessing
+- Raw data should be fetchd via API of the host if available (We are thinking of just hosting a private HF datasets now)
 ```python
 class ${DatasetName}Loader(DatasetBase):
     def __init__(self, cache=True):
@@ -143,7 +144,10 @@ Implement a data cleaner that performs the following steps in order:
      data_transforms.create_iob_and_ins_availability_cols(df)
      ```
 
-### 3. Reference Implementation
+### 3. Documentation
+Document all the changes
+
+### 4. Reference Implementation
 See `src/data/gluroo/` for a working example of dataset implementation.
 
 ## Future Improvements
