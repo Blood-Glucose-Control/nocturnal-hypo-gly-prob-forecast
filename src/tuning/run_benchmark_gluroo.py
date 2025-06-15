@@ -3,10 +3,10 @@ from benchmark import run_benchmark
 
 
 # Change this
-# yaml_path = "./src/tuning/configs/0_naive_05min.yaml"
+yaml_path = "./src/tuning/configs/0_naive_05min.yaml"
 # yaml_path = "./src/tuning/configs/1_arma_05min.yaml"
 # yaml_path = "./src/tuning/configs/3_exponential_smooth_05min.yaml"
-yaml_path = "./src/tuning/configs/8_ensemble_gk_05min.yaml"
+# yaml_path = "./src/tuning/configs/8_ensemble_gk_05min.yaml"
 if __name__ == "__main__":
     start_time = time.time()
     print(f"Starting..... {yaml_path.split('/')[-1]}")

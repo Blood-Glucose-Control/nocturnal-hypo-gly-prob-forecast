@@ -21,7 +21,6 @@ from src.tuning.load_estimators import (
     load_all_regressors,
     get_estimator,
 )
-from sktime.forecasting.chronos import ChronosForecaster
 
 
 forecasters = load_all_forecasters()
@@ -436,11 +435,7 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
     )
 
     # Generate all estimators
-    # estimators = generate_estimators_from_param_grid(yaml_path)
-    # ttm = TinyTimeMixerForecaster()
-    # estimators = [(ttm, "TinyTimeMixerForecaster")]
-    chronos = ChronosForecaster("amazon/chronos-bolt-tiny")
-    estimators = [(chronos, "ChronosForecaster")]
+    estimators = generate_estimators_from_param_grid(yaml_path)
 
     for estimator, estimator_id in estimators:
         benchmark.add_estimator(estimator=estimator, estimator_id=estimator_id)
