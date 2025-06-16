@@ -1,4 +1,0 @@
-validation_id,model_id,runtime_secs,MeanSquaredError_mean,MeanSquaredError_std
-p01,ARDL-auto_ardl_True-maxlag_4-maxorder_4,2303.925883293152,3.565573538415132,1.4833772006135106
-p05,ARDL-auto_ardl_True-maxlag_4-maxorder_4,2192.8676834106445,,
-p06,ARDL-auto_ardl_True-maxlag_4-maxorder_4,2629.4957501888275,,

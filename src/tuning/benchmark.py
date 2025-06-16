@@ -3,7 +3,6 @@ import time
 from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.forecasting.compose import FallbackForecaster
-from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
 from sktime.performance_metrics.forecasting import MeanSquaredError
 from sktime.split import ExpandingSlidingWindowSplitter, ExpandingWindowSplitter
 from sktime.split.base import BaseWindowSplitter
@@ -26,6 +25,8 @@ from src.tuning.load_estimators import (
 
 forecasters = load_all_forecasters()
 regressors = load_all_regressors()
+
+# TODO:Time is a column from Kaggle dataset. Might need to use datetime instead which is the index we will be using for all datasets
 
 # Global variables
 run_config = {
@@ -243,6 +244,7 @@ def get_patient_ids(df, is_5min, n_patients=-1):
 
 def get_dataset_loaders(
     data_source_name,
+    validation_days,
     x_features,
     y_feature,
     bg_method="linear",
@@ -276,7 +278,8 @@ def get_dataset_loaders(
     # Load and clean data
     loader = get_loader(data_source_name=data_source_name, use_cached=True)
     df = loader.processed_data
-    df, _ = get_train_validation_split(df)
+    # TODO: It is default of 20 days. Might need to change that
+    df, _ = get_train_validation_split(df, num_validation_days=validation_days)
 
     # TODO: Impute Missing values for each columns
     df = impute_missing_values(df, columns=x_features, bg_method=bg_method)
@@ -300,6 +303,7 @@ def get_dataset_loaders(
 
     # Create dataset loaders for each patient
     patient_ids = get_patient_ids(df, is_5min, n_patients)
+    # patient_ids = df["p_num"].unique() // TODO: Probably need this for gluroot to work
 
     # Create dictionary of dataset loaders mapping patient_id to dataset loader function so we can get the correct patient_id in the benchmark
     dataset_loaders = {}
@@ -435,6 +439,7 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
 
     # Generate all estimators
     estimators = generate_estimators_from_param_grid(yaml_path)
+
     for estimator, estimator_id in estimators:
         benchmark.add_estimator(estimator=estimator, estimator_id=estimator_id)
 
@@ -459,6 +464,7 @@ def save_config(yaml_name, run_config, processed_dir):
 
 def save_init_config(
     current_time: str,
+    validation_days: int,
     yaml_path: str,
     data_source_name: str,
     x_features: list[str],
@@ -470,6 +476,7 @@ def save_init_config(
     description: str,
 ) -> None:
     run_config["timestamp"] = current_time
+    run_config["validation_days"] = validation_days
     run_config["yaml_path"] = yaml_path
     run_config["data_source_name"] = data_source_name
     run_config["x_features"] = x_features
@@ -488,6 +495,7 @@ def run_benchmark(
     y_features=["bg-0:00"],
     x_features=["iob", "cob"],
     cv_type="expanding",
+    validation_days=20,
     initial_cv_window=12 * 24 * 3,
     cv_step_length=12 * 24 * 3,
     steps_per_hour=12,
@@ -546,6 +554,7 @@ def run_benchmark(
 
     save_init_config(
         current_time=current_time,
+        validation_days=validation_days,
         yaml_path=yaml_path,
         x_features=x_features,
         y_features=y_features,
@@ -560,6 +569,7 @@ def run_benchmark(
     # Get dataset loaders with imputed missing values
     dataset_loaders = get_dataset_loaders(
         data_source_name=data_source_name,
+        validation_days=validation_days,
         x_features=x_features,
         y_feature=y_features,
         bg_method=bg_method,
@@ -571,7 +581,10 @@ def run_benchmark(
     )
 
     # ADD THE SCORERS HERE
-    scorers = [PinballLoss(), MeanSquaredError(square_root=True)]
+    scorers = [
+        # PinballLoss(),
+        MeanSquaredError(square_root=True),
+    ]
     run_config["scorers"] = [scorer.__class__.__name__ for scorer in scorers]
 
     # Get the cross-validation splitter
