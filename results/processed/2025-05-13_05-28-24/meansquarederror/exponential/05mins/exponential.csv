@@ -1,0 +1,5 @@
+validation_id,model_id,runtime_secs,MeanSquaredError_mean,MeanSquaredError_std
+glu001,AutoETS-auto_True,3.8048171997070312,2.559776535948522,2.113103270231525
+glu001,StatsForecastAutoCES-model_Z,11.544470071792604,1.9308875789390487,1.693859732481278
+glu001,StatsForecastAutoTheta-decomposition_type_additive,46.98144578933716,2.1810719291888874,1.7656506339790847
+glu001,StatsForecastAutoTheta-decomposition_type_multiplicative,46.675787925720215,2.1810719291888874,1.7656506339790847

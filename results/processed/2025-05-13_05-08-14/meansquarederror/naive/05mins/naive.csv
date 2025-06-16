@@ -1,0 +1,3 @@
+validation_id,model_id,runtime_secs,MeanSquaredError_mean,MeanSquaredError_std
+glu001,NaiveForecaster-strategy_last,3.1489107608795166,2.1780745311724936,1.754290073349427
+glu001,NaiveForecaster-strategy_mean,0.0835480690002441,1.281420804499505,0.5052135757028957
