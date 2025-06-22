@@ -1,5 +1,4 @@
 import pandas as pd
-from src.data.data_cleaner import clean_data
 from src.data.data_transforms import (
     create_datetime_index,
     create_cob_and_carb_availability_cols,
@@ -9,6 +8,8 @@ from src.data.data_transforms import (
 from src.data.data_splitter import get_train_validation_split
 from src.data.DatasetBase import DatasetBase
 import os
+
+from src.data.kaggle_brisT1D.data_cleaner import clean_brist1d_train_data
 
 
 class BrisT1DDataLoader(DatasetBase):
@@ -84,7 +85,7 @@ class BrisT1DDataLoader(DatasetBase):
 
     def _process_raw_data(self) -> pd.DataFrame:
         # Not cached, process the raw data
-        data = clean_data(self.raw_data)
+        data = clean_brist1d_train_data(self.raw_data)
         data = create_datetime_index(data)
         data = ensure_regular_time_intervals(data)
         data = create_cob_and_carb_availability_cols(data)
