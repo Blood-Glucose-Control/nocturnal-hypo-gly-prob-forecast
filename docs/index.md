@@ -3,13 +3,24 @@ Documentation is currently under construction.
 
 ## Project layout
 
-    mkdocs.yml    # The configuration file.
+    mkdocs.yml                  # The configuration file.
     docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
-    demo/ # The directory containing for producing the github pages demonstration of our work: https://blood-glucose-control.github.io/nocturnal-hypo-gly-prob-forecast/
-    images/
+        user-guide/
+            installation.md
+            usage.md
+            watgpu-benchmark.md
+        index.md                # The documentation homepage.
+        api-reference.md        # Other markdown pages, images and other files.
+        contributing.md
+        requirements.txt        # mkdocs requirements file, not PFNH requirements.
+    demo/                       # The directory containing for producing the github pages demonstration of our work.
+    images/                     # Images are used in READMEs, HowTos, Documenteation, etc.
+    models/                     # Storage for trained models
+        {datetime_model-desc}/      # format for a trained model dir
+            configs/                # the config file to reproduce the trained model
+            model/                  # the model serialization file storage. Loadable.
     results/
+
     scripts/
         competition_submission/ # Scripts for submitting predictions to the BrisT1D Kaggle Competion.
         data_downloads/         # Scripts for downloading data from various sources to your local directory.
@@ -17,7 +28,7 @@ Documentation is currently under construction.
         notebooks/
         watgpu/
     src/
-    tests/
+    tests/                      # tests for functionality of .py files found in src/
     .gitignore
     .pre-commit-config.yaml
     .readthedocs.yaml

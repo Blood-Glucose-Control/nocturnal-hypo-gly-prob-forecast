@@ -9,9 +9,16 @@ theme:
 nav:
   - Home: index.md
   - User Guide:
+      - Getting Started: user-guide/getting-started.md
       - Installation: user-guide/installation.md
-      - Usage: user-guide/usage.md
-      - WATGPU Benchmarking: user-guide/watgpu-benchmark.md
+      - Data:
+        - Data Preparation: user-guide/datasets/data-preparation.md
+      - Modeling:
+        - Model Training: user-guide/modeling/model-training.md
+        - Model Evaluation: user-guide/modeling/model-evaluation.md
+      - Benchmarking:
+        - Model Benchmarking: user-guide/benchmarking/model-benchmarking.md
+        - WATGPU Benchmarking: user-guide/benchmarking/watgpu-benchmark.md
   - API Reference: api-reference.md
   - Contributing: contributing.md
 
