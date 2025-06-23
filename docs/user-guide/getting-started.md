@@ -1,4 +1,4 @@
-There are a variety of use cases for this repository. 
+There are a variety of use cases for this repository.
 
 The primary objective:
 
@@ -15,10 +15,10 @@ The secondary objectives:
       - 8 hour probabilistic forecasting benchmark
     - Training and evaluating diabetes foundation models for forecasting
 
-## Training Models  
+## Training Models
 ### Regular Modelling
 #### Single Patient Training
-Train one model for each patient. 
+Train one model for each patient.
 
 #### Multiple Patient Training
 Train one model for all patients.
