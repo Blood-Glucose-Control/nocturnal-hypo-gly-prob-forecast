@@ -9,6 +9,7 @@ theme:
 nav:
   - Home: index.md
   - User Guide:
+      - Usage: user-guide/usage.md
       - Getting Started: user-guide/getting-started.md
       - Installation: user-guide/installation.md
       - Data:
