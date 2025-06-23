@@ -1,40 +1,50 @@
 # Welcome to Probabilistic Forecasting of Hypoglycemia Project
+
+This project focuses on predicting the probability of nocturnal hypoglycemia events in individuals with diabetes. Using machine learning approaches, we aim to provide early warnings for these potentially dangerous low blood glucose events that occur during sleep.
+
 Documentation is currently under construction.
 
 ## Project layout
 
-    mkdocs.yml                  # The configuration file.
-    docs/
-        user-guide/
-            installation.md
-            usage.md
-            watgpu-benchmark.md
-        index.md                # The documentation homepage.
-        api-reference.md        # Other markdown pages, images and other files.
-        contributing.md
-        requirements.txt        # mkdocs requirements file, not PFNH requirements.
-    demo/                       # The directory containing for producing the github pages demonstration of our work.
-    images/                     # Images are used in READMEs, HowTos, Documenteation, etc.
-    models/                     # Storage for trained models
-        {datetime_model-desc}/      # format for a trained model dir
-            configs/                # the config file to reproduce the trained model
-            model/                  # the model serialization file storage. Loadable.
+    mkdocs.yml                  # The configuration file for this documentation.
+    docs/                       # All subdirectories and files for the documentation site content.
+        index.md                    # Makes this page
+        requirements.txt            # mkdocs requirements file, not PFNH requirements.
+        ...
+    demo/                       # Directory containing for producing the github pages report of our work.
+    images/                     # Images are used in READMEs, HowTos, Documentation, etc.
+    models/                     # Storage for trained models.
+        {datetime_model-desc}/      # Format for a trained model dir.
+            configs/                # Config file to reproduce the trained model
+            model/                  # Model serialization file storage. Loadable.
     results/
+        figures/
 
-    scripts/
-        competition_submission/ # Scripts for submitting predictions to the BrisT1D Kaggle Competion.
-        data_downloads/         # Scripts for downloading data from various sources to your local directory.
-        models/                 #
-        notebooks/
-        watgpu/
+    scripts/                    # Any sort of scripting file belongs here, usually for running experiments or notebooks.
+        competition_submission/     # Scripts for submitting predictions to the BrisT1D Kaggle Competion.
+        data_downloads/             # Scripts for downloading data from various sources to your local directory.
+        notebooks/                  # .ipynb files, for naming convention see: https://cookiecutter-data-science.drivendata.org/using-the-template/
+        watgpu/                     # bash or py scripts for training and evaluating models with WATGPU.
     src/
-    tests/                      # tests for functionality of .py files found in src/
-    .gitignore
-    .pre-commit-config.yaml
-    .readthedocs.yaml
-    README.md
-    requirements.txt
-    setup.py
+        data/                       # Data processing, downloading, and loading code
+        eval/                       # Evaluation metrics and reporting
+        tuning/                     # Hyperparameter tuning utilities
+        utils/                      # Utility functions and helper code
+    tests/                      # Tests for functionality of .py files found in src/
+    .gitignore                  # Files that we do not want tracked on github.
+    .pre-commit-config.yaml     # Pre-commit should be run and pass all checks before commiting.
+    .readthedocs.yaml           # Configuration file for this documentation.
+    README.md                   # README.md for a repo's landing page.
+    requirements.txt            # Requirements file to run all code on this repo.
+    setup.py                    # For installing this repository locally.
+
+## Installation
+
+[Go to Installation Guide](user-guide/installation.md)
+
+## Usage
+
+[See Usage Instructions](user-guide/usage.md#basic-usage)
 
 ## MkDocs
 This documentation is made with [mkdocs.org](https://www.mkdocs.org).
