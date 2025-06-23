@@ -18,7 +18,7 @@ The secondary objectives:
 ## Training Models
 ### Regular Modeling
 Currently, all of our *regular* modeling is done with ```sktime```.
-Essentially anything that is not deep learning or a foundation model falls under this category. 
+Essentially anything that is not deep learning or a foundation model falls under this category.
 We want to exhaustively find the best modeling parameters for each family of models.
 #### Single Patient Training
 Train one model for each patient.
