@@ -27,8 +27,14 @@ Documentation is currently under construction.
         watgpu/                     # bash or py scripts for training and evaluating models with WATGPU.
     src/
         data/                       # Data processing, downloading, and loading code
+            carb_model/
+            gluroo/
+            insulin_model/
+            kaggle_brisT1D/
+            simglucose/
         eval/                       # Evaluation metrics and reporting
         tuning/                     # Hyperparameter tuning utilities
+            configs/
         utils/                      # Utility functions and helper code
     tests/                      # Tests for functionality of .py files found in src/
     .gitignore                  # Files that we do not want tracked on github.
