@@ -1,5 +1,4 @@
 import pandas as pd
-from src.data.data_cleaner import clean_data
 from src.data.data_transforms import (
     create_datetime_index,
     create_cob_and_carb_availability_cols,
@@ -9,7 +8,13 @@ from src.data.data_transforms import (
 from src.data.data_splitter import get_train_validation_split
 from src.data.DatasetBase import DatasetBase
 import os
+
+from src.data.kaggle_brisT1D.data_cleaner import (
+    clean_brist1d_train_data,
+    clean_brist1d_test_data,
+)
 from collections import defaultdict
+
 
 class BrisT1DDataLoader(DatasetBase):
     def __init__(
@@ -26,8 +31,13 @@ class BrisT1DDataLoader(DatasetBase):
         # Set this to the cached path for now as it is already processed
         # self.default_path = os.path.join(
         #     os.path.dirname(__file__), f"{dataset_type}.csv"
-        self.default_path = os.path.join(os.path.dirname(__file__), f"{dataset_type}.csv")
-        self.cached_path = os.path.join(os.path.dirname(__file__), f"{dataset_type}_cached{'.csv' if dataset_type == 'train' else ''}")
+        self.default_path = os.path.join(
+            os.path.dirname(__file__), f"{dataset_type}.csv"
+        )
+        self.cached_path = os.path.join(
+            os.path.dirname(__file__),
+            f"{dataset_type}_cached{'.csv' if dataset_type == 'train' else ''}",
+        )
         self.use_cached = use_cached
         self.dataset_type = dataset_type
         self.file_path = self.default_path
@@ -65,20 +75,24 @@ class BrisT1DDataLoader(DatasetBase):
             pd.DataFrame or dict[str, dict[str, pd.DataFrame]]: The loaded data. A pandas DataFrame for train data, a dict of dict of DataFrames for test data.
         """
         if self.use_cached and os.path.exists(self.cached_path):
-            if self.dataset_type == 'train':
+            if self.dataset_type == "train":
                 self.processed_data = pd.read_csv(
                     self.cached_path, usecols=self.keep_columns
                 )
-            elif self.dataset_type == 'test':
+            elif self.dataset_type == "test":
                 self.processed_data = defaultdict(dict)
 
                 if not os.path.isdir(self.cached_path):
-                    raise NotADirectoryError(f"Cache path '{self.cached_path}' is not a directory.")
-                
+                    raise NotADirectoryError(
+                        f"Cache path '{self.cached_path}' is not a directory."
+                    )
+
                 for pid in os.listdir(self.cached_path):
                     patient_dir = os.path.join(self.cached_path, pid)
                     if not os.path.isdir(patient_dir):
-                        raise NotADirectoryError(f"Expected a directory for patient '{pid}', but got something else: {patient_dir}")
+                        raise NotADirectoryError(
+                            f"Expected a directory for patient '{pid}', but got something else: {patient_dir}"
+                        )
 
                     for filename in os.listdir(patient_dir):
                         if filename.endswith(".csv"):
@@ -100,8 +114,8 @@ class BrisT1DDataLoader(DatasetBase):
 
     def _process_raw_data(self) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         # Not cached, process the raw data
-        data = clean_data(self.raw_data, data_type=self.dataset_type)
         if self.dataset_type == "train":
+            data = clean_brist1d_train_data(self.raw_data)
             data = create_datetime_index(data)
             data = ensure_regular_time_intervals(data)
             data = create_cob_and_carb_availability_cols(data)
@@ -111,7 +125,8 @@ class BrisT1DDataLoader(DatasetBase):
             data.to_csv(self.cached_path, index=True)
 
             return data
-        elif self.dataset_type == "test": # test data: {pid : {rowid: df }}
+        elif self.dataset_type == "test":  # test data: {pid : {rowid: df }}
+            data = clean_brist1d_test_data(self.raw_data)
             processed_data = defaultdict(dict)
 
             # Setup cache dir
@@ -120,7 +135,7 @@ class BrisT1DDataLoader(DatasetBase):
             for pid in data:
                 # Make new dir for each patient
                 patient_cache_dir = os.path.join(self.cached_path, pid)
-                os.makedirs(patient_cache_dir, exist_ok=True) 
+                os.makedirs(patient_cache_dir, exist_ok=True)
 
                 for row_id in data[pid]:
                     row_df = data[pid][row_id]

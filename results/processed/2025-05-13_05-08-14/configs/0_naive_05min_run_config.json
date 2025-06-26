@@ -1,0 +1,50 @@
+{
+    "timestamp": "2025-05-13_05-08-14",
+    "yaml_path": "./src/tuning/configs/0_naive_05min.yaml",
+    "interval": "",
+    "patient_numbers": [],
+    "scorers": [
+        "PinballLoss",
+        "MeanSquaredError"
+    ],
+    "cv_type": "ExpandingWindowSplitter",
+    "models_count": [
+        {
+            "NaiveForecaster": 2
+        }
+    ],
+    "impute_methods": {
+        "bg_method": "linear",
+        "hr_method": "linear",
+        "step_method": "constant",
+        "cal_method": "constant"
+    },
+    "time_taken": 3.240825653076172,
+    "x_features": [
+        "cob",
+        "carb_availability",
+        "insulin_availability",
+        "iob"
+    ],
+    "y_features": [
+        "bg-0:00"
+    ],
+    "initial_window": 864,
+    "step_length": 1728,
+    "steps_per_hour": 12,
+    "hours_to_forecast": 6,
+    "validation_days": 20,
+    "data_source_name": "gluroo",
+    "description": "No description is provided for this run",
+    "yaml_content": {
+        "NaiveForecaster": {
+            "strategy": {
+                "type": "list",
+                "values": [
+                    "last",
+                    "mean"
+                ]
+            }
+        }
+    }
+}

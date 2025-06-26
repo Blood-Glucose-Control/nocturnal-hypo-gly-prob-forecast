@@ -48,6 +48,7 @@ def split_patient_data_by_day(patients_dfs: pd.DataFrame, patient_id: str) -> di
 
 
 # TODO: Remove the dependency of p_num. Kaggle data is the very few dataset where there are multiple patients in the same file.
+# TODO: Remove hardcoded 6am.
 def get_train_validation_split(
     df: pd.DataFrame,
     num_validation_days: int = 20,

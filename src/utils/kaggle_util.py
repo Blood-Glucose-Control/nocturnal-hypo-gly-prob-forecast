@@ -1,11 +1,28 @@
-"""Utility functions for the BrisT1D dataset on Kaggle."""
+"""
+Utility functions for working with the BrisT1D dataset from Kaggle competition.
+
+This module contains helper functions that simplify working with the BrisT1D Kaggle
+competition dataset for nocturnal hypoglycemia prediction in patients with Type 1 diabetes.
+"""
 
 
 def create_time_variable_lists():
-    """Creates lists of time variables for each measurement type (bg, insulin, etc)
+    """
+    Create lists of time-stamped variable names for each measurement type in the dataset.
+
+    Generates variable names for blood glucose, insulin, carbs, heart rate, steps,
+    calories and activity variables at 5-minute intervals spanning 6 hours (from t-5h to t-0h).
+    Each measurement type has its own list of timestamped variable names.
 
     Returns:
-        list: List of lists containing time variables for each measurement type
+        list: A list containing 7 sublists, each with variable names for a specific measurement
+              type (bg, insulin, carbs, hr, steps, cals, activity) at 5-minute intervals.
+              Format of variable names is "{measurement}-{hour}:{minute}" (e.g. "bg-5:30").
+
+    Example:
+        >>> lists = create_time_variable_lists()
+        >>> print(lists[0][:3])  # First 3 blood glucose variable names
+        ['bg-5:55', 'bg-5:50', 'bg-5:45']
     """
 
     all_value_var_lists = []
