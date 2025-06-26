@@ -62,8 +62,7 @@ class BrisT1DDataLoader(DatasetBase):
         If the dataset is not cached, the function will process the raw data and save it to the cache.
 
         Returns:
-            pd.DataFrame: The loaded data as a pandas DataFrame.
-
+            pd.DataFrame or dict[str, dict[str, pd.DataFrame]]: The loaded data. A pandas DataFrame for train data, a dict of dict of DataFrames for test data.
         """
         if self.use_cached and os.path.exists(self.cached_path):
             if self.dataset_type == 'train':
@@ -74,7 +73,7 @@ class BrisT1DDataLoader(DatasetBase):
                 self.processed_data = defaultdict(dict)
 
                 if not os.path.isdir(self.cached_path):
-                    raise FileNotFoundError(f"Cache path '{self.cached_path}' does not exist or is not a directory.")
+                    raise NotADirectoryError(f"Cache path '{self.cached_path}' is not a directory.")
                 
                 for pid in os.listdir(self.cached_path):
                     patient_dir = os.path.join(self.cached_path, pid)
@@ -99,10 +98,9 @@ class BrisT1DDataLoader(DatasetBase):
                 self.processed_data, num_validation_days=self.num_validation_days
             )
 
-    def _process_raw_data(self) -> pd.DataFrame | dict:
+    def _process_raw_data(self) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         # Not cached, process the raw data
         data = clean_data(self.raw_data, data_type=self.dataset_type)
-
         if self.dataset_type == "train":
             data = create_datetime_index(data)
             data = ensure_regular_time_intervals(data)

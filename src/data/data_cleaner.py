@@ -12,7 +12,7 @@ def clean_data(
     data_source_name="kaggle_brisT1D",
     data_type="train",
     config: dict = None,
-) -> pd.DataFrame:
+) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
     """
     Cleans the input data based on the specified data source name.
 
@@ -24,12 +24,11 @@ def clean_data(
     Returns:
         pd.DataFrame: The cleaned data.
     """
-    # leaving data_type in for now, because we may use test/train in the near future.
     if data_source_name == "kaggle_brisT1D":
         if data_type == "train":
-            clean_brist1d_train_data(data)
-        else:
-            clean_brist1d_test_data(data)
+            data = clean_brist1d_train_data(data)
+        elif data_type == "test":
+            data = clean_brist1d_test_data(data)
     elif data_source_name == "gluroo":
         clean_gluroo_data(data, config)
     else:
