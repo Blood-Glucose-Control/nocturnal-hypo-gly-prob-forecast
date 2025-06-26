@@ -9,7 +9,7 @@ from src.data.data_transforms import (
 from src.data.data_splitter import get_train_validation_split
 from src.data.DatasetBase import DatasetBase
 import os
-
+from collections import defaultdict
 
 class BrisT1DDataLoader(DatasetBase):
     def __init__(
@@ -26,11 +26,16 @@ class BrisT1DDataLoader(DatasetBase):
         # Set this to the cached path for now as it is already processed
         # self.default_path = os.path.join(
         #     os.path.dirname(__file__), f"{dataset_type}.csv"
-        self.default_path = os.path.join(os.path.dirname(__file__), "train_cached.csv")
-        self.cached_path = os.path.join(os.path.dirname(__file__), "train_cached.csv")
-        self.file_path = file_path if file_path is not None else self.default_path
+        self.default_path = os.path.join(os.path.dirname(__file__), f"{dataset_type}.csv")
+        self.cached_path = os.path.join(os.path.dirname(__file__), f"{dataset_type}_cached{'.csv' if dataset_type == 'train' else ''}")
         self.use_cached = use_cached
         self.dataset_type = dataset_type
+        self.file_path = self.default_path
+        if file_path is not None:
+            self.file_path = file_path
+        elif use_cached and os.path.exists(self.cached_path):
+            self.file_path = self.cached_path
+
         # Preload data
         self.load_data()
 
@@ -60,36 +65,78 @@ class BrisT1DDataLoader(DatasetBase):
             pd.DataFrame: The loaded data as a pandas DataFrame.
 
         """
-        self.raw_data = self.load_raw()
+        if self.use_cached and os.path.exists(self.cached_path):
+            if self.dataset_type == 'train':
+                self.processed_data = pd.read_csv(
+                    self.cached_path, usecols=self.keep_columns
+                )
+            elif self.dataset_type == 'test':
+                self.processed_data = defaultdict(dict)
+
+                if not os.path.isdir(self.cached_path):
+                    raise FileNotFoundError(f"Cache path '{self.cached_path}' does not exist or is not a directory.")
+                
+                for pid in os.listdir(self.cached_path):
+                    patient_dir = os.path.join(self.cached_path, pid)
+                    if not os.path.isdir(patient_dir):
+                        raise NotADirectoryError(f"Expected a directory for patient '{pid}', but got something else: {patient_dir}")
+
+                    for filename in os.listdir(patient_dir):
+                        if filename.endswith(".csv"):
+                            file_path = os.path.join(patient_dir, filename)
+                            df = pd.read_csv(file_path)
+
+                            row_id = filename.replace(".csv", "")
+                            self.processed_data[pid][row_id] = df
+        else:
+            # Not using cache or cache does not exist, process raw data and save
+            self.raw_data = self.load_raw()
+            self.processed_data = self._process_raw_data()
+
         if self.dataset_type == "train":
-            if self.use_cached:
-                # Check if cache exists, if not process and save
-                if not os.path.exists(self.cached_path):
-                    self.processed_data = self._process_raw_data()
-                    # Save processed data to cache
-                    self.processed_data.to_csv(self.cached_path, index=True)
-                else:
-                    self.processed_data = pd.read_csv(
-                        self.cached_path, usecols=self.keep_columns
-                    )
-            else:
-                # Not using cache, process and save
-                self.processed_data = self._process_raw_data()
-                self.processed_data.to_csv(self.cached_path, index=True)
+            # Split data into train and validation
+            self.train_data, self.validation_data = get_train_validation_split(
+                self.processed_data, num_validation_days=self.num_validation_days
+            )
 
-        # Split data into train and validation
-        self.train_data, self.validation_data = get_train_validation_split(
-            self.processed_data, num_validation_days=self.num_validation_days
-        )
-
-    def _process_raw_data(self) -> pd.DataFrame:
+    def _process_raw_data(self) -> pd.DataFrame | dict:
         # Not cached, process the raw data
-        data = clean_data(self.raw_data)
-        data = create_datetime_index(data)
-        data = ensure_regular_time_intervals(data)
-        data = create_cob_and_carb_availability_cols(data)
-        data = create_iob_and_ins_availability_cols(data)
-        return data
+        data = clean_data(self.raw_data, data_type=self.dataset_type)
+
+        if self.dataset_type == "train":
+            data = create_datetime_index(data)
+            data = ensure_regular_time_intervals(data)
+            data = create_cob_and_carb_availability_cols(data)
+            data = create_iob_and_ins_availability_cols(data)
+
+            # Save processed data to cache
+            data.to_csv(self.cached_path, index=True)
+
+            return data
+        elif self.dataset_type == "test": # test data: {pid : {rowid: df }}
+            processed_data = defaultdict(dict)
+
+            # Setup cache dir
+            os.makedirs(self.cached_path, exist_ok=True)
+
+            for pid in data:
+                # Make new dir for each patient
+                patient_cache_dir = os.path.join(self.cached_path, pid)
+                os.makedirs(patient_cache_dir, exist_ok=True) 
+
+                for row_id in data[pid]:
+                    row_df = data[pid][row_id]
+                    row_df = create_datetime_index(row_df)
+                    row_df = ensure_regular_time_intervals(row_df)
+                    row_df = create_cob_and_carb_availability_cols(row_df)
+                    row_df = create_iob_and_ins_availability_cols(row_df)
+
+                    cache_file = os.path.join(patient_cache_dir, f"{row_id}.csv")
+                    row_df.to_csv(cache_file, index=True)
+
+                    processed_data[pid][row_id] = row_df
+
+            return processed_data
 
     # TODO: MOVE THIS TO THE splitter.py
     def get_validation_day_splits(self, patient_id: str):

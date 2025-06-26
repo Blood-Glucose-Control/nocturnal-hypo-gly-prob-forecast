@@ -2,6 +2,7 @@
 
 import pandas as pd
 from src.data.kaggle_brisT1D.data_cleaner import clean_brist1d_train_data
+from src.data.kaggle_brisT1D.data_cleaner import clean_brist1d_test_data
 from src.data.gluroo.data_cleaner import clean_gluroo_data
 
 
@@ -28,9 +29,7 @@ def clean_data(
         if data_type == "train":
             clean_brist1d_train_data(data)
         else:
-            raise NotImplementedError(
-                "Use method clean_bris1d_test_data for test brist1d data"
-            )
+            clean_brist1d_test_data(data)
     elif data_source_name == "gluroo":
         clean_gluroo_data(data, config)
     else:
