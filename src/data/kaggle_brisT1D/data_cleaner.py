@@ -66,7 +66,7 @@ def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFram
             new_df = new_df.drop("p_num", axis=1)
             new_df = new_df.drop("id", axis=1)
 
-            new_df['p_num'] = patient_id
+            new_df["p_num"] = patient_id
 
             patient_dfs[patient_id][row_id] = new_df
 
