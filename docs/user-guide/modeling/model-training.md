@@ -31,4 +31,4 @@ Excluding foundation models, all neural network model training belongs here.
 There are two main foundation model use cases with our projects:
 1. Fine-tuning existing foundation models with diabetes data
     - We plan to try LagLLama, Moirai, Chronos, TimesFM, TimeGPT, TimeGPT-Long, TinyTimeMixer, and potentially others.
-2. Training dibaetes foundation models from scratch with as much diabetes data that we can find.
+2. Training diabetes foundation models from scratch with as much diabetes data that we can find.
