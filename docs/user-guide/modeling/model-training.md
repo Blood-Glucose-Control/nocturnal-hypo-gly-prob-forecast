@@ -17,7 +17,7 @@ The goal is to create a generic model that works as well as possible for all pat
 ### Model Type
 #### Statistical Modeling
 Currently, all of our *statistical* modeling is done with ```sktime```.
-Essentially, these mostly fall under classic statistical time series techniques, almost anything that is not deep learning or a foundation model falls under this category, e.g.,: naive, ARIMA, exoponential, etc
+Essentially, these mostly fall under classic statistical time series techniques, almost anything that is not deep learning or a foundation model falls under this category, e.g.,: naive, ARIMA, exponential, etc
 We want to exhaustively find the best modeling parameters for each family of models.
 
 #### Machine Learning
