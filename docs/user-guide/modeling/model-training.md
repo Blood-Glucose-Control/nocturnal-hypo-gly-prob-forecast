@@ -7,7 +7,7 @@ For most of our modeling tasks, the training falls into two broad categories, th
 ### Training Goal
 #### Single Patient Training
 Train one model for each patient.
-The goal is to create a model that minimizes it's error as much as possible for a single patient.
+The goal is to create a model that minimizes its error as much as possible for a single patient.
 Often it makes sense to take an existing multi-patient model and fine-tune it for a specific patient.
 
 #### Multi-Patient Training
