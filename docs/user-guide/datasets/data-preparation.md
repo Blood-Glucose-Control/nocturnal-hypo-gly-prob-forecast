@@ -25,18 +25,18 @@ Our benchmark pipeline was originally built on the Kaggle Bristol Type 1 Diabete
 ## Supported Datasets
 
 1. [Bristol Type 1 Diabetes Dataset](https://www.kaggle.com/competitions/brist1d)
-   - A comprehensive dataset from Kaggle
-   - Contains both Dexcom (5-min interval) and Libre (15-min interval) users
-   - Multiple patients in a single CSV file (not that common)
+      - A comprehensive dataset from Kaggle
+      - Contains both Dexcom (5-min interval) and Libre (15-min interval) users
+      - Multiple patients in a single CSV file (not that common)
 
 2. Gluroo Dataset
-   - Internal dataset from Christopher and Walker
-   - Contains additional features like protein content and glucose trends
-   - Includes meal announcements and intervention data
+      - Internal dataset from Christopher and Walker
+      - Contains additional features like protein content and glucose trends
+      - Includes meal announcements and intervention data
 
 3. simglucose (Coming Soon)
-   - Planned integration from benchmark repo as a package
-   - Will provide simulated data for testing and validation
+      - Planned integration from benchmark repo as a package
+      - Will provide simulated data for testing and validation
 
 ## Data Format Standardization
 
@@ -122,31 +122,31 @@ class ${DatasetName}Loader(DatasetBase):
 Implement a data cleaner that performs the following steps in order:
 
 1. **Column Standardization**
-   - Map original column names to standardized format
-   - Ensure all required columns are present
-   - Ensure `datatime` column exists
-   - Convert data types as needed
+      - Map original column names to standardized format
+      - Ensure all required columns are present
+      - Ensure `datatime` column exists
+      - Convert data types as needed
 
 2. **Data Cleaning**
-   - Remove duplicate entries
-   - Handle missing values
-   - Validate data ranges
-   - Example: See `clean_gluroo_data` for reference
+      - Remove duplicate entries
+      - Handle missing values
+      - Validate data ranges
+      - Example: See `clean_gluroo_data` for reference
 
 3. **Time Series Processing**
-   - Call `data_transforms.ensure_regular_time_intervals(cleaned_df)`
-   - This creates missing rows to maintain consistent intervals
-   - Missing data will be imputed in the benchmark pipeline
+      - Call `data_transforms.ensure_regular_time_intervals(cleaned_df)`
+      - This creates missing rows to maintain consistent intervals
+      - Missing data will be imputed in the benchmark pipeline
 
 4. **Derived Features**
-   - Generate carbohydrate-related features:
-     ```python
-     data_transforms.create_cob_and_carb_availability_cols(df)
-     ```
-   - Generate insulin-related features:
-     ```python
-     data_transforms.create_iob_and_ins_availability_cols(df)
-     ```
+      - Generate carbohydrate-related features:
+         ```python
+         data_transforms.create_cob_and_carb_availability_cols(df)
+         ```
+      - Generate insulin-related features:
+         ```python
+         data_transforms.create_iob_and_ins_availability_cols(df)
+         ```
 
 ### 3. Documentation
 Document all the changes
@@ -155,9 +155,9 @@ Document all the changes
 See `src/data/gluroo/` for a working example of dataset implementation.
 
 ## Future Improvements
-- Rename `bg-0:00` to `bg_mgdl-0:00` to explicitly include units
-- Evaluate the need for the `-0:00` suffix in column names
-- Standardize time interval handling across all datasets
-- Implement automated data validation checks
-- Add data quality metrics reporting
-- Create dataset-specific documentation templates
+   - Rename `bg-0:00` to `bg_mgdl-0:00` to explicitly include units
+   - Evaluate the need for the `-0:00` suffix in column names
+   - Standardize time interval handling across all datasets
+   - Implement automated data validation checks
+   - Add data quality metrics reporting
+   - Create dataset-specific documentation templates

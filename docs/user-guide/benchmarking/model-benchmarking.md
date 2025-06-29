@@ -4,7 +4,7 @@
 ## Model Benchmarking <a id="model-benchmarking"></a>
 
 - need to include Tony's documentation here.
-![Our benchmarking process.](../_images/benchmark-flowchart.png)
+![Our benchmarking process.](../../_images/benchmark-flowchart.png)
 
 ### Hyperparameter YAML Configuration Guide
 
@@ -23,7 +23,7 @@ ModelName:
 
 > **IMPORTANT**: The `type` parameter does NOT correspond to the data type, it corresponds to the specific parameter types described [below](#supported-parameter-types--best-practices). Please read through each of these carefully.
 
-#### Supported Parameter Types & Best Practices
+#### Supported Parameter Types & Best Practices <a id="supported-parameter-types--best-practices"></a>
 
 ##### List (Categorical Parameters)
 - Generates your `values` list as is in the parameter grid.

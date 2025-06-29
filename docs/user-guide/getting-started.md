@@ -63,12 +63,12 @@ Please run pre-commit and resolve any errors before making a PR.
 `pytest -v`
 
 
-## Training Models [See Usage Instructions]()
-Please see our [model training section](user-guide/modeling/model-training.md#model-training) for advanced usage.
+## Training Models
+Please see our [model training section](modeling/model-training.md#model-training) for advanced usage.
 A basic example is provided in this notebook:
 - [Add link to this later]()
 
 ## Running Benchmarks
-Please see our [model benchmarking section](guide/benchmarking/model-benchmarking.md#model-benchmarking) for advanced usage.
+Please see our [model benchmarking section](benchmarking/model-benchmarking.md#model-benchmarking) for advanced usage.
 A basic example of running our benchmarks is provided in this notebook:
 - [Add link to this later]()
