@@ -21,7 +21,7 @@ nav:
         - Model Benchmarking: user-guide/benchmarking/model-benchmarking.md
         - WATGPU Benchmarking: user-guide/benchmarking/watgpu-benchmark.md
   - API Reference:
-      - API Reference: api-reference.md
+      - API Reference: api-reference/api-reference.md
       - Data:
         - carb_model:
           - carb_model: api-reference/data/carb-model/carb_model.md
