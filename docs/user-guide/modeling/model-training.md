@@ -21,7 +21,7 @@ Essentially, these mostly fall under classic statistical time series techniques,
 We want to exhaustively find the best modeling parameters for each family of models.
 
 #### Machine Learning
-Models that aren't statistical modelling or deep learning, for e.g.,: Gradient Boosting, Tree-based algorithms, etc.
+Models that aren't statistical modeling or deep learning, for e.g.,: Gradient Boosting, Tree-based algorithms, etc.
 
 #### Deep Learning
 Currently, all of our *deep learning* modeling is done with ```sktime``` wrappers, but this will be expanding to other time series libraries, usually within the ```sktime``` ecosystem like ```pytorch forecasting```.
