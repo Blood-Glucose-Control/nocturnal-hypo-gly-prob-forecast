@@ -47,15 +47,17 @@ pip install -e .
 ## Job Submission Guidelines
 
 ### ⚠️ IMPORTANT: Server Usage Policy
-- **NEVER RUN SCRIPTS DIRECTLY ON THE WATGPU LOGIN SERVER**
-- The login server is for job submission only
-- All script execution must use `sbatch`
-- Reference: [How to submit a job](https://watgpu.cs.uwaterloo.ca/slurm.html)
+
+    - **NEVER RUN SCRIPTS DIRECTLY ON THE WATGPU LOGIN SERVER**
+    - The login server is for job submission only
+    - All script execution must use `sbatch`
+    - Reference: [How to submit a job](https://watgpu.cs.uwaterloo.ca/slurm.html)
 
 ### Project Structure
 All scripts are located at `~/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/`:
 
 Key files:
+
     - `job.sh`: Configure YAML files and run resources
     - `run_model.py`: Entry point for the benchmark
 
@@ -84,6 +86,7 @@ description="This run evaluates the impact of removing exogenous variables (IOB 
 to determine if there is any performance degradation compared to baseline."
 ```
 > Add a clear explanation of:
+>
 >   - The purpose of this run
 >   - Why you're running this experiment
 >   - Key changes from previous runs
@@ -98,12 +101,14 @@ You'll receive a job ID after submission (e.g., `Submitted batch job 12345`)
 ### Results Location
 
 **Log Files:**
-- Located in `scripts/watgpu/`
-- `JOB<jobid>.out`: Standard output
-- `JOB<jobid>.err`: Error messages
+
+    - Located in `scripts/watgpu/`
+    - `JOB<jobid>.out`: Standard output
+    - `JOB<jobid>.err`: Error messages
 
 **Results Directory:**
 Check `results/processed/` for a timestamped folder containing:
+
     - Configuration details
     - Performance metrics from different scorers
     - Folder name includes run timestamp
@@ -119,6 +124,7 @@ Check `results/processed/` for a timestamped folder containing:
 sinfo -o "%C"
 ```
 Output shows: CPUS(A/I/O/T)
+
     - A: Allocated (in use)
     - I: Idle (available)
     - O: Other (down/maintenance)
