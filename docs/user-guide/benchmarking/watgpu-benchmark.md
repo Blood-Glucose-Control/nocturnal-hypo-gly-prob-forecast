@@ -56,8 +56,8 @@ pip install -e .
 All scripts are located at `~/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/`:
 
 Key files:
-- `job.sh`: Configure YAML files and run resources
-- `run_model.py`: Entry point for the benchmark
+    - `job.sh`: Configure YAML files and run resources
+    - `run_model.py`: Entry point for the benchmark
 
 ### Job Submission Process
 
@@ -84,9 +84,9 @@ description="This run evaluates the impact of removing exogenous variables (IOB 
 to determine if there is any performance degradation compared to baseline."
 ```
 > Add a clear explanation of:
-> - The purpose of this run
-> - Why you're running this experiment
-> - Key changes from previous runs
+>   - The purpose of this run
+>   - Why you're running this experiment
+>   - Key changes from previous runs
 
 #### 2. Submit the Job
 ```bash
@@ -104,9 +104,9 @@ You'll receive a job ID after submission (e.g., `Submitted batch job 12345`)
 
 **Results Directory:**
 Check `results/processed/` for a timestamped folder containing:
-- Configuration details
-- Performance metrics from different scorers
-- Folder name includes run timestamp
+    - Configuration details
+    - Performance metrics from different scorers
+    - Folder name includes run timestamp
 
 ---
 
@@ -119,10 +119,10 @@ Check `results/processed/` for a timestamped folder containing:
 sinfo -o "%C"
 ```
 Output shows: CPUS(A/I/O/T)
-- A: Allocated (in use)
-- I: Idle (available)
-- O: Other (down/maintenance)
-- T: Total CPUs
+    - A: Allocated (in use)
+    - I: Idle (available)
+    - O: Other (down/maintenance)
+    - T: Total CPUs
 
 **GPU Status:**
 ```bash
