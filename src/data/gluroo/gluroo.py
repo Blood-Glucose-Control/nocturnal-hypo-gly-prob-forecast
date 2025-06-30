@@ -1,5 +1,5 @@
 import pandas as pd
-from src.data.DatasetBase import DatasetBase
+from src.data.dataset_base import DatasetBase
 from src.data.gluroo.data_cleaner import clean_gluroo_data
 from src.data.data_splitter import get_train_validation_split
 import src.data.data_transforms as data_transforms

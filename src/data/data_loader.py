@@ -2,7 +2,7 @@
 
 from src.data.kaggle_brisT1D.bristT1D import BrisT1DDataLoader
 from src.data.gluroo.gluroo import Gluroo
-from src.data.DatasetBase import DatasetBase
+from src.data.dataset_base import DatasetBase
 
 
 def get_loader(

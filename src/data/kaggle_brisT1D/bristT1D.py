@@ -6,7 +6,7 @@ from src.data.data_transforms import (
     ensure_regular_time_intervals,
 )
 from src.data.data_splitter import get_train_validation_split
-from src.data.DatasetBase import DatasetBase
+from src.data.dataset_base import DatasetBase
 import os
 
 from src.data.kaggle_brisT1D.data_cleaner import (
