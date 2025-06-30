@@ -133,9 +133,16 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
             time_since_meal = 0
 
             while next_index in patient_df.index and time_since_meal < T_ACTION_MAX_MIN:
-                # Ensure datetime columns are in datetime format before subtraction
-                dt_next = pd.to_datetime(patient_df.loc[next_index, "datetime"])
-                dt_meal = pd.to_datetime(patient_df.loc[meal_time, "datetime"])
+                # Extract the datetime values safely
+                dt_next = patient_df.at[next_index, "datetime"]
+                dt_meal = patient_df.at[meal_time, "datetime"]
+
+                # Convert to datetime if they aren't already
+                if not isinstance(dt_next, pd.Timestamp):
+                    dt_next = pd.to_datetime(dt_next)
+                if not isinstance(dt_meal, pd.Timestamp):
+                    dt_meal = pd.to_datetime(dt_meal)
+
                 time_since_meal = int((dt_next - dt_meal).total_seconds() / 60)
 
                 if time_since_meal < T_ACTION_MAX_MIN:
