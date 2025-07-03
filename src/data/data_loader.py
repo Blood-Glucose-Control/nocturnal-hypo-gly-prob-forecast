@@ -1,8 +1,8 @@
 """Data loading functions for the various datasets."""
 
-from src.data.kaggle_brisT1D.bristT1D import BrisT1DDataLoader
-from src.data.gluroo.gluroo import Gluroo
-from src.data.dataset_base import DatasetBase
+from src.data.datasets.kaggle_brisT1D.bristT1D import BrisT1DDataLoader
+from src.data.datasets.gluroo.gluroo import Gluroo
+from src.data.datasets.dataset_base import DatasetBase
 
 
 def get_loader(

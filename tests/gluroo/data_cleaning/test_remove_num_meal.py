@@ -1,9 +1,9 @@
 from pydantic import BaseModel
 import pandas as pd
-from src.data.gluroo.data_cleaner import remove_num_meal
+from src.data.datasets.gluroo.data_cleaner import remove_num_meal
 
 
-class TestData(BaseModel):
+class RemoveMealData(BaseModel):
     msg_type: list
     food_g: list
     timestamps: list
@@ -11,7 +11,7 @@ class TestData(BaseModel):
 
 def test_remove_num_meal():
     # Mock data
-    mock_data = TestData(
+    mock_data = RemoveMealData(
         msg_type=[
             "ANNOUNCE_MEAL",
             "ANNOUNCE_MEAL",
