@@ -72,8 +72,8 @@ def ensure_regular_time_intervals(df: pd.DataFrame) -> pd.DataFrame:
 
     return result_df
 
-#TODO: Verify that this function can replaced the above function and if it is an improvement.
-def ensure_regular_time_intervals_ainewdontuse(
+#TODO: Evaluate whether this function should replace `ensure_regular_time_intervals` or serve as a complementary utility.
+def ensure_regular_time_intervals_with_interpolation(
     df: pd.DataFrame, 
     datetime_col: str = "datetime", 
     target_interval_minutes: Optional[int] = None,
