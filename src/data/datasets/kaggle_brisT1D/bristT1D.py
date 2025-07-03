@@ -1,15 +1,22 @@
 import pandas as pd
-from src.data.data_transforms import (
+from src.data.preprocessing.time_processing import (
     create_datetime_index,
-    create_cob_and_carb_availability_cols,
-    create_iob_and_ins_availability_cols,
+)
+from src.data.preprocessing.sampling import (
     ensure_regular_time_intervals,
 )
+from src.data.physiological.carb_model.carb_model import (
+    create_cob_and_carb_availability_cols,
+)
+from src.data.physiological.insulin_model.insulin_model import (
+    create_iob_and_ins_availability_cols,
+)
+
 from src.data.data_splitter import get_train_validation_split
-from src.data.DatasetBase import DatasetBase
+from src.data.datasets.dataset_base import DatasetBase
 import os
 
-from src.data.kaggle_brisT1D.data_cleaner import (
+from src.data.datasets.kaggle_brisT1D.data_cleaner import (
     clean_brist1d_train_data,
     clean_brist1d_test_data,
 )
@@ -50,7 +57,7 @@ class BrisT1DDataLoader(DatasetBase):
         self.load_data()
 
     @property
-    def dataset_name(self):
+    def dFataset_name(self):
         """Return the name of the dataset."""
         return "kaggle_brisT1D"
 

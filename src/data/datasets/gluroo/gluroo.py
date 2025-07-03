@@ -1,18 +1,24 @@
 import pandas as pd
-from src.data.DatasetBase import DatasetBase
-from src.data.gluroo.data_cleaner import clean_gluroo_data
+from src.data.datasets.dataset_base import DatasetBase
+from src.data.datasets.gluroo.data_cleaner import clean_gluroo_data
 from src.data.data_splitter import get_train_validation_split
-import src.data.data_transforms as data_transforms
+from src.data.preprocessing.sampling import ensure_regular_time_intervals
+from src.data.physiological.carb_model.carb_model import (
+    create_cob_and_carb_availability_cols,
+)
+from src.data.physiological.insulin_model.insulin_model import (
+    create_iob_and_ins_availability_cols,
+)
 
 
 # TODO: Maybe need to return the test set too.
 class Gluroo(DatasetBase):
     def __init__(
         self,
-        keep_columns: list = None,
+        keep_columns: list = [],
         num_validation_days: int = 20,
-        file_path: str = None,
-        config: dict = None,
+        file_path: str = "",
+        config: dict = {},
         use_cached: bool = False,
     ):
         self.keep_columns = keep_columns
@@ -67,17 +73,17 @@ class Gluroo(DatasetBase):
             raise ValueError("Raw data is required")
         raw = self.raw_data[self.keep_columns].copy()
         cleaned_df = clean_gluroo_data(raw, self.config)
-        processed_df_regular = data_transforms.ensure_regular_time_intervals(cleaned_df)
-        processed_df_cob = data_transforms.create_cob_and_carb_availability_cols(
-            processed_df_regular
-        )
-        processed_df_iob = data_transforms.create_iob_and_ins_availability_cols(
-            processed_df_cob
-        )
+        processed_df_regular = ensure_regular_time_intervals(cleaned_df)
+        processed_df_cob = create_cob_and_carb_availability_cols(processed_df_regular)
+        processed_df_iob = create_iob_and_ins_availability_cols(processed_df_cob)
         return processed_df_iob
 
     # Split the validation data into train and validation sets
     def get_validation_day_splits(self, patient_id: str):
+        if self.validation_data is None:
+            raise ValueError(
+                "Validation data is not loaded. Please ensure data is loaded before calling this method."
+            )
         patient_data = self.validation_data[self.validation_data["p_num"] == patient_id]
         for train_period, test_period in self._get_day_splits(patient_data):
             yield patient_id, train_period, test_period
