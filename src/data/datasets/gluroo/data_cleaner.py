@@ -208,7 +208,7 @@ def remove_num_meal(patient_df, num_meal):
     # Remove rows corresponding to these days
     result_df = patient_df[~patient_df["day"].isin(days_to_remove)]
 
-    return result_df.drop(columns=["day"])      
+    return result_df.drop(columns=["day"])
 
 
 def erase_meal_overlap_fn(patient_df, meal_length, min_carbs):

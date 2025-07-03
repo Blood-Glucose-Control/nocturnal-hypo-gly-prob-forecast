@@ -1,14 +1,17 @@
 import pandas as pd
 import numpy as np
-from src.data.physiological.insulin_model.constants import TMAX, KE, IOB_COL, INSULIN_AVAIL_COL
+from src.data.physiological.insulin_model.constants import (
+    TMAX,
+    KE,
+    IOB_COL,
+    INSULIN_AVAIL_COL,
+)
 from src.data.physiological.carb_model.constants import (
-    CARB_ABSORPTION,
     TS_MIN,
     T_ACTION_MAX_MIN,
-    COB_COL,
-    CARB_AVAIL_COL,
 )
 from src.data.preprocessing.time_processing import create_datetime_index
+
 
 # This function was ported to Python from a Matlab function provided by PJacobs on (08/10/2023)
 # CMosquera verified/modified the code and verified correctness of outputs
@@ -83,6 +86,7 @@ def calculate_insulin_availability_and_iob_single_delivery(
     # Return all relevant states
     return ins_availability, iob, q1, q2, I_p
 
+
 def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
     Computes the insulin availability (INS_AVAIL_COL) and insulin on board (IOB_COL)
@@ -137,13 +141,13 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
                 # Extract the dateime values safely
                 dt_next = patient_df.loc[next_index, "datetime"]
                 dt_ins = patient_df.loc[ins_time, "datetime"]
-                
+
                 # Convert to datetime if they aren't already
                 if not isinstance(dt_next, pd.Timestamp):
                     dt_next = pd.to_datetime(dt_next)
                 if not isinstance(dt_ins, pd.Timestamp):
                     dt_ins = pd.to_datetime(dt_ins)
-                
+
                 time_since_insulin = int((dt_next - dt_ins).total_seconds() / 60)
 
                 if time_since_insulin < T_ACTION_MAX_MIN:

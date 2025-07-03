@@ -9,7 +9,7 @@ from src.data.physiological.carb_model.carb_model import (
     create_cob_and_carb_availability_cols,
 )
 from src.data.physiological.insulin_model.insulin_model import (
-    create_iob_and_ins_availability_cols,   
+    create_iob_and_ins_availability_cols,
 )
 
 from src.data.data_splitter import get_train_validation_split

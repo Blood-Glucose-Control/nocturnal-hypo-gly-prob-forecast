@@ -10,6 +10,7 @@ from src.data.physiological.carb_model.constants import (
 )
 from src.data.preprocessing.time_processing import create_datetime_index
 
+
 # https://ieeexplore.ieee.org/ielx7/4664312/10398544/10313965/supp1-3331297.pdf?arnumber=10313965
 # This function was ported to Python from a Matlab function provided by PJacobs on (08/10/2023)
 # CMosquera verified/modified the code and verified correctness of outputs
@@ -76,6 +77,7 @@ def calculate_carb_availability_and_cob_single_meal(
     mob = carb_absorption * meal_carbs - q3
 
     return meal_availability, mob
+
 
 def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     """

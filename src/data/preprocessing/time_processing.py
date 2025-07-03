@@ -22,6 +22,7 @@ Functions:
 
 import pandas as pd
 
+
 def create_datetime_index(
     df: pd.DataFrame, start_date: str = "2025-01-01"
 ) -> pd.DataFrame:
@@ -56,6 +57,7 @@ def create_datetime_index(
 
     return df
 
+
 def _create_time_diff_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
     Adds a 'time_diff' column to the DataFrame that represents the time difference between
@@ -87,29 +89,33 @@ def _create_time_diff_cols(df: pd.DataFrame) -> pd.DataFrame:
     df.drop(columns=["temp_datetime", "time_diff_raw"], inplace=True)
     return df
 
+
 def get_most_common_time_interval(df: pd.DataFrame) -> int:
     """
     Determines the most common time interval between consecutive records in minutes.
-    
+
     This function calculates the time differences between consecutive rows in the
     DataFrame's 'datetime' column and identifies the most frequently occurring interval.
-    
+
     Args:
         df: DataFrame containing a 'datetime' column with timestamp data
-            
+
     Returns:
         int: The most common time interval in minutes between consecutive records
     """
     df_copy = df.copy()
     df_copy["datetime"] = pd.to_datetime(df_copy["datetime"])
-    
+
     # Calculate time differences in minutes directly
-    df_copy["time_diff"] = (df_copy["datetime"].diff().dt.total_seconds() / 60).fillna(0).astype(int)
-    
+    df_copy["time_diff"] = (
+        (df_copy["datetime"].diff().dt.total_seconds() / 60).fillna(0).astype(int)
+    )
+
     # Get the most common value
     time_diff_counts = df_copy["time_diff"].value_counts()
     if len(time_diff_counts) > 0:
-        return int(time_diff_counts.idxmax())  # idxmax() returns the index with maximum count
+        return int(
+            time_diff_counts.idxmax()
+        )  # idxmax() returns the index with maximum count
     else:
         return 0  # Default value if there are no valid time differences
-
