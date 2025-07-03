@@ -57,7 +57,7 @@ class BrisT1DDataLoader(DatasetBase):
         self.load_data()
 
     @property
-    def dataset_name(self):
+    def dFataset_name(self):
         """Return the name of the dataset."""
         return "kaggle_brisT1D"
 

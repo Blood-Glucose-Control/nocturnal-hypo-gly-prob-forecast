@@ -53,7 +53,7 @@ coverage.xml
 cover/
 
 # Ignore all csv files in the src/data directory
-src/data/**/*.csv
+src/data/datasets/**/train.csv
 scripts/notebooks/**/*.csv
 
 # Translations
