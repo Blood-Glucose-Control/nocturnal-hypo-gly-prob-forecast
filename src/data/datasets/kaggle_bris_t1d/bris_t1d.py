@@ -114,10 +114,16 @@ class BrisT1DDataLoader(DatasetBase):
             self.processed_data = self._process_raw_data()
 
         if self.dataset_type == "train":
-            # Split data into train and validation
-            self.train_data, self.validation_data = get_train_validation_split(
-                self.processed_data, num_validation_days=self.num_validation_days
-            )
+            # Make sure processed_data is a DataFrame before splitting
+            if isinstance(self.processed_data, pd.DataFrame):
+                # Split data into train and validation
+                self.train_data, self.validation_data = get_train_validation_split(
+                    self.processed_data, num_validation_days=self.num_validation_days
+                )
+            else:
+                raise TypeError(
+                    f"Expected processed_data to be a DataFrame for train dataset_type, but got {type(self.processed_data)}"
+                )
 
     def _process_raw_data(self) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         # Not cached, process the raw data
