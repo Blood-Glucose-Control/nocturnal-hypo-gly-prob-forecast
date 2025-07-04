@@ -170,7 +170,7 @@ class BrisT1DDataLoader(DatasetBase):
         for train_period, test_period in self._get_day_splits(patient_data):
             yield patient_id, train_period, test_period
 
-    # TODO: MOVE THIS TO THE splitter.py
+    # TODO: MOVE THIS TO THE preprocessing.time_processing.py instead of splitter.py (fns were migrated)
     def _get_day_splits(self, patient_data: pd.DataFrame):
         """
         Split each day's data into training period (6am-12am) and test period (12am-6am next day).

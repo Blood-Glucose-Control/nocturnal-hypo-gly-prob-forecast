@@ -73,16 +73,21 @@ def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFram
     return patient_dfs
 
 
-def clean_brist1d_train_data(data: pd.DataFrame):
+def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     Cleans the brisT1D Kaggle data with the following transformations:
         1. Deletes columns of historic data (eg: bg-5:55, ..., activity-5:55, ...) --> but does not remove -0:00 timestamp
+
     Args:
-        data: the df for the Bris1TD dataset
-    Mutations:
-        Modifies the data in place
+        df: Raw DataFrame to clean
+
+    Returns:
+        pd.DataFrame: Cleaned DataFrame
     """
     prefixes_to_check = ["activity", "bg", "cals", "insulin", "steps", "carbs", "hr"]
+
+    # Create a copy to avoid modifying the original
+    data = df.copy()
 
     # Create the list of columns to drop
     # Identify columns to drop based on the following conditions:
@@ -95,3 +100,5 @@ def clean_brist1d_train_data(data: pd.DataFrame):
         and not col.endswith("-0:00")
     ]
     data.drop(columns=columns_to_drop, inplace=True)
+
+    return data
