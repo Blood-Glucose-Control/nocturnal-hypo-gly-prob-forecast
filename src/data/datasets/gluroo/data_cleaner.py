@@ -147,18 +147,17 @@ def coerce_time_fn(data, coerse_time_interval):
             f"coerse_time_interval must be a pandas Timedelta object, got {type(coerse_time_interval)} instead"
         )
 
-    # Convert Timedelta directly to frequency string
-    freq = pd.tseries.frequencies.to_offset(coerse_time_interval)
-
     # Separate meal announcements and non-meal data
     meal_announcements = data[data["msg_type"] == "ANNOUNCE_MEAL"].copy()
     non_meals = data[data["msg_type"] != "ANNOUNCE_MEAL"].copy()
 
-    non_meals = non_meals.resample(freq).first()
+    non_meals = non_meals.resample(coerse_time_interval).first()
     start_time = non_meals.index.min()
 
     # Resample meal announcements separately and align with non_meal
-    meal_announcements = meal_announcements.resample(freq, origin=start_time).first()
+    meal_announcements = meal_announcements.resample(
+        coerse_time_interval, origin=start_time
+    ).first()
 
     # Join the two DataFrames
     data_resampled = non_meals.join(meal_announcements, how="left", rsuffix="_meal")
