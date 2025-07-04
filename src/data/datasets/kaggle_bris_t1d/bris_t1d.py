@@ -26,9 +26,9 @@ from collections import defaultdict
 class BrisT1DDataLoader(DatasetBase):
     def __init__(
         self,
-        keep_columns: list = None,
+        keep_columns: list[str] | None = None,
         num_validation_days: int = 20,
-        file_path: str = None,
+        file_path: str | None = None,
         use_cached: bool = True,
         dataset_type: str = "train",
     ):
@@ -57,7 +57,7 @@ class BrisT1DDataLoader(DatasetBase):
         self.load_data()
 
     @property
-    def dFataset_name(self):
+    def dataset_name(self):
         """Return the name of the dataset."""
         return "kaggle_brisT1D"
 
