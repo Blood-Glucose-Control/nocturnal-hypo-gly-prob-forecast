@@ -7,7 +7,7 @@ on the requested data source name.
 """
 
 from src.data.datasets.kaggle_brisT1D.bristT1D import BrisT1DDataLoader
-from src.data.datasets.gluroo.gluroo import Gluroo
+from src.data.datasets.gluroo.gluroo import GlurooDataLoader
 from src.data.datasets.dataset_base import DatasetBase
 
 
@@ -57,7 +57,7 @@ def get_loader(
             dataset_type=dataset_type,
         )
     elif data_source_name == "gluroo":
-        return Gluroo(
+        return GlurooDataLoader(
             keep_columns=keep_columns,
             num_validation_days=num_validation_days,
             file_path=file_path,
