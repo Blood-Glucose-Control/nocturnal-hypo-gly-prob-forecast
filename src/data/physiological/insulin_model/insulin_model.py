@@ -140,8 +140,8 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
                 next_index in patient_df.index and time_since_insulin < T_ACTION_MAX_MIN
             ):
                 # Extract the dateime values safely
-                dt_next = patient_df.loc[next_index, "datetime"]
-                dt_ins = patient_df.loc[ins_time, "datetime"]
+                dt_next = patient_df.at[next_index, "datetime"]
+                dt_ins = patient_df.at[ins_time, "datetime"]
 
                 # Convert to datetime if they aren't already
                 if not isinstance(dt_next, pd.Timestamp):
