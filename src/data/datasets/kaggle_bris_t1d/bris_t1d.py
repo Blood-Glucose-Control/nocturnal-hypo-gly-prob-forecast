@@ -163,6 +163,10 @@ class BrisT1DDataLoader(DatasetBase):
                     processed_data[pid][row_id] = row_df
 
             return processed_data
+        else:
+            raise ValueError(
+                f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
+            )
 
     # TODO: MOVE THIS TO THE splitter.py
     def get_validation_day_splits(self, patient_id: str):
