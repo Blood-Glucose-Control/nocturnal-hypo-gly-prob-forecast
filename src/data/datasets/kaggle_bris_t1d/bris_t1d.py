@@ -1,3 +1,15 @@
+"""
+Kaggle Bristol T1D Dataset Loader.
+
+This module provides functionality to load and process the Bristol Type 1 Diabetes
+dataset from Kaggle. It handles both train and test datasets, with options for caching
+processed data to avoid redundant computations.
+
+The module supports data preprocessing including time interval regularization,
+carbohydrate on board (COB) calculation, insulin on board (IOB) calculation,
+and train/validation splitting.
+"""
+
 import pandas as pd
 from src.data.preprocessing.time_processing import (
     create_datetime_index,
@@ -24,6 +36,27 @@ from collections import defaultdict
 
 
 class BrisT1DDataLoader(DatasetBase):
+    """
+    Data loader for the Bristol T1D diabetes dataset from Kaggle.
+
+    This class handles loading, processing, and caching of the Bristol T1D dataset.
+    It supports both train and test datasets with different processing pipelines
+    for each. The train data is stored as a DataFrame, while test data is organized
+    as a nested dictionary by patient ID and row ID.
+
+    Attributes:
+        keep_columns (list[str] | None): Specific columns to load from the dataset
+        num_validation_days (int): Number of days to use for validation
+        default_path (str): Default path to the raw dataset file
+        cached_path (str): Path to the cached processed dataset
+        use_cached (bool): Whether to use cached data if available
+        dataset_type (str): Type of dataset ('train' or 'test')
+        file_path (str): Path to the file being used (raw or cached)
+        processed_data (pd.DataFrame | dict): The processed dataset
+        train_data (pd.DataFrame): Training subset (when dataset_type is 'train')
+        validation_data (pd.DataFrame): Validation subset (when dataset_type is 'train')
+    """
+
     def __init__(
         self,
         keep_columns: list[str] | None = None,
@@ -32,6 +65,21 @@ class BrisT1DDataLoader(DatasetBase):
         use_cached: bool = True,
         dataset_type: str = "train",
     ):
+        """
+        Initialize the Bristol T1D data loader.
+
+        Args:
+            keep_columns (list[str] | None, optional): Specific columns to load from the dataset.
+                Defaults to None, which loads all columns.
+            num_validation_days (int, optional): Number of days to use for validation.
+                Defaults to 20.
+            file_path (str | None, optional): Custom file path for the dataset.
+                Defaults to None, which uses the default path.
+            use_cached (bool, optional): Whether to use cached processed data if available.
+                Defaults to True.
+            dataset_type (str, optional): Type of dataset to load ('train' or 'test').
+                Defaults to "train".
+        """
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
         # TODO: Raw train.csv is quite large. Need to download from kaggle
@@ -58,28 +106,39 @@ class BrisT1DDataLoader(DatasetBase):
 
     @property
     def dataset_name(self):
-        """Return the name of the dataset."""
+        """
+        Return the name of the dataset.
+
+        Returns:
+            str: Name of the dataset
+        """
         return "kaggle_brisT1D"
 
     def load_raw(self):
-        """Load the raw dataset.
+        """
+        Load the raw dataset from CSV file.
 
         Returns:
             pd.DataFrame: The raw data loaded from the CSV file.
-
         """
         # Return all columns
         return pd.read_csv(self.file_path, low_memory=False)
 
     def load_data(self):
         """
-        Kaggle dataset is not big and can have multiple patients in the same file. We can cache the dataset
-        and load it from the cache.
-        The function will load the raw data, process data and split it into train and validation.
-        If the dataset is not cached, the function will process the raw data and save it to the cache.
+        Load and process the dataset, with caching support.
+
+        This method handles loading the data either from cache or by processing
+        the raw dataset. For train data, it returns a DataFrame and splits it into
+        training and validation sets. For test data, it organizes the data into a
+        nested dictionary by patient ID and row ID.
+
+        If using cached data, it reads from the cache location. Otherwise, it processes
+        the raw data and saves it to cache for future use.
 
         Returns:
-            pd.DataFrame or dict[str, dict[str, pd.DataFrame]]: The loaded data. A pandas DataFrame for train data, a dict of dict of DataFrames for test data.
+            pd.DataFrame or dict[str, dict[str, pd.DataFrame]]: The loaded and processed data.
+            For train data, returns a DataFrame. For test data, returns a nested dict.
         """
         if self.use_cached and os.path.exists(self.cached_path):
             if self.dataset_type == "train":
@@ -126,6 +185,27 @@ class BrisT1DDataLoader(DatasetBase):
                 )
 
     def _process_raw_data(self) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
+        """
+        Process the raw data according to dataset type.
+
+        For training data, this applies a series of preprocessing steps to the entire dataset.
+        For test data, it processes each patient and row separately, organizing the result
+        in a nested dictionary structure.
+
+        The preprocessing steps include:
+        - Cleaning the data
+        - Creating datetime index
+        - Ensuring regular time intervals
+        - Calculating carbohydrates on board and availability
+        - Calculating insulin on board and availability
+
+        Returns:
+            pd.DataFrame | dict[str, dict[str, pd.DataFrame]]: The processed data.
+            For train data, returns a DataFrame. For test data, returns a nested dict.
+
+        Raises:
+            ValueError: If dataset_type is not 'train' or 'test'.
+        """
         # Not cached, process the raw data
         if self.dataset_type == "train":
             data = clean_brist1d_train_data(self.raw_data)
@@ -168,22 +248,40 @@ class BrisT1DDataLoader(DatasetBase):
                 f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
             )
 
-    # TODO: MOVE THIS TO THE splitter.py
+    # TODO: MOVE THIS TO THE time_processing.py improve the name to be more clear what this function does
+    # This function is used to split the validation data by day for each patient
+    # It yields tuples of (patient_id, y_input_ts_period, y_test_period) for each day
+    # where:
+    # - y_input_ts_period is the data from 6am to 12am of a day
+    # - y_test_period is the data from 12am to 6am of the next day
     def get_validation_day_splits(self, patient_id: str):
         """
         Get day splits for validation data for a single patient.
 
+        This function splits the validation data by day for the specified patient,
+        yielding each split as a tuple.
+
+        Args:
+            patient_id (str): ID of the patient to get validation splits for
+
         Yields:
-            tuple: (patient_id, train_period, test_period)
+            tuple: (patient_id, y_input_ts_period, y_test_period) where:
+                - patient_id is the ID of the patient
+                - y_input_ts_period is the data from 6am to 12am of a day, fed into the model
+                - y_test_period is the data from 12am to 6am of the next day, ground truth to compare y_pred to.
         """
         patient_data = self.validation_data[self.validation_data["p_num"] == patient_id]
-        for train_period, test_period in self._get_day_splits(patient_data):
-            yield patient_id, train_period, test_period
+        for y_input_ts_period, y_test_period in self._get_day_splits(patient_data):
+            yield patient_id, y_input_ts_period, y_test_period
 
     # TODO: MOVE THIS TO THE preprocessing.time_processing.py instead of splitter.py (fns were migrated)
     def _get_day_splits(self, patient_data: pd.DataFrame):
         """
         Split each day's data into training period (6am-12am) and test period (12am-6am next day).
+
+        This function splits the data for a single day into:
+        - Training period: 6am to midnight of the current day
+        - Test period: midnight to 6am of the next day
 
         Args:
             patient_data (pd.DataFrame): Data for a single patient
@@ -193,7 +291,6 @@ class BrisT1DDataLoader(DatasetBase):
                 - train_period is the data from 6am to 12am of a day
                 - test_period is the data from 12am to 6am of the next day
         """
-
         patient_data.loc[:, "datetime"] = pd.to_datetime(patient_data["datetime"])
 
         # Ensure data is sorted by datetime
