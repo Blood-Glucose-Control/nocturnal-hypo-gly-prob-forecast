@@ -1,3 +1,18 @@
+"""
+Gluroo Data Cleaning Module
+
+This module provides functions for processing and cleaning Gluroo diabetes data.
+It handles tasks such as standardizing timestamps, handling missing values,
+processing meal data, and transforming data into a consistent format.
+
+Key functionality includes:
+- Converting timestamps to regular intervals
+- Identifying and filtering days with excessive missing data
+- Processing meal announcements and handling overlaps
+- Selecting top carbohydrate meals per day
+- Standardizing column names and formats
+"""
+
 import pandas as pd
 
 
@@ -72,9 +87,23 @@ def clean_gluroo_data(
 
 def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
-    Translates the data to the correct format.
+    Translates the data to a standardized format with consistent column names.
+
+    Performs column renaming, adds required metadata columns, and converts
+    blood glucose values from mg/dL to mmol/L.
+
+    Args:
+        df_raw (pd.DataFrame): Input DataFrame with raw Gluroo data
+
+    Returns:
+        pd.DataFrame: DataFrame with standardized column names and formats
+
+    Notes:
+        - Blood glucose values are converted from mg/dL to mmol/L using the factor 18.0
+        - Adds a datetime column that duplicates the index for compatibility
+        - Adds patient identifier "glu001" as p_num column
     TODO:
-    - Greg's data might have HR, steps and activity data?
+    - Gluroo's data might have HR, steps and activity data in the future.
     """
 
     df = df_raw.copy()
@@ -100,14 +129,20 @@ def ensure_datetime_index(
     data: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Ensures DataFrame has a datetime index.
+    Ensures DataFrame has a datetime index in UTC format.
+
+    Converts index to DatetimeIndex if not already in that format or uses the 'date' column
+    as the index if available. Handles timezone conversion to ensure consistent datetime handling.
 
     Args:
         data (pd.DataFrame): Input DataFrame that either has a datetime index or a 'date' column
-        that can be converted to datetime.
+                           that can be converted to datetime.
 
     Returns:
-        pd.DataFrame: DataFrame with sorted datetime index.
+        pd.DataFrame: DataFrame with sorted UTC datetime index.
+
+    Raises:
+        KeyError: If neither a DatetimeIndex nor a 'date' column is available
     """
     df = data.copy()
 
@@ -129,14 +164,23 @@ def ensure_datetime_index(
 
 def coerce_time_fn(data, coerse_time_interval):
     """
-    Coerce the time interval of the data.
+    Coerces the time interval of data to a regular frequency and handles meal announcements.
+
+    This function separates meal announcement data from other data, resamples both at the specified
+    interval, and then recombines them while preserving meal information. It ensures consistent
+    time intervals throughout the dataset.
 
     Args:
-        data (pd.DataFrame): The input DataFrame with a 'date' index.
-        coerse_time_interval (pd.Timedelta): The interval for coarse time resampling.
+        data (pd.DataFrame): The input DataFrame with a 'date' index and columns including
+                           'msg_type', 'bgl', and 'food_g'.
+        coerse_time_interval (pd.Timedelta): The interval for time resampling.
 
     Returns:
-        pd.DataFrame: The coerced DataFrame with a DatetimeIndex.
+        pd.DataFrame: DataFrame with regularized time intervals and preserved meal data.
+
+    Raises:
+        KeyError: If 'date' is not the index name
+        TypeError: If coerse_time_interval is not a pandas Timedelta object
     """
     # Ensure 'date' column exists
     if "date" != data.index.name:
@@ -186,15 +230,23 @@ def coerce_time_fn(data, coerse_time_interval):
 
 def remove_num_meal(patient_df, num_meal):
     """
-    Remove all days that have meals with the specified num_meal number of meals.
+    Remove all days that have exactly the specified number of meals.
+
+    Identifies days with exactly num_meal meals and removes all data from those days.
+    This function is useful for filtering out days with atypical meal patterns.
+    Essentially, it cleans the dataset by removing days that do not meet the expected meal frequency.
 
     Args:
-        patient_df (pd.DataFrame): The input DataFrame with columns 'msg_type', 'food_g', and a datetime index.
+        patient_df (pd.DataFrame): DataFrame with columns 'msg_type' and datetime index.
         num_meal (int): The specific number of meals in a day to identify and remove.
 
-    Returns
-    -------
-        pd.DataFrame: The processed DataFrame with days containing num_meal meals removed.
+    Returns:
+        pd.DataFrame: Processed DataFrame with days containing num_meal meals removed.
+
+    TODO:
+    - This function assumes that the 'msg_type' column contains 'ANNOUNCE_MEAL' for meal events.
+    - We need to modfiy the function to handle more than just one num_meal value.
+    - Currently, it only removes days with exactly num_meal meals. It could be extended to handle ranges or other conditions.
     """
     # Ensure a 'day' column based on the date from the datetime index
     patient_df = patient_df.copy()
@@ -217,21 +269,21 @@ def remove_num_meal(patient_df, num_meal):
 
 def erase_meal_overlap_fn(patient_df, meal_length, min_carbs):
     """
-    Process the DataFrame to handle meal overlaps.
+    Process the DataFrame to handle meal overlaps and combine closely timed meals.
 
-    Parameters
-    ----------
-    patient_df : pd.DataFrame
-        The input DataFrame with columns 'msg_type', 'food_g', and a datetime index.
-    meal_length : pd.Timedelta
-        The duration to look ahead for meal events.
-    min_carbs : int
-        Minimum amount of carbohydrates to consider a meal.
+    For each meal announcement:
+    1. Marks low carb meals (below min_carbs threshold)
+    2. For regular meals, identifies any other meals within meal_length window
+    3. Combines carbohydrates from overlapping meals into the first meal
+    4. Clears the overlapping meals to avoid double-counting
 
-    Returns
-    -------
-    pd.DataFrame
-        The processed DataFrame with meal overlaps handled.
+    Args:
+        patient_df (pd.DataFrame): DataFrame with columns 'msg_type', 'food_g', and datetime index.
+        meal_length (pd.Timedelta): The duration to look ahead for detecting overlapping meals.
+        min_carbs (int): Minimum amount of carbohydrates to consider a significant meal.
+
+    Returns:
+        pd.DataFrame: Processed DataFrame with meal overlaps resolved.
     """
     announce_meal_mask = patient_df["msg_type"] == "ANNOUNCE_MEAL"
     announce_meal_indices = patient_df[announce_meal_mask].index
@@ -264,17 +316,22 @@ def keep_top_n_carb_meals(patient_df, n_top_carb_meals):
     """
     Keep only the top n carbohydrate meals per day in the DataFrame.
 
-    Parameters
-    ----------
-    patient_df : pd.DataFrame
-        The input DataFrame with columns 'msg_type', 'food_g', and a datetime index.
-    n_top_carb_meals : int
-        The number of top carbohydrate meals to keep per day.
+    For each day (defined by day_start_shift):
+    1. Identifies meal announcements
+    2. Ranks meals by carbohydrate content
+    3. Keeps only the top n_top_carb_meals meals
+    4. Resets other meals to zero carbs
 
-    Returns
-    -------
-    pd.DataFrame
-        The processed DataFrame with only the top n carbohydrate meals per day.
+    Args:
+        patient_df (pd.DataFrame): DataFrame with columns 'msg_type', 'food_g',
+                                 'day_start_shift', and datetime index.
+        n_top_carb_meals (int): Number of top carbohydrate meals to keep per day.
+
+    Returns:
+        pd.DataFrame: Processed DataFrame with only top n carbohydrate meals preserved.
+
+    Raises:
+        KeyError: If 'day_start_shift' column is not found in the DataFrame
     """
     # Ensure 'day_start_shift' exists
     if "day_start_shift" not in patient_df.columns:
@@ -314,23 +371,26 @@ def erase_consecutive_nan_values(
     patient_df: pd.DataFrame, max_consecutive_nan_values_per_day: int
 ):
     """
-    1. If there are more than max_consecutive_nan_values_per_day consecutive NaN values in a given day, then delete that day from the dataframe.
-    2. If there are less than max_consecutive_nan_values_per_day consecutive NaN values in a given day, then delete the NaN values from that day.
-    ------
-    Parameters:
-        patient_df: pd.DataFrame
-            The input DataFrame with a datetime index.
-        max_consecutive_nan_values_per_day: int
-            The maximum number of consecutive NaN values allowed in a given day. If more than this number of consecutive NaN values are found in a day, then delete that day from the dataframe. Otherwise, delete the NaN values from that day.
+    Handle consecutive NaN values in blood glucose data based on configurable threshold.
+
+    This function processes each day separately to:
+    1. Count the maximum number of consecutive NaN values in the 'bgl' column
+    2. If max consecutive NaNs exceeds threshold, remove the entire day
+    3. If max consecutive NaNs is within threshold, keep the day but remove individual NaN values
+
+    Args:
+        patient_df (pd.DataFrame): DataFrame with a 'bgl' column and datetime index.
+        max_consecutive_nan_values_per_day (int): Maximum allowed consecutive NaN values per day.
+            Days exceeding this threshold are completely removed.
+
     Returns:
-        pd.DataFrame
-            The processed DataFrame with consecutive NaN values handled.
+        pd.DataFrame: Processed DataFrame with consecutive NaN values handled according to the rules.
     """
     # Create a copy to avoid modifying original
     df = patient_df.copy()
 
     # Add day column for grouping
-    df["day"] = df.index.date
+    df["day"] = df.index.to_series().dt.date
 
     # Process each day
     days_to_keep = []
