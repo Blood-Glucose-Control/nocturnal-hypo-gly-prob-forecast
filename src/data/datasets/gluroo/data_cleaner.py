@@ -4,7 +4,7 @@ import pandas as pd
 # Gluroo data one dataframe per patient
 def clean_gluroo_data(
     df_raw: pd.DataFrame,
-    config: dict = None,
+    config: dict | None = None,
 ) -> pd.DataFrame:
     """
     Cleans the Gluroo dataset by applying several transformations:
@@ -50,11 +50,16 @@ def clean_gluroo_data(
     n_top_carb_meals: int = config["n_top_carb_meals"]
 
     df = df_raw.copy()
+
     df = ensure_datetime_index(df)
+    # Explicitly tell the type checker that df.index is a DatetimeIndex
+    from typing import cast
+
+    df.index = cast(pd.DatetimeIndex, df.index)
 
     # From meal identification repo
     df = coerce_time_fn(data=df, coerse_time_interval=coerse_time_interval)
-    df["day_start_shift"] = (df.index - day_start_time).date
+    df["day_start_shift"] = (df.index - day_start_time).to_series().dt.date
     df = erase_consecutive_nan_values(df, max_consecutive_nan_values_per_day)
     df = erase_meal_overlap_fn(df, meal_length, min_carbs)
     df = keep_top_n_carb_meals(df, n_top_carb_meals=n_top_carb_meals)
