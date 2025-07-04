@@ -6,7 +6,7 @@ through a factory function that returns the appropriate data loader based
 on the requested data source name.
 """
 
-from src.data.datasets.kaggle_brisT1D.bristT1D import BrisT1DDataLoader
+from src.data.datasets.kaggle_bris_t1d.bris_t1d import BrisT1DDataLoader
 from src.data.datasets.gluroo.gluroo import GlurooDataLoader
 from src.data.datasets.dataset_base import DatasetBase
 

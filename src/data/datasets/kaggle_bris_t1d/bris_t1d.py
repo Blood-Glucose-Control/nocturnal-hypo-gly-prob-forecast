@@ -12,11 +12,11 @@ from src.data.physiological.insulin_model.insulin_model import (
     create_iob_and_ins_availability_cols,
 )
 
-from src.data.data_splitter import get_train_validation_split
+from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.datasets.dataset_base import DatasetBase
 import os
 
-from src.data.datasets.kaggle_brisT1D.data_cleaner import (
+from src.data.datasets.kaggle_bris_t1d.data_cleaner import (
     clean_brist1d_train_data,
     clean_brist1d_test_data,
 )

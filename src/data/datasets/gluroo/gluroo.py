@@ -16,7 +16,7 @@ different data sources.
 import pandas as pd
 from src.data.datasets.dataset_base import DatasetBase
 from src.data.datasets.gluroo.data_cleaner import clean_gluroo_data
-from src.data.data_splitter import get_train_validation_split
+from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.preprocessing.sampling import ensure_regular_time_intervals
 from src.data.physiological.carb_model.carb_model import (
     create_cob_and_carb_availability_cols,

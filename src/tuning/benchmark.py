@@ -12,7 +12,7 @@ import numpy as np
 import os
 import json
 from src.data.data_loader import get_loader
-from src.data.data_splitter import get_train_validation_split
+from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.preprocessing.signal_processing import apply_moving_average
 from src.tuning.param_grid import generate_param_grid
 from src.utils.config_loader import load_yaml_config

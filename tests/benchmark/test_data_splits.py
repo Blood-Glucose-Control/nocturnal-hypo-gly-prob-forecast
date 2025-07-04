@@ -1,5 +1,5 @@
 from src.data.data_loader import get_loader
-from src.data.data_splitter import get_train_validation_split
+from src.data.preprocessing.time_processing import get_train_validation_split
 import pytest
 import pandas as pd
 

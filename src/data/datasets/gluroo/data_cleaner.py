@@ -245,7 +245,7 @@ def remove_num_meal(patient_df, num_meal):
 
     TODO:
     - This function assumes that the 'msg_type' column contains 'ANNOUNCE_MEAL' for meal events.
-    - We need to modfiy the function to handle more than just one num_meal value.
+    - We need to modify the function to handle more than just one num_meal value.
     - Currently, it only removes days with exactly num_meal meals. It could be extended to handle ranges or other conditions.
     """
     # Ensure a 'day' column based on the date from the datetime index
