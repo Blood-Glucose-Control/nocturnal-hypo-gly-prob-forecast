@@ -55,7 +55,7 @@ def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFram
 
             hours = pd.to_timedelta(time_parts[0].astype(int), unit="h")
             minutes = pd.to_timedelta(time_parts[1].astype(int), unit="m")
-            total_hours = hours + minutes
+            total_hours = hours.add(minutes)  # Using .add() method instead of +
 
             # Subtract offset from time and format to HH:MM:SS
             new_df["time"] = (new_df["time"] - total_hours).dt.strftime("%H:%M:%S")
