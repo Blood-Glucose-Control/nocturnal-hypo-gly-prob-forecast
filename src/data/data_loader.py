@@ -1,4 +1,10 @@
-"""Data loading functions for the various datasets."""
+"""
+Data loading module for accessing and processing various diabetes datasets.
+
+This module provides a unified interface to access different data sources
+through a factory function that returns the appropriate data loader based
+on the requested data source name.
+"""
 
 from src.data.datasets.kaggle_brisT1D.bristT1D import BrisT1DDataLoader
 from src.data.datasets.gluroo.gluroo import Gluroo
@@ -8,23 +14,39 @@ from src.data.datasets.dataset_base import DatasetBase
 def get_loader(
     data_source_name: str = "kaggle_brisT1D",
     dataset_type: str = "train",
-    keep_columns: list = None,
+    keep_columns: list[str] | None = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
-    file_path: str = None,
-    config: dict = None,
+    file_path: str | None = None,
+    config: dict | None = None,
 ) -> DatasetBase:
     """
-    Get the data loader for the given data source name.
+    Factory function to create and return the appropriate data loader instance.
+
+    This function creates a data loader for the specified data source, configured
+    according to the provided parameters. Each loader implements the DatasetBase
+    interface, providing consistent data access methods across different sources.
 
     Parameters:
-        data_source_name (str): The name of the data source. Default is 'kaggle_brisT1D'.
-        dataset_type (str): The type of the dataset, e.g., 'train' or 'test'. Default is 'train'.
-        keep_columns (list): A list of column names to keep. If None, all columns are loaded.
-            Default is None.
+        data_source_name (str): The name of the data source to load.
+                               Currently supports 'kaggle_brisT1D' and 'gluroo'.
+                               Default: 'kaggle_brisT1D'
+        dataset_type (str): The subset of data to load ('train', 'test', 'validation').
+                           Default: 'train'
+        keep_columns (list[str] | None): Specific columns to retain in the dataset.
+                                       If None, all columns are loaded. Default: None
+        use_cached (bool): Whether to use cached data if available. Default: False
+        num_validation_days (int): Number of days to use for validation. Default: 20
+        file_path (str | None): Custom path to data files. If None, uses default paths.
+                              Default: None
+        config (dict | None): Additional configuration parameters for the data loader.
+                            Default: None
 
     Returns:
-        pd.DataFrame: The loaded data as a pandas DataFrame.
+        DatasetBase: A data loader instance implementing the DatasetBase interface.
+
+    Raises:
+        ValueError: If an unsupported data source name is provided.
     """
     if data_source_name == "kaggle_brisT1D":
         return BrisT1DDataLoader(
