@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from scipy.integrate import solve_ivp
 from src.data.physiological.insulin_model.constants import (
     TMAX,
     KE,
@@ -159,3 +160,77 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
                 next_index += 1
 
     return result_df
+
+
+def calculate_insulin_availability_and_iob_single_delivery_new(
+    insulin, ts_min, t_action_max_min
+):
+    """
+    Simulates insulin absorption and availability using Hovorka's 3-compartment model (2004).
+    Using SciPy's ODE solver for improved accuracy and performance.
+    TODO: Verify that this is the correct model to use, that it matches the original implementation, and is more performant.
+    TODO: See if there are ways of improving the performance of this function further.
+        1. JIT compilation with Numba
+        2. Vectorization of the ODE system
+        3. Parallel processing for multiple insulin doses/days
+        4. Caching results for repeated doses
+
+    Parameters:
+        insulin (float): Amount of insulin injected (units).
+        ts_min (int): Time step in minutes.
+        t_action_max_min (int): Maximum duration of insulin action (minutes).
+
+    Returns:
+        ins_availability (numpy array): Insulin available in plasma over time.
+        iob (numpy array): Insulin on board over time.
+        s1 (numpy array): Subcutaneous insulin compartment 1 (q1).
+        s2 (numpy array): Subcutaneous insulin compartment 2 (q2).
+        I (numpy array): Plasma insulin concentration.
+    """
+
+    # Define the differential equation system
+    def insulin_dynamics(t, y):
+        q1, q2, I_p, q4 = y
+
+        # At t=0, add the insulin injection
+        u = insulin if t < ts_min else 0
+
+        dq1 = -(q1 / TMAX) + (u / ts_min if t < ts_min else 0)
+        dq2 = (q1 / TMAX) - (q2 / TMAX)
+        dI = (q2 / TMAX) - (KE * I_p)
+        dq4 = KE * I_p
+
+        return [dq1, dq2, dI, dq4]
+
+    # Initial conditions
+    y0 = [0, 0, 0, 0]  # [q1, q2, I_p, q4]
+
+    # Time points to solve for
+    t_span = (0, t_action_max_min)
+    t_eval = np.linspace(0, t_action_max_min, t_action_max_min // ts_min)
+
+    # Solve the ODE system
+    solution = solve_ivp(
+        insulin_dynamics,
+        t_span,
+        y0,
+        method="RK45",  # 4th-order Runge-Kutta method
+        t_eval=t_eval,
+        rtol=1e-4,  # Relative tolerance
+        atol=1e-6,  # Absolute tolerance
+    )
+
+    # Extract solutions
+    q1 = solution.y[0]
+    q2 = solution.y[1]
+    I_p = solution.y[2]
+    q4 = solution.y[3]
+
+    # Compute insulin availability (plasma insulin)
+    ins_availability = I_p
+
+    # Compute Insulin on Board (IOB)
+    iob = insulin - q4
+    iob[iob < 0] = 0  # Ensure IOB never goes negative
+
+    return ins_availability, iob, q1, q2, I_p
