@@ -93,25 +93,51 @@ To add a new dataset to the pipeline, follow these steps:
 ### 1. Directory Structure
 ```
 src/data/
-├── ${dataset_name}/
-│   ├── ${dataset_name}.py      # Data loader class
-│   ├── raw/                    # Original data files
-│   └── processed/              # Processed and cached data
+├── datasets/
+│ ├── init.py
+│ ├── data_loader.py
+│ ├── dataset_base.py
+│ └── ${dataset_name}/
+│ │ ├── init.py
+│ │ ├── ${dataset_name}.py # Dataset implementation
+│ │ ├── ${dataset_name}_cleaner.py #
+│ │ ├── raw/ # Original data files
+│ │ └── processed/ # Processed and cached data
 ```
 
 ### 2. Implementation Steps
 
 #### 2.1 Create Data Loader
-- Create a new file: `src/data/${dataset_name}/${dataset_name}.py`
+- Create a new directory: `src/data/datasets/${dataset_name}/`
+- Create a new file: `src/data/datasets/${dataset_name}/${dataset_name}_dataset.py`
 - Inherit from `DatasetBase` class
-- Implement caching mechanism to avoid reprocessing
-- Raw data should be fetchd via API of the host if available (We are thinking of just hosting a private HF datasets now)
+- Implement required abstract methods
+- Add caching mechanism to avoid reprocessing raw data
+- Raw data should be fetched via API of the host if available (We are thinking of just hosting a private HF datasets now)
+
 ```python
-class ${DatasetName}Loader(DatasetBase):
-    def __init__(self, cache=True):
+from src.data.datasets.dataset_base import DatasetBase
+
+class ${DatasetName}Dataset(DatasetBase):
+   def __init__(self, cache=True):
         super().__init__()
         self.cache = cache
-        # Implementation details...
+    @property
+    def dataset_name(self):
+        return "${dataset_name}"
+
+    def load_raw(self):
+        # Implementation for loading raw data
+        return raw_df
+
+    def _process_raw_data(self):
+        # Process raw data into standardized format
+        # Return processed dataframe
+
+    def load_data(self):
+        if self.raw_data is None:
+            self.raw_data = self.load_raw()
+        return self._process_raw_data()
 ```
 
 #### 2.2 Data Cleaning and Transformation
@@ -120,35 +146,43 @@ Implement a data cleaner that performs the following steps in order:
 1. **Column Standardization**
    - Map original column names to standardized format
    - Ensure all required columns are present
-   - Ensure `datatime` column exists
+   - Ensure `datetime` column exists and is set as the DataFrame index
    - Convert data types as needed
 
 2. **Data Cleaning**
    - Remove duplicate entries
    - Handle missing values
-   - Validate data ranges
+   - Validate data ranges using the _validate_data method
    - Example: See `clean_gluroo_data` for reference
 
 3. **Time Series Processing**
-   - Call `data_transforms.ensure_regular_time_intervals(cleaned_df)`
-   - This creates missing rows to maintain consistent intervals
-   - Missing data will be imputed in the benchmark pipeline
+   - Ensure regular time intervals in the data
+      - Call `data_transforms.ensure_regular_time_intervals(cleaned_df)`
+      - Handle timezone information consistently
+      - Create missing rows to maintain consistent sampling frequency
+      - Missing data will be imputed in the benchmark pipeline
 
 4. **Derived Features**
    - Generate carbohydrate-related features:
      ```python
-     data_transforms.create_cob_and_carb_availability_cols(df)
+     data.physiological.carb_model.create_cob_and_carb_availability_cols(df)
      ```
    - Generate insulin-related features:
      ```python
-     data_transforms.create_iob_and_ins_availability_cols(df)
+     data.physiological.insulin_model.create_iob_and_ins_availability_cols(df)
      ```
+   - Add any dataset-specific features needed.
 
-### 3. Documentation
+### 3. Register the Dataset
+- Update `src/data/datasets/__init__.py` to include your new dataset.
+- Ensure the dataset can be loaded using the standard interface.
+- See our documentation contains on article with examples of why we register our datasets.
+
+### 4. Documentation
 Document all the changes
 
-### 4. Reference Implementation
-See `src/data/gluroo/` for a working example of dataset implementation.
+### 5. Reference Implementation
+See existing implementations in ``src/data/datasets/gluroo` and `src/data/datasets/kaggle_bris_t1d` for working examples.
 
 ## Future Improvements
 - Rename `bg-0:00` to `bg_mgdl-0:00` to explicitly include units

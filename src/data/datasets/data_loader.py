@@ -4,11 +4,16 @@ Data loading module for accessing and processing various diabetes datasets.
 This module provides a unified interface to access different data sources
 through a factory function that returns the appropriate data loader based
 on the requested data source name.
+Please remember to update the __init__.py file in the datasets directory
+to include any new dataset loaders you create, so they can be accessed
+through the unified interface.
+This allows for easy extensibility and maintainability of the data loading
+process across different datasets.
 """
 
-from src.data.datasets.kaggle_bris_t1d.bris_t1d import BrisT1DDataLoader
-from src.data.datasets.gluroo.gluroo import GlurooDataLoader
 from src.data.datasets.dataset_base import DatasetBase
+from src.data.datasets import BrisT1DDataLoader
+from src.data.datasets import GlurooDataLoader
 
 
 def get_loader(
@@ -64,4 +69,4 @@ def get_loader(
             config=config,
         )
     else:
-        raise ValueError("Invalid dataset_name or dataset_type")
+        raise ValueError(f"Invalid dataset_name: {data_source_name}.")
