@@ -87,11 +87,11 @@ class BrisT1DDataLoader(DatasetBase):
         # self.default_path = os.path.join(
         #     os.path.dirname(__file__), f"{dataset_type}.csv"
         self.default_path = os.path.join(
-            os.path.dirname(__file__), f"{dataset_type}.csv"
+            os.path.dirname(__file__), f"raw/{dataset_type}.csv"
         )
         self.cached_path = os.path.join(
             os.path.dirname(__file__),
-            f"{dataset_type}_cached{'.csv' if dataset_type == 'train' else ''}",
+            f"processed/{dataset_type}_cached{'.csv' if dataset_type == 'train' else ''}",
         )
         self.use_cached = use_cached
         self.dataset_type = dataset_type
