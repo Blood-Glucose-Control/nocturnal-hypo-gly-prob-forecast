@@ -1,3 +1,11 @@
+"""
+Data cleaning utilities for the Kaggle Bristol Type 1 Diabetes dataset.
+
+This module provides functions to clean and preprocess the Bristol T1D dataset by
+handling time-series data, removing historical data points, and restructuring the
+dataframes into more usable formats for analysis and modeling.
+"""
+
 import pandas as pd
 from src.utils.kaggle_util import create_time_variable_lists
 from collections import defaultdict
@@ -5,7 +13,21 @@ from collections import defaultdict
 
 def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFrame]]:
     """
-    Cleans the test data for the Bris1TD dataset by removing columns of historic data
+    Clean and transform test data from the Bristol T1D dataset.
+
+    This function processes the test dataset by:
+    1. Melting the time-series data into a more structured format
+    2. Extracting measurement types (bg, insulin, carbs, etc.)
+    3. Converting time fields and adjusting timestamps
+    4. Organizing data by patient ID and row ID
+
+    Args:
+        df: Raw test dataframe containing Bristol T1D data
+
+    Returns:
+        A nested dictionary with structure {patient_id: {row_id: dataframe}}
+        where each dataframe contains the processed measurements for a specific
+        patient and time point.
     """
     patient_ids = df["p_num"].unique().tolist()
     all_value_var_lists = create_time_variable_lists()
@@ -73,17 +95,22 @@ def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFram
     return patient_dfs
 
 
-# TODO: Rename this funciton to something more descriptive
 def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Cleans the brisT1D Kaggle data with the following transformations:
-        1. Deletes columns of historic data (eg: bg-5:55, ..., activity-5:55, ...) --> but does not remove -0:00 timestamp
+    Clean the Bristol T1D training dataset by removing historical data columns.
+
+    This function processes the training dataset by:
+    1. Identifying columns containing historical measurements
+       (e.g., bg-5:55, activity-3:30)
+    2. Keeping only the current measurements (those with -0:00 suffix)
+    3. Preserving all non-measurement columns
 
     Args:
-        df: Raw DataFrame to clean
+        df: Raw training dataframe from the Bristol T1D dataset
 
     Returns:
-        pd.DataFrame: Cleaned DataFrame
+        A cleaned DataFrame containing only current measurements and
+        metadata columns, with all historical measurements removed.
     """
     prefixes_to_check = ["activity", "bg", "cals", "insulin", "steps", "carbs", "hr"]
 
@@ -91,9 +118,6 @@ def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
     data = df.copy()
 
     # Create the list of columns to drop
-    # Identify columns to drop based on the following conditions:
-    # - The column name contains any of the specified prefixes.
-    # - The column name does not end with "-0:00".
     columns_to_drop = [
         col
         for col in data.columns
