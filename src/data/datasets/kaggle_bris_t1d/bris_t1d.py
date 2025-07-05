@@ -275,6 +275,8 @@ class BrisT1DDataLoader(DatasetBase):
             yield patient_id, y_input_ts_period, y_test_period
 
     # TODO: MOVE THIS TO THE preprocessing.time_processing.py instead of splitter.py (fns were migrated)
+    # TODO: change this function to be more general, so it can be used for both train and validation data
+    # TODO: Change this function so that you cna specify the training and test periods lengths e.g. 6 hours, 8 hours, etc.
     def _get_day_splits(self, patient_data: pd.DataFrame):
         """
         Split each day's data into training period (6am-12am) and test period (12am-6am next day).
