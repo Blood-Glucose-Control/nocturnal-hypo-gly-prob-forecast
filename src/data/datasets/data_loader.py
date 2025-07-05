@@ -11,9 +11,33 @@ This allows for easy extensibility and maintainability of the data loading
 process across different datasets.
 """
 
-from src.data.datasets.dataset_base import DatasetBase
+from typing import Union, Optional, Dict, Any, overload, Literal
 from src.data.datasets import BrisT1DDataLoader
 from src.data.datasets import GlurooDataLoader
+
+
+@overload
+def get_loader(
+    data_source_name: Literal["kaggle_brisT1D"],
+    dataset_type: str = "train",
+    keep_columns: Optional[list[str]] = None,
+    use_cached: bool = False,
+    num_validation_days: int = 20,
+    file_path: Optional[str] = None,
+    config: Optional[Dict[str, Any]] = None,
+) -> BrisT1DDataLoader: ...
+
+
+@overload
+def get_loader(
+    data_source_name: Literal["gluroo"],
+    dataset_type: str = "train",
+    keep_columns: Optional[list[str]] = None,
+    use_cached: bool = False,
+    num_validation_days: int = 20,
+    file_path: Optional[str] = None,
+    config: Optional[Dict[str, Any]] = None,
+) -> GlurooDataLoader: ...
 
 
 def get_loader(
@@ -24,7 +48,7 @@ def get_loader(
     num_validation_days: int = 20,
     file_path: str | None = None,
     config: dict | None = None,
-) -> DatasetBase:
+) -> Union[BrisT1DDataLoader, GlurooDataLoader]:
     """
     Factory function to create and return the appropriate data loader instance.
 
