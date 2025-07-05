@@ -63,9 +63,9 @@ my_data = my_loader.load_data()
 ## Key Advantages of Registration
     1. **Centralized Configuration**: All dataset options are configured in one place
     2. **Dependency Injection**: Consumers don't need to know implementation details
-    3. **Consistent Interface**: All datasets are accessed the same way 
-    4. **Runtime Selection**: Datasets can be chosen at runtime via configuration 
-    5. **Simplified Testing**: Easier to mock or substitute datasets for tests 
+    3. **Consistent Interface**: All datasets are accessed the same way
+    4. **Runtime Selection**: Datasets can be chosen at runtime via configuration
+    5. **Simplified Testing**: Easier to mock or substitute datasets for tests
     6. **Discoverability**: New team members can see all available datasets in one place
 
 ## Is This Best Practice?
@@ -80,7 +80,7 @@ Yes, this pattern is considered a best practice in software design for several r
 ## Libraries Using Similar Patterns
 Many popular Python libraries use similar registration patterns:
 
-    - **Scikit-learn**: Estimators registered through factories 
+    - **Scikit-learn**: Estimators registered through factories
     - **Django**: Apps and models registered in settings/INSTALLED_APPS
     - **Flask**: Blueprints registered to the main application
     - **FastAPI**: Routers registered to the main app
@@ -93,4 +93,4 @@ Many popular Python libraries use similar registration patterns:
 3. data_loader.py provides the factory function
 4. `__init__.py` imports all implementations making them available.
 
-This creates a flexible, maintatinable system that makes adding new datasets straightforward while keeping the rest of our codebase stable. 
+This creates a flexible, maintatinable system that makes adding new datasets straightforward while keeping the rest of our codebase stable.
