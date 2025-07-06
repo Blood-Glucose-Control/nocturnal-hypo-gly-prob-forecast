@@ -11,6 +11,10 @@ and train/validation splitting.
 """
 
 import pandas as pd
+import functools
+from concurrent.futures import ProcessPoolExecutor
+from collections import defaultdict
+
 from src.data.preprocessing.time_processing import (
     create_datetime_index,
 )
@@ -32,7 +36,6 @@ from src.data.datasets.kaggle_bris_t1d.data_cleaner import (
     clean_brist1d_train_data,
     clean_brist1d_test_data,
 )
-from collections import defaultdict
 
 
 class BrisT1DDataLoader(DatasetBase):
@@ -86,7 +89,7 @@ class BrisT1DDataLoader(DatasetBase):
         """
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
-        self.default_path = os.path.join(
+        self.raw_data_path = os.path.join(
             os.path.dirname(__file__), f"raw/{dataset_type}.csv"
         )
         self.cached_path = os.path.join(
@@ -95,7 +98,7 @@ class BrisT1DDataLoader(DatasetBase):
         )
         self.use_cached = use_cached
         self.dataset_type = dataset_type
-        self.file_path = self.default_path
+        self.file_path = self.raw_data_path
         if file_path is not None:
             self.file_path = file_path
         elif use_cached and os.path.exists(self.cached_path):
@@ -117,6 +120,9 @@ class BrisT1DDataLoader(DatasetBase):
     def load_raw(self):
         """
         Load the raw dataset from CSV file.
+        The raw dataset path is determined by the dataset type.
+
+        This method reads the raw CSV file into a pandas DataFrame.
 
         Returns:
             pd.DataFrame: The raw data loaded from the CSV file.
@@ -332,6 +338,75 @@ class BrisT1DDataLoader(DatasetBase):
         self.val_dt_col_type = self.validation_data["datetime"].dtype
         self.num_train_days = len(self.train_data["datetime"].dt.date.unique())
 
+    def _process_raw_data_old(
+        self,
+    ) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
+        """
+        Process the raw data according to dataset type.
+
+        For training data, this applies a series of preprocessing steps to the entire dataset.
+        For test data, it processes each patient and row separately, organizing the result
+        in a nested dictionary structure.
+
+        The preprocessing steps include:
+        - Cleaning the data
+        - Creating datetime index
+        - Ensuring regular time intervals
+        - Calculating carbohydrates on board and availability
+        - Calculating insulin on board and availability
+
+        Returns:
+            pd.DataFrame | dict[str, dict[str, pd.DataFrame]]: The processed data.
+            For train data, returns a DataFrame. For test data, returns a nested dict.
+
+        Raises:
+            ValueError: If dataset_type is not 'train' or 'test'.
+        """
+        # Not cached, process the raw data
+        if self.dataset_type == "train":
+            data = clean_brist1d_train_data(self.raw_data)
+            data = create_datetime_index(data)
+            data = ensure_regular_time_intervals(data)
+            data = create_cob_and_carb_availability_cols(data)
+            data = create_iob_and_ins_availability_cols(data)
+
+            # Save processed data to cache
+            data.to_csv(self.cached_path, index=True)
+
+            return data
+
+        elif self.dataset_type == "test":  # test data: {pid : {rowid: df }}
+            data = clean_brist1d_test_data(self.raw_data)
+            processed_data = defaultdict(dict)
+
+            # Setup cache dir
+            os.makedirs(self.cached_path, exist_ok=True)
+
+            # TODO: I think this process should be vectorized in some way to improve performance.
+
+            for pid in data:
+                # Make new dir for each patient
+                patient_cache_dir = os.path.join(self.cached_path, pid)
+                os.makedirs(patient_cache_dir, exist_ok=True)
+
+                for row_id in data[pid]:
+                    row_df = data[pid][row_id]
+                    row_df = create_datetime_index(row_df)
+                    row_df = ensure_regular_time_intervals(row_df)
+                    row_df = create_cob_and_carb_availability_cols(row_df)
+                    row_df = create_iob_and_ins_availability_cols(row_df)
+
+                    cache_file = os.path.join(patient_cache_dir, f"{row_id}.csv")
+                    row_df.to_csv(cache_file, index=True)
+
+                    processed_data[pid][row_id] = row_df
+
+            return processed_data
+        else:
+            raise ValueError(
+                f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
+            )
+
     def _process_raw_data(self) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         """
         Process the raw data according to dataset type.
@@ -366,35 +441,59 @@ class BrisT1DDataLoader(DatasetBase):
             data.to_csv(self.cached_path, index=True)
 
             return data
-        elif self.dataset_type == "test":  # test data: {pid : {rowid: df }}
+
+        elif self.dataset_type == "test":
             data = clean_brist1d_test_data(self.raw_data)
             processed_data = defaultdict(dict)
 
             # Setup cache dir
             os.makedirs(self.cached_path, exist_ok=True)
 
-            for pid in data:
-                # Make new dir for each patient
-                patient_cache_dir = os.path.join(self.cached_path, pid)
-                os.makedirs(patient_cache_dir, exist_ok=True)
+            # Process each patient in parallel
+            with ProcessPoolExecutor() as executor:
+                # Create a partial function with common arguments
+                process_patient_fn = functools.partial(
+                    self._process_patient_data, base_cache_path=self.cached_path
+                )
 
-                for row_id in data[pid]:
-                    row_df = data[pid][row_id]
-                    row_df = create_datetime_index(row_df)
-                    row_df = ensure_regular_time_intervals(row_df)
-                    row_df = create_cob_and_carb_availability_cols(row_df)
-                    row_df = create_iob_and_ins_availability_cols(row_df)
+                # Map function to all patients and collect results
+                results = executor.map(process_patient_fn, data.items())
 
-                    cache_file = os.path.join(patient_cache_dir, f"{row_id}.csv")
-                    row_df.to_csv(cache_file, index=True)
+                # Merge results into processed_data
+                for pid, patient_data in results:
+                    processed_data[pid] = patient_data
 
-                    processed_data[pid][row_id] = row_df
-
-            return processed_data
+                return processed_data
         else:
             raise ValueError(
                 f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
             )
+
+    def _process_patient_data(self, patient_item, base_cache_path):
+        """Process data for a single patient."""
+        pid, patient_data = patient_item
+        processed_rows = {}
+
+        # Make new dir for each patient
+        patient_cache_dir = os.path.join(base_cache_path, pid)
+        os.makedirs(patient_cache_dir, exist_ok=True)
+
+        for row_id, row_df in patient_data.items():
+            # Apply all transformations at once
+            row_df = (
+                row_df.pipe(create_datetime_index)
+                .pipe(ensure_regular_time_intervals)
+                .pipe(create_cob_and_carb_availability_cols)
+                .pipe(create_iob_and_ins_availability_cols)
+            )
+
+            # Cache processed data
+            cache_file = os.path.join(patient_cache_dir, f"{row_id}.csv")
+            row_df.to_csv(cache_file, index=True)
+
+            processed_rows[row_id] = row_df
+
+        return pid, processed_rows
 
     # TODO: MOVE THIS TO THE time_processing.py improve the name to be more clear what this function does
     # This function is used to split the validation data by day for each patient
