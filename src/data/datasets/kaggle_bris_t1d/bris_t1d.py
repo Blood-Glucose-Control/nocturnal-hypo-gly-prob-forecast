@@ -145,6 +145,7 @@ class BrisT1DDataLoader(DatasetBase):
                 self.processed_data = pd.read_csv(
                     self.cached_path, usecols=self.keep_columns
                 )
+                self.keep_columns = self.processed_data.columns.tolist()
             elif self.dataset_type == "test":
                 self.processed_data = defaultdict(dict)
 
@@ -179,6 +180,7 @@ class BrisT1DDataLoader(DatasetBase):
                 self.train_data, self.validation_data = get_train_validation_split(
                     self.processed_data, num_validation_days=self.num_validation_days
                 )
+                self.num_train_days = len(self.train_data["datetime"].unique())
             else:
                 raise TypeError(
                     f"Expected processed_data to be a DataFrame for train dataset_type, but got {type(self.processed_data)}"

@@ -237,4 +237,10 @@ def get_train_validation_split(
     validation_data = pd.concat(validation_data_list)
     train_data = pd.concat(train_data_list)
 
+    # Check if conversion is needed (concatenation may lose dtype)
+    if not pd.api.types.is_datetime64_any_dtype(validation_data["datetime"]):
+        validation_data["datetime"] = pd.to_datetime(validation_data["datetime"])
+    if not pd.api.types.is_datetime64_any_dtype(train_data["datetime"]):
+        train_data["datetime"] = pd.to_datetime(train_data["datetime"])
+
     return train_data, validation_data
