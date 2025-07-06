@@ -409,11 +409,11 @@ class BrisT1DDataLoader(DatasetBase):
 
     def _process_raw_data(self) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         """
-        Process the raw data according to dataset type.
+        Process the raw data according to dataset type with performance optimizations.
 
         For training data, this applies a series of preprocessing steps to the entire dataset.
-        For test data, it processes each patient and row separately, organizing the result
-        in a nested dictionary structure.
+        For test data, it processes each patient in parallel using a process pool,
+        organizing the result in a nested dictionary structure.
 
         The preprocessing steps include:
         - Cleaning the data
@@ -424,7 +424,8 @@ class BrisT1DDataLoader(DatasetBase):
 
         Returns:
             pd.DataFrame | dict[str, dict[str, pd.DataFrame]]: The processed data.
-            For train data, returns a DataFrame. For test data, returns a nested dict.
+            For train data, returns a DataFrame. For test data, returns a nested dict
+            organized as {patient_id: {row_id: DataFrame}}.
 
         Raises:
             ValueError: If dataset_type is not 'train' or 'test'.
@@ -470,7 +471,29 @@ class BrisT1DDataLoader(DatasetBase):
             )
 
     def _process_patient_data(self, patient_item, base_cache_path):
-        """Process data for a single patient."""
+        """
+        Process data for a single patient in parallel.
+
+        This function is designed to be called by ProcessPoolExecutor to enable
+        parallel processing of patient data. It applies a sequence of transformations
+        to each row of patient data using method chaining for efficiency.
+
+        For each row:
+        1. Creates datetime index
+        2. Ensures regular time intervals
+        3. Calculates COB and carb availability
+        4. Calculates IOB and insulin availability
+        5. Saves the processed row to cache
+
+        Args:
+            patient_item (tuple): A tuple of (patient_id, patient_data_dict) where
+                patient_data_dict is a dictionary mapping row_ids to DataFrames
+            base_cache_path (str): Base directory path for caching processed data
+
+        Returns:
+            tuple: (patient_id, processed_rows_dict) where processed_rows_dict is a
+                dictionary mapping row_ids to processed DataFrames
+        """
         pid, patient_data = patient_item
         processed_rows = {}
 
