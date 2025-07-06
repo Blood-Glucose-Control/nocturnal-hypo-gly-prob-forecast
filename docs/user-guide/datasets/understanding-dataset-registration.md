@@ -1,7 +1,7 @@
 # Understanding Dataset Registration in the Pipeline
 
 > [!WARNING]
-> This article has be produced with heavy assistance from Claude SOnnet 3.7 and has not been thoroughly verified for accuracy!
+> This article has been produced with heavy assistance from Claude Sonnet 3.7 and has not been thoroughly verified for accuracy!
 
 ## What Registration Does
 Registration is a design pattern that centralizes the configuration and access of datasets through a factory function (get_loader). Below is a deeper explanation of why it's valuable:
