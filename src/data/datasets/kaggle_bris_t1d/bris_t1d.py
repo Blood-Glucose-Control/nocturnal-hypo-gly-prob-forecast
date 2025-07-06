@@ -55,6 +55,10 @@ class BrisT1DDataLoader(DatasetBase):
         processed_data (pd.DataFrame | dict): The processed dataset
         train_data (pd.DataFrame): Training subset (when dataset_type is 'train')
         validation_data (pd.DataFrame): Validation subset (when dataset_type is 'train')
+        train_dt_col_type (type): Data type of the datetime column in training data
+        val_dt_col_type (type): Data type of the datetime column in validation data
+        num_train_days (int): Number of unique days in the training dataset
+        raw_data (pd.DataFrame): The original unprocessed dataset loaded from file
     """
 
     def __init__(
@@ -82,10 +86,6 @@ class BrisT1DDataLoader(DatasetBase):
         """
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
-        # TODO: Raw train.csv is quite large. Need to download from kaggle
-        # Set this to the cached path for now as it is already processed
-        # self.default_path = os.path.join(
-        #     os.path.dirname(__file__), f"{dataset_type}.csv"
         self.default_path = os.path.join(
             os.path.dirname(__file__), f"raw/{dataset_type}.csv"
         )
@@ -124,7 +124,7 @@ class BrisT1DDataLoader(DatasetBase):
         # Return all columns
         return pd.read_csv(self.file_path, low_memory=False)
 
-    def load_data(self):
+    def load_data_old(self):
         """
         Load and process the dataset, with caching support.
 
@@ -168,23 +168,169 @@ class BrisT1DDataLoader(DatasetBase):
 
                             row_id = filename.replace(".csv", "")
                             self.processed_data[pid][row_id] = df
+
+                self.train_dt_col_type = None
+                self.val_dt_col_type = None
+                self.num_train_days = None
+                # self.num_validation_days = None
         else:
             # Not using cache or cache does not exist, process raw data and save
             self.raw_data = self.load_raw()
             self.processed_data = self._process_raw_data()
 
+            if self.dataset_type == "train":
+                # Make sure processed_data is a DataFrame before splitting
+                if isinstance(self.processed_data, pd.DataFrame):
+                    # Split data into train and validation
+                    self.train_data, self.validation_data = get_train_validation_split(
+                        self.processed_data,
+                        num_validation_days=self.num_validation_days,
+                    )
+                    self.train_dt_col_type = self.train_data["datetime"].dtype
+                    self.val_dt_col_type = self.validation_data["datetime"].dtype
+
+                    self.num_train_days = len(
+                        self.train_data["datetime"].dt.date.unique()
+                    )
+                else:
+                    raise TypeError(
+                        f"Expected processed_data to be a DataFrame for train dataset_type, but got {type(self.processed_data)}"
+                    )
+
+    def load_data(self):
+        """
+        Load and process the dataset, with caching support.
+
+        This method handles loading the data either from cache or by processing
+        the raw dataset. For train data, it returns a DataFrame and splits it into
+        training and validation sets. For test data, it organizes the data into a
+        nested dictionary by patient ID and row ID.
+
+        If using cached data, it reads from the cache location. Otherwise, it processes
+        the raw data and saves it to cache for future use.
+        """
+        if self.use_cached and os.path.exists(self.cached_path):
+            self._load_from_cache()
+        else:
+            self._process_and_cache_data()
+
+        # For train data, split into train and validation sets
+        if self.dataset_type == "train" and isinstance(
+            self.processed_data, pd.DataFrame
+        ):
+            self._split_train_validation()
+
+    def _load_from_cache(self):
+        """
+        Load processed data from cache based on dataset type.
+
+        This method handles different loading strategies depending on the dataset type:
+        - For train data: Loads the cached CSV file and sets appropriate columns
+        - For test data: Delegates to _load_test_data_from_cache() for handling the
+        nested directory structure, then initializes timing metadata as None/zero
+        since test data doesn't have these concepts
+
+        The method respects the keep_columns attribute to load only specified columns
+        when applicable.
+        """
         if self.dataset_type == "train":
-            # Make sure processed_data is a DataFrame before splitting
-            if isinstance(self.processed_data, pd.DataFrame):
-                # Split data into train and validation
-                self.train_data, self.validation_data = get_train_validation_split(
-                    self.processed_data, num_validation_days=self.num_validation_days
+            self.processed_data = pd.read_csv(
+                self.cached_path, usecols=self.keep_columns
+            )
+            self.keep_columns = self.processed_data.columns.tolist()
+        elif self.dataset_type == "test":
+            self._load_test_data_from_cache()
+
+            # Initialize properties as None for cached test data
+            self.train_dt_col_type = None
+            self.val_dt_col_type = None
+            self.num_train_days = 0
+            self.num_validation_days = 0
+
+    def _load_test_data_from_cache(self):
+        """
+        Load cached test data from directory structure.
+
+        Test data is stored in a nested directory structure where:
+        - The top level contains patient ID directories
+        - Each patient directory contains CSV files named by row_id
+
+        This method traverses this structure and loads each CSV into a nested
+        dictionary organized as {patient_id: {row_id: DataFrame}}. This preserves
+        the hierarchical organization of test data for later processing.
+
+        Raises:
+            NotADirectoryError: If the cache path does not exist or is not a directory,
+                            or if a patient directory is not actually a directory
+        """
+        self.processed_data = defaultdict(dict)
+
+        if not os.path.isdir(self.cached_path):
+            raise NotADirectoryError(
+                f"Cache path '{self.cached_path}' is not a directory."
+            )
+
+        for pid in os.listdir(self.cached_path):
+            patient_dir = os.path.join(self.cached_path, pid)
+            if not os.path.isdir(patient_dir):
+                raise NotADirectoryError(
+                    f"Expected a directory for patient '{pid}', but got something else: {patient_dir}"
                 )
-                self.num_train_days = len(self.train_data["datetime"].unique())
-            else:
-                raise TypeError(
-                    f"Expected processed_data to be a DataFrame for train dataset_type, but got {type(self.processed_data)}"
-                )
+
+            for filename in os.listdir(patient_dir):
+                if filename.endswith(".csv"):
+                    file_path = os.path.join(patient_dir, filename)
+                    df = pd.read_csv(file_path)
+                    row_id = filename.replace(".csv", "")
+                    self.processed_data[pid][row_id] = df
+
+    def _process_and_cache_data(self):
+        """
+        Process raw data and save to cache.
+
+        This method orchestrates the workflow for data that isn't already cached:
+        1. Load the raw data from the source file
+        2. Process the raw data using the appropriate pipeline
+        3. Store the processed data in self.processed_data
+
+        The actual processing is delegated to _process_raw_data(), which handles
+        different processing pipelines for train and test data.
+
+        Note:
+            The processed data is saved to cache within _process_raw_data(), not here.
+        """
+        self.raw_data = self.load_raw()
+        self.processed_data = self._process_raw_data()
+
+    def _split_train_validation(self):
+        """
+        Split processed data into training and validation sets.
+
+        This method is specific to train data and divides the processed dataset
+        into training and validation subsets based on the specified number of
+        validation days. After splitting, it calculates and stores metadata about
+        the resulting datasets:
+
+        - Data types of datetime columns
+        - Number of unique days in the training dataset
+
+        These metadata values are useful for later processing and analysis.
+
+        Raises:
+            TypeError: If processed_data is not a DataFrame, which is required for
+                    the train/validation split operation.
+        """
+        if not isinstance(self.processed_data, pd.DataFrame):
+            raise TypeError(
+                f"Cannot split train/validation data: processed_data must be a DataFrame, but got {type(self.processed_data)}"
+            )
+
+        self.train_data, self.validation_data = get_train_validation_split(
+            self.processed_data, num_validation_days=self.num_validation_days
+        )
+        self.train_dt_col_type = self.train_data["datetime"].dtype
+        self.val_dt_col_type = self.validation_data["datetime"].dtype
+        self.num_train_days = len(self.train_data["datetime"].dt.date.unique())
 
     def _process_raw_data(self) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         """
