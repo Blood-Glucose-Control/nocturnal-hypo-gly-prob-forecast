@@ -55,6 +55,7 @@ cover/
 # Ignore all csv files in the src/data directory
 src/data/datasets/**/train.csv
 src/data/datasets/**/test.csv
+src/data/datasets/**/test_cached
 src/data/datasets/**/sample_submission.csv
 src/data/datasets/**/processed/*
 scripts/notebooks/**/*.csv
