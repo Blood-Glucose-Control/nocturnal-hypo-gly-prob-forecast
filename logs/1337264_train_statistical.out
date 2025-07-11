@@ -1,0 +1,39 @@
+Job ID: 1337264
+Node: watgpu608
+Start time: Thu Jul 10 10:37:56 PM UTC 2025
+CPUs allocated: 4
+Memory allocated: 16384 MB
+Activating virtual environment...
+Python version: Python 3.11.4
+Working directory: /u6/cjrisi/nocturnal
+Using config file: scripts/training/configs/arima_config.yaml
+Training on all available patients
+Starting statistical model training...
+Training StatsForecastAutoARIMA model on kaggle_brisT1D dataset...
+Training on 15 patients...
+Training StatsForecastAutoARIMA model...
+Data loader type: <class 'src.data.datasets.kaggle_bris_t1d.bris_t1d.BrisT1DDataLoader'>
+Data loader attributes: ['__abstractmethods__', '__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__slots__', '__str__', '__subclasshook__', '__weakref__', '_abc_impl', '_get_day_splits', '_load_from_cache', '_load_test_data_from_cache', '_process_and_cache_data', '_process_patient_data', '_process_raw_data', '_process_raw_data_old', '_split_train_validation', '_validate_data', 'cached_path', 'dataset_name', 'dataset_type', 'file_path', 'get_validation_day_splits', 'keep_columns', 'load_data', 'load_data_old', 'load_raw', 'num_train_days', 'num_validation_days', 'processed_data', 'raw_data_path', 'train_data', 'train_dt_col_type', 'use_cached', 'val_dt_col_type', 'validation_data']
+Using processed_data attribute
+Got processed data for datetime: type <class 'pandas.core.series.Series'>
+Got processed data for id: type <class 'pandas.core.series.Series'>
+Got processed data for p_num: type <class 'pandas.core.series.Series'>
+Got processed data for time: type <class 'pandas.core.series.Series'>
+Got processed data for bg-0:00: type <class 'pandas.core.series.Series'>
+Got processed data for insulin-0:00: type <class 'pandas.core.series.Series'>
+Got processed data for carbs-0:00: type <class 'pandas.core.series.Series'>
+Got processed data for hr-0:00: type <class 'pandas.core.series.Series'>
+Got processed data for steps-0:00: type <class 'pandas.core.series.Series'>
+Got processed data for cals-0:00: type <class 'pandas.core.series.Series'>
+Got processed data for activity-0:00: type <class 'pandas.core.series.Series'>
+Got processed data for cob: type <class 'pandas.core.series.Series'>
+Got processed data for carb_availability: type <class 'pandas.core.series.Series'>
+Got processed data for insulin_availability: type <class 'pandas.core.series.Series'>
+Got processed data for iob: type <class 'pandas.core.series.Series'>
+Training data type: <class 'pandas.core.series.Series'>
+Training data shape: (2728080,)
+Using Series data directly: 2728080 data points
+Training on 2728080 data points...
+Error during training: Forecasters do not support categorical features in endogeneous y.
+Error during training: Forecasters do not support categorical features in endogeneous y.
+Training failed with exit code: 1

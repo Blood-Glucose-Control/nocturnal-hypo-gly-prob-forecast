@@ -3,6 +3,20 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Training artifacts - selective logging and model binaries
+logs/*.err
+logs/*_train_statistical.err
+# Keep successful logs: *.out files will be tracked
+
+# Model pickle files (large binaries) but keep configs and metadata
+models/**/model.pkl
+models/**/*.pickle
+models/**/*.joblib
+
+# Keep configs and metadata for reproducibility:
+!models/**/config*.yaml
+!models/**/metadata.json
+
 # C extensions
 *.so
 

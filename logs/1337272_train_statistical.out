@@ -1,0 +1,21 @@
+Job ID: 1337272
+Node: watgpu608
+Start time: Fri Jul 11 12:14:23 AM UTC 2025
+CPUs allocated: 4
+Memory allocated: 16384 MB
+Activating virtual environment...
+Python version: Python 3.11.4
+Working directory: /u6/cjrisi/nocturnal
+Using config file: scripts/training/configs/arima_config.yaml
+Training on all available patients
+Starting statistical model training...
+Training StatsForecastAutoARIMA model on kaggle_brisT1D dataset...
+Training on 15 patients...
+Training StatsForecastAutoARIMA model...
+Training data type: <class 'pandas.core.series.Series'>
+Training data shape: (2728080,)
+Using Series data directly: 2728080 data points
+Training on 2728080 data points...
+Error during training: Forecasters do not support categorical features in endogeneous y.
+Error during training: Forecasters do not support categorical features in endogeneous y.
+Training failed with exit code: 1

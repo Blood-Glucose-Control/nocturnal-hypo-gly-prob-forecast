@@ -1,0 +1,39 @@
+# AutoARIMA Training Configuration
+# Automatically selects the best ARIMA parameters
+
+# Model configuration
+model_type: "statistical"
+model_name: "AutoARIMA"
+
+# Dataset configuration
+dataset_name: "kaggle_brisT1D"
+
+# Data loading configuration
+data_config:
+  use_cached: true  # Use cached data to avoid heavy processing
+  dataset_type: "train"
+  keep_columns: null  # Use all columns
+  num_validation_days: 20
+
+# Training configuration
+epochs: 1
+checkpoint_frequency: 1
+
+# Output directories
+output_dir: "models"
+results_dir: "results"
+
+# Hardware configuration
+use_gpu: false
+slurm_job: false
+
+# AutoARIMA specific parameters
+model_params:
+  start_p: 0
+  start_q: 0
+  max_p: 3
+  max_q: 3
+  seasonal: false
+  stepwise: true
+  suppress_warnings: true
+  error_action: 'ignore'

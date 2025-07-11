@@ -1,0 +1,36 @@
+Job ID: 1337266
+Node: watgpu608
+Start time: Thu Jul 10 10:41:41 PM UTC 2025
+CPUs allocated: 4
+Memory allocated: 16384 MB
+Activating virtual environment...
+Python version: Python 3.11.4
+Working directory: /u6/cjrisi/nocturnal
+Using config file: scripts/training/configs/arima_config.yaml
+Training on all available patients
+Starting statistical model training...
+Training StatsForecastAutoARIMA model on kaggle_brisT1D dataset...
+Found 9 unique patients: ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p10', 'p11', 'p12']
+Training on 9 patients...
+Training StatsForecastAutoARIMA model...
+Data loader type: <class 'src.data.datasets.kaggle_bris_t1d.bris_t1d.BrisT1DDataLoader'>
+Using train_data attribute
+Full data shape: (140160, 15)
+Full data columns: ['datetime', 'id', 'p_num', 'time', 'bg-0:00', 'insulin-0:00', 'carbs-0:00', 'hr-0:00', 'steps-0:00', 'cals-0:00', 'activity-0:00', 'cob', 'carb_availability', 'insulin_availability', 'iob']
+Filtered data for patients ['p01', 'p02', 'p03', 'p04', 'p05', 'p06', 'p10', 'p11', 'p12']: (140160, 15)
+Training data type: <class 'pandas.core.frame.DataFrame'>
+Training data shape: (140160, 15)
+Available columns: ['datetime', 'id', 'p_num', 'time', 'bg-0:00', 'insulin-0:00', 'carbs-0:00', 'hr-0:00', 'steps-0:00', 'cals-0:00', 'activity-0:00', 'cob', 'carb_availability', 'insulin_availability', 'iob']
+Data head:
+             datetime     id  ... insulin_availability       iob
+0 2025-01-01 06:10:00  p01_0  ...             0.000000  0.402800
+1 2025-01-01 06:25:00  p01_1  ...             0.003428  0.872082
+2 2025-01-01 06:40:00  p01_2  ...             0.012039  1.385682
+3 2025-01-01 06:55:00  p01_3  ...             0.024747  1.838095
+4 2025-01-01 07:10:00  p01_4  ...             0.040416  2.203691
+
+[5 rows x 15 columns]
+Training on 140160 data points...
+Error during training: StatsForecastAutoARIMA cannot handle missing data (nans), but y passed contained missing data.
+Error during training: StatsForecastAutoARIMA cannot handle missing data (nans), but y passed contained missing data.
+Training failed with exit code: 1

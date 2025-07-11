@@ -1,0 +1,16 @@
+Job ID: 1337236
+Node: watgpu608
+Start time: Thu Jul 10 10:14:22 PM UTC 2025
+CPUs allocated: 4
+Memory allocated: 16384 MB
+Activating virtual environment...
+Python version: Python 3.11.4
+Working directory: /u6/cjrisi/nocturnal
+Using config file: scripts/training/configs/arima_config.yaml
+Training on all available patients
+Starting statistical model training...
+Training ARIMA model on kaggle_brisT1D dataset...
+Training on 15 patients...
+Training ARIMA model...
+Error during training: ARIMA requires package 'numpy<2' to be present in the python environment, with versions as specified, but incompatible version numpy 2.3.1 was found. This version requirement is not one by sktime, but specific to the module, class or object with name ARIMA(order=[1, 1, 1]).
+Training failed with exit code: 1

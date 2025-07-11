@@ -1,0 +1,24 @@
+{
+  "model_type": "statistical",
+  "model_name": "StatsForecastAutoARIMA",
+  "dataset_name": "kaggle_brisT1D",
+  "training_date": "2025-07-10T22:42:43.840614",
+  "epochs": 1,
+  "config_file": "scripts/training/configs/arima_config.yaml",
+  "training_samples": 122850,
+  "patient_ids": [
+    "p01",
+    "p02",
+    "p03",
+    "p04",
+    "p05",
+    "p06",
+    "p10",
+    "p11",
+    "p12"
+  ],
+  "in_sample_mse": NaN,
+  "in_sample_mae": NaN,
+  "model_params": {},
+  "training_complete": true
+}

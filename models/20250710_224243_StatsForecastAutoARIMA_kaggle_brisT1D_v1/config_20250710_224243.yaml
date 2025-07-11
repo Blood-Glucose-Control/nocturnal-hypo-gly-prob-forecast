@@ -1,0 +1,35 @@
+# Statistical Models Training Configuration
+# This config is for training ARIMA and other statistical forecasting models
+
+# Model configuration
+model_type: "statistical"
+model_name: "StatsForecastAutoARIMA"  # Using numpy 2.x compatible ARIMA
+# Options: StatsForecastAutoARIMA, STLForecaster, NaiveForecaster
+# Note: Standard ARIMA requires numpy<2, so we use StatsForecast version
+
+# Dataset configuration
+dataset_name: "kaggle_brisT1D"  # Options: kaggle_brisT1D, gluroo
+
+# Data loading configuration
+data_config:
+  use_cached: true  # Use cached data to avoid heavy processing
+  dataset_type: "train"
+  keep_columns: null  # Use all columns
+  num_validation_days: 20
+
+# Training configuration
+epochs: 1  # Not used for statistical models, but required for API consistency
+checkpoint_frequency: 1  # Save checkpoint every N epochs (not applicable for statistical models)
+
+# Output directories
+output_dir: "models"
+results_dir: "results"
+
+# Hardware configuration
+use_gpu: false  # Statistical models don't use GPU
+slurm_job: false
+
+# Model-specific parameters (optional)
+model_params:
+  # StatsForecastAutoARIMA parameters - start with defaults
+  # season_length: 12  # Uncomment if you have seasonal data

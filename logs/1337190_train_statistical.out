@@ -1,0 +1,12 @@
+Job ID: 1337190
+Node: watgpu608
+Start time: Thu Jul 10 09:58:51 PM UTC 2025
+CPUs allocated: 4
+Memory allocated: 16384 MB
+Activating virtual environment...
+Python version: Python 3.11.4
+Working directory: /u6/cjrisi/nocturnal
+Using config file: scripts/training/configs/arima_config.yaml
+Training on specific patients: patient_001
+Starting statistical model training...
+Training failed with exit code: 1
