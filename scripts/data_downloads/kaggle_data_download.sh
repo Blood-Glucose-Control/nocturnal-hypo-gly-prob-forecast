@@ -9,7 +9,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Define the target directory relative to the script's location
-TARGET_DIR="$SCRIPT_DIR/../../src/data/kaggle_brisT1D"
+TARGET_DIR="$SCRIPT_DIR/../../src/data/datasets/kaggle_bris_t1d/raw"
 
 # Create the target directory if it doesn't exist
 mkdir -p $TARGET_DIR

@@ -1,0 +1,78 @@
+{
+    "timestamp": "2025-05-13_05-11-36",
+    "yaml_path": "./src/tuning/configs/1_arma_05min.yaml",
+    "interval": "",
+    "patient_numbers": [],
+    "scorers": [
+        "MeanSquaredError"
+    ],
+    "cv_type": "ExpandingWindowSplitter",
+    "models_count": [
+        {
+            "AutoARIMA": 1
+        }
+    ],
+    "impute_methods": {
+        "bg_method": "linear",
+        "hr_method": "linear",
+        "step_method": "constant",
+        "cal_method": "constant"
+    },
+    "time_taken": 907.1643462181091,
+    "x_features": [
+        "cob",
+        "carb_availability",
+        "insulin_availability",
+        "iob"
+    ],
+    "y_features": [
+        "bg-0:00"
+    ],
+    "initial_window": 864,
+    "step_length": 1728,
+    "steps_per_hour": 12,
+    "hours_to_forecast": 6,
+    "validation_days": 20,
+    "data_source_name": "gluroo",
+    "description": "No description is provided for this run",
+    "yaml_content": {
+        "AutoARIMA": {
+            "start_p": {
+                "type": "list",
+                "values": [
+                    2
+                ]
+            },
+            "max_p": {
+                "type": "list",
+                "values": [
+                    216
+                ]
+            },
+            "start_q": {
+                "type": "list",
+                "values": [
+                    2
+                ]
+            },
+            "max_q": {
+                "type": "list",
+                "values": [
+                    216
+                ]
+            },
+            "seasonal": {
+                "type": "list",
+                "values": [
+                    false
+                ]
+            },
+            "n_jobs": {
+                "type": "list",
+                "values": [
+                    -1
+                ]
+            }
+        }
+    }
+}

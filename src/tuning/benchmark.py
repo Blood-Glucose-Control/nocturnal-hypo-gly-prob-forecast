@@ -3,7 +3,6 @@ import time
 from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.forecasting.compose import FallbackForecaster
-from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
 from sktime.performance_metrics.forecasting import MeanSquaredError
 from sktime.split import ExpandingSlidingWindowSplitter, ExpandingWindowSplitter
 from sktime.split.base import BaseWindowSplitter
@@ -12,8 +11,9 @@ import pandas as pd
 import numpy as np
 import os
 import json
-from src.data.data_loader import load_data, get_train_validation_split
-
+from src.data.datasets.data_loader import get_loader
+from src.data.preprocessing.time_processing import get_train_validation_split
+from src.data.preprocessing.signal_processing import apply_moving_average
 from src.tuning.param_grid import generate_param_grid
 from src.utils.config_loader import load_yaml_config
 from src.tuning.load_estimators import (
@@ -25,6 +25,8 @@ from src.tuning.load_estimators import (
 
 forecasters = load_all_forecasters()
 regressors = load_all_regressors()
+
+# TODO:Time is a column from Kaggle dataset. Might need to use datetime instead which is the index we will be using for all datasets
 
 # Global variables
 run_config = {
@@ -46,18 +48,19 @@ run_config = {
 }
 
 
-def parse_output(
-    current_time, yaml_name, raw_output_dir, processed_output_dir, scorers
-) -> pd.DataFrame:
+def parse_output(yaml_name, processed_dir, raw_output_dir, scorers) -> pd.DataFrame:
     """Get the results from the raw output directory, filter out the fold columns, and save the processed results.
+       Default save results to results/processed/{timestamp}/{scorer_name}/{interval}/{model_name}.csv
 
     Args:
-        processed_output_dir (str): Path to save the processed results CSV
+        yaml_name (str): Name of the YAML file used for the run
+        processed_dir (str): Path to save the processed results CSV
         raw_output_dir (str): Path to the raw results CSV file
 
     Returns:
         pd.DataFrame: Processed results dataframe with fold columns removed
     """
+    os.makedirs(processed_dir, exist_ok=True)
     results_df = pd.read_csv(raw_output_dir)
 
     model_name = yaml_name.split("_")[1]
@@ -65,9 +68,8 @@ def parse_output(
     # Drop columns containing 'fold'
     results_df = results_df.loc[:, ~results_df.columns.str.contains("fold")]
     for scorer in scorers:
-        # Save results to {processed_output_dir}/{scorer_name}/{interval}/{model_name}.csv
         scorer_dir = os.path.join(
-            processed_output_dir,
+            processed_dir,
             (scorer.__class__.__name__).lower(),
             model_name,
             interval,
@@ -78,9 +80,7 @@ def parse_output(
             col for col in results_df.columns if scorer.__class__.__name__ in col
         ]
         score_df = results_df[keep_cols]
-        score_df.to_csv(
-            os.path.join(scorer_dir, f"{current_time}_{model_name}.csv"), index=False
-        )
+        score_df.to_csv(os.path.join(scorer_dir, f"{model_name}.csv"), index=False)
 
     return results_df
 
@@ -124,7 +124,7 @@ def impute_missing_values(
             elif "step" in col.lower():
                 # Use constant imputation with 0 for steps
                 transform = Imputer(method=step_method, value=0)
-            elif "cal" in col.lower():
+            elif "cals" in col.lower():
                 # Use constant imputation with minimum value for calories
                 min_val = df[col].min()
                 transform = Imputer(method=cal_method, value=min_val)
@@ -133,6 +133,50 @@ def impute_missing_values(
                 df_imputed[col] = transform.fit_transform(df[col].to_frame())
 
     return df_imputed
+
+
+def smooth_bgl_data(
+    df,
+    bgl_column="bg-0:00",
+    normalization_technique="moving_average",
+    normalization_params={},
+):
+    """
+    Normalizes ("smooths") the BGL data using one of the normalization techniques implemented (see below)
+
+    Args:
+        df: the dataframe consisting of all patients' data
+        bgl_column: the column name where the blood glucose levels are
+        normalization_technique: the normalization technique used.
+            Possible inputs are: Not implemented yet: 'wavelet_transform' (performs wavelet transform to smooth the data)
+                                 'exponential_smoothing' (performs exponential smoothing)
+                                 'moving_average' (applies a moving average)
+        normalization_params: dictionary of params to use for the normalization technique (keys are param names, values are the param values). Here are params based on the technique:
+            1. Not implemented yet: wavelet_transform:
+                - wavelet: the wavelet used. See pywt docs. Default is "sym16"
+                - wavelet_window: the number of timesteps to use for the wavelet transform. Default is 288 (36 hours in 15 min intervals)
+            2. moving_average:
+                - moving_avg_window: the number of timesteps to use for the moving average. Default is 10
+    """
+    # TODO: Refactor this function to use the WaveletTransform class
+    # if normalization_technique == "wavelet_transform":
+    #     wavelet_to_use = normalization_params.get("wavelet", "sym16")
+    #     wavelet_window = normalization_params.get(
+    #         "wavelet_window", 288
+    #     )  # 288 corresponds to 36 hours in 15 min intervals
+    #     result_df = apply_wavelet_transform(
+    #         df,
+    #         wavelet=wavelet_to_use,
+    #         wavelet_window=wavelet_window,
+    #         patient_identifying_col="p_num",
+    #     )
+    #     return result_df
+    if normalization_technique == "moving_average":
+        window_size = normalization_params.get("moving_avg_window", 10)
+        result_df = apply_moving_average(df, window_size=window_size, bg_col=bgl_column)
+        return result_df
+    else:
+        raise ValueError(f"{normalization_technique} not implemented yet!")
 
 
 def load_diabetes_data(patient_id, df=None, y_feature=None, x_features=[]):
@@ -182,19 +226,26 @@ def get_patient_ids(df, is_5min, n_patients=-1):
         if time_diff == expected_interval:
             selected_patients.append(patient_id)
 
-    n_patients = min(n_patients, len(selected_patients))
+    # Handle cases where -1 is used
+    if n_patients < 0:
+        final_patients = selected_patients
+        n_patients = len(selected_patients)  # For print statement
+    else:
+        n_patients = min(n_patients, len(selected_patients))
+        final_patients = selected_patients[:n_patients]
+
     interval = "5-min" if is_5min else "15-min"
 
-    print(
-        f"Loading {n_patients} patients with {interval} interval: {selected_patients[:n_patients]}"
-    )
+    print(f"Loading {n_patients} patients with {interval} interval: {final_patients}")
     run_config["interval"] = interval
-    run_config["patient_numbers"] = selected_patients[:n_patients]
+    run_config["patient_numbers"] = final_patients
 
-    return selected_patients[:n_patients]
+    return final_patients
 
 
 def get_dataset_loaders(
+    data_source_name,
+    validation_days,
     x_features,
     y_feature,
     bg_method="linear",
@@ -207,8 +258,9 @@ def get_dataset_loaders(
     """Create the dataset, impute the x_features and y_feature, and create dataset loader functions for each patient.
 
     Args:
+        data_source_name (str, optional): Name of the data source. Defaults to "kaggle_brisT1D".
         x_features (list): List of feature column names to use as predictors.
-        y_feature (str): Name of the target variable column to predict. (bg-0:00)
+        y_feature (list): Name of the target variable column to predict. (bg-0:00)
         bg_method (str, optional): Imputation method for blood glucose data.
             Valid values: 'linear', 'nearest'. Defaults to "linear".
         hr_method (str, optional): Imputation method for heart rate data.
@@ -225,8 +277,10 @@ def get_dataset_loaders(
         dict[str, Callable]: Dictionary of dataset loader functions, one for each patient.
     """
     # Load and clean data
-    df = load_data(use_cached=True)
-    df, _ = get_train_validation_split(df)
+    loader = get_loader(data_source_name=data_source_name, use_cached=True)
+    df = loader.processed_data
+    # TODO: It is default of 20 days. Might need to change that
+    df, _ = get_train_validation_split(df, num_validation_days=validation_days)
 
     # TODO: Impute Missing values for each columns
     df = impute_missing_values(df, columns=x_features, bg_method=bg_method)
@@ -237,12 +291,19 @@ def get_dataset_loaders(
         step_method=step_method,
         cal_method=cal_method,
     )
+    # smooth the data
+    df = smooth_bgl_data(
+        df=df,
+        bgl_column="bg-0:00",
+        normalization_technique="moving_average",
+    )
 
     if n_patients == -1:
         n_patients = len(df["p_num"].unique())
 
     # Create dataset loaders for each patient
     patient_ids = get_patient_ids(df, is_5min, n_patients)
+    # patient_ids = df["p_num"].unique() // TODO: Probably need this for gluroot to work
 
     # Create dictionary of dataset loaders mapping patient_id to dataset loader function so we can get the correct patient_id in the benchmark
     dataset_loaders = {}
@@ -271,17 +332,19 @@ def get_cv_splitter(
             - Forecast horizon of steps_per_hour * hours_to_forecast
     """
 
+    to = steps_per_hour * hours_to_forecast + 1
+
     if cv_type == "expanding":
         cv_splitter = ExpandingWindowSplitter(
             initial_window=initial_window,
             step_length=step_length,
-            fh=np.arange(1, steps_per_hour * hours_to_forecast + 1),
+            fh=np.arange(1, to),
         )
     elif cv_type == "expanding_sliding":
         cv_splitter = ExpandingSlidingWindowSplitter(
             initial_window=initial_window,
             step_length=step_length,
-            fh=np.arange(1, steps_per_hour * hours_to_forecast + 1),
+            fh=np.arange(1, to),
         )
 
     else:
@@ -376,6 +439,7 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
 
     # Generate all estimators
     estimators = generate_estimators_from_param_grid(yaml_path)
+
     for estimator, estimator_id in estimators:
         benchmark.add_estimator(estimator=estimator, estimator_id=estimator_id)
 
@@ -390,15 +454,19 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
     return benchmark
 
 
-def save_config(run_config, config_dir, timestamp):
+def save_config(yaml_name, run_config, processed_dir):
     """Saves the run config to a JSON file."""
-    with open(f"{config_dir}/{timestamp}_run_config.json", "w") as f:
+    config_dir = os.path.join(processed_dir, "configs")
+    os.makedirs(config_dir, exist_ok=True)
+    with open(f"{config_dir}/{yaml_name}_run_config.json", "w") as f:
         json.dump(run_config, f, indent=4)
 
 
 def save_init_config(
     current_time: str,
+    validation_days: int,
     yaml_path: str,
+    data_source_name: str,
     x_features: list[str],
     y_features: list[str],
     bg_method: str,
@@ -408,7 +476,9 @@ def save_init_config(
     description: str,
 ) -> None:
     run_config["timestamp"] = current_time
+    run_config["validation_days"] = validation_days
     run_config["yaml_path"] = yaml_path
+    run_config["data_source_name"] = data_source_name
     run_config["x_features"] = x_features
     run_config["y_features"] = y_features
     run_config["impute_methods"] = {
@@ -421,25 +491,26 @@ def save_init_config(
 
 
 def run_benchmark(
+    data_source_name="kaggle_brisT1D",
     y_features=["bg-0:00"],
     x_features=["iob", "cob"],
     cv_type="expanding",
+    validation_days=20,
     initial_cv_window=12 * 24 * 3,
     cv_step_length=12 * 24 * 3,
     steps_per_hour=12,
     hours_to_forecast=6,
-    yaml_path="./src/tuning/configs/old/modset1.yaml",
+    yaml_path="./src/tuning/configs/0_naive_05min.yaml",
     bg_method="linear",
     hr_method="linear",
     step_method="constant",
     cal_method="constant",
-    processed_dir="./results/processed",
-    raw_dir="./results/raw",
-    config_dir="./results/configs",
+    results_dir="./results",
     cores_num=-1,
     is_5min=True,
     n_patients=-1,
     description="No description is provided for this run",
+    timestamp="",
 ) -> None:
     """
     Run benchmarking experiments for diabetes forecasting models. Constants columns will not work with some forecasting models.
@@ -457,26 +528,33 @@ def run_benchmark(
         step_method (str, optional): Imputation method for steps. Defaults to "constant".
         cal_method (str, optional): Imputation method for calories. Defaults to "constant".
 
-        processed_dir (str, optional): Directory for processed results. Defaults to "./results/processed".
-        raw_dir (str, optional): Directory for raw results. Defaults to "./results/raw".
+        results_dir (str, optional): Directory for the results. Defaults to "./results".
 
         cores_num (int, optional): Number of CPU cores to use (-1 for all). Defaults to -1.
         is_5min (bool, optional): Whether the data is 5 minutes apart. Defaults to True.
         n_patients (int, optional): Number of patients to include from the given interval patients (-1 for all). Defaults to -1.
+
+        description (str, optional): Description of the run. Defaults to "No description is provided for this run".
+        timestamp (str, optional): Timestamp of the run. This will also be the name of the run. Defaults to "".
 
     The function:
     1. Loads and preprocesses patient datasets with specified imputation methods
     2. Configures cross-validation and scoring metrics
     3. Generates model configurations from YAML file
     4. Runs benchmarking experiments in parallel
-    5. Saves raw and processed results to specified directories
+    5. Saves config of the run, raw and processed results to specified directories
     """
-    current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
+    if timestamp == "":
+        current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
+    else:
+        current_time = timestamp
     yaml_name = yaml_path.split("/")[-1].replace(".yaml", "")
-    raw_output_dir = f"{raw_dir}/{current_time}_{yaml_name}.csv"
+    raw_output_dir = f"{results_dir}/raw/{current_time}_{yaml_name}.csv"
+    processed_dir = f"{results_dir}/processed/{current_time}"
 
     save_init_config(
         current_time=current_time,
+        validation_days=validation_days,
         yaml_path=yaml_path,
         x_features=x_features,
         y_features=y_features,
@@ -485,10 +563,13 @@ def run_benchmark(
         step_method=step_method,
         cal_method=cal_method,
         description=description,
+        data_source_name=data_source_name,
     )
 
     # Get dataset loaders with imputed missing values
     dataset_loaders = get_dataset_loaders(
+        data_source_name=data_source_name,
+        validation_days=validation_days,
         x_features=x_features,
         y_feature=y_features,
         bg_method=bg_method,
@@ -500,7 +581,10 @@ def run_benchmark(
     )
 
     # ADD THE SCORERS HERE
-    scorers = [PinballLoss(), MeanSquaredError(square_root=True)]
+    scorers = [
+        # PinballLoss(),
+        MeanSquaredError(square_root=True),
+    ]
     run_config["scorers"] = [scorer.__class__.__name__ for scorer in scorers]
 
     # Get the cross-validation splitter
@@ -521,10 +605,9 @@ def run_benchmark(
         cores_num=cores_num,
     )
 
-    # Run the benchmark with timer
+    # Run the benchmark with timer!
     start_time = time.time()
     print(json.dumps(run_config, indent=4))
-
     try:
         benchmark.run(raw_output_dir)
     except Exception as e:
@@ -532,10 +615,19 @@ def run_benchmark(
         print(f"Error: {e}")
         print(f"Benchmark failed after {time.time() - start_time:.2f} seconds")
         return
-
     end_time = time.time()
     run_config["time_taken"] = end_time - start_time
-    save_config(run_config, config_dir, current_time)
+
+    save_config(
+        yaml_name=yaml_name,
+        run_config=run_config,
+        processed_dir=processed_dir,
+    )
 
     # Process the results
-    parse_output(current_time, yaml_name, raw_output_dir, processed_dir, scorers)
+    parse_output(
+        yaml_name=yaml_name,
+        processed_dir=processed_dir,
+        raw_output_dir=raw_output_dir,
+        scorers=scorers,
+    )

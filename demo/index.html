@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forecasting Nocturnal Hypoglycemia</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Titillium+Web:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Probabilistic Forecasting of Nocturnal Hypoglycemia</h1>
+
+        <div class="authors">
+            <div class="author">
+                <a href="https://github.com/RobotPsychologist" class="author-name">Christopher Risi</a>
+            </div>
+            <div class="author">
+                <a href="https://www.linkedin.com/in/tony-chan-a871a1254/" class="author-name">Tony Chan</a>
+            </div>
+            <div class="author">
+                <a href="https://www.linkedin.com/in/shivamj07/" class="author-name">Shivam Jindal</a>
+            </div>
+            <div class="author">
+                <a href="https://www.linkedin.com/in/alyssa-dsouza/" class="author-name">Alyssa D'Souza</a>
+            </div>
+            <div class="author">
+                <a href="https://www.linkedin.com/in/gavin-katz-89990321b/" class="author-name">Gavin Katz</a>
+            </div>
+            <div class="author">
+                <a href="https://www.linkedin.com/in/vilohith-rao-966295213/" class="author-name">Vilohith Rao</a>
+            </div>
+            <div class="author">
+                <a href="https://www.linkedin.com/in/julia-liya-zhu/" class="author-name">Julia Zhu</a>
+            </div>
+            <div class="author">
+                <a href="https://www.linkedin.com/in/cristianofdasilva/" class="author-name">Christiano Da Silva</a>
+            </div>
+
+        </div>
+
+        <div class="affiliations">
+            <p><a href="https://cs.uwaterloo.ca/">University of Waterloo</a> &nbsp;&nbsp;&&nbsp;&nbsp;
+                <a href="https://watai.ca/">WAT.ai</a> &nbsp;&nbsp;&&nbsp;&nbsp;
+                <a href="https://gluroo.com/">Gluroo</a> &nbsp;&nbsp;&&nbsp;&nbsp;
+                <a href="skTime.org">skTime</a>
+            </p>
+        </div>
+
+        <div class="images">
+            <div class="image-container">
+                <!-- <img src="placeholder1.png" alt="Left diagram" class="diagram">
+                <img src="placeholder2.png" alt="Right diagram" class="diagram"> -->
+                <img src="bgl-logo.png">
+            </div>
+        </div>
+
+        <div class="Overview">
+            <p>Fear of nocturnal hypoglycemic events continues to be one of the most significant contributors to
+                diabetes distress. Developing improved nocturnal hypoglycemic forecasting techniques would likely
+                improve diabetes distress <a href="https://doi.org/10.1177/19322968241267886">(D. Ehrmann et al.,
+                    2024)</a>, but even short 2-hour blood glucose level (BGL) forecasting remains challenging <a
+                    href="https://doi.org/10.1038/s41598-024-70277-x">(H. Nemat et al., 2024)</a>. Forecasting BGL over
+                an 8-hour time window does not seem feasible with SOTA techniques, likely due to the limited scale of
+                most BGL time series
+                datasets. The most popular open-source T1D dataset, OhioT1DM, only contains 12 patients over eight weeks
+                <a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC7881904/">(C. Marling, 2020)</a>. Our student
+                volunteer-based WAT.ai Blood Glucose Control Design Team, in partnership
+                with <a href="https://gluroo.com/">Gluroo</a>", aims to reframe the forecasting problem into a big data
+                probabilistic forecasting problem.
+                <br>
+                <br>
+                Probabilistic forecasting is about producing low and high scenarios, quantifying their uncertainty, and
+                delivering expected ranges of variation <a
+                    href="https://www.annualreviews.org/content/journals/10.1146/annurev-statistics-062713-085831">(T.
+                    Gneiting et al., 2014)</a>.
+                Our view is that this framing is more technically feasible yet will be just as valuable in alleviating
+                diabetes
+                distress related to fears of nocturnal hypoglycemic events.
+            </p>
+        </div>
+
+        <hr>
+
+        <!-- Source Code section -->
+        <!-- <div class="source-code-section">
+            <h2><a href="https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast" class="https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast">Source Code</a>
+
+        </div>
+
+        <hr> -->
+
+        <!-- Methods -->
+        <div class="benchmarks-section">
+            <h2>Our Methods</h2>
+            <p>
+                We are currently working with the open source <a
+                    href="https://www.kaggle.com/competitions/brist1d/data">Kaggle BrisT1D dataset</a> and are in the
+                process of scaling
+                this to thousands of de-identified patients (dataset provided by <a
+                    href="https://gluroo.com/">Gluroo</a>).
+                We evaluated over 20,000 model configurations (eg: ARIMA, ARCH, Exponential Smoothing, and more) using
+                the <a href="https://www.sktime.net/en/latest/get_started.html">sktime</a> library.
+                We utilized feature engineering techniques to simulate insulin-on-board (IOB) and carbohydrates-on-board
+                (COB) using differential equations (ODE). <br>
+                <br>
+                The source code can be found in the following url: <a
+                    href="https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast"
+                    class="https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast">Source code</a>
+            </p>
+        </div>
+
+        <hr>
+        <!-- Benchmarks section -->
+        <div class="benchmarks-section">
+            <h2>Results on Kaggle's <a href="https://www.kaggle.com/competitions/brist1d/data">BRIST1D Dataset</a></h2>
+            <p>
+                We evaluate various models on Kaggle's BrisT1D dataset. Based on preliminary results, foundational
+                models (eg: TTM, Chonos Forecaster) outperform classical ML models (ARIMA, ARCH) with point forecast.
+                Classical models show undesirable mean reversion, highlighting the pitfalls of RMSE optimization.
+                Advanced models accurately capture spikes / drops in glucose levels.
+            </p>
+            <div class="benchmark-grid">
+                <div class="benchmark-item">
+                    <img src="image/ARIMA-ProbForecast.svg" alt="Ant benchmark" class="benchmark-graph">
+                    <!-- <p class="graph-label">Ant</p> -->
+                </div>
+                <div class="benchmark-item">
+                    <img src="image/ChronosForecaster-Base.svg" alt="Ant benchmark" class="benchmark-graph">
+                    <!-- <p class="graph-label">Ant</p> -->
+                </div>
+                <div class="benchmark-item">
+                    <img src="image/TTM-FineTuned.svg" alt="Ant benchmark" class="benchmark-graph">
+                    <!-- <p class="graph-label">Ant</p> -->
+                </div>
+            </div>
+
+
+            <p>The table below summarizes model performance using RMSE. However, RMSE optimization can lead to common
+                pitfalls (eg: constant predicts can outperform regressive models when using RMSE). We separate model
+                performance by each patient, as we various individual factors influence blood glucose levels</p>
+
+
+            <div class="benchmark-grid-big">
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th colspan="1" class="model-family">model_family</th>
+                            <th colspan="1" class="model-family">arch</th>
+                            <th colspan="2" class="model-family">arma</th>
+                            <th colspan="4" class="model-family">exponential-smooth</th>
+                            <th colspan="3" class="model-family">foundation</th>
+                            <th colspan="1" class="model-family">naive</th>
+                        </tr>
+                        <tr>
+                            <th colspan="1">time_delta</th>
+                            <th>model_type</th>
+                            <th>ARCH</th>
+                            <th>AutoARIMA</th>
+                            <th>VarReduce</th>
+                            <th>AutoST3</th>
+                            <th>StateForecastAutoCES</th>
+                            <th>StateForecastAutoETS</th>
+                            <th>StateForecastAutoTheta</th>
+                            <th>ChronosForecaster</th>
+                            <th>HFTransformerForecaster</th>
+                            <th>ZeroShotTinyTimeMixerForecaster</th>
+                            <th>NaiveForecaster</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td rowspan="6">5min</td>
+                            <td>p02</td>
+                            <td>2.195</td>
+                            <td class="highlight">1.941</td>
+                            <td>2.012</td>
+                            <td>3.621</td>
+                            <td>2.934</td>
+                            <td>3.043</td>
+                            <td>3.042</td>
+                            <td>2.211</td>
+                            <td>2.866</td>
+                            <td>2.122</td>
+                            <td>2.356</td>
+                        </tr>
+                        <tr>
+                            <td>p03</td>
+                            <td class="highlight">2.321</td>
+                            <td>2.528</td>
+                            <td>2.550</td>
+                            <td>3.480</td>
+                            <td>3.647</td>
+                            <td>3.448</td>
+                            <td>3.448</td>
+                            <td>2.944</td>
+                            <td>2.807</td>
+                            <td>3.213</td>
+                            <td>2.797</td>
+                        </tr>
+                        <tr>
+                            <td>p04</td>
+                            <td class="highlight">1.568</td>
+                            <td>1.861</td>
+                            <td>1.679</td>
+                            <td>2.314</td>
+                            <td>2.177</td>
+                            <td>2.239</td>
+                            <td>2.239</td>
+                            <td>1.839</td>
+                            <td>2.503</td>
+                            <td>1.840</td>
+                            <td>1.801</td>
+                        </tr>
+                        <tr>
+                            <td>p10</td>
+                            <td>1.392</td>
+                            <td>1.350</td>
+                            <td class="highlight">1.319</td>
+                            <td>1.974</td>
+                            <td>1.783</td>
+                            <td>1.734</td>
+                            <td>1.734</td>
+                            <td>1.435</td>
+                            <td>1.554</td>
+                            <td>1.479</td>
+                            <td>1.383</td>
+                        </tr>
+                        <tr>
+                            <td>p11</td>
+                            <td class="highlight">2.335</td>
+                            <td>3.171</td>
+                            <td>2.345</td>
+                            <td>2.953</td>
+                            <td>2.876</td>
+                            <td>2.801</td>
+                            <td>2.803</td>
+                            <td>2.672</td>
+                            <td>3.079</td>
+                            <td>2.543</td>
+                            <td>2.507</td>
+                        </tr>
+                        <tr>
+                            <td>p12</td>
+                            <td>2.021</td>
+                            <td class="highlight">1.949</td>
+                            <td>2.128</td>
+                            <td>2.551</td>
+                            <td>2.633</td>
+                            <td>2.655</td>
+                            <td>2.658</td>
+                            <td>2.444</td>
+                            <td>3.664</td>
+                            <td>2.544</td>
+                            <td>2.551</td>
+                        </tr>
+                        <tr>
+                            <td rowspan="3">15min</td>
+                            <td>p01</td>
+                            <td>3.470</td>
+                            <td>3.631</td>
+                            <td>3.546</td>
+                            <td>4.460</td>
+                            <td>4.687</td>
+                            <td>4.196</td>
+                            <td>4.193</td>
+                            <td>3.728</td>
+                            <td>4.576</td>
+                            <td>3.375</td>
+                            <td>3.824</td>
+                        </tr>
+                        <tr>
+                            <td>p06</td>
+                            <td class="highlight">2.095</td>
+                            <td>2.600</td>
+                            <td>2.395</td>
+                            <td>2.426</td>
+                            <td>2.321</td>
+                            <td>2.313</td>
+                            <td>2.314</td>
+                            <td>2.281</td>
+                            <td>2.997</td>
+                            <td>2.329</td>
+                            <td>2.313</td>
+                        </tr>
+                        <tr>
+                            <td>p08</td>
+                            <td>2.887</td>
+                            <td class="highlight">2.728</td>
+                            <td>2.935</td>
+                            <td>4.507</td>
+                            <td>3.391</td>
+                            <td>3.281</td>
+                            <td>3.286</td>
+                            <td>2.758</td>
+                            <td>4.197</td>
+                            <td>3.115</td>
+                            <td>3.281</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <hr>
+
+        <!-- Interpretable Features section -->
+        <!-- <div class="interpretable-features-section">
+            <h2>Interpretable Features</h2>
+
+            <div class="features-grid">
+                <div class="features-row">
+                    <div class="feature-diagrams">
+                        <img src="feature-diagram1.png" alt="Feature diagram 1" class="feature-img">
+                        <img src="feature-diagram2.png" alt="Feature diagram 2" class="feature-img">
+                    </div>
+                    <div class="feature-graph">
+                        <img src="feature-graph1.png" alt="Feature performance graph" class="feature-img">
+                    </div>
+                </div>
+
+                <div class="features-row">
+                    <div class="scatter-plots">
+                        <img src="scatter1.png" alt="Scatter plot 1" class="scatter-img">
+                        <img src="scatter2.png" alt="Scatter plot 2" class="scatter-img">
+                        <img src="scatter3.png" alt="Scatter plot 3" class="scatter-img">
+                    </div>
+                </div>
+
+                <div class="features-row">
+                    <div class="heatmaps">
+                        <img src="heatmap1.png" alt="Heatmap 1" class="heatmap-img">
+                        <img src="heatmap2.png" alt="Heatmap 2" class="heatmap-img">
+                    </div>
+                </div>
+            </div>
+
+            <div class="features-description">
+                <p>Moreover, by examining the visual videos of verification, we noticed that the "walk cycle" behavior is observed for NerveNet but is not common for others. Walk cycle is important for many insects in the world. For example, six-legged insects use a tripod gait, where three legs move together. We first visualize and interpret the learned representations. We extract the final state vectors of nodes of NerveNet, We then apply 1-D and 2-D PCA on each representation. We notice that each joint is able to learn invariant representations, despite their different position in the graph. As we can see, there is a clear periodic behavior of our final representation vectors learned by our model. Furthermore the representations of adjacent left leg and the adjacent right leg demonstrate a phase shift, which further proves that our agent can also learn the walk cycle without any additional supervision.</p>
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="model-variants-section">
+            <h2>Model Variants</h2>
+
+            <div class="variants-grid">
+                <div class="variant-graph">
+                    <img src="variant1.png" alt="Model variant 1" class="variant-img">
+                </div>
+                <div class="variant-graph">
+                    <img src="variant2.png" alt="Model variant 2" class="variant-img">
+                </div>
+                <div class="variant-graph">
+                    <img src="variant3.png" alt="Model variant 3" class="variant-img">
+                </div>
+            </div>
+
+            <div class="variants-description">
+                <p>As we can see from figure, the NerveNet-MLP and NerveNet-λ variants perform better than NerveNet-1. One potential reason is that sharing the weights of the value and policy networks makes the trunk region based optimization methods, like PPO, more sensitive to the weights of the value function.</p>
+            </div>
+        </div>
+
+        <hr> -->
+
+        <!-- future work section -->
+        <div class="benchmarks-section">
+            <h2>Ongoing Research</h2>
+            <p>
+                We continue to work on modelling capabilities to improve nocturnal forecasting. We plan on extending
+                current models from point forecast to probabilistic forecasting (eg: interval, quantile, and
+                distributional). Further, we will work on fine-tuning foundational models on our data, and against
+                zero-shot forecasting performance. Data normalization / standardization techniques will also be
+                developed to reduce the amount of "noise" in the data. All of this will be performed and validated on
+                Gluroo's expanded dataset.
+            </p>
+        </div>
+
+        <!-- Paper section -->
+        <!-- <div class="paper-section">
+            <h2>Paper</h2>
+
+            <div class="paper-grid">
+                <div class="paper-preview">
+                    <div class="paper-pages">
+                        <img src="paper-preview.png" alt="Paper preview pages" class="paper-img">
+                    </div>
+                    <a href="#" class="paper-download">[Paper 3.3MB]</a>
+                </div>
+
+                <div class="paper-citation">
+                    <h3>Citation</h3>
+                    <p class="authors-citation">Christopher Risi, Tony Chan, Shivam Jindal, Alyssa D'Souza, Gavin Katz, Julia Zhu, Christiano Da Silva, Vilohith Rao</p>
+                    <p class="paper-title-citation">Probabilistic Forecasting of Nocturnal Hypoglycemia</p>
+                </div>
+            </div>
+        </div> -->
+    </div>
+</body>
+
+</html>

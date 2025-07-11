@@ -114,12 +114,12 @@ if __name__ == "__main__":
     RANDOM_SEED = 101
     test_size = 0.3
     data_path = "./data/example.csv"
-    model_save_path = "./src/models/example.pkl"
+    model_save_path = "./models/example.pkl"
     fh = np.arange(1, 6)
 
     # Step 1: Train
     data_handler = DataHandler(test_size=test_size, random_seed=RANDOM_SEED)
-    data = data_handler.load_data(data_path)
+    data = data_handler.get_loader(data_path)
     cleaned_data = data_handler.clean_data(data)
     X_train, X_test, y_train, y_test = data_handler.split_data(
         cleaned_data, target_column="target"

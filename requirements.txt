@@ -1,3 +1,6 @@
+
+# Development tools
+accelerate>=0.26.0
 ipynb
 ipython
 ipywidgets
@@ -10,9 +13,10 @@ loguru
 
 # Visualization
 matplotlib
-mkdocs
 
-# Development tools
+# Documentation
+mkdocs
+mkdocs-material
 mlflow
 neuralforecast
 notebook
@@ -26,6 +30,7 @@ pytest-mock
 python-dotenv
 pytorch-forecasting
 pytorch-lightning
+PyWavelets
 ruff>=0.3.0
 scikit-learn
 seaborn
@@ -33,7 +38,7 @@ skchange
 sktime[all_extras]
 torch
 tqdm
-transformers
+transformers==4.49.0
 
 # Utilities
 typer

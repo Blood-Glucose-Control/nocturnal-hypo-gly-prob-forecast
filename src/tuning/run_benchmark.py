@@ -3,7 +3,7 @@ from benchmark import run_benchmark
 
 
 # Change this
-yaml_path = "./src/tuning/configs/1_exponential-smooth_15min.yaml"
+yaml_path = "./src/tuning/configs/0_naive_05min.yaml"
 
 
 is_5min = "05min" in yaml_path  # Will be False since this is 15min
@@ -18,7 +18,6 @@ else:
         "steps_per_hour": 4,
         "is_5min": False,
     }
-
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -44,8 +43,7 @@ if __name__ == "__main__":
         hr_method="linear",
         step_method="constant",
         cal_method="constant",
-        processed_dir="./results/processed",
-        raw_dir="./results/raw",
+        results_dir="./results",
         cores_num=-1,  # All cores
         n_patients=-1,  # All patients
         is_5min=config["is_5min"],  # 5-minute interval patients
