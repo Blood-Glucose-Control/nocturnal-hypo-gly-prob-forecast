@@ -21,7 +21,7 @@ python scripts/training/train_statistical.py --config scripts/training/configs/a
 - **Training time**: ~1-2 minutes with cached data
 
 ### AutoARIMA (Alternative)
-- **Config**: `scripts/training/configs/autoarima_config.yaml`  
+- **Config**: `scripts/training/configs/autoarima_config.yaml`
 - **Description**: Traditional AutoARIMA from sktime
 - **Note**: May require numpy<2 (compatibility issues with newer numpy)
 
@@ -79,7 +79,7 @@ models/
 {
   "model_type": "statistical",
   "model_name": "StatsForecastAutoARIMA",
-  "dataset_name": "kaggle_brisT1D", 
+  "dataset_name": "kaggle_brisT1D",
   "training_date": "2025-07-10T22:42:43",
   "training_samples": 1000,
   "patient_ids": ["patient_001", "patient_002"],
@@ -109,7 +109,7 @@ ls logs/*_out | head -5
    - Check error log: `cat logs/{JOB_ID}_train_statistical.err`
    - Ensure `use_cached: true` in config
 
-2. **"numpy version conflict"** 
+2. **"numpy version conflict"**
    - Use `StatsForecastAutoARIMA` instead of `ARIMA`
    - Avoid downgrading numpy
 

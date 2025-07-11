@@ -6,7 +6,6 @@ This demonstrates how to use the statistical trainer with the Kaggle BRIS T1D da
 
 import sys
 from pathlib import Path
-import traceback
 from src.training.pipeline import TrainingPipeline
 
 # Add the project root to the path
@@ -51,6 +50,7 @@ def main():
 
     except Exception as e:
         print(f"Error during training: {str(e)}")
+        import traceback
 
         traceback.print_exc()
         return 1
