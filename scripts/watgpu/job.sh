@@ -39,6 +39,7 @@ submit_job() {
 #SBATCH --time=$runtime
 #SBATCH --cpus-per-task=$cores
 #SBATCH --mem=${mem}GB
+#SBATCH --partition=HI
 ##SBATCH --gres=gpu:1
 
 #SBATCH -o JOB%j.out
