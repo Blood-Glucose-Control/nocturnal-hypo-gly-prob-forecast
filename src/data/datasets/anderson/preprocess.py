@@ -7,13 +7,13 @@ import os
 import pandas as pd
 
 # TODO: Set the dataset name (name of the created folder)
-dataset = "../data_downloads/anderson"
+dataset = "./raw"
 
 # Change the working directory to the dataset folder
 # os.chdir(dataset)
 
 # Define the file path
-file_path = os.path.join("../data_downloads/anderson", "Data Tables", "CGM.txt")
+file_path = os.path.join("./raw", "Data Tables", "CGM.txt")
 
 # Alternatively, if the file structure has been changed, place CGM.txt directly in the folder and use:
 # file_path = "CGM.txt"
@@ -27,17 +27,17 @@ curr = curr.iloc[
 ]  # Columns 1, 5, and 4 in R are 0, 4, and 3 in Python (0-indexed)
 
 # Rename columns to standard format
-curr.columns = ["id", "time", "gl"]
+curr.columns = ["p_num", "date", "bgl"]
 
 # Ensure glucose values are numeric
-curr["gl"] = pd.to_numeric(curr["gl"], errors="coerce")
+curr["bgl"] = pd.to_numeric(curr["bgl"], errors="coerce")
 
 # Standardize date and time
-curr["time"] = pd.to_datetime(curr["time"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
+curr["date"] = pd.to_datetime(curr["date"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
 
 # Define the output file name
-# NOTE: saves csv file in this dir
-output_file = f"./{dataset}_processed.csv"
+# TODO: saves csv file in this dir
+output_file = "./processed/anderson_processed.csv"
 
 # Check if the file exists to determine header inclusion
 write_header = not os.path.exists(output_file)

@@ -58,6 +58,7 @@ class BaseAwesomeCGMLoader(DatasetBase):
     def _process_raw_data(self) -> pd.DataFrame:
         if self.raw_data is None:
             raise ValueError("Raw data is not loaded.")
+
         raw_df = self.raw_data[self.keep_columns].copy()
         # NOTE: self.cleaner should be set by the child class;
         return self.cleaner(raw_df, self.config)

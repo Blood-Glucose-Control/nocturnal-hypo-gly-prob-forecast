@@ -10,7 +10,7 @@ import pandas as pd
 # First download the entire dataset. Do not rename the downloaded folder
 # Place the downloaded folder into a folder of your creation specific for this dataset
 # TODO: enter directory of downloaded dataset
-dataset = "../data_downloads/aleppo"
+dataset = "./raw"
 # If you have a different naming method, you will need to adjust this, eg.
 # dataset = "insert_your_name"
 
@@ -22,8 +22,8 @@ basedate = datetime.date(2015, 5, 22)
 # The data has days as days since study start
 # Establishing a base date to work from
 
-# NOTE: change this to the location you want to save the processed csv
-newfile = dataset + "_processed.csv"
+# TODO: change this to the location you want to save the processed csv
+newfile = "./procsessed/" + "aleppo_processed.csv"
 with open(file) as file:  # Open the data file
     with open(newfile, "w") as export:  # Open the file for the processed data
         isheader = True
