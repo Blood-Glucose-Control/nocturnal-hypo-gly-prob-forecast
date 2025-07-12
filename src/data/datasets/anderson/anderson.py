@@ -1,10 +1,12 @@
 import pandas as pd
-from src.data.awesome_cgm.base_loader import BaseAwesomeCGMLoader
+from src.data.datasets.base_cgm import BaseAwesomeCGMLoader
+from src.data.datasets.anderson.clean_data import clean_cgm_data
 
 
 class AndersonDataLoader(BaseAwesomeCGMLoader):
     def __init__(self, ketones_file_path: str | None = None, *args, **kwargs):
         self.ketones_file_path = ketones_file_path
+        self.cleaner = clean_cgm_data
         super().__init__(*args, **kwargs)
 
     @property

@@ -1,7 +1,6 @@
 import pandas as pd
-from src.data.awesome_cgm.clean_data import clean_cgm_data
-from src.data.data_splitter import get_train_validation_split
-from src.data.DatasetBase import DatasetBase
+from src.data.preprocessing.time_processing import get_train_validation_split
+from src.data.datasets.dataset_base import DatasetBase
 
 
 class BaseAwesomeCGMLoader(DatasetBase):
@@ -12,9 +11,15 @@ class BaseAwesomeCGMLoader(DatasetBase):
         file_path: str = None,
         config: dict = None,
     ):
+        """
+        Args:
+            keep_columns (list): List of columns to keep from the raw data.
+            num_validation_days (int): Number of days to use for validation.
+            file_path (str): Path to the CSV file containing the raw data.
+            config (dict): Configuration dictionary for data cleaning. passed to your cleaning function
+        """
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
-
         self.file_path = file_path
         self.config = config  # config for data cleaning
 
@@ -24,7 +29,7 @@ class BaseAwesomeCGMLoader(DatasetBase):
     @property
     def dataset_name(self):
         """Return the name of the dataset."""
-        return "aleppo2017"
+        raise NotImplementedError
 
     def load_raw(self):
         """Load the raw dataset.
@@ -54,9 +59,9 @@ class BaseAwesomeCGMLoader(DatasetBase):
         if self.raw_data is None:
             raise ValueError("Raw data is not loaded.")
         raw_df = self.raw_data[self.keep_columns].copy()
-        return clean_cgm_data(raw_df, self.config)
+        # NOTE: self.cleaner should be set by the child class;
+        return self.cleaner(raw_df, self.config)
 
-    # TODO: MOVE THIS TO THE splitter.py
     def get_validation_day_splits(self, patient_id: str):
         """
         Get day splits for validation data for a single patient.
