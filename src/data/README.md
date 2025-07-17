@@ -24,6 +24,7 @@ Our benchmark pipeline was originally built on the Kaggle Bristol Type 1 Diabete
    - A comprehensive dataset from Kaggle
    - Contains both Dexcom (5-min interval) and Libre (15-min interval) users
    - Multiple patients in a single CSV file (not that common)
+   - prerequisite: Check out [Authentication](https://www.kaggle.com/docs/api) of the Kaggle API. We used CLI tool to fetch data from Kaggle.
 
 2. Gluroo Dataset
    - Internal dataset from Christopher and Walker
@@ -40,9 +41,11 @@ All datasets are transformed into a standardized format for our benchmark pipeli
 
 ### Core Columns (Required for All Datasets)
 
+Index of the dataframe should just be an integer.
+
 | Column | Type | Description | Source |
 |--------|------|-------------|---------|
-| `datetime` | `pd.Timestamp` (INDEX) | Primary timestamp for data manipulation | Created during processing |
+| `datetime` | `pd.Timestamp` | Primary timestamp for data manipulation | Created during processing |
 | `p_num` | `str` | Patient identifier | Original dataset |
 | `bg-0:00` | `float` | Blood glucose measurement in mg/dL (70-120) | Original dataset |
 | `insulin-0:00` | `float` | Insulin dose in units | Original dataset |

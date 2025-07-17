@@ -59,6 +59,14 @@ src/data/datasets/**/sample_submission.csv
 src/data/datasets/**/processed/*
 scripts/notebooks/**/*.csv
 
+cache/**/*.csv
+cache/**/*.txt
+cache/**/*.json
+
+# Permissive for the cached data
+!cache/data/kaggle_brisT1D/processed/train/train.csv
+
+
 # Translations
 *.mo
 *.pot
