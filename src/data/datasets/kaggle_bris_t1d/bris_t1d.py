@@ -250,7 +250,7 @@ class BrisT1DDataLoader(DatasetBase):
         Process raw data and save to cache.
 
         This method orchestrates the workflow for data that isn't already cached:
-        1. Load the raw data from the source file (prompt users to fetch from kaggle if not available. Cache is just another level of cache for the raw data)
+        1. Load the raw data from the source file (prompt users to fetch from Kaggle if not available; cache is just another level of cache for the raw data).
         2. Process the raw data using the appropriate pipeline
         3. Store the processed data in self.processed_data
         4. Save the processed data to cache
