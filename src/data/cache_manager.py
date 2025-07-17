@@ -170,7 +170,7 @@ class CacheManager:
         self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
     ):
         """
-        Fetch data from Kaggle. Technically, Kaggle dataset already have caching mechanism?
+        Fetch data from Kaggle. Note that Kaggle datasets already have their own caching mechanism.
 
         Args:
             dataset_name (str): Name of the dataset
