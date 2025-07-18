@@ -248,6 +248,8 @@ class CacheManager:
         Raises:
             RuntimeError: If HuggingFace data fetching fails
         """
+        import json
+
         raw_path.mkdir(parents=True, exist_ok=True)
 
         dataset_id = dataset_config.get("dataset_id")
@@ -259,12 +261,40 @@ class CacheManager:
         try:
             from datasets import load_dataset
 
-            # Load dataset from HuggingFace
-            dataset = load_dataset(dataset_id)
+            # Load dataset from HuggingFace (disable streaming to get Dataset object)
+            dataset = load_dataset(dataset_id, streaming=False)
 
-            # Save to cache
-            dataset.save_to_disk(str(raw_path))
-            logger.info(f"Downloaded {dataset_name} from HuggingFace")
+            # Try to use save_to_disk if available, otherwise fall back to JSON
+            try:
+                # Use getattr to avoid type checker issues
+                save_method = getattr(dataset, "save_to_disk", None)
+                if save_method:
+                    save_method(str(raw_path))
+                    logger.info(
+                        f"Downloaded {dataset_name} from HuggingFace (binary format)"
+                    )
+                    return
+            except (AttributeError, Exception):
+                pass  # Fall through to JSON export
+
+            # Fallback: save as JSON
+            # Use getattr to safely check for items method (DatasetDict)
+            items_method = getattr(dataset, "items", None)
+            if items_method:
+                # DatasetDict-like object with multiple splits
+                for split_name, split_dataset in items_method():
+                    split_path = raw_path / f"{split_name}.json"
+                    # Convert to list and save as JSON
+                    data = list(split_dataset)
+                    with open(split_path, "w", encoding="utf-8") as f:
+                        json.dump(data, f, indent=2, ensure_ascii=False)
+            else:
+                # Single dataset
+                data = list(dataset)
+                with open(raw_path / "data.json", "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+
+            logger.info(f"Downloaded {dataset_name} from HuggingFace (JSON format)")
 
         except ImportError:
             raise RuntimeError(
