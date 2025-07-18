@@ -29,11 +29,11 @@ from src.data.physiological.insulin_model.insulin_model import (
 )
 
 from src.data.preprocessing.time_processing import get_train_validation_split
-from src.data.datasets.dataset_base import DatasetBase
+from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.cache_manager import get_cache_manager
 from src.data.dataset_configs import get_dataset_config
 
-from src.data.datasets.kaggle_bris_t1d.data_cleaner import (
+from src.data.diabetes_datasets.kaggle_bris_t1d.data_cleaner import (
     clean_brist1d_train_data,
     clean_brist1d_test_data,
 )

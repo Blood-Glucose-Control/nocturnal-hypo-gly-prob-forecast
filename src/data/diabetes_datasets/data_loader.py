@@ -15,8 +15,8 @@ This ensures that type checking and autocompletion work correctly in IDEs.
 """
 
 from typing import Union, Optional, Dict, Any, overload, Literal
-from src.data.datasets import BrisT1DDataLoader
-from src.data.datasets import GlurooDataLoader
+from src.data.diabetes_datasets import BrisT1DDataLoader
+from src.data.diabetes_datasets import GlurooDataLoader
 
 
 @overload

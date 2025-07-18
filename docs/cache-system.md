@@ -47,7 +47,7 @@ cache/
 ### Basic Usage
 
 ```python
-from src.data.datasets.data_loader import get_loader
+from src.data.diabetes_datasets.data_loader import get_loader
 
 # Load training data (will auto-fetch from Kaggle if not cached)
 loader = get_loader(

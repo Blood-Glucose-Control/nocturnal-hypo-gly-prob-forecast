@@ -53,10 +53,10 @@ coverage.xml
 cover/
 
 # Ignore all csv files in the src/data directory
-src/data/datasets/**/train.csv
-src/data/datasets/**/test.csv
-src/data/datasets/**/sample_submission.csv
-src/data/datasets/**/processed/*
+src/data/diabetes_datasets/**/train.csv
+src/data/diabetes_datasets/**/test.csv
+src/data/diabetes_datasets/**/sample_submission.csv
+src/data/diabetes_datasets/**/processed/*
 scripts/notebooks/**/*.csv
 
 cache/**/*.csv

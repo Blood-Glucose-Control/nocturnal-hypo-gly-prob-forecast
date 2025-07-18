@@ -1,5 +1,5 @@
 import pandas as pd
-from src.data.datasets.gluroo.data_cleaner import coerce_time_fn
+from src.data.diabetes_datasets.gluroo.data_cleaner import coerce_time_fn
 import pytest
 
 

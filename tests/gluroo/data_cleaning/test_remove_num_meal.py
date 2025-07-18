@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 import pandas as pd
-from src.data.datasets.gluroo.data_cleaner import remove_num_meal
+from src.data.diabetes_datasets.gluroo.data_cleaner import remove_num_meal
 
 
 class RemoveMealData(BaseModel):

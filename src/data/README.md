@@ -119,7 +119,7 @@ src/data/
 - Raw data should be fetched via API of the host if available (We are thinking of just hosting a private HF datasets now)
 
 ```python
-from src.data.datasets.dataset_base import DatasetBase
+from src.data.diabetes_datasets.dataset_base import DatasetBase
 
 class ${DatasetName}Dataset(DatasetBase):
    def __init__(self, cache=True):

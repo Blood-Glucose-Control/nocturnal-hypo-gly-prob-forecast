@@ -186,7 +186,7 @@ class TestCacheIntegration:
 
     def test_cache_manager_with_data_loader(self):
         """Test that cache manager works with data loader."""
-        from src.data.datasets.data_loader import get_loader
+        from src.data.diabetes_datasets.data_loader import get_loader
 
         # This should work with the new cache system
         try:
