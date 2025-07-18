@@ -9,8 +9,8 @@ in the nocturnal project. It handles:
 - Cache validation and cleanup
 
 The cache structure follows:
-Root_dir/cache/data/{DatasetName}/Raw
-Root_dir/cache/data/{DatasetName}/Processed
+Root_dir/cache/data/{DatasetName}/raw
+Root_dir/cache/data/{DatasetName}/processed
 """
 
 import subprocess
@@ -259,10 +259,38 @@ class CacheManager:
             )
 
         try:
-            from datasets import load_dataset
+            import datasets as hf_datasets
 
-            # Load dataset from HuggingFace (disable streaming to get Dataset object)
-            dataset = load_dataset(dataset_id, streaming=False)
+            # First, check if we imported the wrong module by examining the file path
+            module_path = str(getattr(hf_datasets, "__file__", ""))
+
+            # Check if this is our local datasets module
+            if any(
+                indicator in module_path
+                for indicator in ["nocturnal", "src/data/datasets"]
+            ):
+                raise ImportError(
+                    f"Import collision: imported local datasets module instead of HuggingFace datasets.\n"
+                    f"Local module path: {module_path}\n"
+                    f"This happens when your local 'src/data/datasets' module is found before HuggingFace datasets.\n"
+                    f"Solutions:\n"
+                    f"  1. Install HuggingFace datasets: pip install datasets\n"
+                    f"  2. Check your PYTHONPATH doesn't prioritize local modules\n"
+                    f"  3. Run from project root directory"
+                )
+
+            # Secondary check: verify it has HuggingFace-specific functionality
+            if not hasattr(hf_datasets, "Dataset") or not hasattr(
+                hf_datasets, "DatasetDict"
+            ):
+                raise ImportError(
+                    f"Wrong datasets library imported. Module path: {module_path}\n"
+                    f"Expected: HuggingFace datasets library with Dataset and DatasetDict classes.\n"
+                    f"Install with: pip install datasets"
+                )
+
+            # Load dataset from HuggingFace
+            dataset = hf_datasets.load_dataset(dataset_id, streaming=False)
 
             # Try to use save_to_disk if available, otherwise fall back to JSON
             try:

@@ -57,8 +57,11 @@ def get_dataset_config(dataset_name: str) -> Dict[str, Any]:
         ValueError: If dataset configuration is not found
     """
     if dataset_name not in DATASET_CONFIGS:
-        raise ValueError(f"Configuration not found for dataset: {dataset_name}")
-
+        available = list_available_datasets()
+        raise ValueError(
+            f"Configuration not found for dataset: {dataset_name}. "
+            f"Available datasets: {available}"
+        )
     return DATASET_CONFIGS[dataset_name]
 
 

@@ -18,11 +18,11 @@ The cache follows this directory structure:
 cache/
 └── data/
     ├── kaggle_brisT1D/
-    │   ├── Raw/
+    │   ├── raw/
     │   │   ├── train.csv
     │   │   ├── test.csv
     │   │   └── sample_submission.csv
-    │   └── Processed/
+    │   └── processed/
     │       ├── train/
     │       │   └── train.csv
     │       └── test/
@@ -32,14 +32,14 @@ cache/
     │           └── patient_002/
     │               └── row_003.csv
     ├── gluroo/
-    │   ├── Raw/
+    │   ├── raw/
     │   │   └── TBD
-    │   └── Processed/
+    │   └── processed/
     │       └── TBD
     │
     └── simglucose/
-        ├── Raw/
-        └── Processed/
+        ├── raw/
+        └── processed/
 ```
 
 ## Usage
