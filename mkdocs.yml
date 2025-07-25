@@ -9,10 +9,39 @@ theme:
 nav:
   - Home: index.md
   - User Guide:
-      - Installation: user-guide/installation.md
       - Usage: user-guide/usage.md
-      - WATGPU Benchmarking: user-guide/watgpu-benchmark.md
-  - API Reference: api-reference.md
+      - Getting Started: user-guide/getting-started.md
+      - Installation: user-guide/installation.md
+      - Data:
+        - Data Preparation: user-guide/datasets/data-preparation.md
+      - Modeling:
+        - Model Training: user-guide/modeling/model-training.md
+        - Model Evaluation: user-guide/modeling/model-evaluation.md
+      - Benchmarking:
+        - Model Benchmarking: user-guide/benchmarking/model-benchmarking.md
+        - WATGPU Benchmarking: user-guide/benchmarking/watgpu-benchmark.md
+  - API Reference:
+      - API Reference: api-reference/api-reference.md
+      - Data:
+        - carb_model:
+          - carb_model: api-reference/data/carb-model/carb_model.md
+          - constants: api-reference/data/carb-model/constants.md
+        - insulin_model:
+          - insulin_model: api-reference/data/insulin-model/insulin_model.md
+          - constants: api-reference/data/insulin-model/constants.md
+        - data_loader: api-reference/data/data_loader.md
+        - data_splitter: api-reference/data/data_splitter.md
+        - data_transforms: api-reference/data/data_transforms.md
+      - Eval:
+        - generate_report: api-reference/eval/generate_report.md
+      - Tuning:
+        - benchmark: api-reference/tuning/benchmark.md
+        - load_estimators: api-reference/tuning/load_estimators.md
+        - param_grid: api-reference/tuning/param_grid.md
+        - run_benchmark: api-reference/tuning/run_benchmark.md
+      - Utils:
+        - config_loader: api-reference/utils/config_loader.md
+        - kaggle_utils: api-reference/utils/kaggle_util.md
   - Contributing: contributing.md
 
 markdown_extensions:

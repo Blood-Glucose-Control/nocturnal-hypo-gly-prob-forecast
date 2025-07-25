@@ -1,5 +1,5 @@
 import pandas as pd
-from src.data.gluroo.data_cleaner import coerce_time_fn
+from src.data.diabetes_datasets.gluroo.data_cleaner import coerce_time_fn
 import pytest
 
 
@@ -8,15 +8,15 @@ class TestCoerceTimeFn:
         result = coerce_time_fn(df_to_coerce.copy(), coerce_interval)
 
         assert isinstance(result, pd.DataFrame)
-        assert "date" == result.index.name
+        assert "datetime" == result.index.name
         assert isinstance(result.index, pd.DatetimeIndex)
 
         # Check if the interval between timestamps is 5 minutes
         time_diffs = result.index.to_series().diff().dropna()
         assert all(diff == pd.Timedelta(minutes=5) for diff in time_diffs)
 
-    def test_missing_date_column(self, df_to_coerce, coerce_interval):
-        """Test behavior when date column's index is not date"""
+    def test_missing_datetime_column(self, df_to_coerce, coerce_interval):
+        """Test behavior when datetime column's index is not datetime"""
         bad_data = df_to_coerce.copy()
         bad_data = bad_data.set_index("bgl")
         with pytest.raises(KeyError):

@@ -53,7 +53,19 @@ coverage.xml
 cover/
 
 # Ignore all csv files in the src/data directory
-src/data/**/*.csv
+src/data/diabetes_datasets/**/train.csv
+src/data/diabetes_datasets/**/test.csv
+src/data/diabetes_datasets/**/sample_submission.csv
+src/data/diabetes_datasets/**/processed/*
+scripts/notebooks/**/*.csv
+
+cache/**/*.csv
+cache/**/*.txt
+cache/**/*.json
+
+# Permissive for the cached data
+!cache/data/kaggle_brisT1D/processed/train/train.csv
+
 
 # Translations
 *.mo

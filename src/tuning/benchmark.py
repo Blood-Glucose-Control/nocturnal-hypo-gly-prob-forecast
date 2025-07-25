@@ -3,7 +3,6 @@ import time
 from typing import Callable
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.forecasting.compose import FallbackForecaster
-from sktime.performance_metrics.forecasting.probabilistic import PinballLoss
 from sktime.performance_metrics.forecasting import MeanSquaredError
 from sktime.split import ExpandingSlidingWindowSplitter, ExpandingWindowSplitter
 from sktime.split.base import BaseWindowSplitter
@@ -12,8 +11,9 @@ import pandas as pd
 import numpy as np
 import os
 import json
-from src.data.data_loader import load_data, get_train_validation_split
-from src.data.data_transforms import apply_wavelet_transform, take_moving_average
+from src.data.diabetes_datasets.data_loader import get_loader
+from src.data.preprocessing.time_processing import get_train_validation_split
+from src.data.preprocessing.signal_processing import apply_moving_average
 from src.tuning.param_grid import generate_param_grid
 from src.utils.config_loader import load_yaml_config
 from src.tuning.load_estimators import (
@@ -25,6 +25,8 @@ from src.tuning.load_estimators import (
 
 forecasters = load_all_forecasters()
 regressors = load_all_regressors()
+
+# TODO:Time is a column from Kaggle dataset. Might need to use datetime instead which is the index we will be using for all datasets
 
 # Global variables
 run_config = {
@@ -136,7 +138,7 @@ def impute_missing_values(
 def smooth_bgl_data(
     df,
     bgl_column="bg-0:00",
-    normalization_technique="wavelet_transform",
+    normalization_technique="moving_average",
     normalization_params={},
 ):
     """
@@ -146,31 +148,32 @@ def smooth_bgl_data(
         df: the dataframe consisting of all patients' data
         bgl_column: the column name where the blood glucose levels are
         normalization_technique: the normalization technique used.
-            Possible inputs are: 'wavelet_transform' (performs wavelet transform to smooth the data)
+            Possible inputs are: Not implemented yet: 'wavelet_transform' (performs wavelet transform to smooth the data)
                                  'exponential_smoothing' (performs exponential smoothing)
                                  'moving_average' (applies a moving average)
         normalization_params: dictionary of params to use for the normalization technique (keys are param names, values are the param values). Here are params based on the technique:
-            1. wavelet_transform:
+            1. Not implemented yet: wavelet_transform:
                 - wavelet: the wavelet used. See pywt docs. Default is "sym16"
                 - wavelet_window: the number of timesteps to use for the wavelet transform. Default is 288 (36 hours in 15 min intervals)
             2. moving_average:
                 - moving_avg_window: the number of timesteps to use for the moving average. Default is 10
     """
-    if normalization_technique == "wavelet_transform":
-        wavelet_to_use = normalization_params.get("wavelet", "sym16")
-        wavelet_window = normalization_params.get(
-            "wavelet_window", 288
-        )  # 288 corresponds to 36 hours in 15 min intervals
-        result_df = apply_wavelet_transform(
-            df,
-            wavelet=wavelet_to_use,
-            wavelet_window=wavelet_window,
-            patient_identifying_col="p_num",
-        )
-        return result_df
-    elif normalization_technique == "moving_average":
+    # TODO: Refactor this function to use the WaveletTransform class
+    # if normalization_technique == "wavelet_transform":
+    #     wavelet_to_use = normalization_params.get("wavelet", "sym16")
+    #     wavelet_window = normalization_params.get(
+    #         "wavelet_window", 288
+    #     )  # 288 corresponds to 36 hours in 15 min intervals
+    #     result_df = apply_wavelet_transform(
+    #         df,
+    #         wavelet=wavelet_to_use,
+    #         wavelet_window=wavelet_window,
+    #         patient_identifying_col="p_num",
+    #     )
+    #     return result_df
+    if normalization_technique == "moving_average":
         window_size = normalization_params.get("moving_avg_window", 10)
-        result_df = take_moving_average(df, window_size=window_size, bg_col=bgl_column)
+        result_df = apply_moving_average(df, window_size=window_size, bg_col=bgl_column)
         return result_df
     else:
         raise ValueError(f"{normalization_technique} not implemented yet!")
@@ -242,6 +245,7 @@ def get_patient_ids(df, is_5min, n_patients=-1):
 
 def get_dataset_loaders(
     data_source_name,
+    validation_days,
     x_features,
     y_feature,
     bg_method="linear",
@@ -256,7 +260,7 @@ def get_dataset_loaders(
     Args:
         data_source_name (str, optional): Name of the data source. Defaults to "kaggle_brisT1D".
         x_features (list): List of feature column names to use as predictors.
-        y_feature (str): Name of the target variable column to predict. (bg-0:00)
+        y_feature (list): Name of the target variable column to predict. (bg-0:00)
         bg_method (str, optional): Imputation method for blood glucose data.
             Valid values: 'linear', 'nearest'. Defaults to "linear".
         hr_method (str, optional): Imputation method for heart rate data.
@@ -273,8 +277,10 @@ def get_dataset_loaders(
         dict[str, Callable]: Dictionary of dataset loader functions, one for each patient.
     """
     # Load and clean data
-    df = load_data(data_source_name=data_source_name, use_cached=True)
-    df, _ = get_train_validation_split(df)
+    loader = get_loader(data_source_name=data_source_name, use_cached=True)
+    df = loader.processed_data
+    # TODO: It is default of 20 days. Might need to change that
+    df, _ = get_train_validation_split(df, num_validation_days=validation_days)
 
     # TODO: Impute Missing values for each columns
     df = impute_missing_values(df, columns=x_features, bg_method=bg_method)
@@ -289,8 +295,7 @@ def get_dataset_loaders(
     df = smooth_bgl_data(
         df=df,
         bgl_column="bg-0:00",
-        normalization_technique="wavelet_transform",
-        normalization_params={"wavelet": "sym16", "wavelet_window": 288},
+        normalization_technique="moving_average",
     )
 
     if n_patients == -1:
@@ -298,6 +303,7 @@ def get_dataset_loaders(
 
     # Create dataset loaders for each patient
     patient_ids = get_patient_ids(df, is_5min, n_patients)
+    # patient_ids = df["p_num"].unique() // TODO: Probably need this for gluroot to work
 
     # Create dictionary of dataset loaders mapping patient_id to dataset loader function so we can get the correct patient_id in the benchmark
     dataset_loaders = {}
@@ -433,6 +439,7 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
 
     # Generate all estimators
     estimators = generate_estimators_from_param_grid(yaml_path)
+
     for estimator, estimator_id in estimators:
         benchmark.add_estimator(estimator=estimator, estimator_id=estimator_id)
 
@@ -457,6 +464,7 @@ def save_config(yaml_name, run_config, processed_dir):
 
 def save_init_config(
     current_time: str,
+    validation_days: int,
     yaml_path: str,
     data_source_name: str,
     x_features: list[str],
@@ -468,6 +476,7 @@ def save_init_config(
     description: str,
 ) -> None:
     run_config["timestamp"] = current_time
+    run_config["validation_days"] = validation_days
     run_config["yaml_path"] = yaml_path
     run_config["data_source_name"] = data_source_name
     run_config["x_features"] = x_features
@@ -486,6 +495,7 @@ def run_benchmark(
     y_features=["bg-0:00"],
     x_features=["iob", "cob"],
     cv_type="expanding",
+    validation_days=20,
     initial_cv_window=12 * 24 * 3,
     cv_step_length=12 * 24 * 3,
     steps_per_hour=12,
@@ -544,6 +554,7 @@ def run_benchmark(
 
     save_init_config(
         current_time=current_time,
+        validation_days=validation_days,
         yaml_path=yaml_path,
         x_features=x_features,
         y_features=y_features,
@@ -558,6 +569,7 @@ def run_benchmark(
     # Get dataset loaders with imputed missing values
     dataset_loaders = get_dataset_loaders(
         data_source_name=data_source_name,
+        validation_days=validation_days,
         x_features=x_features,
         y_feature=y_features,
         bg_method=bg_method,
@@ -569,7 +581,10 @@ def run_benchmark(
     )
 
     # ADD THE SCORERS HERE
-    scorers = [PinballLoss(), MeanSquaredError(square_root=True)]
+    scorers = [
+        # PinballLoss(),
+        MeanSquaredError(square_root=True),
+    ]
     run_config["scorers"] = [scorer.__class__.__name__ for scorer in scorers]
 
     # Get the cross-validation splitter

@@ -1,7 +1,7 @@
 import pytest
 import numpy as np
 import pandas as pd
-from src.data.data_transforms import take_moving_average
+from src.data.preprocessing.signal_processing import apply_moving_average
 
 
 class TestMovingAverage:
@@ -12,18 +12,18 @@ class TestMovingAverage:
     def sample_data(self):
         # Create sample time series data
         np.random.seed(42)
-        dates = pd.date_range(start="2023-01-01", periods=100, freq="H")
+        dates = pd.date_range(start="2023-01-01", periods=100, freq="h")
         values = np.sin(np.linspace(0, 4 * np.pi, 100)) + np.random.normal(0, 0.1, 100)
         return pd.DataFrame({"bg-0:00": values}, index=dates)
 
     @pytest.fixture
     def normalizer(self):
-        return take_moving_average  # 24-hour window
+        return apply_moving_average  # 24-hour window
 
     def test_on_sample_data(self, normalizer):
         # tests on a sample, custom data
         # construct a sample data with 24 hours of data
-        dates = pd.date_range(start="2023-01-01", periods=24, freq="H")
+        dates = pd.date_range(start="2023-01-01", periods=24, freq="h")
         values = np.linspace(0, 2.3, 24)  # Simple linear sequence from 0 to 2.3
         sample_data = pd.DataFrame({"bg-0:00": values}, index=dates)
         normalized_data = normalizer(sample_data, window_size=5)

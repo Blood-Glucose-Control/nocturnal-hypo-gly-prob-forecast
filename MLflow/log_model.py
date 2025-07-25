@@ -119,7 +119,7 @@ if __name__ == "__main__":
 
     # Step 1: Train
     data_handler = DataHandler(test_size=test_size, random_seed=RANDOM_SEED)
-    data = data_handler.load_data(data_path)
+    data = data_handler.get_loader(data_path)
     cleaned_data = data_handler.clean_data(data)
     X_train, X_test, y_train, y_test = data_handler.split_data(
         cleaned_data, target_column="target"
