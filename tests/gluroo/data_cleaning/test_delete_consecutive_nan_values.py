@@ -1,4 +1,4 @@
-from src.data.datasets.gluroo.data_cleaner import erase_consecutive_nan_values
+from src.data.diabetes_datasets.gluroo.data_cleaner import erase_consecutive_nan_values
 
 
 class TestDeleteConsecutiveNanValues:
