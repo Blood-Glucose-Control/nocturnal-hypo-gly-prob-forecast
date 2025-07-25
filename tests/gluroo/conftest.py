@@ -37,7 +37,7 @@ def df_to_coerce():
     dates = pd.date_range(start="2024-01-01", periods=10, freq="3min")
     df = pd.DataFrame(
         {
-            "date": dates,
+            "datetime": dates,
             "bgl": list(range(10, 101, 10)),
             "msg_type": [
                 "",
@@ -54,7 +54,7 @@ def df_to_coerce():
             "food_g": [0, 50, 0, 0, 75, 0, 0, 0, 0, 0],
         }
     )
-    df.set_index("date", inplace=True)
+    df.set_index("datetime", inplace=True)
     return df
 
 
@@ -62,12 +62,12 @@ def df_to_coerce():
 def noisy_df():
     """
     A noisy DataFrame with NaN values
-    -> Only provides date and BGL columns. So this won't pass the pydantic validation functions on its own
+    -> Only provides datetime and BGL columns. So this won't pass the pydantic validation functions on its own
     """
     # create a dataframe with noisy food_g values (i.e NaNs)
     dates = pd.date_range(start="2024-01-01", periods=96, freq="h")  # 4 days * 24 hours
     data = {
-        "date": dates,
+        "datetime": dates,
         "bgl": [
             # Day 1 - Few NaNs
             50,

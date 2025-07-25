@@ -1,4 +1,4 @@
-from src.data.datasets.data_loader import get_loader
+from src.data.diabetes_datasets.data_loader import get_loader
 
 
 # def test_load_brist1d_data():

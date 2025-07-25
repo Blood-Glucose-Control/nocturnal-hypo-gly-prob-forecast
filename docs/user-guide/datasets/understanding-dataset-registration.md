@@ -9,14 +9,14 @@ Registration is a design pattern that centralizes the configuration and access o
 ### With Registration
 ```python
 # In src/data/datasets/__init__.py
-from src.data.datasets.kaggle_bris_t1d.bris_t1d import BrisT1DDataLoader
-from src.data.datasets.gluroo.gluroo import GlurooDataLoader
-from src.data.datasets.mydata.mydata_dataset import MyDataDataset
+from src.data.diabetes_datasets.kaggle_bris_t1d.bris_t1d import BrisT1DDataLoader
+from src.data.diabetes_datasets.gluroo.gluroo import GlurooDataLoader
+from src.data.diabetes_datasets.mydata.mydata_dataset import MyDataDataset
 
 # In src/data/datasets/data_loader.py
-from src.data.datasets import BrisT1DDataLoader # Cleaner imports with registration in __init__.py!
-from src.data.datasets import GlurooDataLoader
-from src.data.datasets import MyDataDataset
+from src.data.diabetes_datasets import BrisT1DDataLoader # Cleaner imports with registration in __init__.py!
+from src.data.diabetes_datasets import GlurooDataLoader
+from src.data.diabetes_datasets import MyDataDataset
 
 def get_loader(data_source_name, dataset_type, ...):
     if data_source_name == "kaggle_brisT1D":
@@ -32,7 +32,7 @@ def get_loader(data_source_name, dataset_type, ...):
 #### Using the dataset
 ```python
 # Anywhere in the code
-from src.data.datasets.data_loader import get_loader
+from src.data.diabetes_datasets.data_loader import get_loader
 
 # Get any dataset with the same API
 loader = get_loader("mydata", dataset_type="train")
@@ -45,17 +45,17 @@ data = loader.load_data()
 # Each dataset needs to be imported and configured directly
 
 # To use BrisT1DDataLoader:
-from src.data.datasets.kaggle_bris_t1d.bris_t1d import BrisT1DDataLoader
+from src.data.diabetes_datasets.kaggle_bris_t1d.bris_t1d import BrisT1DDataLoader
 bris_loader = BrisT1DDataLoader(dataset_type="train", use_cached=True)
 bris_data = bris_loader.load_data()
 
 # To use Gluroo:
-from src.data.datasets.gluroo.gluroo import GlurooDataLoader
+from src.data.diabetes_datasets.gluroo.gluroo import GlurooDataLoader
 gluroo_loader = GlurooDataLoader(file_path="path/to/data.csv")
 gluroo_data = gluroo_loader.load_data()
 
 # To use your new dataset:
-from src.data.datasets.mydata.mydata_dataset import MyDataDataset
+from src.data.diabetes_datasets.mydata.mydata_dataset import MyDataDataset
 my_loader = MyDataDataset(file_path="path/to/data.csv")
 my_data = my_loader.load_data()
 ```

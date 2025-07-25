@@ -1,4 +1,4 @@
-from src.data.datasets.data_loader import get_loader
+from src.data.diabetes_datasets.data_loader import get_loader
 from src.data.preprocessing.time_processing import get_train_validation_split
 import pytest
 import pandas as pd

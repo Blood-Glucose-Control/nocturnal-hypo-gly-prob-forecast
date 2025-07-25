@@ -1,4 +1,4 @@
-from src.data.datasets.gluroo.data_cleaner import keep_top_n_carb_meals
+from src.data.diabetes_datasets.gluroo.data_cleaner import keep_top_n_carb_meals
 from .pydantic_test_models import DataFrameValidator, MealRecord
 
 

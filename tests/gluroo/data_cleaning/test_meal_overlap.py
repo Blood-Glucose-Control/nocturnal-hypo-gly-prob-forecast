@@ -1,5 +1,5 @@
 import pandas as pd
-from src.data.datasets.gluroo.data_cleaner import erase_meal_overlap_fn
+from src.data.diabetes_datasets.gluroo.data_cleaner import erase_meal_overlap_fn
 from .pydantic_test_models import DataFrameValidator, MealRecord
 
 

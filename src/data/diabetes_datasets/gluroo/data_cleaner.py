@@ -35,7 +35,7 @@ def clean_gluroo_data(
     config : dict
         Configuration dictionary containing:
         - max_consecutive_nan_values_per_day: Maximum allowed consecutive NaN values per day. The entire day is removed if this threshold is exceeded.
-        - coerse_time_interval: Time interval to coerce timestamps to
+        - coerce_time_interval: Time interval to coerce timestamps to
         - day_start_time: Time of day to use as start of day
         - min_carbs: Minimum carbs threshold for meal. Meal less than this threshold are filtered out.
         - meal_length: Time window for considering meal duration
@@ -48,7 +48,7 @@ def clean_gluroo_data(
     if config is None:
         config = {
             "max_consecutive_nan_values_per_day": 36,
-            "coerse_time_interval": pd.Timedelta(minutes=5),
+            "coerce_time_interval": pd.Timedelta(minutes=5),
             "day_start_time": pd.Timedelta(hours=4),
             "min_carbs": 5,
             "meal_length": pd.Timedelta(hours=2),
@@ -58,7 +58,7 @@ def clean_gluroo_data(
     max_consecutive_nan_values_per_day: int = config[
         "max_consecutive_nan_values_per_day"
     ]
-    coerse_time_interval: pd.Timedelta = config["coerse_time_interval"]
+    coerce_time_interval: pd.Timedelta = config["coerce_time_interval"]
     day_start_time: pd.Timedelta = config["day_start_time"]
     min_carbs: int = config["min_carbs"]
     meal_length: pd.Timedelta = config["meal_length"]
@@ -73,7 +73,7 @@ def clean_gluroo_data(
     df.index = cast(pd.DatetimeIndex, df.index)
 
     # From meal identification repo
-    df = coerce_time_fn(data=df, coerse_time_interval=coerse_time_interval)
+    df = coerce_time_fn(data=df, coerce_time_interval=coerce_time_interval)
     df["day_start_shift"] = (df.index - day_start_time).to_series().dt.date
     df = erase_consecutive_nan_values(df, max_consecutive_nan_values_per_day)
     df = erase_meal_overlap_fn(df, meal_length, min_carbs)
@@ -131,29 +131,29 @@ def ensure_datetime_index(
     """
     Ensures DataFrame has a datetime index in UTC format.
 
-    Converts index to DatetimeIndex if not already in that format or uses the 'date' column
+    Converts index to DatetimeIndex if not already in that format or uses the 'datetime' column
     as the index if available. Handles timezone conversion to ensure consistent datetime handling.
 
     Args:
-        data (pd.DataFrame): Input DataFrame that either has a datetime index or a 'date' column
+        data (pd.DataFrame): Input DataFrame that either has a datetime index or a 'datetime' column
                            that can be converted to datetime.
 
     Returns:
         pd.DataFrame: DataFrame with sorted UTC datetime index.
 
     Raises:
-        KeyError: If neither a DatetimeIndex nor a 'date' column is available
+        KeyError: If neither a DatetimeIndex nor a 'datetime' column is available
     """
     df = data.copy()
 
     # Check if the index is already a DatetimeIndex
     if not isinstance(df.index, pd.DatetimeIndex):
-        # If not, set 'date' column as index and convert to DatetimeIndex
-        if "date" in df.columns:
-            df = df.set_index("date")
+        # If not, set 'datetime' column as index and convert to DatetimeIndex
+        if "datetime" in df.columns:
+            df = df.set_index("datetime")
         else:
             raise KeyError(
-                "DataFrame must have either a 'date' column or a DatetimeIndex."
+                "DataFrame must have a 'datetime' column or a DatetimeIndex."
             )
 
     # Convert to UTC to handle DST transitions
@@ -162,7 +162,7 @@ def ensure_datetime_index(
     return df
 
 
-def coerce_time_fn(data, coerse_time_interval):
+def coerce_time_fn(data, coerce_time_interval):
     """
     Coerces the time interval of data to a regular frequency and handles meal announcements.
 
@@ -171,36 +171,38 @@ def coerce_time_fn(data, coerse_time_interval):
     time intervals throughout the dataset.
 
     Args:
-        data (pd.DataFrame): The input DataFrame with a 'date' index and columns including
+        data (pd.DataFrame): The input DataFrame with a 'datetime' index and columns including
                            'msg_type', 'bgl', and 'food_g'.
-        coerse_time_interval (pd.Timedelta): The interval for time resampling.
+        coerce_time_interval (pd.Timedelta): The interval for time resampling.
 
     Returns:
         pd.DataFrame: DataFrame with regularized time intervals and preserved meal data.
 
     Raises:
-        KeyError: If 'date' is not the index name
-        TypeError: If coerse_time_interval is not a pandas Timedelta object
+        KeyError: If 'datetime' is not the index name
+        TypeError: If coerce_time_interval is not a pandas Timedelta object
     """
-    # Ensure 'date' column exists
-    if "date" != data.index.name:
-        raise KeyError(f"'date' column should be index, got {data.index.name} instead")
+    # Ensure 'datetime' column exists as index (standardized)
+    if "datetime" != data.index.name:
+        raise KeyError(
+            f"'datetime' column should be index, got {data.index.name} instead"
+        )
 
-    if not isinstance(coerse_time_interval, pd.Timedelta):
+    if not isinstance(coerce_time_interval, pd.Timedelta):
         raise TypeError(
-            f"coerse_time_interval must be a pandas Timedelta object, got {type(coerse_time_interval)} instead"
+            f"coerce_time_interval must be a pandas Timedelta object, got {type(coerce_time_interval)} instead"
         )
 
     # Separate meal announcements and non-meal data
     meal_announcements = data[data["msg_type"] == "ANNOUNCE_MEAL"].copy()
     non_meals = data[data["msg_type"] != "ANNOUNCE_MEAL"].copy()
 
-    non_meals = non_meals.resample(coerse_time_interval).first()
+    non_meals = non_meals.resample(coerce_time_interval).first()
     start_time = non_meals.index.min()
 
     # Resample meal announcements separately and align with non_meal
     meal_announcements = meal_announcements.resample(
-        coerse_time_interval, origin=start_time
+        coerce_time_interval, origin=start_time
     ).first()
 
     # Join the two DataFrames
