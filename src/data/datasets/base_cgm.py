@@ -54,6 +54,10 @@ class BaseAwesomeCGMLoader(DatasetBase):
         self.train_data, self.validation_data = get_train_validation_split(
             self.processed_data, num_validation_days=self.num_validation_days
         )
+        self.train_data = self.train_data.sort_values(by=["p_num", "datetime"])
+        self.validation_data = self.validation_data.sort_values(
+            by=["p_num", "datetime"]
+        )
 
     def _process_raw_data(self) -> pd.DataFrame:
         if self.raw_data is None:
