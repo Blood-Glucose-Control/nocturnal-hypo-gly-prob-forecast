@@ -137,7 +137,7 @@ def impute_missing_values(
 
 def smooth_bgl_data(
     df,
-    bgl_column="bg-0:00",
+    bgl_column="bg_mM",
     normalization_technique="moving_average",
     normalization_params={},
 ):
@@ -260,7 +260,7 @@ def get_dataset_loaders(
     Args:
         data_source_name (str, optional): Name of the data source. Defaults to "kaggle_brisT1D".
         x_features (list): List of feature column names to use as predictors.
-        y_feature (list): Name of the target variable column to predict. (bg-0:00)
+        y_feature (list): Name of the target variable column to predict. (bg_mM)
         bg_method (str, optional): Imputation method for blood glucose data.
             Valid values: 'linear', 'nearest'. Defaults to "linear".
         hr_method (str, optional): Imputation method for heart rate data.
@@ -294,7 +294,7 @@ def get_dataset_loaders(
     # smooth the data
     df = smooth_bgl_data(
         df=df,
-        bgl_column="bg-0:00",
+        bgl_column="bg_mM",
         normalization_technique="moving_average",
     )
 
@@ -492,7 +492,7 @@ def save_init_config(
 
 def run_benchmark(
     data_source_name="kaggle_brisT1D",
-    y_features=["bg-0:00"],
+    y_features=["bg_mM"],
     x_features=["iob", "cob"],
     cv_type="expanding",
     validation_days=20,
@@ -515,8 +515,8 @@ def run_benchmark(
     """
     Run benchmarking experiments for diabetes forecasting models. Constants columns will not work with some forecasting models.
     Args:
-        y_features (list[str], optional): Target variables to forecast. Defaults to ["bg-0:00"].
-        x_features (list[str], optional): Input features for forecasting. Defaults to ["insulin-0:00", "carbs-0:00", "hr-0:00"].
+        y_features (list[str], optional): Target variables to forecast. Defaults to ["bg_mM"].
+        x_features (list[str], optional): Input features for forecasting. Defaults to ["dose_units", "food_g", "hr_bpm"].
 
         steps_per_hour (int, optional): Number of time steps per hour in the data. Defaults to 12.
         hours_to_forecast (int, optional): Number of hours to forecast ahead. Defaults to 6.

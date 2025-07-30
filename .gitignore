@@ -182,3 +182,4 @@ cython_debug/
 .idea/
 
 scripts/notebooks/mlruns/
+src/models

@@ -29,11 +29,20 @@ def ensure_regular_time_intervals(df: pd.DataFrame) -> pd.DataFrame:
     where timestamps are missing.
 
     Args:
-        df (pd.DataFrame): Input dataframe with datetime column
+        df (pd.DataFrame): Input dataframe with datetime index
 
     Returns:
         pd.DataFrame: DataFrame with regular time intervals, missing times filled with NaN
     """
+    # Validate inputs
+    if df.empty or df.shape[0] == 1:
+        raise ValueError("DataFrame must contain more than 1 row")
+
+    if "p_num" not in df.columns:
+        raise ValueError("DataFrame must contain 'p_num' column")
+
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame must have datetime index")
     result_df = df.copy()
 
     # Process each patient separately
@@ -43,27 +52,20 @@ def ensure_regular_time_intervals(df: pd.DataFrame) -> pd.DataFrame:
 
         # Create complete time range for this patient
         full_time_range = pd.date_range(
-            start=patient_df["datetime"].min(),
-            end=patient_df["datetime"].max(),
+            start=patient_df.index.min(),
+            end=patient_df.index.max(),
             freq=f"{freq}min",
         )
 
-        # Create a DataFrame with the complete time range and ensure datetime type
-        full_df = pd.DataFrame({"datetime": full_time_range})
-        full_df["datetime"] = pd.to_datetime(full_df["datetime"])
+        # Create a DataFrame with the complete time range
+        full_df = pd.DataFrame(index=full_time_range)
+        full_df.index.name = "datetime"
 
-        # Ensure patient_df datetime is also datetime type
-        patient_df["datetime"] = pd.to_datetime(patient_df["datetime"])
-
-        # Merge with original data
-        reindexed_df = pd.merge(full_df, patient_df, on="datetime", how="left")
+        # Join with original data using index (patient_df already has datetime index)
+        reindexed_df = full_df.join(patient_df, how="left")
 
         # Restore patient ID for all rows
         reindexed_df["p_num"] = patient_id
-
-        # Generate new sequential IDs for all rows
-        sequence_numbers = range(len(reindexed_df))
-        reindexed_df["id"] = [f"{patient_id}_{i}" for i in sequence_numbers]
 
         reindexed_dfs.append(reindexed_df)
 

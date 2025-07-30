@@ -9,6 +9,7 @@ import pytest
 import tempfile
 import shutil
 from pathlib import Path
+import pandas as pd
 
 from src.data.cache_manager import CacheManager, get_cache_manager
 from src.data.dataset_configs import (
@@ -98,10 +99,13 @@ class TestCacheManager:
 
     def test_save_and_load_processed_data(self):
         """Test saving and loading processed data."""
-        import pandas as pd
 
-        # Create test data
-        test_data = pd.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
+        # Create test data with datetime index
+        dates = pd.date_range("2025-01-01", periods=3, freq="H")
+        test_data = pd.DataFrame(
+            {"col1": [1, 2, 3], "col2": ["a", "b", "c"]}, index=dates
+        )
+        test_data.index.name = "datetime"
 
         # Save data
         self.cache_manager.save_processed_data("test_dataset", "train", test_data)

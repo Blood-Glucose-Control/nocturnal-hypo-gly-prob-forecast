@@ -102,24 +102,23 @@ def get_most_common_time_interval(df: pd.DataFrame) -> int:
     Determines the most common time interval between consecutive records in minutes.
 
     This function calculates the time differences between consecutive rows in the
-    DataFrame's 'datetime' column and identifies the most frequently occurring interval.
+    DataFrame's datetime index and identifies the most frequently occurring interval.
 
     Args:
-        df: DataFrame containing a 'datetime' column with timestamp data
+        df: DataFrame with datetime index containing timestamp data
 
     Returns:
         int: The most common time interval in minutes between consecutive records
     """
-    df_copy = df.copy()
-    df_copy["datetime"] = pd.to_datetime(df_copy["datetime"])
+    # Check if datetime is the index
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame must have datetime index")
 
-    # Calculate time differences in minutes directly
-    df_copy["time_diff"] = (
-        (df_copy["datetime"].diff().dt.total_seconds() / 60).fillna(0).astype(int)
-    )
+    # Calculate time differences in minutes directly from index
+    time_diffs = df.index.to_series().diff().dt.total_seconds() / 60
 
-    # Get the most common value
-    time_diff_counts = df_copy["time_diff"].value_counts()
+    # Get the most common value (excluding NaN)
+    time_diff_counts = time_diffs.dropna().value_counts()
     if len(time_diff_counts) > 0:
         return int(
             time_diff_counts.idxmax()

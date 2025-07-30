@@ -15,15 +15,9 @@ different data sources.
 
 import pandas as pd
 from src.data.diabetes_datasets.dataset_base import DatasetBase
-from src.data.diabetes_datasets.gluroo.data_cleaner import clean_gluroo_data
+from src.data.diabetes_datasets.gluroo.data_cleaner import data_translation
+from src.data.preprocessing.pipeline import preprocessing_pipeline
 from src.data.preprocessing.time_processing import get_train_validation_split
-from src.data.preprocessing.sampling import ensure_regular_time_intervals
-from src.data.physiological.carb_model.carb_model import (
-    create_cob_and_carb_availability_cols,
-)
-from src.data.physiological.insulin_model.insulin_model import (
-    create_iob_and_ins_availability_cols,
-)
 
 
 # TODO: Maybe need to return the test set too.
@@ -164,11 +158,9 @@ class GlurooDataLoader(DatasetBase):
             else:
                 raw = self.raw_data[self.keep_columns].copy()
 
-        cleaned_df = clean_gluroo_data(raw, self.config)
-        processed_df_regular = ensure_regular_time_intervals(cleaned_df)
-        processed_df_cob = create_cob_and_carb_availability_cols(processed_df_regular)
-        processed_df_iob = create_iob_and_ins_availability_cols(processed_df_cob)
-        return processed_df_iob
+        raw = self._translate_raw_data(raw)
+        to_return = preprocessing_pipeline(raw)
+        return to_return
 
     def get_validation_day_splits(self, patient_id: str):
         """
@@ -199,6 +191,12 @@ class GlurooDataLoader(DatasetBase):
         patient_data = self.validation_data[self.validation_data["p_num"] == patient_id]
         for train_period, test_period in self._get_day_splits(patient_data):
             yield patient_id, train_period, test_period
+
+    def _translate_raw_data(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Translate the raw data to the correct format.
+        """
+        return data_translation(raw_data)
 
     def _get_day_splits(self, patient_data: pd.DataFrame):
         """

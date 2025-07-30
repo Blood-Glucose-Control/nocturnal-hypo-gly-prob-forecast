@@ -8,7 +8,6 @@ from src.data.physiological.carb_model.constants import (
     COB_COL,
     CARB_AVAIL_COL,
 )
-from src.data.preprocessing.time_processing import create_datetime_index
 
 
 # https://ieeexplore.ieee.org/ielx7/4664312/10398544/10313965/supp1-3331297.pdf?arnumber=10313965
@@ -97,7 +96,7 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     - Handles missing `time_diff` values by skipping affected rows.
 
     Parameters:
-    df (pd.DataFrame): DataFrame containing meal announcement times and time differences.
+    df (pd.DataFrame): DataFrame with datetime index containing meal announcement times.
 
     Returns:
     pd.DataFrame: Updated DataFrame with computed `carb_availability` and `cob` columns.
@@ -107,14 +106,15 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     result_df[COB_COL] = 0.0
     result_df[CARB_AVAIL_COL] = 0.0
 
-    if "datetime" not in result_df.columns:
-        result_df = create_datetime_index(result_df)
+    if not isinstance(result_df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame must have a datetime index")
 
     # Process each patient separately
+    # TODO:TONY - This is a bottleneck. We should parallelize this.
     for _, patient_df in result_df.groupby("p_num"):
         # Calculate for this patient
-        for meal_time in patient_df.index[patient_df["carbs-0:00"].notna()]:
-            meal_value = patient_df.loc[meal_time, "carbs-0:00"]
+        for meal_time in patient_df.index[patient_df["food_g"].notna()]:
+            meal_value = patient_df.loc[meal_time, "food_g"]
             meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
                 meal_value, CARB_ABSORPTION, TS_MIN, T_ACTION_MAX_MIN
             )
@@ -124,28 +124,26 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
             result_df.loc[meal_time, COB_COL] += cob[0]
 
             # Continue with future times
-            next_index = meal_time + 1
-            time_since_meal = 0
+            next_index = meal_time + pd.Timedelta(
+                minutes=1
+            )  # Use timedelta instead of +1
+            time_since_meal_mins = 0
 
-            while next_index in patient_df.index and time_since_meal < T_ACTION_MAX_MIN:
-                # Extract the datetime values safely
-                dt_next = patient_df.at[next_index, "datetime"]
-                dt_meal = patient_df.at[meal_time, "datetime"]
+            while (
+                next_index in patient_df.index
+                and time_since_meal_mins < T_ACTION_MAX_MIN
+            ):
+                # Calculate time difference using index
+                time_since_meal_mins = int(
+                    (next_index - meal_time).total_seconds() / 60
+                )
 
-                # Convert to datetime if they aren't already
-                if not isinstance(dt_next, pd.Timestamp):
-                    dt_next = pd.to_datetime(dt_next)
-                if not isinstance(dt_meal, pd.Timestamp):
-                    dt_meal = pd.to_datetime(dt_meal)
-
-                time_since_meal = int((dt_next - dt_meal).total_seconds() / 60)
-
-                if time_since_meal < T_ACTION_MAX_MIN:
+                if time_since_meal_mins < T_ACTION_MAX_MIN:
                     result_df.loc[next_index, CARB_AVAIL_COL] += meal_avail[
-                        time_since_meal
+                        time_since_meal_mins
                     ]
-                    result_df.loc[next_index, COB_COL] += cob[time_since_meal]
+                    result_df.loc[next_index, COB_COL] += cob[time_since_meal_mins]
 
-                next_index += 1
+                next_index += pd.Timedelta(minutes=1)  # Use timedelta
 
     return result_df

@@ -11,7 +11,9 @@ from src.data.physiological.carb_model.constants import (
     TS_MIN,
     T_ACTION_MAX_MIN,
 )
-from src.data.preprocessing.time_processing import create_datetime_index
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # This function was ported to Python from a Matlab function provided by PJacobs on (08/10/2023)
@@ -100,7 +102,7 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     - Handles missing `time_diff` values by skipping affected rows.
 
     Parameters:
-    df (pd.DataFrame): DataFrame containing insulin administration times and time differences.
+    df (pd.DataFrame): DataFrame with datetime index containing insulin administration times.
 
     Returns:
     pd.DataFrame: Updated DataFrame with computed `ins_availability` and `iob` columns.
@@ -110,15 +112,18 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     result_df[INSULIN_AVAIL_COL] = 0.0
     result_df[IOB_COL] = 0.0
 
-    if "datetime" not in result_df.columns:
-        result_df = create_datetime_index(result_df)
+    if not isinstance(result_df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame must have a datetime index")
+
+    timestep_count = 0
 
     # Process each patient separately
+    # TODO:TONY - This is a bottleneck. We should parallelize this.
     for _, patient_df in result_df.groupby("p_num"):
         for ins_time in patient_df.index[
-            (patient_df["insulin-0:00"].notna()) & (patient_df["insulin-0:00"] > 0)
+            (patient_df["dose_units"].notna()) & (patient_df["dose_units"] > 0)
         ]:
-            insulin_dose = patient_df.loc[ins_time, "insulin-0:00"]
+            insulin_dose = patient_df.loc[ins_time, "dose_units"]
 
             # Simulate insulin dynamics
             ins_avail, iob, _, _, _ = (
@@ -132,32 +137,31 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
             result_df.loc[ins_time, IOB_COL] += iob[0]
 
             # Continue with future times
-            next_index = ins_time + 1
-            time_since_insulin = 0
+            next_index = ins_time + pd.Timedelta(minutes=1)  # Use timedelta
+            time_since_insulin_mins = 0
 
-            # TODO: Verify that this should be T_ACTION_MAX_MIN and not TMAX
             while (
-                next_index in patient_df.index and time_since_insulin < T_ACTION_MAX_MIN
+                next_index in patient_df.index
+                and time_since_insulin_mins < T_ACTION_MAX_MIN
             ):
-                # Extract the dateime values safely
-                dt_next = patient_df.at[next_index, "datetime"]
-                dt_ins = patient_df.at[ins_time, "datetime"]
+                timestep_count += 1
+                if timestep_count % 10000 == 0:
+                    logger.info(
+                        f"Processing insulin dynamics - timestep: {timestep_count}"
+                    )
 
-                # Convert to datetime if they aren't already
-                if not isinstance(dt_next, pd.Timestamp):
-                    dt_next = pd.to_datetime(dt_next)
-                if not isinstance(dt_ins, pd.Timestamp):
-                    dt_ins = pd.to_datetime(dt_ins)
+                # Calculate time difference using index
+                time_since_insulin_mins = int(
+                    (next_index - ins_time).total_seconds() / 60
+                )
 
-                time_since_insulin = int((dt_next - dt_ins).total_seconds() / 60)
-
-                if time_since_insulin < T_ACTION_MAX_MIN:
+                if time_since_insulin_mins < T_ACTION_MAX_MIN:
                     result_df.loc[next_index, INSULIN_AVAIL_COL] += ins_avail[
-                        time_since_insulin
+                        time_since_insulin_mins
                     ]
-                    result_df.loc[next_index, IOB_COL] += iob[time_since_insulin]
+                    result_df.loc[next_index, IOB_COL] += iob[time_since_insulin_mins]
 
-                next_index += 1
+                next_index += pd.Timedelta(minutes=1)  # Use timedelta
 
     return result_df
 

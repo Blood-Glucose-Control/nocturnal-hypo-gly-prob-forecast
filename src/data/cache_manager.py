@@ -392,7 +392,7 @@ class CacheManager:
         self, dataset_name: str, dataset_type: str, data, file_format: str = "csv"
     ):
         """
-        Save processed data to cache. This function assume nothing about the index so index=False.
+        Save processed data to cache. The index is datetime.
 
         Args:
             dataset_name (str): Name of the dataset
@@ -407,7 +407,7 @@ class CacheManager:
 
         if file_format == "csv":
             if hasattr(data, "to_csv"):
-                data.to_csv(processed_path / f"{dataset_type}.csv", index=False)
+                data.to_csv(processed_path / f"{dataset_type}.csv", index=True)
             else:
                 raise ValueError(f"Cannot save data of type {type(data)} as CSV")
         else:
@@ -419,7 +419,7 @@ class CacheManager:
         self, dataset_name: str, dataset_type: str, file_format: str = "csv"
     ):
         """
-        Load processed data from cache.
+        Load processed data with datetime index from cache.
 
         Args:
             dataset_name (str): Name of the dataset
@@ -436,7 +436,7 @@ class CacheManager:
         if file_format == "csv":
             csv_file = processed_path / f"{dataset_type}.csv"
             if csv_file.exists():
-                return pd.read_csv(csv_file)
+                return pd.read_csv(csv_file, index_col="datetime", parse_dates=True)
 
         return None
 

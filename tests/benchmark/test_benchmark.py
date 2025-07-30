@@ -17,15 +17,15 @@ class TestBenchmark:
     raw_output_file_path = "./results/raw/2025-03-20_18-54-56_0_naive_05min.csv"
     processed_dir = "./results/processed/2025-03-20_18-54-56"
     x_features = [
-        "hr-0:00",
-        "steps-0:00",
-        "cals-0:00",
+        "hr_bpm",
+        "steps",
+        "cals",
         "cob",
         "carb_availability",
         "insulin_availability",
         "iob",
     ]
-    y_features = ["bg-0:00"]
+    y_features = ["bg_mM"]
 
     @pytest.fixture(scope="class")
     def benchmark_outputs(self):

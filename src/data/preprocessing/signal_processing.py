@@ -21,7 +21,7 @@ import pandas as pd
 
 
 def apply_moving_average(
-    df: pd.DataFrame, window_size: int = 36, bg_col="bg-0:00"
+    df: pd.DataFrame, window_size: int = 36, bg_col="bg_mM"
 ) -> pd.DataFrame:
     """
     Takes the moving average of the dataframe over bg_col

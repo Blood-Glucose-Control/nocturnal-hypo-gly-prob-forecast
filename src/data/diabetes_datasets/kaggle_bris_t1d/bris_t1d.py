@@ -10,11 +10,13 @@ carbohydrate on board (COB) calculation, insulin on board (IOB) calculation,
 and train/validation splitting.
 """
 
+import logging
 import pandas as pd
 import functools
 from concurrent.futures import ProcessPoolExecutor
 from collections import defaultdict
 
+from src.data.preprocessing.pipeline import preprocessing_pipeline
 from src.data.preprocessing.time_processing import (
     create_datetime_index,
 )
@@ -38,7 +40,6 @@ from src.data.diabetes_datasets.kaggle_bris_t1d.data_cleaner import (
     clean_brist1d_test_data,
 )
 
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -99,26 +100,27 @@ class BrisT1DDataLoader(DatasetBase):
         self.cache_manager = get_cache_manager()
         self.dataset_config = get_dataset_config(self.dataset_name)
 
+        # Data
+        self.train_data = None
+        self.processed_data = None
+        self.raw_data = None
+        self.validation_data = None
+        self.train_dt_col_type = None
+        self.val_dt_col_type = None
+        self.num_train_days = None
+
         # Preload data
         self.load_data()
 
     @property
     def dataset_name(self):
-        """
-        Return the name of the dataset.
-
-        Returns:
-            str: Name of the dataset
-        """
         return "kaggle_brisT1D"
 
     def load_raw(self):
         """
         Load the raw dataset from cache or fetch from source.
         The raw dataset is automatically fetched from Kaggle if not available.
-
-        This method ensures raw data is available in the cache, fetching it
-        from Kaggle if necessary, then reads the appropriate CSV file.
+        Then reads the appropriate CSV file.
 
         Returns:
             pd.DataFrame: The raw data loaded from the CSV file.
@@ -146,37 +148,32 @@ class BrisT1DDataLoader(DatasetBase):
 
     def load_data(self):
         """
-        Load and process the dataset, with caching support.
-
-        This method handles loading the data either from cache or by processing
-        the raw dataset. For train data, it returns a DataFrame and splits it into
-        training and validation sets. For test data, it organizes the data into a
-        nested dictionary by patient ID and row ID.
-
-        If using cached data, it reads from the cache location. Otherwise, it processes
-        the raw data and saves it to cache for future use.
+        Load processed data from cache or process raw data and save to cache.
+        Then split train/validation data.
         """
         need_to_process_data = True
         if self.use_cached:
             cached_data = self.cache_manager.load_processed_data(
                 self.dataset_name, self.dataset_type
             )
+            # Processed data exists
             if cached_data is not None:
                 # This sets the data given the dataset type (train or test)
                 self._load_from_cache(cached_data)
                 need_to_process_data = False
 
-        if self.dataset_type == "train" and isinstance(
-            self.processed_data, pd.DataFrame
-        ):
-            self._split_train_validation()
-
+        # Either processed data DNE or use_cached is False
         if need_to_process_data:
             logger.info(
                 "Processed cache not found or not used, processing raw data and saving to cache..."
             )
-            # This will attempt to load the raw data (and fetch from kaggle if not available), process it and save it to cache
             self._process_and_cache_data()
+
+        # Split train/validation data
+        if self.dataset_type == "train" and isinstance(
+            self.processed_data, pd.DataFrame
+        ):
+            self._split_train_validation()
 
     def _load_from_cache(self, cached_data):
         """
@@ -247,37 +244,19 @@ class BrisT1DDataLoader(DatasetBase):
 
     def _process_and_cache_data(self):
         """
-        Process raw data and save to cache.
-
-        This method orchestrates the workflow for data that isn't already cached:
-        1. Load the raw data from the source file (prompt users to fetch from Kaggle if not available; cache is just another level of cache for the raw data).
-        2. Process the raw data using the appropriate pipeline
-        3. Store the processed data in self.processed_data
-        4. Save the processed data to cache
-
-        The actual processing is delegated to _process_raw_data(), which handles
-        different processing pipelines for train and test data.
+        Try to load the raw data, process it and save it to cache.
+        If the raw data is not available, fetch it from Kaggle.
         """
         self.raw_data = self.load_raw()
         self.processed_data = self._process_raw_data()
 
     def _split_train_validation(self):
         """
-        Split processed data into training and validation sets.
-
-        This method is specific to train data and divides the processed dataset
-        into training and validation subsets based on the specified number of
-        validation days. After splitting, it calculates and stores metadata about
-        the resulting datasets:
-
-        - Data types of datetime columns
-        - Number of unique days in the training dataset
-
-        These metadata values are useful for later processing and analysis.
+        Split processed data into training and validation sets based on num_validation_days.
+        Calculates metadata (datetime column types, number of training days) for later use.
 
         Raises:
-            TypeError: If processed_data is not a DataFrame, which is required for
-                    the train/validation split operation.
+            TypeError: If processed_data is not a DataFrame.
         """
         if not isinstance(self.processed_data, pd.DataFrame):
             raise TypeError(
@@ -291,39 +270,31 @@ class BrisT1DDataLoader(DatasetBase):
         self.val_dt_col_type = self.validation_data["datetime"].dtype
         self.num_train_days = len(self.train_data["datetime"].dt.date.unique())
 
+    def _translate_raw_data(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Translate the raw data to the correct format for the preprocessing pipeline.
+        """
+        if self.dataset_type == "train":
+            return clean_brist1d_train_data(raw_data)
+        elif self.dataset_type == "test":
+            return clean_brist1d_test_data(raw_data)
+
     def _process_raw_data(self) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         """
-        Process the raw data according to dataset type with performance optimizations.
-
-        For training data, this applies a series of preprocessing steps to the entire dataset.
-        For test data, it processes each patient in parallel using a process pool,
-        organizing the result in a nested dictionary structure.
-
-        The preprocessing steps include:
-        - Cleaning the data
-        - Creating datetime index
-        - Ensuring regular time intervals
-        - Calculating carbohydrates on board and availability
-        - Calculating insulin on board and availability
-
-        Returns:
-            pd.DataFrame | dict[str, dict[str, pd.DataFrame]]: The processed data.
-            For train data, returns a DataFrame. For test data, returns a nested dict
-            organized as {patient_id: {row_id: DataFrame}}.
-
-        Raises:
-            ValueError: If dataset_type is not 'train' or 'test'.
+        Process raw test or train data.
+        For train data, process the entire dataset (which is just one single df)
+        For test data, a row is a df, so we need to process each row in parallel.
+        Result: Save processed data to cache.
+        // TODO:TONY - Test the test set's caching functions
         """
         # Not cached, process the raw data
         if self.dataset_type == "train":
             logger.info("Processing train data. This may take a while...")
-            data = clean_brist1d_train_data(self.raw_data)
-            data = create_datetime_index(data)
-            data = ensure_regular_time_intervals(data)
-            data = create_cob_and_carb_availability_cols(data)
-            data = create_iob_and_ins_availability_cols(data)
+            pre_processed_data = self._translate_raw_data(self.raw_data)
+            data = preprocessing_pipeline(pre_processed_data)
 
             # Save processed data to cache
+            logger.info("Done processing train data. Saving processed data to cache...")
             self.cache_manager.save_processed_data(
                 self.dataset_name, self.dataset_type, data
             )
@@ -332,7 +303,7 @@ class BrisT1DDataLoader(DatasetBase):
 
         elif self.dataset_type == "test":
             logger.info("Processing test data. This may take a while...")
-            data = clean_brist1d_test_data(self.raw_data)
+            data = self._translate_raw_data(self.raw_data)
             processed_data = defaultdict(dict)
 
             processed_path = self.cache_manager.get_processed_data_path_for_type(
@@ -341,10 +312,11 @@ class BrisT1DDataLoader(DatasetBase):
             processed_path.mkdir(parents=True, exist_ok=True)
 
             # Process each patient in parallel
+            # TODO:TONY - Add data processing pipeline to the test set too
             with ProcessPoolExecutor() as executor:
                 # Create a partial function with common arguments
                 process_patient_fn = functools.partial(
-                    self._process_patient_data, base_cache_path=processed_path
+                    self._process_patient_test_data, base_cache_path=processed_path
                 )
 
                 # Map function to all patients and collect results
@@ -360,29 +332,19 @@ class BrisT1DDataLoader(DatasetBase):
                 f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
             )
 
-    def _process_patient_data(self, patient_item, base_cache_path):
+    def _process_patient_test_data(self, patient_item, base_cache_path):
         """
         Process data for a single patient in parallel.
 
-        This function is designed to be called by ProcessPoolExecutor to enable
-        parallel processing of patient data. It applies a sequence of transformations
-        to each row of patient data using method chaining for efficiency.
-
-        For each row:
-        1. Creates datetime index
-        2. Ensures regular time intervals
-        3. Calculates COB and carb availability
-        4. Calculates IOB and insulin availability
-        5. Saves the processed row to cache
+        Applies transformations (datetime index, regular intervals, COB/IOB calculations)
+        to each row of patient data and saves to cache.
 
         Args:
-            patient_item (tuple): A tuple of (patient_id, patient_data_dict) where
-                patient_data_dict is a dictionary mapping row_ids to DataFrames
-            base_cache_path (Path): Base directory path for caching processed data
+            patient_item (tuple): (patient_id, patient_data_dict) mapping row_ids to DataFrames
+            base_cache_path (Path): Base directory for caching processed data
 
         Returns:
-            tuple: (patient_id, processed_rows_dict) where processed_rows_dict is a
-                dictionary mapping row_ids to processed DataFrames
+            tuple: (patient_id, processed_rows_dict) mapping row_ids to processed DataFrames
         """
         pid, patient_data = patient_item
         processed_rows = {}
