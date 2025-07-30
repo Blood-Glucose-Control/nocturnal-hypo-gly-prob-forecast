@@ -35,7 +35,10 @@ def ensure_regular_time_intervals(df: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame: DataFrame with regular time intervals, missing times filled with NaN
     """
     # Validate inputs
-    if df.empty or df.shape[0] == 1:
+    if df.empty:
+        return df.copy()  # Return empty DataFrame with same structure
+
+    if df.shape[0] <= 1:
         raise ValueError("DataFrame must contain more than 1 row")
 
     if "p_num" not in df.columns:
