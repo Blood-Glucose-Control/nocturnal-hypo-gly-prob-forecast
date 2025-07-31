@@ -1,0 +1,57 @@
+{
+  "best_metric": 1.0637404918670654,
+  "best_model_checkpoint": "../../src/models/ttm_tutorial_finetuned_models/output/checkpoint-140",
+  "epoch": 1.0,
+  "eval_steps": 500,
+  "global_step": 140,
+  "is_hyper_param_search": false,
+  "is_local_process_zero": true,
+  "is_world_process_zero": true,
+  "log_history": [
+    {
+      "epoch": 1.0,
+      "grad_norm": 2.1368346214294434,
+      "learning_rate": 6.369298803713059e-05,
+      "loss": 0.8446,
+      "step": 140
+    },
+    {
+      "epoch": 1.0,
+      "eval_loss": 1.0637404918670654,
+      "eval_runtime": 53.5573,
+      "eval_samples_per_second": 86.991,
+      "eval_steps_per_second": 1.363,
+      "step": 140
+    }
+  ],
+  "logging_steps": 500,
+  "max_steps": 700000,
+  "num_input_tokens_seen": 0,
+  "num_train_epochs": 5000,
+  "save_steps": 500,
+  "stateful_callbacks": {
+    "EarlyStoppingCallback": {
+      "args": {
+        "early_stopping_patience": 10,
+        "early_stopping_threshold": 0.0
+      },
+      "attributes": {
+        "early_stopping_patience_counter": 0
+      }
+    },
+    "TrainerControl": {
+      "args": {
+        "should_epoch_stop": false,
+        "should_evaluate": false,
+        "should_log": false,
+        "should_save": true,
+        "should_training_stop": false
+      },
+      "attributes": {}
+    }
+  },
+  "total_flos": 132652969832448.0,
+  "train_batch_size": 64,
+  "trial_name": null,
+  "trial_params": null
+}
