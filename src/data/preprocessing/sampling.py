@@ -20,6 +20,7 @@ Functions:
 
 from enum import Enum
 import pandas as pd
+import polars as pl
 import numpy as np
 from typing import Optional, Literal, Any, Type
 from src.data.preprocessing.time_processing import get_most_common_time_interval
@@ -95,7 +96,7 @@ def ensure_regular_time_intervals(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _is_valid_enum(enum_class: Type[Enum], name: Any):
-    return name in enum_class.__members__
+    return name in enum_class._value2member_map_
 
 # TODO: Evaluate whether this function should replace `ensure_regular_time_intervals` or serve as a complementary utility.
 def ensure_regular_time_intervals_with_interpolation(
@@ -173,7 +174,78 @@ def ensure_regular_time_intervals_with_interpolation(
 
     return resampled_df
 
+def grouped_ensure_regular_time_intervals_with_interpolation(
+    df: pd.DataFrame,
+    datetime_col: str = "datetime",
+    patient_col: str = "p_num",
+    target_interval_minutes: int = 5,
+    interpolation_method: str = "linear",
+) -> pd.DataFrame:
+    """Same thing as above, but groups by patients and interpolates"""
+    assert _is_valid_enum(InterpolationMethod, interpolation_method), "Invalid interpolation method"
+    pl_df = pl.DataFrame(df)    
+    assert pl_df.schema[datetime_col] == pl.Datetime, "Datetime column must be datetime type"
+    
+    patient_time_ranges = pl_df.group_by(patient_col).agg([
+        pl.col(datetime_col).min().alias("start"),
+        pl.col(datetime_col).max().alias("end")
+    ])
 
+    time_grids = patient_time_ranges.with_columns([
+        pl.struct(["start", "end"]).map_elements(
+            lambda x: pl.datetime_range(
+                start=x["start"],
+                end=x["end"],
+                interval=f"{target_interval_minutes}m",
+                eager=True,
+                time_unit="ns"
+            ),
+            return_dtype=pl.List(pl.Datetime(time_unit="ns"))
+        ).alias("time_grid")
+    ]).explode("time_grid").rename({"time_grid": datetime_col})
+
+    pl_df_timesteps = pl_df.select([datetime_col, patient_col])
+    all_timestamps = (
+        pl.concat([pl_df_timesteps, time_grids], how="diagonal")
+        .unique(subset=[datetime_col, patient_col])
+        .sort([patient_col, datetime_col])
+    )
+
+    pl_df_joined = all_timestamps.join(
+        pl_df,
+        on=[datetime_col, patient_col],
+        how="left"
+    )
+
+    # need to convert to pandas and then interpolate since polars only supports linear
+    def _interpolate_with_pandas(group: pl.DataFrame) -> pl.DataFrame:
+        pdf = group.to_pandas()
+        pdf = pdf.sort_values(datetime_col)
+        pdf = pdf.interpolate(method=interpolation_method)
+        pdf.reset_index(inplace=True)
+        return pl.DataFrame(pdf)
+    
+    print(pl_df_joined.schema)
+    interpolated = (
+        pl_df_joined
+        .sort([patient_col, datetime_col])
+        .cast({"bg-0:00": pl.Float64})
+        .group_by(patient_col)
+        .map_groups(
+            _interpolate_with_pandas
+        )
+        .join(
+            time_grids,
+            on=[patient_col, datetime_col],
+            how="inner"
+        )
+    )
+
+    interpolated = interpolated.drop(
+        "start", "end", "start_right", "end_right", "index"
+    )
+    
+    return interpolated.to_pandas().set_index("datetime")
 # TODO: Verify that this function can replaced the above function and if it is an improvement.
 
 

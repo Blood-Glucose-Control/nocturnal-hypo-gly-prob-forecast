@@ -1,5 +1,5 @@
 import pandas as pd
-from src.data.preprocessing.sampling import ensure_regular_time_intervals_with_interpolation, InterpolationMethod
+from src.data.preprocessing.sampling import grouped_ensure_regular_time_intervals_with_interpolation, InterpolationMethod
 from src.data.preprocessing.time_processing import ensure_datetime_index
 import polars as pl
 from datetime import timedelta
@@ -33,15 +33,19 @@ def clean_cgm_data(
         datetime_col="date",
         gap_threshold=config.gap_threshold,
         min_sample_size=config.min_sample_size
-    )
+    ).set_index("date")
 
-    # Translate data to the correct format
     df = data_translation(df)
-    df = ensure_regular_time_intervals_with_interpolation(
+
+    df = grouped_ensure_regular_time_intervals_with_interpolation(
         df, 
+        datetime_col="datetime",
+        patient_col="p_num",
         target_interval_minutes=config.sampling_frequency_min, 
         interpolation_method=config.sampling_interpolation.value
     )
+    # quick fix: train validation splitter needs datetime to be a col
+    df = df.reset_index()
 
     return df
 

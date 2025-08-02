@@ -51,6 +51,7 @@ class BaseAwesomeCGMLoader(DatasetBase):
         """
         self.raw_data = self.load_raw()
         self.processed_data = self._process_raw_data()
+        print(self.processed_data.shape)
         self.train_data, self.validation_data = get_train_validation_split(
             self.processed_data, num_validation_days=self.num_validation_days
         )
