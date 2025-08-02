@@ -18,10 +18,31 @@ Functions:
     resample_to_frequency: Resample time series data to a specified frequency
 """
 
+from enum import Enum
 import pandas as pd
 import numpy as np
-from typing import Optional, Literal
+from typing import Optional, Literal, Any, Type
 from src.data.preprocessing.time_processing import get_most_common_time_interval
+
+class InterpolationMethod(str, Enum):
+    LINEAR = "linear"
+    TIME = "time"
+    INDEX = "index"
+    VALUES = "values"
+    NEAREST = "nearest"
+    ZERO = "zero"
+    SLINEAR = "slinear"
+    QUADRATIC = "quadratic"
+    CUBIC = "cubic"
+    BARYCENTRIC = "barycentric"
+    KROGH = "krogh"
+    SPLINE = "spline"
+    POLYNOMIAL = "polynomial"
+    FROM_DERIVATIVES = "from_derivatives"
+    PIECEWISE_POLYNOMIAL = "piecewise_polynomial"
+    PCHIP = "pchip"
+    AKIMA = "akima"
+    CUBICSPLINE = "cubicspline"
 
 
 def ensure_regular_time_intervals(df: pd.DataFrame) -> pd.DataFrame:
@@ -72,6 +93,9 @@ def ensure_regular_time_intervals(df: pd.DataFrame) -> pd.DataFrame:
 
     return result_df
 
+
+def _is_valid_enum(enum_class: Type[Enum], name: Any):
+    return name in enum_class.__members__
 
 # TODO: Evaluate whether this function should replace `ensure_regular_time_intervals` or serve as a complementary utility.
 def ensure_regular_time_intervals_with_interpolation(
@@ -138,33 +162,8 @@ def ensure_regular_time_intervals_with_interpolation(
         pd.DatetimeIndex(new_index).union(result_df.index).sort_values()
     )
 
-    # Interpolate missing values
-    VALID_INTERPOLATION_METHODS = (
-        "linear",
-        "time",
-        "index",
-        "values",
-        "nearest",
-        "zero",
-        "slinear",
-        "quadratic",
-        "cubic",
-        "barycentric",
-        "krogh",
-        "spline",
-        "polynomial",
-        "from_derivatives",
-        "piecewise_polynomial",
-        "pchip",
-        "akima",
-        "cubicspline",
-    )
-    if interpolation_method in VALID_INTERPOLATION_METHODS:
-        resampled_df = resampled_df.interpolate(method=interpolation_method)
-    else:
-        raise ValueError(
-            f"Invalid interpolation method: {interpolation_method}. Must be one of {VALID_INTERPOLATION_METHODS}"
-        )
+    assert _is_valid_enum(InterpolationMethod, interpolation_method), "Invalid interpolation method"
+    resampled_df = resampled_df.interpolate(method=interpolation_method)
 
     # Keep only the points at the target frequency
     resampled_df = resampled_df.loc[new_index]

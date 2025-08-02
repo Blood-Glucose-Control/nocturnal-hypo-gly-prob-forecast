@@ -244,3 +244,33 @@ def get_train_validation_split(
         train_data["datetime"] = pd.to_datetime(train_data["datetime"])
 
     return train_data, validation_data
+
+
+def ensure_datetime_index(
+    data: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Ensures DataFrame has a datetime index.
+
+    Args:
+        data (pd.DataFrame): Input DataFrame that either has a datetime index or a 'date' column
+        that can be converted to datetime.
+
+    Returns:
+        pd.DataFrame: DataFrame with sorted datetime index.
+    """
+    df = data.copy()
+
+    # Check if the index is already a DatetimeIndex
+    if not isinstance(df.index, pd.DatetimeIndex):
+        # If not, set 'date' column as index and convert to DatetimeIndex
+        if "date" in df.columns:
+            df = df.set_index("date")
+        else:
+            raise KeyError(
+                "DataFrame must have either a 'date' column or a DatetimeIndex."
+            )
+
+    df.index = pd.DatetimeIndex(df.index)
+
+    return df

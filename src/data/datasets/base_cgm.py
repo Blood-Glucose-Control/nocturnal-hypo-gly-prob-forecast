@@ -1,7 +1,7 @@
 import pandas as pd
 from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.datasets.dataset_base import DatasetBase
-
+from src.data.datasets.aleppo.clean_data import PreprocessConfig, default_config
 
 class BaseAwesomeCGMLoader(DatasetBase):
     def __init__(
@@ -9,7 +9,7 @@ class BaseAwesomeCGMLoader(DatasetBase):
         keep_columns: list = None,
         num_validation_days: int = 20,
         file_path: str = None,
-        config: dict = None,
+        config: PreprocessConfig = default_config,
     ):
         """
         Args:
