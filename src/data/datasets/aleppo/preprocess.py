@@ -74,5 +74,5 @@ def create_aleppo_csv(raw_folder_path: str, output_csv_path: str):
 
     # rename columns for compatibility with current data loaders
     file = pd.read_csv(newfile)
-    file = file.rename(columns={"id": "p_num", "gl": "bgl", "time": "datetime"})
+    file = file.rename(columns={"id": "p_num", "gl": "bgl", "time": "date"})
     file.to_csv(newfile, index=False)

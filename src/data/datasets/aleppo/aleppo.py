@@ -1,5 +1,5 @@
 from src.data.datasets.dataset_base import DatasetBase
-from .data_cleaner import PreprocessConfig, default_config
+from .data_cleaner import PreprocessConfig, default_config, clean_cgm_data
 from src.data.preprocessing.time_processing import get_train_validation_split
 from .preprocess import create_aleppo_csv
 import os
@@ -84,7 +84,7 @@ class AleppoDataLoader(DatasetBase):
 
         raw_df = self.raw_data[self.keep_columns].copy()
 
-        return self.cleaner(raw_df, self.config)
+        return clean_cgm_data(raw_df, self.config)
 
     def get_validation_day_splits(self, patient_id: str):
         """
