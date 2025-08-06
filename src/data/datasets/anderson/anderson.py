@@ -1,5 +1,5 @@
 import pandas as pd
-from src.data.datasets.base_cgm import BaseAwesomeCGMLoader
+from src.data.datasets.dataset_base import DatasetBase
 from src.data.datasets.aleppo.data_cleaner import (
     clean_cgm_data,
     default_config,
@@ -18,7 +18,7 @@ def get_storage_location():
     return os.path.join(cache_dir, "anderson2016.csv")
 
 
-class AndersonDataLoader(BaseAwesomeCGMLoader):
+class AndersonDataLoader(DatasetBase):
     def __init__(
         self,
         keep_columns: list = None,
