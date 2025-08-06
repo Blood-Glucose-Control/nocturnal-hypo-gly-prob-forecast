@@ -20,10 +20,12 @@ Functions:
 
 from enum import Enum
 import pandas as pd
+import timedelta
 import polars as pl
 import numpy as np
 from typing import Optional, Literal, Any, Type
 from src.data.preprocessing.time_processing import get_most_common_time_interval
+
 
 class InterpolationMethod(str, Enum):
     LINEAR = "linear"
@@ -98,6 +100,7 @@ def ensure_regular_time_intervals(df: pd.DataFrame) -> pd.DataFrame:
 def _is_valid_enum(enum_class: Type[Enum], name: Any):
     return name in enum_class._value2member_map_
 
+
 # TODO: Evaluate whether this function should replace `ensure_regular_time_intervals` or serve as a complementary utility.
 def ensure_regular_time_intervals_with_interpolation(
     df: pd.DataFrame,
@@ -163,7 +166,9 @@ def ensure_regular_time_intervals_with_interpolation(
         pd.DatetimeIndex(new_index).union(result_df.index).sort_values()
     )
 
-    assert _is_valid_enum(InterpolationMethod, interpolation_method), "Invalid interpolation method"
+    assert _is_valid_enum(
+        InterpolationMethod, interpolation_method
+    ), "Invalid interpolation method"
     resampled_df = resampled_df.interpolate(method=interpolation_method)
 
     # Keep only the points at the target frequency
@@ -174,6 +179,7 @@ def ensure_regular_time_intervals_with_interpolation(
 
     return resampled_df
 
+
 def grouped_ensure_regular_time_intervals_with_interpolation(
     df: pd.DataFrame,
     datetime_col: str = "datetime",
@@ -182,27 +188,41 @@ def grouped_ensure_regular_time_intervals_with_interpolation(
     interpolation_method: str = "linear",
 ) -> pd.DataFrame:
     """Same thing as above, but groups by patients and interpolates"""
-    assert _is_valid_enum(InterpolationMethod, interpolation_method), "Invalid interpolation method"
-    pl_df = pl.DataFrame(df)    
-    assert pl_df.schema[datetime_col] == pl.Datetime, "Datetime column must be datetime type"
-    
-    patient_time_ranges = pl_df.group_by(patient_col).agg([
-        pl.col(datetime_col).min().alias("start"),
-        pl.col(datetime_col).max().alias("end")
-    ])
+    assert _is_valid_enum(
+        InterpolationMethod, interpolation_method
+    ), "Invalid interpolation method"
+    pl_df = pl.DataFrame(df)
+    assert (
+        pl_df.schema[datetime_col] == pl.Datetime
+    ), "Datetime column must be datetime type"
 
-    time_grids = patient_time_ranges.with_columns([
-        pl.struct(["start", "end"]).map_elements(
-            lambda x: pl.datetime_range(
-                start=x["start"],
-                end=x["end"],
-                interval=f"{target_interval_minutes}m",
-                eager=True,
-                time_unit="ns"
-            ),
-            return_dtype=pl.List(pl.Datetime(time_unit="ns"))
-        ).alias("time_grid")
-    ]).explode("time_grid").rename({"time_grid": datetime_col})
+    patient_time_ranges = pl_df.group_by(patient_col).agg(
+        [
+            pl.col(datetime_col).min().alias("start"),
+            pl.col(datetime_col).max().alias("end"),
+        ]
+    )
+
+    time_grids = (
+        patient_time_ranges.with_columns(
+            [
+                pl.struct(["start", "end"])
+                .map_elements(
+                    lambda x: pl.datetime_range(
+                        start=x["start"],
+                        end=x["end"],
+                        interval=f"{target_interval_minutes}m",
+                        eager=True,
+                        time_unit="ns",
+                    ),
+                    return_dtype=pl.List(pl.Datetime(time_unit="ns")),
+                )
+                .alias("time_grid")
+            ]
+        )
+        .explode("time_grid")
+        .rename({"time_grid": datetime_col})
+    )
 
     pl_df_timesteps = pl_df.select([datetime_col, patient_col])
     all_timestamps = (
@@ -212,9 +232,7 @@ def grouped_ensure_regular_time_intervals_with_interpolation(
     )
 
     pl_df_joined = all_timestamps.join(
-        pl_df,
-        on=[datetime_col, patient_col],
-        how="left"
+        pl_df, on=[datetime_col, patient_col], how="left"
     )
 
     # need to convert to pandas and then interpolate since polars only supports linear
@@ -224,28 +242,64 @@ def grouped_ensure_regular_time_intervals_with_interpolation(
         pdf = pdf.interpolate(method=interpolation_method)
         pdf.reset_index(inplace=True)
         return pl.DataFrame(pdf)
-    
+
     print(pl_df_joined.schema)
     interpolated = (
-        pl_df_joined
-        .sort([patient_col, datetime_col])
+        pl_df_joined.sort([patient_col, datetime_col])
         .cast({"bg-0:00": pl.Float64})
         .group_by(patient_col)
-        .map_groups(
-            _interpolate_with_pandas
-        )
-        .join(
-            time_grids,
-            on=[patient_col, datetime_col],
-            how="inner"
-        )
+        .map_groups(_interpolate_with_pandas)
+        .join(time_grids, on=[patient_col, datetime_col], how="inner")
     )
 
     interpolated = interpolated.drop(
         "start", "end", "start_right", "end_right", "index"
     )
-    
+
     return interpolated.to_pandas().set_index("datetime")
+
+
+def create_subpatients(
+    df: pd.DataFrame,
+    gap_threshold: timedelta = timedelta(hours=2),
+    min_sample_size: int = 100,
+    datetime_col: str = "datetime",
+    p_col: str = "p_num",
+) -> pd.DataFrame:
+    """If large gaps occur for a particular patient, then split them
+    into subpatients"""
+    pl_df = pl.DataFrame(df).sort(datetime_col, descending=False)
+
+    pl_df = pl_df.with_columns(pl.col(datetime_col).diff().over(p_col).alias("diff"))
+
+    pl_df = pl_df.with_columns(
+        pl.when(pl.col("diff") > gap_threshold)
+        .then(1)
+        .otherwise(0)
+        .cum_sum()
+        .over(p_col)
+        .alias("group_ids")
+    )
+
+    relevant_groups = (
+        pl_df.group_by(p_col, "group_ids")
+        .agg(pl.len())
+        .filter(pl.col("len") > min_sample_size)
+    )
+
+    pl_df = (
+        pl_df.join(relevant_groups, on=["p_num", "group_ids"])
+        .with_columns(
+            (pl.col("p_num").cast(str) + "_" + pl.col("group_ids").cast(str)).alias(
+                "p_num"
+            )
+        )
+        .drop(["len", "group_ids", "diff"])
+    )
+
+    return pl_df.to_pandas()  # :(
+
+
 # TODO: Verify that this function can replaced the above function and if it is an improvement.
 
 

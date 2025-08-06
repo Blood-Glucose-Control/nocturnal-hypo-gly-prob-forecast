@@ -4,71 +4,75 @@
 
 import datetime
 import pandas as pd
+import os
 # For working with dates and times
 
-# This study downloads as a zipped folder containing data tables and forms
-# First download the entire dataset. Do not rename the downloaded folder
-# Place the downloaded folder into a folder of your creation specific for this dataset
-# TODO: enter directory of downloaded dataset
-dataset = "./raw"
-# If you have a different naming method, you will need to adjust this, eg.
-# dataset = "insert_your_name"
 
-# using the original file path exactly as downloaded
-file = dataset + "/Data Tables/HDeviceCGM.txt"
-# alternatively, if file paths have been changed simply set file = the CGM file
+def create_aleppo_csv(raw_folder_path: str, output_csv_path: str):
+    """
+    Args:
+        raw_folder_path (str): Path to the `raw` folder for the dataset.
+        output_csv_path (str): Path to the CSV file for the processed data.
+    """
+    # This study downloads as a zipped folder containing data tables and forms
+    # First download the entire dataset. Do not rename the downloaded folder
+    # Place the downloaded folder into a folder of your creation specific for this dataset
+    # TODO: enter directory of downloaded dataset
+    dataset = raw_folder_path
+    # If you have a different naming method, you will need to adjust this, eg.
+    # dataset = "insert_your_name"
 
-basedate = datetime.date(2015, 5, 22)
-# The data has days as days since study start
-# Establishing a base date to work from
+    # using the original file path exactly as downloaded
+    file = os.path.join(dataset, "Data Tables", "HDeviceCGM.txt")
+    # alternatively, if file paths have been changed simply set file = the CGM file
 
-# TODO: change this to the location you want to save the processed csv
-newfile = "./procsessed/" + "aleppo_processed.csv"
-with open(file) as file:  # Open the data file
-    with open(newfile, "w") as export:  # Open the file for the processed data
-        isheader = True
-        # Flag to mark when the header is being read
+    basedate = datetime.date(2015, 5, 22)
+    # The data has days as days since study start
+    # Establishing a base date to work from
 
-        for line in file:
-            # Work line by line within the file
+    newfile = output_csv_path
+    with open(file) as file:  # Open the data file
+        with open(newfile, "w") as export:  # Open the file for the processed data
+            isheader = True
+            # Flag to mark when the header is being read
 
-            if isheader:
-                # Executes on the first iteration i.e. when reading the header
+            for line in file:
+                # Work line by line within the file
 
-                isheader = False
-                # All future lines will not be header lines
+                if isheader:
+                    # Executes on the first iteration i.e. when reading the header
 
-                export.write('"id","time","gl"\n')
-                # Write the export file's header
+                    isheader = False
+                    # All future lines will not be header lines
 
-                continue
-                # Move to the next iteration without executing the rest of the code
+                    export.write('"id","time","gl"\n')
+                    # Write the export file's header
 
-            line = line.split("|")
-            # Split the data by delimiting character so it can be worked with
+                    continue
+                    # Move to the next iteration without executing the rest of the code
 
-            day = datetime.timedelta(days=int(line[4]))
-            # obtain the "number of days since enrolled in study" field in a way useful for doing date arithmetic
+                line = line.split("|")
+                # Split the data by delimiting character so it can be worked with
 
-            thisdate = basedate + day
-            # Create the date that will get written to the file
+                day = datetime.timedelta(days=int(line[4]))
+                # obtain the "number of days since enrolled in study" field in a way useful for doing date arithmetic
 
-            thistime = datetime.datetime.strptime(line[5], "%H:%M:%S").time()
-            # Read the reading time as a time object
+                thisdate = basedate + day
+                # Create the date that will get written to the file
 
-            thedatetime = datetime.datetime.combine(thisdate, thistime)
-            # Combine the read date and time objects
+                thistime = datetime.datetime.strptime(line[5], "%H:%M:%S").time()
+                # Read the reading time as a time object
 
-            val = line[9]
+                thedatetime = datetime.datetime.combine(thisdate, thistime)
+                # Combine the read date and time objects
+                export.write(
+                    str(line[2]) + "," + str(thedatetime) + "," + line[9][0:3] + "\n"
+                )
+                # Write all the data to the export file in the working directory
 
-            export.write(
-                str(line[2]) + "," + str(thedatetime) + "," + line[9][0:3] + "\n"
-            )
-            # Write all the data to the export file in the working directory
+    # this is a large dataset, so do not be surprised is the runtime is somewhat long
 
-# this is a large dataset, so do not be surprised is the runtime is somewhat long
-
-# rename columns for compatibility with current data loaders
-file = pd.read_csv(newfile)
-file = file.rename(columns={"id": "p_num", "gl": "bgl", "time": "datetime"})
-file.to_csv(newfile, index=False)
+    # rename columns for compatibility with current data loaders
+    file = pd.read_csv(newfile)
+    file = file.rename(columns={"id": "p_num", "gl": "bgl", "time": "datetime"})
+    file.to_csv(newfile, index=False)

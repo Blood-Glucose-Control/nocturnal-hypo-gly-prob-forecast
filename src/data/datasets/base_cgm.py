@@ -1,7 +1,8 @@
 import pandas as pd
 from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.datasets.dataset_base import DatasetBase
-from src.data.datasets.aleppo.clean_data import PreprocessConfig, default_config
+from src.data.datasets.aleppo.data_cleaner import PreprocessConfig, default_config
+
 
 class BaseAwesomeCGMLoader(DatasetBase):
     def __init__(
@@ -41,6 +42,10 @@ class BaseAwesomeCGMLoader(DatasetBase):
         # Return all columns
         return pd.read_csv(self.file_path, low_memory=False)
 
+    def _make_processed_data(self):
+        self.raw_data = self.load_raw()
+        self.processed_data = self._process_raw_data()
+
     def load_data(self):
         """
         The function will load the raw data, process data and split it into train and validation.
@@ -49,9 +54,7 @@ class BaseAwesomeCGMLoader(DatasetBase):
         Returns:
             pd.DataFrame: The loaded data as a pandas DataFrame.
         """
-        self.raw_data = self.load_raw()
-        self.processed_data = self._process_raw_data()
-        print(self.processed_data.shape)
+        self._make_processed_data()
         self.train_data, self.validation_data = get_train_validation_split(
             self.processed_data, num_validation_days=self.num_validation_days
         )
