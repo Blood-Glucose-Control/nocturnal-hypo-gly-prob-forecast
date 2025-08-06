@@ -20,7 +20,7 @@ Functions:
 
 from enum import Enum
 import pandas as pd
-import timedelta
+from datetime import timedelta
 import polars as pl
 import numpy as np
 from typing import Optional, Literal, Any, Type
