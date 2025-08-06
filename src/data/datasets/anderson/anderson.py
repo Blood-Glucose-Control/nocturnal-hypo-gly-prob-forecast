@@ -59,7 +59,7 @@ class AndersonDataLoader(DatasetBase):
             return pd.read_csv(self.file_path, low_memory=False)
         assert (
             self.raw_folder_path is not None
-        ), "Seems like you haven't preprocessed the aleppo dataset before. Ensure you pass in the path to the `raw` folder directory to do this"
+        ), "Seems like you haven't preprocessed the anderson dataset before. Ensure you pass in the path to the `raw` folder directory to do this"
         create_anderson_csv(self.raw_folder_path, self.file_path)
         return pd.read_csv(self.file_path, low_memory=False)
 
