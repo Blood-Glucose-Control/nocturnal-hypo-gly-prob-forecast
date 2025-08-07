@@ -11,7 +11,7 @@ import pandas as pd
 import numpy as np
 import os
 import json
-from src.data.datasets.data_loader import get_loader
+from src.data.diabetes_datasets.data_loader import get_loader
 from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.preprocessing.signal_processing import apply_moving_average
 from src.tuning.param_grid import generate_param_grid

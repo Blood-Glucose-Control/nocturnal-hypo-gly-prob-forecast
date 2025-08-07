@@ -196,10 +196,15 @@ def get_train_validation_split(
         tuple[pd.DataFrame, pd.DataFrame]: (train_data, validation_data) where validation
             contains exactly num_validation_days of complete days
     """
+    # Check if datetime is the index or a column
     if "datetime" not in df.columns:
-        raise ValueError(
-            "datetime column not found in data. Please run create_datetime_index first."
-        )
+        if df.index.name == "datetime" or isinstance(df.index, pd.DatetimeIndex):
+            # datetime is the index, reset it to a column
+            df = df.reset_index()
+        else:
+            raise ValueError(
+                "datetime column not found in data. Please run create_datetime_index first."
+            )
 
     df["datetime"] = pd.to_datetime(df["datetime"])
 

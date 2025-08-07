@@ -15,8 +15,8 @@ This ensures that type checking and autocompletion work correctly in IDEs.
 """
 
 from typing import Union, Optional, Dict, Any, overload, Literal
-from src.data.datasets import BrisT1DDataLoader
-from src.data.datasets import GlurooDataLoader
+from src.data.diabetes_datasets import BrisT1DDataLoader
+from src.data.diabetes_datasets import GlurooDataLoader
 
 
 @overload
@@ -26,7 +26,6 @@ def get_loader(
     keep_columns: Optional[list[str]] = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
-    file_path: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
 ) -> BrisT1DDataLoader: ...
 
@@ -38,7 +37,6 @@ def get_loader(
     keep_columns: Optional[list[str]] = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
-    file_path: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
 ) -> GlurooDataLoader: ...
 
@@ -49,7 +47,6 @@ def get_loader(
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
-    file_path: str | None = None,
     config: dict | None = None,
 ) -> Union[BrisT1DDataLoader, GlurooDataLoader]:
     """
@@ -69,8 +66,6 @@ def get_loader(
                                        If None, all columns are loaded. Default: None
         use_cached (bool): Whether to use cached data if available. Default: False
         num_validation_days (int): Number of days to use for validation. Default: 20
-        file_path (str | None): Custom path to data files. If None, uses default paths.
-                              Default: None
         config (dict | None): Additional configuration parameters for the data loader.
                             Default: None
 
@@ -84,7 +79,6 @@ def get_loader(
         return BrisT1DDataLoader(
             keep_columns=keep_columns,
             num_validation_days=num_validation_days,
-            file_path=file_path,
             use_cached=use_cached,
             dataset_type=dataset_type,
         )
@@ -92,7 +86,6 @@ def get_loader(
         return GlurooDataLoader(
             keep_columns=keep_columns,
             num_validation_days=num_validation_days,
-            file_path=file_path,
             config=config,
         )
     else:

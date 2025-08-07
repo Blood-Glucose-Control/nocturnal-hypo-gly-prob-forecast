@@ -1,13 +1,13 @@
-
 # Development tools
 accelerate>=0.26.0
+
+# Data Science & ML
+datasets  # Hugging Face datasets library
 ipynb
 ipython
 ipywidgets
 # Jupyter environment
 jupyterlab
-
-# Data Science & ML
 kaggle
 loguru
 
