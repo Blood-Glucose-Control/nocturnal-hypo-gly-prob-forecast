@@ -79,9 +79,10 @@ class BrisT1DDataLoader(DatasetBase):
 
         Args:
             keep_columns (list[str] | None, optional): Specific columns to load from the dataset.
+                If provided, 'datetime' column is automatically included if not already present.
                 Defaults to None, which loads all columns.
             num_validation_days (int, optional): Number of days to use for validation.
-                Defaults to 20.
+                Only applies when dataset_type is 'train'. Defaults to 20.
             use_cached (bool, optional): Whether to use cached processed data if available.
                 Defaults to True.
             dataset_type (str, optional): Type of dataset to load ('train' or 'test').
@@ -270,14 +271,33 @@ class BrisT1DDataLoader(DatasetBase):
         self.val_dt_col_type = self.validation_data["datetime"].dtype
         self.num_train_days = len(self.train_data["datetime"].dt.date.unique())
 
-    def _translate_raw_data(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+    def _translate_raw_data(
+        self, raw_data: pd.DataFrame
+    ) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         """
         Translate the raw data to the correct format for the preprocessing pipeline.
+
+        For train data, returns a single DataFrame with cleaned and standardized columns.
+        For test data, returns a nested dictionary structure where each patient's data
+        is organized by row IDs, since test data represents individual prediction instances
+        rather than continuous time series.
+
+        Args:
+            raw_data (pd.DataFrame): The raw data loaded from CSV file.
+
+        Returns:
+            pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
+                - For train: Single DataFrame with processed data
+                - For test: Nested dict as {patient_id: {row_id: DataFrame}}
         """
         if self.dataset_type == "train":
             return clean_brist1d_train_data(raw_data)
         elif self.dataset_type == "test":
             return clean_brist1d_test_data(raw_data)
+        else:
+            raise ValueError(
+                f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
+            )
 
     def _process_raw_data(self) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         """

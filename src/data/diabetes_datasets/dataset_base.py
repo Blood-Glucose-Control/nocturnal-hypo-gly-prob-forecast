@@ -123,7 +123,9 @@ class DatasetBase(ABC):
         """
         raise NotImplementedError("_process_raw_data must be implemented by subclass")
 
-    def _translate_raw_data(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+    def _translate_raw_data(
+        self, raw_data: pd.DataFrame
+    ) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         """
         Translate the raw data to the correct format for the preprocessing pipeline.
         Convert column names and units to standardized format.
