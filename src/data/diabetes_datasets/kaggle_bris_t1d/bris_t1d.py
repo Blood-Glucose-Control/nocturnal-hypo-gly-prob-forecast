@@ -291,7 +291,12 @@ class BrisT1DDataLoader(DatasetBase):
                 - For test: Nested dict as {patient_id: {row_id: DataFrame}}
         """
         if self.dataset_type == "train":
-            return clean_brist1d_train_data(raw_data)
+            result = clean_brist1d_train_data(raw_data)
+            # Ensure type safety - this should always be a DataFrame for train data
+            assert isinstance(
+                result, pd.DataFrame
+            ), "Train data cleaning should return DataFrame"
+            return result
         elif self.dataset_type == "test":
             return clean_brist1d_test_data(raw_data)
         else:
@@ -307,10 +312,21 @@ class BrisT1DDataLoader(DatasetBase):
         Result: Save processed data to cache.
         // TODO:TONY - Test the test set's caching functions
         """
+        # Ensure raw data is loaded
+        if self.raw_data is None:
+            raise ValueError("Raw data not loaded. Call load_raw() first.")
+
         # Not cached, process the raw data
         if self.dataset_type == "train":
             logger.info("Processing train data. This may take a while...")
             pre_processed_data = self._translate_raw_data(self.raw_data)
+
+            # Type narrowing: ensure train data returns a DataFrame
+            if not isinstance(pre_processed_data, pd.DataFrame):
+                raise TypeError(
+                    f"Expected DataFrame for train data, got {type(pre_processed_data)}"
+                )
+
             data = preprocessing_pipeline(pre_processed_data)
 
             # Save processed data to cache
