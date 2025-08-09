@@ -19,32 +19,11 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import logging
 import pandas as pd
+import os
 
 logger = logging.getLogger(__name__)
 
-
-def get_project_root() -> Path:
-    """
-    Get the project root directory.
-
-    This function looks for setup.py or pyproject.toml to identify the project root.
-
-    Returns:
-        Path: Path to the project root directory
-
-    Raises:
-        FileNotFoundError: If project root cannot be determined
-    """
-    current_path = Path.cwd()
-
-    # Walk up the directory tree looking for project root indicators
-    for path in [current_path] + list(current_path.parents):
-        if (path / "setup.py").exists() or (path / "pyproject.toml").exists():
-            return path
-
-    # Fallback: if we can't find project root, use current directory
-    logger.warning("Could not determine project root, using current directory")
-    return current_path
+DEFAULT_CACHE_PATH = os.path.join(os.path.expanduser("~"), ".cache", "nocturnal")
 
 
 class CacheManager:
@@ -54,18 +33,18 @@ class CacheManager:
     This class manages a unified cache structure for all datasets, handling
     automatic data fetching from external sources and organizing data in a
     consistent directory structure.
+
+    Set DATA_CACHE_ROOT environment variable to override the default cache path
     """
 
-    def __init__(self, cache_root: str = "cache/data"):
+    def __init__(self):
         """
         Initialize the cache manager.
 
-        Args:
-            cache_root (str): Root directory for cache storage (relative to project root)
+        Set DATA_CACHE_ROOT environment variable to override the default cache path
         """
-        # Make cache root relative to project root, not current working directory
-        project_root = get_project_root()
-        self.cache_root = project_root / cache_root
+
+        self.cache_root = os.getenv("DATA_CACHE_ROOT", DEFAULT_CACHE_PATH)
         self.cache_root.mkdir(parents=True, exist_ok=True)
 
     def get_dataset_cache_path(self, dataset_name: str) -> Path:
