@@ -32,7 +32,7 @@ from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.cache_manager import get_cache_manager
 from src.data.dataset_configs import get_dataset_config
-from src.data.models.data import DatasetType
+from src.data.models.data import DatasetType, Dataset
 from src.data.diabetes_datasets.kaggle_bris_t1d.data_cleaner import (
     clean_brist1d_train_data,
     clean_brist1d_test_data,
@@ -110,7 +110,7 @@ class BrisT1DDataLoader(DatasetBase):
         Returns:
             str: Name of the dataset
         """
-        return "kaggle_brisT1D"
+        return Dataset.KAGGLE_BRIS_T1D.value
 
     def load_raw(self):
         """
@@ -129,14 +129,10 @@ class BrisT1DDataLoader(DatasetBase):
         )
 
         # Load the appropriate file based on dataset type
-        if self.dataset_type == "train":
+        if self.dataset_type == DatasetType.TRAIN:
             file_path = raw_data_path / "train.csv"
-        elif self.dataset_type == "test":
+        elif self.dataset_type == DatasetType.TEST:
             file_path = raw_data_path / "test.csv"
-        else:
-            raise ValueError(
-                f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
-            )
 
         if not file_path.exists():
             raise FileNotFoundError(f"Required file not found: {file_path}")

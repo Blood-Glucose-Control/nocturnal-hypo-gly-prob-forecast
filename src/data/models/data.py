@@ -3,7 +3,7 @@ from enum import Enum
 
 
 class Dataset(str, Enum):
-    KAGGLE_BRIS_T1D = "kaggle_bris_t1d"
+    KAGGLE_BRIS_T1D = "kaggle_brisT1D"
     ALEPPO = "aleppo"
     ANDERSON = "anderson"
     GLUROO = "gluroo"

@@ -1,16 +1,10 @@
-from src.data.datasets.dataset_base import DatasetBase
+from src.data.diabetes_datasets.dataset_base import DatasetBase
+from src.data.cache_manager import get_cache_manager
+from src.data.models.data import Dataset
+from src.data.dataset_configs import get_dataset_config
 from .data_cleaner import PreprocessConfig, default_config, clean_cgm_data
 from src.data.preprocessing.time_processing import get_train_validation_split
-from .preprocess import create_aleppo_csv
-import os
 import pandas as pd
-
-
-def get_storage_location():
-    cache_dir = os.path.expanduser("~/.cache/nocturnal")
-    os.makedirs(cache_dir, exist_ok=True)
-
-    return os.path.join(cache_dir, "aleppo2017.csv")
 
 
 class AleppoDataLoader(DatasetBase):
@@ -19,7 +13,6 @@ class AleppoDataLoader(DatasetBase):
         keep_columns: list = None,
         num_validation_days: int = 20,
         config: PreprocessConfig = default_config,
-        raw_folder_path: str | None = None,
     ):
         """
         Args:
@@ -30,17 +23,15 @@ class AleppoDataLoader(DatasetBase):
         """
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
-        self.file_path = get_storage_location()
-        self.config = config  # config for data cleaning
-        self.raw_folder_path = raw_folder_path
+        self.cache_manager = get_cache_manager()
+        self.config = config
+        self.dataset_config = get_dataset_config(self.dataset_name)
 
-        # Preload data
         self.load_data()
 
     @property
     def dataset_name(self):
-        """Return the name of the dataset."""
-        return "aleppo2017"
+        return Dataset.ALEPPO.value
 
     def load_raw(self):
         """Load the raw dataset.
@@ -50,13 +41,11 @@ class AleppoDataLoader(DatasetBase):
 
         """
 
-        if os.path.isfile(self.file_path):
-            return pd.read_csv(self.file_path, low_memory=False)
-        assert (
-            self.raw_folder_path is not None
-        ), "Seems like you haven't preprocessed the aleppo dataset before. Ensure you pass in the path to the `raw` folder directory to do this"
-        create_aleppo_csv(self.raw_folder_path, self.file_path)
-        return pd.read_csv(self.file_path, low_memory=False)
+        raw_data_path = self.cache_manager.ensure_raw_data(
+            self.dataset_name, self.dataset_config
+        )
+
+        return pd.read_csv(raw_data_path, low_memory=False)
 
     def _make_processed_data(self):
         self.raw_data = self.load_raw()
