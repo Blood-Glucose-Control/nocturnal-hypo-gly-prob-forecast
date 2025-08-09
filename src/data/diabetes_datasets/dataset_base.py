@@ -42,6 +42,8 @@ Example:
 
 import pandas as pd
 from abc import ABC, abstractmethod
+from src.data.cache_manager import CacheManager
+from src.data.models.data import DatasetType
 
 
 class DatasetBase(ABC):
@@ -81,9 +83,13 @@ class DatasetBase(ABC):
         ```
     """
 
+    use_cached: bool = True
+    dataset_type: DatasetType = DatasetType.TRAIN
+
     def __init__(self):
         self.processed_data = None
         self.raw_data = None
+        self.cache_manager = CacheManager()
 
     @abstractmethod
     def load_raw(self):

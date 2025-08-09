@@ -16,10 +16,11 @@ Root_dir/cache/data/{DatasetName}/processed
 import subprocess
 import shutil
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 import logging
 import pandas as pd
 import os
+from src.data.models.data import DatasetConfig, DataSource
 
 logger = logging.getLogger(__name__)
 
@@ -83,9 +84,7 @@ class CacheManager:
         """
         return self.get_dataset_cache_path(dataset_name) / "processed"
 
-    def ensure_raw_data(
-        self, dataset_name: str, dataset_config: Dict[str, Any]
-    ) -> Path:
+    def ensure_raw_data(self, dataset_name: str, dataset_config: DatasetConfig) -> Path:
         """
         Ensure raw data is available, fetching it if necessary.
 
@@ -111,19 +110,18 @@ class CacheManager:
         logger.info(
             f"Raw data for {dataset_name} not found in cache, fetching from source"
         )
-        source = dataset_config.get("source", "unknown")
-        if source == "kaggle":
-            self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
-        elif source == "huggingface":
-            self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
-        elif source == "local":
-            self._copy_local_data(dataset_name, raw_path, dataset_config)
-        else:
-            raise ValueError(f"Unsupported data source: {source}")
+        source = dataset_config.source
+
+        source_methods = {
+            DataSource.KAGGLE: self._fetch_kaggle_data,
+            DataSource.HUGGING_FACE: self._fetch_huggingface_data,
+            DataSource.LOCAL: self._copy_local_data,
+        }
+        source_methods[source](dataset_name, raw_path, dataset_config)
 
         return raw_path
 
-    def _raw_data_exists(self, raw_path: Path, dataset_config: Dict[str, Any]) -> bool:
+    def _raw_data_exists(self, raw_path: Path, dataset_config: DatasetConfig) -> bool:
         """
         Check if raw data exists and is valid.
 
@@ -138,7 +136,7 @@ class CacheManager:
             return False
 
         # Check for required files based on dataset type
-        required_files = dataset_config.get("required_files", [])
+        required_files = dataset_config.required_files
         if required_files:
             return all((raw_path / file).exists() for file in required_files)
 
@@ -146,7 +144,7 @@ class CacheManager:
         return any(raw_path.iterdir())
 
     def _fetch_kaggle_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
         Fetch data from Kaggle. Note that Kaggle datasets already have their own caching mechanism.
@@ -161,11 +159,7 @@ class CacheManager:
         """
         raw_path.mkdir(parents=True, exist_ok=True)
 
-        competition_name = dataset_config.get("competition_name")
-        if not competition_name:
-            raise ValueError(
-                f"Kaggle competition name not specified for dataset {dataset_name}"
-            )
+        competition_name = dataset_config.competition_name
 
         try:
             # Download from Kaggle
@@ -214,7 +208,7 @@ class CacheManager:
             )
 
     def _fetch_huggingface_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
         Fetch data from HuggingFace.
@@ -231,11 +225,7 @@ class CacheManager:
 
         raw_path.mkdir(parents=True, exist_ok=True)
 
-        dataset_id = dataset_config.get("dataset_id")
-        if not dataset_id:
-            raise ValueError(
-                f"HuggingFace dataset ID not specified for dataset {dataset_name}"
-            )
+        dataset_id = dataset_config.dataset_id
 
         try:
             import datasets as hf_datasets
@@ -313,7 +303,7 @@ class CacheManager:
             )
 
     def _copy_local_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
         Copy data from local source.
@@ -326,11 +316,7 @@ class CacheManager:
         Raises:
             RuntimeError: If local data copying fails
         """
-        source_path = dataset_config.get("source_path")
-        if not source_path:
-            raise ValueError(
-                f"Local source path not specified for dataset {dataset_name}"
-            )
+        source_path = dataset_config.source_path
 
         source_path = Path(source_path)
         if not source_path.exists():

@@ -1,12 +1,13 @@
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, model_validator
 from enum import Enum
 
 
 class Dataset(str, Enum):
-    BRIS_T1D = "bris_t1d"
+    KAGGLE_BRIS_T1D = "kaggle_bris_t1d"
     ALEPPO = "aleppo"
     ANDERSON = "anderson"
-    KAGGLE_BRIS_T1D = "kaggle_bris_t1d"
+    GLUROO = "gluroo"
+    SIMGLUCOSE = "simglucose"
 
 
 class DataSource(str, Enum):
@@ -20,32 +21,35 @@ class DatasetType(str, Enum):
     TEST = "test"
 
 
-class _DatasetConfigBase(BaseModel):
+class DatasetConfig(BaseModel):
     source: DataSource
-    description: str
-    citation: str
-    source_path: str = None
+    description: str = "No description available"
+    citation: str = "No citation available"
     required_files: list = []
+    url: str = "No URL available"
+    source_path: str | None = None
+    # kaggle specific!
+    competition_name: str | None = None
+    # hugging face specific
+    dataset_id: str | None = None
 
+    @model_validator(mode="after")
+    def check_huggingface_fields(self) -> "DatasetConfig":
+        assert (
+            self.source == DataSource.HUGGING_FACE and (self.dataset_id is not None)
+        ), "HuggingFace dataset must have a dataset ID! Please include this in your `DatasetConfig`"
+        return self
 
-def dataset_config_factory(model_name: str, **custom_fields):
-    """Create a pydantic model, inherited from _DatasetConfigBase,
-    for your own dataset"""
-    return create_model(
-        model_name,
-        __base__=_DatasetConfigBase,
-        **custom_fields,
-    )
+    @model_validator(mode="after")
+    def check_kaggle_fields(self) -> "DatasetConfig":
+        assert (
+            self.source == DataSource.KAGGLE and (self.competition_name is not None)
+        ), "Kaggle dataset must have a competition name! Please include this in your `DatasetConfig`"
+        return self
 
-
-KaggleDatasetConfig = dataset_config_factory(
-    "KaggleBrisT1DConfig",
-    competition_name=str,  # contest name
-    url=str,  # dataset / contest url
-)
-
-GlurooDatasetConfig = dataset_config_factory(
-    "GlurooDatasetConfig",
-)
-
-SimglucoseConfig = dataset_config_factory("SimglucoseConfig", url=str)
+    @model_validator(mode="after")
+    def check_local_fields(self) -> "DatasetConfig":
+        assert (
+            self.source == DataSource.LOCAL and (self.source_path is not None)
+        ), "Local dataset must have a source path! Please include this in your `DatasetConfig`"
+        return self

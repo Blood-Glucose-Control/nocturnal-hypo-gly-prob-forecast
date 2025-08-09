@@ -32,7 +32,7 @@ from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.cache_manager import get_cache_manager
 from src.data.dataset_configs import get_dataset_config
-
+from src.data.models.data import DatasetType
 from src.data.diabetes_datasets.kaggle_bris_t1d.data_cleaner import (
     clean_brist1d_train_data,
     clean_brist1d_test_data,
@@ -71,7 +71,7 @@ class BrisT1DDataLoader(DatasetBase):
         keep_columns: list[str] | None = None,
         num_validation_days: int = 20,
         use_cached: bool = True,
-        dataset_type: str = "train",
+        dataset_type: DatasetType = DatasetType.TRAIN,
     ):
         """
         Initialize the Bristol T1D data loader.
