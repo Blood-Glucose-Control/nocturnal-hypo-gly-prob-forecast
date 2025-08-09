@@ -71,7 +71,7 @@ class GlurooDataLoader(DatasetBase):
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
         self.file_path = file_path  # Raw file path
-        self.config = config #TODO: Is this config really necessary? Why is it here?
+        self.config = config  # TODO: Is this config really necessary? Why is it here?
         self.use_cached = use_cached
         self.raw_data: pd.DataFrame | None = None
         self.processed_data: pd.DataFrame | None = None
@@ -213,7 +213,7 @@ class GlurooDataLoader(DatasetBase):
         """
         return data_translation(raw_data)
 
-    #TODO Add parameters that allow you to adjust the day split time and number of hours.
+    # TODO Add parameters that allow you to adjust the day split time and number of hours.
     def _get_day_splits(self, patient_data: pd.DataFrame):
         """
         Split each day's data into training period (6am-12am) and test period (12am-6am next day).
@@ -231,7 +231,7 @@ class GlurooDataLoader(DatasetBase):
                   current_day_data is from 6am-12am of the current day
                   next_day_data is from 12am-6am of the following day
         """
-        
+
         patient_data.loc[:, "datetime"] = pd.to_datetime(patient_data["datetime"])
 
         # Ensure data is sorted by datetime
