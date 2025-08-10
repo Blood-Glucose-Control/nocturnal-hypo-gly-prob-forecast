@@ -415,14 +415,14 @@ class CacheManager:
                 return pd.read_csv(csv_file)
 
         elif dataset_structure == DatasetStructure.HIERARCHICAL:
-            dataframes = []
+            dataframes = {}
             for pid in processed_path.iterdir():
                 for csv_file in pid.glob("*.csv"):
                     df = pd.read_csv(csv_file)
-                    df["row_id"] = csv_file.stem
-                    df["p_num"] = pid.name
-                    dataframes.append(df)
-            return pd.concat(dataframes)
+                    dataframes[pid.name][csv_file.stem] = df
+            # @Tony maybe we can just return dataframe, and offload dictionary conversion
+            # to the user if they need it (to maintain consistency)
+            return dataframes
 
         return None
 
