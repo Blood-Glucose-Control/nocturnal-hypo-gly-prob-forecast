@@ -20,7 +20,12 @@ from typing import Optional
 import logging
 import pandas as pd
 import os
-from src.data.models.data import DatasetConfig, DataSource
+from src.data.models.data import (
+    DatasetConfig,
+    DataSource,
+    DatasetStructure,
+    DataEnvelope,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -354,7 +359,7 @@ class CacheManager:
         return processed_path / dataset_type
 
     def save_processed_data(
-        self, dataset_name: str, dataset_type: str, data, file_format: str = "csv"
+        self, dataset_name: str, dataset_type: str, data, dataset_envelope: DataEnvelope
     ):
         """
         Save processed data to cache. This function assume nothing about the index so index=False.
@@ -369,19 +374,24 @@ class CacheManager:
             dataset_name, dataset_type
         )
         processed_path.mkdir(parents=True, exist_ok=True)
+        dataset_structure = dataset_envelope.dataset_structure
+        if dataset_structure == DatasetStructure.SINGLE_FILE:
+            data.to_csv(processed_path / f"{dataset_type}.csv", index=False)
 
-        if file_format == "csv":
-            if hasattr(data, "to_csv"):
-                data.to_csv(processed_path / f"{dataset_type}.csv", index=False)
-            else:
-                raise ValueError(f"Cannot save data of type {type(data)} as CSV")
+        elif dataset_structure == DatasetStructure.HIERARCHICAL:
+            for p_num, df_by_row_id in data.items():
+                patient_cache_dir = processed_path / p_num
+                patient_cache_dir.mkdir(parents=True, exist_ok=True)
+
+                for row_id, df in df_by_row_id.items():
+                    df.to_csv(patient_cache_dir / f"{row_id}.csv", index=False)
         else:
-            raise ValueError(f"Unsupported file format: {file_format}")
+            raise ValueError(f"Unsupported dataset structure: {dataset_structure}")
 
         logger.info(f"Saved processed {dataset_type} data for {dataset_name}")
 
     def load_processed_data(
-        self, dataset_name: str, dataset_type: str, file_format: str = "csv"
+        self, dataset_name: str, dataset_type: str, dataset_structure: DatasetStructure
     ):
         """
         Load processed data from cache.
@@ -398,10 +408,20 @@ class CacheManager:
             dataset_name, dataset_type
         )
 
-        if file_format == "csv":
+        if dataset_structure == DatasetStructure.SINGLE_FILE:
             csv_file = processed_path / f"{dataset_type}.csv"
             if csv_file.exists():
                 return pd.read_csv(csv_file)
+
+        elif dataset_structure == DatasetStructure.HIERARCHICAL:
+            dataframes = []
+            for pid in processed_path.iterdir():
+                for csv_file in pid.glob("*.csv"):
+                    df = pd.read_csv(csv_file)
+                    df["row_id"] = csv_file.stem
+                    df["p_num"] = pid.name
+                    dataframes.append(df)
+            return pd.concat(dataframes)
 
         return None
 

@@ -112,7 +112,7 @@ class BrisT1DDataLoader(DatasetBase):
         """
         return Dataset.KAGGLE_BRIS_T1D.value
 
-    def load_raw(self):
+    def _load_raw(self, raw_data_path: str):
         """
         Load the raw dataset from cache or fetch from source.
         The raw dataset is automatically fetched from Kaggle if not available.
@@ -123,10 +123,6 @@ class BrisT1DDataLoader(DatasetBase):
         Returns:
             pd.DataFrame: The raw data loaded from the CSV file.
         """
-        # Ensure raw data is available
-        raw_data_path = self.cache_manager.ensure_raw_data(
-            self.dataset_name, self.dataset_config
-        )
 
         # Load the appropriate file based on dataset type
         if self.dataset_type == DatasetType.TRAIN:
