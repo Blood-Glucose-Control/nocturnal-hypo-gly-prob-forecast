@@ -43,7 +43,12 @@ Example:
 import pandas as pd
 from abc import ABC, abstractmethod
 from src.data.cache_manager import CacheManager, get_cache_manager
-from src.data.models.data import DatasetType, DatasetConfig, DatasetStructure
+from src.data.models.data import (
+    DatasetType,
+    DatasetConfig,
+    DatasetStructure,
+    DataEnvelope,
+)
 
 
 class DatasetBase(ABC):
@@ -139,34 +144,35 @@ class DatasetBase(ABC):
 
     def load_data(self):
         if not self.use_cached:
-            return self._load_data()
+            preprocessed = self._load_data()
+            envelope = DataEnvelope(
+                dataset_structure=self.dataset_structure, data=preprocessed
+            )
+            self.cache_manager.save_processed_data(
+                self.dataset_name, self.dataset_type, envelope
+            )
+            return preprocessed
+
         cached_data = self.cache_manager.load_processed_data(
             self.dataset_name, self.dataset_type
         )
         if cached_data is None:
-            return self._load_data()
+            preprocessed = self._load_data()
+            envelope = DataEnvelope(
+                dataset_structure=self.dataset_structure, data=preprocessed
+            )
+            self.cache_manager.save_processed_data(
+                self.dataset_name, self.dataset_type, envelope
+            )
+            return preprocessed
 
+        return self._preprocess_cached_data(cached_data)
+
+    @abstractmethod
+    def _preprocess_cached_data(self, cached_data: pd.DataFrame):
+        """
+        This is an optional hook that the data loader can implement
+        to preprocess the cached data before returning it
+        (eg: train test split; column selection etc)
+        """
         return cached_data
-
-    def _process_raw_data(self):
-        """Process the raw data.
-
-        Returns:
-            pd.DataFrame or pd.Series
-        """
-        raise NotImplementedError("_process_raw_data must be implemented by subclass")
-
-    def _validate_data(self, data):
-        """Validate the loaded data.
-
-        Args:
-            data (pd.DataFrame or pd.Series): Data to validate
-
-        Returns:
-            bool:True if data is valid, raises exception otherwise
-        """
-        if not isinstance(data, (pd.DataFrame, pd.Series)):
-            raise TypeError("Data must be a pandas DataFrame or Series")
-        if data.empty:
-            raise ValueError("Dataset is empty")
-        return True

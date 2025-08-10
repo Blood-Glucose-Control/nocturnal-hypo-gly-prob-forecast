@@ -32,7 +32,7 @@ from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.cache_manager import get_cache_manager
 from src.data.dataset_configs import get_dataset_config
-from src.data.models.data import DatasetType, Dataset
+from src.data.models.data import DatasetType, Dataset, DataEnvelope, DatasetStructure
 from src.data.diabetes_datasets.kaggle_bris_t1d.data_cleaner import (
     clean_brist1d_train_data,
     clean_brist1d_test_data,
@@ -112,6 +112,13 @@ class BrisT1DDataLoader(DatasetBase):
         """
         return Dataset.KAGGLE_BRIS_T1D.value
 
+    @property
+    def dataset_structure(self):
+        return {
+            DatasetType.TRAIN: DatasetStructure.SINGLE_FILE,
+            DatasetType.TEST: DatasetStructure.HIERARCHICAL,
+        }[self.dataset_type]
+
     def _load_raw(self, raw_data_path: str):
         """
         Load the raw dataset from cache or fetch from source.
@@ -158,7 +165,7 @@ class BrisT1DDataLoader(DatasetBase):
                 self._load_from_cache(cached_data)
                 need_to_process_data = False
 
-        if self.dataset_type == "train" and isinstance(
+        if self.dataset_type == DatasetType.TRAIN and isinstance(
             self.processed_data, pd.DataFrame
         ):
             self._split_train_validation()
@@ -168,7 +175,7 @@ class BrisT1DDataLoader(DatasetBase):
                 "Processed cache not found or not used, processing raw data and saving to cache..."
             )
             # This will attempt to load the raw data (and fetch from kaggle if not available), process it and save it to cache
-            self._process_and_cache_data()
+            self._process_data()
 
     def _load_from_cache(self, cached_data):
         """
@@ -177,7 +184,7 @@ class BrisT1DDataLoader(DatasetBase):
         Args:
             cached_data: The cached data loaded from the cache manager
         """
-        if self.dataset_type == "train":
+        if self.dataset_type == DatasetType.TRAIN:
             self.processed_data = cached_data
             if self.keep_columns:
                 # Check if datetime is in keep_columns but is actually the index
@@ -191,7 +198,7 @@ class BrisT1DDataLoader(DatasetBase):
                 # Now filter by keep_columns
                 self.processed_data = self.processed_data[self.keep_columns]
                 self.keep_columns = self.processed_data.columns.tolist()
-        elif self.dataset_type == "test":
+        elif self.dataset_type == DatasetType.TEST:
             # For test data, we need to load the nested structure from cache
             self._load_test_data_from_cache()
 
@@ -237,7 +244,7 @@ class BrisT1DDataLoader(DatasetBase):
                 row_id = csv_file.stem
                 self.processed_data[pid.name][row_id] = df
 
-    def _process_and_cache_data(self):
+    def _process_data(self):
         """
         Process raw data and save to cache.
 
@@ -307,7 +314,7 @@ class BrisT1DDataLoader(DatasetBase):
             ValueError: If dataset_type is not 'train' or 'test'.
         """
         # Not cached, process the raw data
-        if self.dataset_type == "train":
+        if self.dataset_type == DatasetType.TRAIN:
             logger.info("Processing train data. This may take a while...")
             data = clean_brist1d_train_data(self.raw_data)
             data = create_datetime_index(data)
@@ -315,14 +322,17 @@ class BrisT1DDataLoader(DatasetBase):
             data = create_cob_and_carb_availability_cols(data)
             data = create_iob_and_ins_availability_cols(data)
 
+            data_envelope = DataEnvelope(
+                dataset_structure=DatasetStructure.SINGLE_FILE, data=data
+            )
             # Save processed data to cache
             self.cache_manager.save_processed_data(
-                self.dataset_name, self.dataset_type, data
+                self.dataset_name, self.dataset_type, data_envelope
             )
 
             return data
 
-        elif self.dataset_type == "test":
+        elif self.dataset_type == DatasetType.TEST:
             logger.info("Processing test data. This may take a while...")
             data = clean_brist1d_test_data(self.raw_data)
             processed_data = defaultdict(dict)
@@ -346,6 +356,13 @@ class BrisT1DDataLoader(DatasetBase):
                 for pid, patient_data in results:
                     processed_data[pid] = patient_data
 
+                data_envelope = DataEnvelope(
+                    dataset_structure=DatasetStructure.HIERARCHICAL,
+                    data=processed_data,
+                )
+                self.cache_manager.save_processed_data(
+                    self.dataset_name, self.dataset_type, data_envelope
+                )
                 return processed_data
         else:
             raise ValueError(
@@ -391,10 +408,6 @@ class BrisT1DDataLoader(DatasetBase):
                 .pipe(create_cob_and_carb_availability_cols)
                 .pipe(create_iob_and_ins_availability_cols)
             )
-
-            # Cache processed data
-            cache_file = patient_cache_dir / f"{row_id}.csv"
-            row_df.to_csv(cache_file, index=True)
 
             processed_rows[row_id] = row_df
 

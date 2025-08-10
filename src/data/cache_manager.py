@@ -359,7 +359,7 @@ class CacheManager:
         return processed_path / dataset_type
 
     def save_processed_data(
-        self, dataset_name: str, dataset_type: str, data, dataset_envelope: DataEnvelope
+        self, dataset_name: str, dataset_type: str, dataset_envelope: DataEnvelope
     ):
         """
         Save processed data to cache. This function assume nothing about the index so index=False.
@@ -375,6 +375,8 @@ class CacheManager:
         )
         processed_path.mkdir(parents=True, exist_ok=True)
         dataset_structure = dataset_envelope.dataset_structure
+        data = dataset_envelope.data
+
         if dataset_structure == DatasetStructure.SINGLE_FILE:
             data.to_csv(processed_path / f"{dataset_type}.csv", index=False)
 
@@ -384,9 +386,8 @@ class CacheManager:
                 patient_cache_dir.mkdir(parents=True, exist_ok=True)
 
                 for row_id, df in df_by_row_id.items():
-                    df.to_csv(patient_cache_dir / f"{row_id}.csv", index=False)
-        else:
-            raise ValueError(f"Unsupported dataset structure: {dataset_structure}")
+                    # @Tony confirm if we need index=True
+                    df.to_csv(patient_cache_dir / f"{row_id}.csv", index=True)
 
         logger.info(f"Saved processed {dataset_type} data for {dataset_name}")
 
