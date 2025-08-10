@@ -16,35 +16,20 @@ Root_dir/cache/data/{DatasetName}/processed
 import subprocess
 import shutil
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional
 import logging
 import pandas as pd
+import os
+from src.data.models.data import (
+    DatasetConfig,
+    DataSource,
+    DatasetStructure,
+    DataEnvelope,
+)
 
 logger = logging.getLogger(__name__)
 
-
-def get_project_root() -> Path:
-    """
-    Get the project root directory.
-
-    This function looks for setup.py or pyproject.toml to identify the project root.
-
-    Returns:
-        Path: Path to the project root directory
-
-    Raises:
-        FileNotFoundError: If project root cannot be determined
-    """
-    current_path = Path.cwd()
-
-    # Walk up the directory tree looking for project root indicators
-    for path in [current_path] + list(current_path.parents):
-        if (path / "setup.py").exists() or (path / "pyproject.toml").exists():
-            return path
-
-    # Fallback: if we can't find project root, use current directory
-    logger.warning("Could not determine project root, using current directory")
-    return current_path
+DEFAULT_CACHE_PATH = os.path.join(os.path.expanduser("~"), ".cache", "nocturnal")
 
 
 class CacheManager:
@@ -54,18 +39,18 @@ class CacheManager:
     This class manages a unified cache structure for all datasets, handling
     automatic data fetching from external sources and organizing data in a
     consistent directory structure.
+
+    Set DATA_CACHE_ROOT environment variable to override the default cache path
     """
 
-    def __init__(self, cache_root: str = "cache/data"):
+    def __init__(self):
         """
         Initialize the cache manager.
 
-        Args:
-            cache_root (str): Root directory for cache storage (relative to project root)
+        Set DATA_CACHE_ROOT environment variable to override the default cache path
         """
-        # Make cache root relative to project root, not current working directory
-        project_root = get_project_root()
-        self.cache_root = project_root / cache_root
+
+        self.cache_root = os.getenv("DATA_CACHE_ROOT", DEFAULT_CACHE_PATH)
         self.cache_root.mkdir(parents=True, exist_ok=True)
 
     def get_dataset_cache_path(self, dataset_name: str) -> Path:
@@ -104,9 +89,7 @@ class CacheManager:
         """
         return self.get_dataset_cache_path(dataset_name) / "processed"
 
-    def ensure_raw_data(
-        self, dataset_name: str, dataset_config: Dict[str, Any]
-    ) -> Path:
+    def ensure_raw_data(self, dataset_name: str, dataset_config: DatasetConfig) -> Path:
         """
         Ensure raw data is available, fetching it if necessary.
 
@@ -132,19 +115,18 @@ class CacheManager:
         logger.info(
             f"Raw data for {dataset_name} not found in cache, fetching from source"
         )
-        source = dataset_config.get("source", "unknown")
-        if source == "kaggle":
-            self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
-        elif source == "huggingface":
-            self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
-        elif source == "local":
-            self._copy_local_data(dataset_name, raw_path, dataset_config)
-        else:
-            raise ValueError(f"Unsupported data source: {source}")
+        source = dataset_config.source
+
+        source_methods = {
+            DataSource.KAGGLE: self._fetch_kaggle_data,
+            DataSource.HUGGING_FACE: self._fetch_huggingface_data,
+            DataSource.LOCAL: self._copy_local_data,
+        }
+        source_methods[source](dataset_name, raw_path, dataset_config)
 
         return raw_path
 
-    def _raw_data_exists(self, raw_path: Path, dataset_config: Dict[str, Any]) -> bool:
+    def _raw_data_exists(self, raw_path: Path, dataset_config: DatasetConfig) -> bool:
         """
         Check if raw data exists and is valid.
 
@@ -159,7 +141,7 @@ class CacheManager:
             return False
 
         # Check for required files based on dataset type
-        required_files = dataset_config.get("required_files", [])
+        required_files = dataset_config.required_files
         if required_files:
             return all((raw_path / file).exists() for file in required_files)
 
@@ -167,7 +149,7 @@ class CacheManager:
         return any(raw_path.iterdir())
 
     def _fetch_kaggle_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
         Fetch data from Kaggle. Note that Kaggle datasets already have their own caching mechanism.
@@ -182,11 +164,7 @@ class CacheManager:
         """
         raw_path.mkdir(parents=True, exist_ok=True)
 
-        competition_name = dataset_config.get("competition_name")
-        if not competition_name:
-            raise ValueError(
-                f"Kaggle competition name not specified for dataset {dataset_name}"
-            )
+        competition_name = dataset_config.competition_name
 
         try:
             # Download from Kaggle
@@ -235,7 +213,7 @@ class CacheManager:
             )
 
     def _fetch_huggingface_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
         Fetch data from HuggingFace.
@@ -252,11 +230,7 @@ class CacheManager:
 
         raw_path.mkdir(parents=True, exist_ok=True)
 
-        dataset_id = dataset_config.get("dataset_id")
-        if not dataset_id:
-            raise ValueError(
-                f"HuggingFace dataset ID not specified for dataset {dataset_name}"
-            )
+        dataset_id = dataset_config.dataset_id
 
         try:
             import datasets as hf_datasets
@@ -334,7 +308,7 @@ class CacheManager:
             )
 
     def _copy_local_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
         Copy data from local source.
@@ -347,11 +321,7 @@ class CacheManager:
         Raises:
             RuntimeError: If local data copying fails
         """
-        source_path = dataset_config.get("source_path")
-        if not source_path:
-            raise ValueError(
-                f"Local source path not specified for dataset {dataset_name}"
-            )
+        source_path = dataset_config.source_path
 
         source_path = Path(source_path)
         if not source_path.exists():
@@ -389,7 +359,7 @@ class CacheManager:
         return processed_path / dataset_type
 
     def save_processed_data(
-        self, dataset_name: str, dataset_type: str, data, file_format: str = "csv"
+        self, dataset_name: str, dataset_type: str, dataset_envelope: DataEnvelope
     ):
         """
         Save processed data to cache. This function assume nothing about the index so index=False.
@@ -404,19 +374,25 @@ class CacheManager:
             dataset_name, dataset_type
         )
         processed_path.mkdir(parents=True, exist_ok=True)
+        dataset_structure = dataset_envelope.dataset_structure
+        data = dataset_envelope.data
 
-        if file_format == "csv":
-            if hasattr(data, "to_csv"):
-                data.to_csv(processed_path / f"{dataset_type}.csv", index=False)
-            else:
-                raise ValueError(f"Cannot save data of type {type(data)} as CSV")
-        else:
-            raise ValueError(f"Unsupported file format: {file_format}")
+        if dataset_structure == DatasetStructure.SINGLE_FILE:
+            data.to_csv(processed_path / f"{dataset_type}.csv", index=False)
+
+        elif dataset_structure == DatasetStructure.HIERARCHICAL:
+            for p_num, df_by_row_id in data.items():
+                patient_cache_dir = processed_path / p_num
+                patient_cache_dir.mkdir(parents=True, exist_ok=True)
+
+                for row_id, df in df_by_row_id.items():
+                    # @Tony confirm if we need index=True
+                    df.to_csv(patient_cache_dir / f"{row_id}.csv", index=True)
 
         logger.info(f"Saved processed {dataset_type} data for {dataset_name}")
 
     def load_processed_data(
-        self, dataset_name: str, dataset_type: str, file_format: str = "csv"
+        self, dataset_name: str, dataset_type: str, dataset_structure: DatasetStructure
     ):
         """
         Load processed data from cache.
@@ -433,10 +409,20 @@ class CacheManager:
             dataset_name, dataset_type
         )
 
-        if file_format == "csv":
+        if dataset_structure == DatasetStructure.SINGLE_FILE:
             csv_file = processed_path / f"{dataset_type}.csv"
             if csv_file.exists():
                 return pd.read_csv(csv_file)
+
+        elif dataset_structure == DatasetStructure.HIERARCHICAL:
+            dataframes = {}
+            for pid in processed_path.iterdir():
+                for csv_file in pid.glob("*.csv"):
+                    df = pd.read_csv(csv_file)
+                    dataframes[pid.name][csv_file.stem] = df
+            # @Tony maybe we can just return dataframe, and offload dictionary conversion
+            # to the user if they need it (to maintain consistency)
+            return dataframes
 
         return None
 

@@ -42,6 +42,13 @@ Example:
 
 import pandas as pd
 from abc import ABC, abstractmethod
+from src.data.cache_manager import CacheManager, get_cache_manager
+from src.data.models.data import (
+    DatasetType,
+    DatasetConfig,
+    DatasetStructure,
+    DataEnvelope,
+)
 
 
 class DatasetBase(ABC):
@@ -81,18 +88,32 @@ class DatasetBase(ABC):
         ```
     """
 
-    def __init__(self):
-        self.processed_data = None
-        self.raw_data = None
+    use_cached: bool = True
+    dataset_type: DatasetType = DatasetType.TRAIN
+    raw_data: pd.DataFrame | pd.Series | None = None
+    processed_data: pd.DataFrame | pd.Series | None = None
+    cache_manager: CacheManager = get_cache_manager()
+    dataset_config: DatasetConfig
 
     @abstractmethod
-    def load_raw(self):
+    def _load_raw(self, raw_data_path: str):
         """Load the raw dataset without any processing.
 
+        Args:
+            raw_data_path (str): Path to the raw data directory.
+                The child class must determine which file to read and return
+                based on the configs
         Returns:
             pd.DataFrame or pd.Series: The raw dataset
         """
         raise NotImplementedError("load_raw must be implemented by subclass")
+
+    def load_raw(self):
+        # does necassary fetching to get raw data; _load_raw only needs to read necassary files from this path
+        raw_data_path = self.cache_manager.ensure_raw_data(
+            self.dataset_name, self.dataset_config
+        )
+        return self._load_raw(raw_data_path)
 
     @property
     def dataset_name(self):
@@ -103,8 +124,14 @@ class DatasetBase(ABC):
         """
         raise NotImplementedError("get_dataset_name must be implemented by subclass")
 
+    @property
+    def dataset_structure(self) -> DatasetStructure:
+        raise NotImplementedError(
+            "get_dataset_structure must be implemented by subclass"
+        )
+
     @abstractmethod
-    def load_data(self):
+    def _load_data(self):
         """Load the processed dataset.
 
         This method should handle any necessary preprocessing of the raw data
@@ -115,25 +142,37 @@ class DatasetBase(ABC):
         """
         raise NotImplementedError("load_data must be implemented by subclass")
 
-    def _process_raw_data(self):
-        """Process the raw data.
+    def load_data(self):
+        if not self.use_cached:
+            preprocessed = self._load_data()
+            envelope = DataEnvelope(
+                dataset_structure=self.dataset_structure, data=preprocessed
+            )
+            self.cache_manager.save_processed_data(
+                self.dataset_name, self.dataset_type, envelope
+            )
+            return preprocessed
 
-        Returns:
-            pd.DataFrame or pd.Series
+        cached_data = self.cache_manager.load_processed_data(
+            self.dataset_name, self.dataset_type
+        )
+        if cached_data is None:
+            preprocessed = self._load_data()
+            envelope = DataEnvelope(
+                dataset_structure=self.dataset_structure, data=preprocessed
+            )
+            self.cache_manager.save_processed_data(
+                self.dataset_name, self.dataset_type, envelope
+            )
+            return preprocessed
+
+        return self._preprocess_cached_data(cached_data)
+
+    @abstractmethod
+    def _preprocess_cached_data(self, cached_data: pd.DataFrame):
         """
-        raise NotImplementedError("_process_raw_data must be implemented by subclass")
-
-    def _validate_data(self, data):
-        """Validate the loaded data.
-
-        Args:
-            data (pd.DataFrame or pd.Series): Data to validate
-
-        Returns:
-            bool:True if data is valid, raises exception otherwise
+        This is an optional hook that the data loader can implement
+        to preprocess the cached data before returning it
+        (eg: train test split; column selection etc)
         """
-        if not isinstance(data, (pd.DataFrame, pd.Series)):
-            raise TypeError("Data must be a pandas DataFrame or Series")
-        if data.empty:
-            raise ValueError("Dataset is empty")
-        return True
+        return cached_data

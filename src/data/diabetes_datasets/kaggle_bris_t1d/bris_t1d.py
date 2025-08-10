@@ -32,7 +32,7 @@ from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.cache_manager import get_cache_manager
 from src.data.dataset_configs import get_dataset_config
-
+from src.data.models.data import DatasetType, Dataset, DatasetStructure
 from src.data.diabetes_datasets.kaggle_bris_t1d.data_cleaner import (
     clean_brist1d_train_data,
     clean_brist1d_test_data,
@@ -71,7 +71,7 @@ class BrisT1DDataLoader(DatasetBase):
         keep_columns: list[str] | None = None,
         num_validation_days: int = 20,
         use_cached: bool = True,
-        dataset_type: str = "train",
+        dataset_type: DatasetType = DatasetType.TRAIN,
     ):
         """
         Initialize the Bristol T1D data loader.
@@ -110,9 +110,16 @@ class BrisT1DDataLoader(DatasetBase):
         Returns:
             str: Name of the dataset
         """
-        return "kaggle_brisT1D"
+        return Dataset.KAGGLE_BRIS_T1D.value
 
-    def load_raw(self):
+    @property
+    def dataset_structure(self):
+        return {
+            DatasetType.TRAIN: DatasetStructure.SINGLE_FILE,
+            DatasetType.TEST: DatasetStructure.HIERARCHICAL,
+        }[self.dataset_type]
+
+    def _load_raw(self, raw_data_path: str):
         """
         Load the raw dataset from cache or fetch from source.
         The raw dataset is automatically fetched from Kaggle if not available.
@@ -123,20 +130,12 @@ class BrisT1DDataLoader(DatasetBase):
         Returns:
             pd.DataFrame: The raw data loaded from the CSV file.
         """
-        # Ensure raw data is available
-        raw_data_path = self.cache_manager.ensure_raw_data(
-            self.dataset_name, self.dataset_config
-        )
 
         # Load the appropriate file based on dataset type
-        if self.dataset_type == "train":
+        if self.dataset_type == DatasetType.TRAIN:
             file_path = raw_data_path / "train.csv"
-        elif self.dataset_type == "test":
+        elif self.dataset_type == DatasetType.TEST:
             file_path = raw_data_path / "test.csv"
-        else:
-            raise ValueError(
-                f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
-            )
 
         if not file_path.exists():
             raise FileNotFoundError(f"Required file not found: {file_path}")
@@ -144,48 +143,8 @@ class BrisT1DDataLoader(DatasetBase):
         # Return all columns
         return pd.read_csv(file_path, low_memory=False)
 
-    def load_data(self):
-        """
-        Load and process the dataset, with caching support.
-
-        This method handles loading the data either from cache or by processing
-        the raw dataset. For train data, it returns a DataFrame and splits it into
-        training and validation sets. For test data, it organizes the data into a
-        nested dictionary by patient ID and row ID.
-
-        If using cached data, it reads from the cache location. Otherwise, it processes
-        the raw data and saves it to cache for future use.
-        """
-        need_to_process_data = True
-        if self.use_cached:
-            cached_data = self.cache_manager.load_processed_data(
-                self.dataset_name, self.dataset_type
-            )
-            if cached_data is not None:
-                # This sets the data given the dataset type (train or test)
-                self._load_from_cache(cached_data)
-                need_to_process_data = False
-
-        if self.dataset_type == "train" and isinstance(
-            self.processed_data, pd.DataFrame
-        ):
-            self._split_train_validation()
-
-        if need_to_process_data:
-            logger.info(
-                "Processed cache not found or not used, processing raw data and saving to cache..."
-            )
-            # This will attempt to load the raw data (and fetch from kaggle if not available), process it and save it to cache
-            self._process_and_cache_data()
-
-    def _load_from_cache(self, cached_data):
-        """
-        Load processed data from cache to self.processed_data.
-
-        Args:
-            cached_data: The cached data loaded from the cache manager
-        """
-        if self.dataset_type == "train":
+    def _preprocess_cached_data(self, cached_data):
+        if self.dataset_type == DatasetType.TRAIN:
             self.processed_data = cached_data
             if self.keep_columns:
                 # Check if datetime is in keep_columns but is actually the index
@@ -199,55 +158,20 @@ class BrisT1DDataLoader(DatasetBase):
                 # Now filter by keep_columns
                 self.processed_data = self.processed_data[self.keep_columns]
                 self.keep_columns = self.processed_data.columns.tolist()
-        elif self.dataset_type == "test":
-            # For test data, we need to load the nested structure from cache
-            self._load_test_data_from_cache()
 
+            self._split_train_validation()
+
+        elif self.dataset_type == DatasetType.TEST:
+            # NOTE: do we need this?
             # Initialize properties as None for cached test data
             self.train_dt_col_type = None
             self.val_dt_col_type = None
             self.num_train_days = 0
             self.num_validation_days = 0
 
-    def _load_test_data_from_cache(self):
+    def _load_data(self):
         """
-        Load cached test data from directory structure.
-
-        Test data is stored in a nested directory structure where:
-        - The top level contains patient ID directories
-        - Each patient directory contains CSV files named by row_id
-
-        This method traverses this structure and loads each CSV into a nested
-        dictionary organized as {patient_id: {row_id: DataFrame}}. This preserves
-        the hierarchical organization of test data for later processing.
-
-        Raises:
-            NotADirectoryError: If the cache path does not exist or is not a directory,
-                            or if a patient directory is not actually a directory
-        """
-        self.processed_data = defaultdict(dict)
-
-        processed_path = self.cache_manager.get_processed_data_path_for_type(
-            self.dataset_name, self.dataset_type
-        )
-
-        if not processed_path.exists():
-            raise FileNotFoundError(
-                f"Processed test data not found at: {processed_path}"
-            )
-
-        for pid in processed_path.iterdir():
-            if not pid.is_dir():
-                continue
-
-            for csv_file in pid.glob("*.csv"):
-                df = pd.read_csv(csv_file)
-                row_id = csv_file.stem
-                self.processed_data[pid.name][row_id] = df
-
-    def _process_and_cache_data(self):
-        """
-        Process raw data and save to cache.
+        Process raw data and store the dataframe.
 
         This method orchestrates the workflow for data that isn't already cached:
         1. Load the raw data from the source file (prompt users to fetch from Kaggle if not available; cache is just another level of cache for the raw data).
@@ -260,6 +184,7 @@ class BrisT1DDataLoader(DatasetBase):
         """
         self.raw_data = self.load_raw()
         self.processed_data = self._process_raw_data()
+        return self.processed_data
 
     def _split_train_validation(self):
         """
@@ -315,7 +240,7 @@ class BrisT1DDataLoader(DatasetBase):
             ValueError: If dataset_type is not 'train' or 'test'.
         """
         # Not cached, process the raw data
-        if self.dataset_type == "train":
+        if self.dataset_type == DatasetType.TRAIN:
             logger.info("Processing train data. This may take a while...")
             data = clean_brist1d_train_data(self.raw_data)
             data = create_datetime_index(data)
@@ -323,14 +248,9 @@ class BrisT1DDataLoader(DatasetBase):
             data = create_cob_and_carb_availability_cols(data)
             data = create_iob_and_ins_availability_cols(data)
 
-            # Save processed data to cache
-            self.cache_manager.save_processed_data(
-                self.dataset_name, self.dataset_type, data
-            )
-
             return data
 
-        elif self.dataset_type == "test":
+        elif self.dataset_type == DatasetType.TEST:
             logger.info("Processing test data. This may take a while...")
             data = clean_brist1d_test_data(self.raw_data)
             processed_data = defaultdict(dict)
@@ -355,10 +275,6 @@ class BrisT1DDataLoader(DatasetBase):
                     processed_data[pid] = patient_data
 
                 return processed_data
-        else:
-            raise ValueError(
-                f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
-            )
 
     def _process_patient_data(self, patient_item, base_cache_path):
         """
@@ -387,10 +303,6 @@ class BrisT1DDataLoader(DatasetBase):
         pid, patient_data = patient_item
         processed_rows = {}
 
-        # Make new dir for each patient
-        patient_cache_dir = base_cache_path / pid
-        patient_cache_dir.mkdir(exist_ok=True)
-
         for row_id, row_df in patient_data.items():
             # Apply all transformations at once
             row_df = (
@@ -399,10 +311,6 @@ class BrisT1DDataLoader(DatasetBase):
                 .pipe(create_cob_and_carb_availability_cols)
                 .pipe(create_iob_and_ins_availability_cols)
             )
-
-            # Cache processed data
-            cache_file = patient_cache_dir / f"{row_id}.csv"
-            row_df.to_csv(cache_file, index=True)
 
             processed_rows[row_id] = row_df
 

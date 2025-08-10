@@ -16,6 +16,7 @@ from src.data.dataset_configs import (
     list_available_datasets,
     get_dataset_info,
 )
+import os
 
 
 class TestCacheManager:
@@ -24,11 +25,13 @@ class TestCacheManager:
     def setup_method(self):
         """Set up test fixtures."""
         self.temp_dir = tempfile.mkdtemp()
-        self.cache_manager = CacheManager(cache_root=self.temp_dir)
+        os.environ["DATA_CACHE_ROOT"] = self.temp_dir
+        self.cache_manager = CacheManager()
 
     def teardown_method(self):
         """Clean up test fixtures."""
         shutil.rmtree(self.temp_dir)
+        os.environ.pop("DATA_CACHE_ROOT", None)
 
     def test_init(self):
         """Test CacheManager initialization."""
