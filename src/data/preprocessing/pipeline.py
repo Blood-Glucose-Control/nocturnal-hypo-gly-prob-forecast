@@ -26,6 +26,9 @@ def preprocessing_pipeline(df: pd.DataFrame) -> pd.DataFrame:
     6. Keeps only top N carb meals
     7. Derive iob, cob, insulin availability and carb availability features
     """
+    # TODO: Likely the clean_dataset function is creating bugs that makes the processed dataset be incorrect.
+    # TODO: At this point we have multiple patients in the same file, we need to separate them.
+    # TODO: Create an option for both serial and parallel processing of the multipatient files.
     check_data_format(df)
     df = df.copy(deep=True)
     df = clean_dataset(df)
