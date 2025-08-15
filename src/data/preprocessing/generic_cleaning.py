@@ -51,7 +51,7 @@ def clean_dataset(
             "day_start_time": pd.Timedelta(hours=4),
             "min_carbs": 5,
             "meal_length": pd.Timedelta(hours=2),
-            "n_top_carb_meals": 3,
+            "n_top_carb_meals": 3, # This erases small meals, its for meal identification problems
         }
 
     max_consecutive_nan_values_per_day: int = config[

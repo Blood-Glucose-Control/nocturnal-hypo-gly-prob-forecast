@@ -389,7 +389,7 @@ class CacheManager:
         return processed_path / dataset_type
 
     def save_processed_data(
-        self, dataset_name: str, dataset_type: str, data, file_format: str = "csv"
+        self, dataset_name: str, dataset_type: str, patient_id, data, file_format: str = "csv"
     ):
         """
         Save processed data to cache. The index is datetime.
@@ -397,6 +397,7 @@ class CacheManager:
         Args:
             dataset_name (str): Name of the dataset
             dataset_type (str): Type of dataset (train, test, etc.)
+            patient_id: ID of the patient
             data: Data to save (DataFrame, dict, etc.)
             file_format (str): Format to save the data in
         """
@@ -407,7 +408,7 @@ class CacheManager:
 
         if file_format == "csv":
             if hasattr(data, "to_csv"):
-                data.to_csv(processed_path / f"{dataset_type}.csv", index=True)
+                data.to_csv(processed_path / f"{patient_id}_{dataset_type}.csv", index=True)
             else:
                 raise ValueError(f"Cannot save data of type {type(data)} as CSV")
         else:

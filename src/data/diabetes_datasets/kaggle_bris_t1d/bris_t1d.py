@@ -331,11 +331,12 @@ class BrisT1DDataLoader(DatasetBase):
 
             # Save processed data to cache
             logger.info("Done processing train data. Saving processed data to cache...")
-            self.cache_manager.save_processed_data(
-                self.dataset_name, self.dataset_type, data
-            )
+            for p_num, patient_df in data.items():
+                self.cache_manager.save_processed_data(
+                    self.dataset_name, self.dataset_type, p_num, patient_df
+                )
 
-            return data
+            return pd.concat(data.values())
 
         elif self.dataset_type == "test":
             logger.info("Processing test data. This may take a while...")
