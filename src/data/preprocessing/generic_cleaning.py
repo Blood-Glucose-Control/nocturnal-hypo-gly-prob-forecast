@@ -16,6 +16,9 @@ Key functionality includes:
 import pandas as pd
 
 
+# TODO: This is a clean_dataset for meal identification, it doesn't really make sense as a cleaning pipeline for any dataset in forecasting.
+# TODO: Same goes for most of the function calls that occur in this cleaning pipeline.
+# TODO: Should be renamed to clean_raw_data_pipeline()
 def clean_dataset(
     df_raw: pd.DataFrame,
     config: dict | None = None,
@@ -51,7 +54,7 @@ def clean_dataset(
             "day_start_time": pd.Timedelta(hours=4),
             "min_carbs": 5,
             "meal_length": pd.Timedelta(hours=2),
-            "n_top_carb_meals": 3, # This erases small meals, its for meal identification problems
+            "n_top_carb_meals": 3,  # This erases small meals, its for meal identification problems
         }
 
     max_consecutive_nan_values_per_day: int = config[
@@ -73,8 +76,11 @@ def clean_dataset(
     df.index = cast(pd.DatetimeIndex, df.index)
 
     # From meal identification repo
+    print("Patient ID:", df["p_num"].iloc[0])
+    print(df[["id", "bg_mM", "food_g", "msg_type"]].iloc[330:340])
     df = coerce_time_fn(data=df, coerce_time_interval=coerce_time_interval)
     df["day_start_shift"] = (df.index - day_start_time).to_series().dt.date
+    print(df[["id", "bg_mM", "food_g", "msg_type"]].head())
     df = erase_consecutive_nan_values(df, max_consecutive_nan_values_per_day)
     df = erase_meal_overlap_fn(df, meal_length, min_carbs)
     df = keep_top_n_carb_meals(df, n_top_carb_meals=n_top_carb_meals)
@@ -118,6 +124,7 @@ def ensure_datetime_index(
     return df
 
 
+# TODO: Move back to Gluroo Data Cleaning.
 def coerce_time_fn(
     data: pd.DataFrame, coerce_time_interval: pd.Timedelta
 ) -> pd.DataFrame:
@@ -150,6 +157,30 @@ def coerce_time_fn(
         raise TypeError(
             f"coerce_time_interval must be a pandas Timedelta object, got {type(coerce_time_interval)} instead"
         )
+
+    # Try removing timezone for frequency inference
+    freq_str = pd.infer_freq(data.index.tz_localize(None)[:20])
+    print(f"Inferred frequency: {freq_str}")
+    if freq_str:
+        # Convert to Timedelta and extract minutes
+        freq_timedelta = pd.Timedelta(pd.tseries.frequencies.to_offset(freq_str))
+        minutes = freq_timedelta.total_seconds() / 60
+        print(f"Frequency: {minutes} minutes")
+
+        # Convert coerce_time_interval to minutes for comparison
+        target_minutes = coerce_time_interval.total_seconds() / 60
+
+        # Now compare minutes to minutes
+        if minutes >= target_minutes:
+            print(
+                f"The data is in {minutes} minute intervals, will not upsample to {target_minutes} minutes."
+            )
+            return data
+        else:
+            print(f"Downsampling from {minutes} minutes to {target_minutes} minutes.")
+    else:
+        print("Could not infer frequency... returning data unchanged.")
+        return data
 
     # Separate meal announcements and non-meal data
     meal_announcements = data[data["msg_type"] == "ANNOUNCE_MEAL"].copy()

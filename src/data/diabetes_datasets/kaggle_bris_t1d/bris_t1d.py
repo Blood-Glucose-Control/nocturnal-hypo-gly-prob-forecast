@@ -73,6 +73,7 @@ class BrisT1DDataLoader(DatasetBase):
         num_validation_days: int = 20,
         use_cached: bool = True,
         dataset_type: str = "train",
+        parallel: bool = True,
     ):
         """
         Initialize the Bristol T1D data loader.
@@ -96,6 +97,7 @@ class BrisT1DDataLoader(DatasetBase):
         self.num_validation_days = num_validation_days
         self.use_cached = use_cached
         self.dataset_type = dataset_type
+        self.parallel = parallel
 
         # Initialize cache manager
         self.cache_manager = get_cache_manager()
@@ -327,15 +329,16 @@ class BrisT1DDataLoader(DatasetBase):
                     f"Expected DataFrame for train data, got {type(pre_processed_data)}"
                 )
 
-            data = preprocessing_pipeline(pre_processed_data)
+            data = preprocessing_pipeline(pre_processed_data, parallel=self.parallel)
 
+            print("Pre-cache_manager save:", data)
             # Save processed data to cache
             logger.info("Done processing train data. Saving processed data to cache...")
             for p_num, patient_df in data.items():
                 self.cache_manager.save_processed_data(
                     self.dataset_name, self.dataset_type, p_num, patient_df
                 )
-
+            print("Pre-concatenation:", data)
             return pd.concat(data.values())
 
         elif self.dataset_type == "test":

@@ -1,11 +1,4 @@
 import pandas as pd
-from src.data.physiological.carb_model.carb_model import (
-    create_cob_and_carb_availability_cols,
-)
-from src.data.physiological.insulin_model.insulin_model import (
-    create_iob_and_ins_availability_cols,
-)
-from src.data.preprocessing.sampling import ensure_regular_time_intervals
 import logging
 
 logger = logging.getLogger(__name__)
@@ -43,15 +36,15 @@ def derive_features(df: pd.DataFrame) -> pd.DataFrame:
 
     logger.info("Deriving features...")
     logger.info("Filling in gaps...")
-    processed_df_regular = ensure_regular_time_intervals(df)
+    # df = ensure_regular_time_intervals(df)
 
     logger.info("Creating COB and carb availability columns...")
-    processed_df_cob = create_cob_and_carb_availability_cols(processed_df_regular)
-
+    # df = create_cob_and_carb_availability_cols(df)
+    print(df.head())
     logger.info(
         "Creating IOB and insulin availability columns. This may take a while depending on the size of the data."
     )
-    processed_df_iob = create_iob_and_ins_availability_cols(processed_df_cob)
+    # df = create_iob_and_ins_availability_cols(df)
 
     logger.info("Done deriving features.")
-    return processed_df_iob
+    return df
