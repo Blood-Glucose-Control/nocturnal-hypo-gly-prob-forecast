@@ -118,8 +118,8 @@ def ensure_datetime_index(
                 "DataFrame must have a 'datetime' column or a DatetimeIndex."
             )
 
-    # Convert to UTC to handle DST transitions
-    df.index = pd.to_datetime(df.index, utc=True)
+    # Use UTC should not be True because we need to preserve time of day context.
+    df.index = pd.to_datetime(df.index, utc=False)
 
     return df
 

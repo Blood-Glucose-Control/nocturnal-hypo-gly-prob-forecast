@@ -13,7 +13,7 @@ and train/validation splitting.
 import logging
 import pandas as pd
 import functools
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from collections import defaultdict
 
 from src.data.preprocessing.pipeline import preprocessing_pipeline
@@ -74,6 +74,7 @@ class BrisT1DDataLoader(DatasetBase):
         use_cached: bool = True,
         dataset_type: str = "train",
         parallel: bool = True,
+        generic_patient_start_date: pd.Timestamp = pd.Timestamp("2024-01-01")
     ):
         """
         Initialize the Bristol T1D data loader.
@@ -88,16 +89,22 @@ class BrisT1DDataLoader(DatasetBase):
                 Defaults to True.
             dataset_type (str, optional): Type of dataset to load ('train' or 'test').
                 Defaults to "train".
+            parallel (bool, optional): Whether to use parallel processing.
+                Defaults to True.
+            max_workers (int, optional): Maximum number of workers for parallel processing.
+                Defaults to 9.
         """
         # Ensure 'datetime' is included in keep_columns if specified
         if keep_columns is not None:
             if "datetime" not in keep_columns:
                 keep_columns = keep_columns + ["datetime"]
+        self.generic_patient_start_date = generic_patient_start_date  
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
         self.use_cached = use_cached
         self.dataset_type = dataset_type
         self.parallel = parallel
+        self.max_workers = 3
 
         # Initialize cache manager
         self.cache_manager = get_cache_manager()
@@ -306,7 +313,7 @@ class BrisT1DDataLoader(DatasetBase):
                 f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
             )
 
-    def _process_raw_data(self) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
+    def _process_raw_data(self) -> pd.DataFrame | dict[str, pd.DataFrame]:
         """
         Process raw test or train data.
         For train data, process the entire dataset (which is just one single df)
@@ -320,57 +327,128 @@ class BrisT1DDataLoader(DatasetBase):
 
         # Not cached, process the raw data
         if self.dataset_type == "train":
-            logger.info("Processing train data. This may take a while...")
-            pre_processed_data = self._translate_raw_data(self.raw_data)
-
-            # Type narrowing: ensure train data returns a DataFrame
-            if not isinstance(pre_processed_data, pd.DataFrame):
-                raise TypeError(
-                    f"Expected DataFrame for train data, got {type(pre_processed_data)}"
-                )
-
-            data = preprocessing_pipeline(pre_processed_data, parallel=self.parallel)
-
-            print("Pre-cache_manager save:", data)
-            # Save processed data to cache
-            logger.info("Done processing train data. Saving processed data to cache...")
-            for p_num, patient_df in data.items():
-                self.cache_manager.save_processed_data(
-                    self.dataset_name, self.dataset_type, p_num, patient_df
-                )
-            print("Pre-concatenation:", data)
-            return pd.concat(data.values())
+            return self._process_raw_train_data()
 
         elif self.dataset_type == "test":
-            logger.info("Processing test data. This may take a while...")
-            data = self._translate_raw_data(self.raw_data)
-            processed_data = defaultdict(dict)
+            return self._process_raw_test_data()
 
-            processed_path = self.cache_manager.get_processed_data_path_for_type(
-                self.dataset_name, self.dataset_type
-            )
-            processed_path.mkdir(parents=True, exist_ok=True)
-
-            # Process each patient in parallel
-            # TODO:TONY - Add data processing pipeline to the test set too
-            with ProcessPoolExecutor() as executor:
-                # Create a partial function with common arguments
-                process_patient_fn = functools.partial(
-                    self._process_patient_test_data, base_cache_path=processed_path
-                )
-
-                # Map function to all patients and collect results
-                results = executor.map(process_patient_fn, data.items())
-
-                # Merge results into processed_data
-                for pid, patient_data in results:
-                    processed_data[pid] = patient_data
-
-                return processed_data
         else:
             raise ValueError(
                 f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
             )
+
+    def _process_raw_train_data(self) -> dict[str, pd.DataFrame]:
+        """
+        Process raw training data.
+
+        Returns
+            dict[str, pd.DataFrame]: Processed training data.
+        """
+        # Ensure raw data is loaded
+        if self.raw_data is None:
+            raise ValueError("Raw data not loaded. Call load_raw() first.")
+
+        logger.info("_process_raw_train_data: Processing train data. This may take a while...")
+        pre_processed_data = self._translate_raw_data(self.raw_data)
+
+        # Type narrowing: ensure train data returns a DataFrame
+        if not isinstance(pre_processed_data, pd.DataFrame):
+            raise TypeError(
+                f"Expected DataFrame for train data, got {type(pre_processed_data)}"
+            )
+
+        multipatient_data_dict = self.multipatient_to_dict_of_single_patient(
+            pre_processed_data
+        )
+        logger.info(f"Processing {len(multipatient_data_dict)} patients in parallel:")
+        logger.info(f"\t Converting time to datetime using start date: {self.generic_patient_start_date}")
+        if self.parallel:
+            # Add date to datetime column
+            # pre_processed_results = {}
+            #for p_num, patient_df in multipatient_data_dict:
+            #    print("Patient: ", p_num, ", Columns: ", patient_df.columns)
+            with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+                # Submit tasks
+                future_to_patient = {
+                    executor.submit(self._create_datetime_column, 
+                                    data['datetime'], 
+                                    self.generic_patient_start_date): p_num
+                    for p_num, data in multipatient_data_dict.items()
+                }
+
+                # Collect results
+                for future in as_completed(future_to_patient):
+                    p_num = future_to_patient[future]
+                    try:
+                        result = future.result()
+                        multipatient_data_dict[p_num]['datetime'] = result
+                        print(multipatient_data_dict[p_num]['datetime'])
+                    except Exception as exc:
+                        logger.error(f"_create_datetime_column: Patient {p_num} generated an exception: {exc}")
+            
+            # Run preprocessing pipeline
+            processed_results = {}
+            with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+                # Submit tasks
+                future_to_patient = {
+                    executor.submit(preprocessing_pipeline, p_num, data): p_num
+                    for p_num, data in multipatient_data_dict.items()
+                }
+
+                # Collect results
+                for future in as_completed(future_to_patient):
+                    p_num = future_to_patient[future]
+                    try:
+                        print(f"_preprocessing_pipeline: Adding results for {p_num}")
+                        result = future.result()
+                        processed_results[p_num] = result
+                    except Exception as exc:
+                        logger.error(f"_preprocessing_pipeline: Patient {p_num} generated an exception: {exc}")
+        else:
+            processed_results = {}
+            for p_num, patient_df in multipatient_data_dict.items():
+                processed_patient = preprocessing_pipeline(p_num, patient_df)
+                processed_results[p_num] = processed_patient
+
+        print("Pre-cache_manager save:", processed_results)
+        # Save processed data to cache
+        logger.info("Done processing train data. Saving processed data to cache...")
+        for p_num, patient_df in processed_results.items():
+            self.cache_manager.save_processed_data(
+                self.dataset_name, self.dataset_type, p_num, patient_df
+            )
+        print("Pre-concatenation:", processed_results)
+        return processed_results
+
+    def _process_raw_test_data(self) -> dict[str, dict[str, pd.DataFrame]]:
+        # Ensure raw data is loaded
+        if self.raw_data is None:
+            raise ValueError("Raw data not loaded. Call load_raw() first.")
+        logger.info("Processing test data. This may take a while...")
+        data = self._translate_raw_data(self.raw_data)
+        processed_data = defaultdict(dict)
+
+        processed_path = self.cache_manager.get_processed_data_path_for_type(
+            self.dataset_name, self.dataset_type
+        )
+        processed_path.mkdir(parents=True, exist_ok=True)
+
+        # Process each patient in parallel
+        # TODO:TONY - Add data processing pipeline to the test set too
+        with ProcessPoolExecutor() as executor:
+            # Create a partial function with common arguments
+            process_patient_fn = functools.partial(
+                self._process_patient_test_data, base_cache_path=processed_path
+            )
+
+            # Map function to all patients and collect results
+            results = executor.map(process_patient_fn, data.items())
+
+            # Merge results into processed_data
+            for pid, patient_data in results:
+                processed_data[pid] = patient_data
+
+            return processed_data
 
     def _process_patient_test_data(self, patient_item, base_cache_path):
         """
@@ -474,3 +552,59 @@ class BrisT1DDataLoader(DatasetBase):
 
             if len(next_day_data) > 0 and len(current_day_data) > 0:
                 yield current_day_data, next_day_data
+
+    def multipatient_to_dict_of_single_patient(
+        self, data: pd.DataFrame
+    ) -> dict[str, pd.DataFrame]:
+        """
+        Convert multi-patient data to single patient data.
+
+        Args:
+            data (pd.DataFrame): Multi-patient data, with p_num column.
+
+        Returns:
+            dict[str, pd.DataFrame]: Dictionary mapping patient IDs to their data.
+        """
+        unique_patient_ids = data["p_num"].unique()
+        patient_data = {
+            patient_id: data[data["p_num"] == patient_id].copy() 
+            for patient_id in unique_patient_ids
+        }
+        return patient_data
+
+    def _create_datetime_column(self, time_series: pd.Series, patient_start_date: pd.Timestamp) -> pd.Series:
+        """
+        Given a Series of times (format "%H:%M:%S") and a start date,
+        create a datetime column where the time stays the same and the date rolls forward
+        for each full day of data.
+
+        Args:
+            time_series (pd.Series): Series of times as strings ("%H:%M:%S")
+            patient_start_date (pd.Timestamp): The date to start from (e.g., pd.Timestamp("2024-01-01"))
+
+        Returns:
+            pd.Series: Series of full datetime objects with correct dates
+        """
+        # Remove whitespace
+        time_series = time_series.str.strip()
+        # Convert to time objects
+        times = pd.to_datetime(time_series, format="%H:%M:%S", errors="coerce").dt.time
+
+        # Infer interval in minutes
+        if len(times) > 1:
+            dummy_dates = [pd.Timestamp.combine(patient_start_date, t) for t in times]
+            diffs = pd.Series(dummy_dates).diff().dropna()
+            interval_minutes = int(diffs.mode()[0].total_seconds() / 60)
+        else:
+            interval_minutes = 15  # Default if only one row
+
+        # Calculate rows per day
+        rows_per_day = int(24 * 60 / interval_minutes)
+        day_offsets = pd.Series(range(len(times))) // rows_per_day
+
+        # Build full datetime for each row
+        datetime_series = [
+            pd.Timestamp.combine(patient_start_date + pd.Timedelta(days=int(day_offset)), t)
+            for day_offset, t in zip(day_offsets, times)
+        ]
+        return pd.Series(datetime_series)

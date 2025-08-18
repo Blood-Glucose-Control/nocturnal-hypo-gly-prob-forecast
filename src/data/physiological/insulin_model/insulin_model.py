@@ -89,8 +89,77 @@ def calculate_insulin_availability_and_iob_single_delivery(
     # Return all relevant states
     return ins_availability, iob, q1, q2, I_p
 
-
 def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Computes the insulin availability (INS_AVAIL_COL) and insulin on board (IOB_COL)
+    for each insulin dose in the dataframe.
+
+    Assumes TS_MIN = 1 minute and that the DataFrame contains only one patient.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame with datetime index containing insulin administration times.
+
+    Returns:
+    pd.DataFrame: Updated DataFrame with computed `ins_availability` and `iob` columns.
+    """
+    # Create a copy to avoid modifying the original
+    result_df = df.copy()
+    result_df[INSULIN_AVAIL_COL] = 0.0
+    result_df[IOB_COL] = 0.0
+
+    if not isinstance(result_df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame must have a datetime index")
+
+    timestep_count = 0
+
+    # Single patient processing only
+    logger.info("Processing insulin dynamics")
+    for ins_time in result_df.index[
+        (result_df["dose_units"].notna()) & (result_df["dose_units"] > 0)
+    ]:
+        insulin_dose = result_df.loc[ins_time, "dose_units"]
+
+        # Simulate insulin dynamics
+        ins_avail, iob, _, _, _ = (
+            calculate_insulin_availability_and_iob_single_delivery(
+                insulin_dose, TS_MIN, T_ACTION_MAX_MIN
+            )
+        )
+
+        # Add values for the current time
+        result_df.loc[ins_time, INSULIN_AVAIL_COL] += ins_avail[0]
+        result_df.loc[ins_time, IOB_COL] += iob[0]
+
+        # Continue with future times
+        next_index = ins_time + pd.Timedelta(minutes=1)  # Use timedelta
+        time_since_insulin_mins = 0
+
+        while (
+            next_index in result_df.index
+            and time_since_insulin_mins < T_ACTION_MAX_MIN
+        ):
+            timestep_count += 1
+            if timestep_count % 10000 == 0:
+                logger.info(
+                    f"Processing insulin dynamics - timestep: {timestep_count}"
+                )
+
+            # Calculate time difference using index
+            time_since_insulin_mins = int(
+                (next_index - ins_time).total_seconds() / 60
+            )
+
+            if time_since_insulin_mins < T_ACTION_MAX_MIN:
+                result_df.loc[next_index, INSULIN_AVAIL_COL] += ins_avail[
+                    time_since_insulin_mins
+                ]
+                result_df.loc[next_index, IOB_COL] += iob[time_since_insulin_mins]
+
+            next_index += pd.Timedelta(minutes=1)  # Use timedelta
+
+    return result_df
+
+def _deprecated_create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
     Computes the insulin availability (INS_AVAIL_COL) and insulin on board (IOB_COL)
     for each insulin dose in the dataframe.

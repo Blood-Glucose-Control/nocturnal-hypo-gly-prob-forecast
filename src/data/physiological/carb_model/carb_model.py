@@ -77,11 +77,65 @@ def calculate_carb_availability_and_cob_single_meal(
 
     return meal_availability, mob
 
-
 def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
-    NOTE: This method assumes that TS_MIN = 1 minute.
+    Computes the carbohydrate availability (CARB_AVAIL_COL) and carbohydrate on board (COB_COL)
+    for each meal announcement in the dataframe.
 
+    Assumes TS_MIN = 1 minute and that the DataFrame contains only one patient.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame with datetime index containing meal announcement times.
+
+    Returns:
+    pd.DataFrame: Updated DataFrame with computed `carb_availability` and `cob` columns.
+    """
+    # Create a copy to avoid modifying the original
+    result_df = df.copy()
+    result_df[COB_COL] = 0.0
+    result_df[CARB_AVAIL_COL] = 0.0
+
+    if not isinstance(result_df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame must have a datetime index")
+
+    # Single patient processing only
+    for meal_time in result_df.index[result_df["food_g"].notna()]:
+        meal_value = result_df.loc[meal_time, "food_g"]
+        meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
+            meal_value, CARB_ABSORPTION, TS_MIN, T_ACTION_MAX_MIN
+        )
+
+        # Add values for the current time
+        result_df.loc[meal_time, CARB_AVAIL_COL] += meal_avail[0]
+        result_df.loc[meal_time, COB_COL] += cob[0]
+
+        # Continue with future times
+        next_index = meal_time + pd.Timedelta(minutes=1)
+        time_since_meal_mins = 0
+
+        while (
+            next_index in result_df.index
+            and time_since_meal_mins < T_ACTION_MAX_MIN
+        ):
+            # Calculate time difference using index
+            time_since_meal_mins = int(
+                (next_index - meal_time).total_seconds() / 60
+            )
+
+            if time_since_meal_mins < T_ACTION_MAX_MIN:
+                result_df.loc[next_index, CARB_AVAIL_COL] += meal_avail[
+                    time_since_meal_mins
+                ]
+                result_df.loc[next_index, COB_COL] += cob[time_since_meal_mins]
+
+            next_index += pd.Timedelta(minutes=1)
+
+    return result_df
+
+def _deprecated_create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    NOTE: This method assumes that TS_MIN = 1 minute.
+    DEPRECATION REASION: WE NO LONGER WANT GENERIC FUNCTIONS HANDLING PARALLEL PROCESSING, DATA LOADERS HANDLE THAT.
     Computes the carbohydrate availability (CARB_AVAIL_COL) and carbohydrate on board (COB_COL)
     for each meal announcement in the dataframe.
 
