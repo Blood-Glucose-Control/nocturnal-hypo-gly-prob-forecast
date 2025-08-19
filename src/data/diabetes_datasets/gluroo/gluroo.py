@@ -52,6 +52,7 @@ class GlurooDataLoader(DatasetBase):
         file_path: str | None = None,
         config: dict | None = None,
         use_cached: bool = False,
+        parallel: bool = True
     ):
         """
         Initialize the Gluroo data loader.
@@ -77,8 +78,11 @@ class GlurooDataLoader(DatasetBase):
         self.processed_data: pd.DataFrame | None = None
         self.train_data: pd.DataFrame | None = None
         self.validation_data: pd.DataFrame | None = None
+        self.parallel = parallel  # Whether to use parallel processing
         self.load_data()
 
+        if self.parallel:
+            print("Parallel processing is not yet developed for Gluroo data loader. Proceeding with sequential processing.")
     @property
     def dataset_name(self):
         """

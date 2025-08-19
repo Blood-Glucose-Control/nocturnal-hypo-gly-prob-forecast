@@ -47,11 +47,11 @@ def derive_features(df: pd.DataFrame) -> pd.DataFrame:
 
     logger.info("Creating COB and carb availability columns...")
     df = create_cob_and_carb_availability_cols(df)
-    print(df.head())
+    #print(df.head())
     logger.info(
         "Creating IOB and insulin availability columns. This may take a while depending on the size of the data."
     )
     #df = create_iob_and_ins_availability_cols(df)
 
-    logger.info("Done deriving features.")
+    logger.info("Done deriving features.\n")
     return df

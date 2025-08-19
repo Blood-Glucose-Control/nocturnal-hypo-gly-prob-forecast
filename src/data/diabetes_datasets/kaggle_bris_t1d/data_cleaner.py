@@ -8,6 +8,7 @@ dataframes into more usable formats for analysis and modeling.
 import logging
 import pandas as pd
 from src.utils.kaggle_util import create_time_variable_lists
+from src.data.cache_manager import get_cache_manager
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -161,6 +162,8 @@ def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # TODO:TONY - Remove this
-    data.to_csv("../../cache/data/kaggle_brisT1D/preprocess/data_after_cleaning.csv", index=False)
+    cache_manager = get_cache_manager()
+    cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
+    data.to_csv(cache_manager.get_cleaning_step_data_path("kaggle_brisT1D") / "data_clean/data_after_cleaning.csv", index=False)
     return data
 

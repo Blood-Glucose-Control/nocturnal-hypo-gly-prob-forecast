@@ -92,6 +92,18 @@ class CacheManager:
         """
         return self.get_dataset_cache_path(dataset_name) / "raw"
 
+    def get_cleaning_step_data_path(self, dataset_name: str) -> Path:
+        """
+        Get the cleaning step data path for a specific dataset.
+
+        Args:
+            dataset_name (str): Name of the dataset
+
+        Returns:
+            Path: Path to the cleaning step data directory
+        """
+        return self.get_dataset_cache_path(dataset_name) / "cleaning_step"
+
     def get_processed_data_path(self, dataset_name: str) -> Path:
         """
         Get the processed data path for a specific dataset.
@@ -130,7 +142,7 @@ class CacheManager:
 
         # Fetch data from source
         logger.info(
-            f"Raw data for {dataset_name} not found in cache, fetching from source"
+            f"Raw data for {dataset_name} not found in cache: {raw_path} \n fetching from source"
         )
         source = dataset_config.get("source", "unknown")
         if source == "kaggle":

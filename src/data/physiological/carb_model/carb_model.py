@@ -54,7 +54,10 @@ def calculate_carb_availability_and_cob_single_meal(
     for tt in range(result_array_size - 1):
         if tt == 0:
             # At time zero, inject the meal into q1
-            dq1[tt] = -(q1[tt] / tmax) + (carb_absorption * meal_carbs / ts_min)
+            try:
+                dq1[tt] = -(q1[tt] / tmax) + (carb_absorption * meal_carbs / ts_min)
+            except:
+                raise ValueError(f"Error in calculating dq1. tt: {tt}, Meal Carbs: {meal_carbs}, Carb Absorption: {carb_absorption}, Time Step: {ts_min}")
         else:
             # After the first time step, no additional input is added
             dq1[tt] = -(q1[tt] / tmax)
@@ -100,7 +103,11 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
 
     # Single patient processing only
     for meal_time in result_df.index[result_df["food_g"].notna()]:
+        #print(f"\n Processing meal at {meal_time}")
+        #print(f" Meal time type: {type(meal_time)}")
+        #print(f" Meal time index: {result_df.loc[meal_time, 'id']}")
         meal_value = result_df.loc[meal_time, "food_g"]
+        #print(f" Meal value: {meal_value} g")
         meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
             meal_value, CARB_ABSORPTION, TS_MIN, T_ACTION_MAX_MIN
         )
