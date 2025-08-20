@@ -79,11 +79,63 @@ def calculate_carb_availability_and_cob_single_meal(
     meal_availability = q2
     # Meal on Board (MOB) is the effective meal size minus the cumulative absorption
     mob = carb_absorption * meal_carbs - q3
-
+    print(f"Meal Availability: {meal_availability}")
+    print(f"Meal on Board: {mob}")
     return meal_availability, mob
 
 
-def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
+def create_cob_and_carb_availability_cols(df: pd.DataFrame, ts_min: int) -> pd.DataFrame:
+    """
+    Computes the carbohydrate availability (CARB_AVAIL_COL) and carbohydrate on board (COB_COL)
+    for each meal announcement in the dataframe.
+
+    Assumes TS_MIN = 1 minute and that the DataFrame contains only one patient.
+
+    Parameters:
+    df (pd.DataFrame): DataFrame with datetime index containing meal announcement times.
+
+    Returns:
+    pd.DataFrame: Updated DataFrame with computed `carb_availability` and `cob` columns.
+    """
+    # Create a copy to avoid modifying the original
+    result_df = df.copy()
+    result_df[COB_COL] = 0.0
+    result_df[CARB_AVAIL_COL] = 0.0
+
+    if not isinstance(result_df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame must have a datetime index")
+
+    # Single patient processing only
+    for meal_time in result_df.index[result_df["food_g"].notna()]:
+        meal_value = result_df.loc[meal_time, "food_g"]
+        meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
+            meal_value, CARB_ABSORPTION, ts_min, T_ACTION_MAX_MIN
+        )
+
+        # Create time range for this meal's effect
+        time_range = pd.date_range(
+            start=meal_time,
+            periods=len(meal_avail),
+            freq=f'{ts_min}min'
+        )
+        
+        # Find indices that exist in both the time range and the dataframe
+        valid_indices = time_range.intersection(result_df.index)
+        
+        # Calculate the positions in the meal_avail/cob arrays for valid indices
+        time_positions = [(idx - meal_time).total_seconds() // (ts_min * 60) for idx in valid_indices]
+        time_positions = [int(pos) for pos in time_positions if pos < len(meal_avail)]
+        
+        # Get corresponding valid indices (same length as time_positions)
+        valid_indices = valid_indices[:len(time_positions)]
+        
+        # Vectorized addition
+        result_df.loc[valid_indices, CARB_AVAIL_COL] += meal_avail[time_positions]
+        result_df.loc[valid_indices, COB_COL] += cob[time_positions]
+
+    return result_df
+
+def _deprecated_2_create_cob_and_carb_availability_cols(df: pd.DataFrame, ts_min: int) -> pd.DataFrame:
     """
     Computes the carbohydrate availability (CARB_AVAIL_COL) and carbohydrate on board (COB_COL)
     for each meal announcement in the dataframe.
@@ -112,7 +164,7 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
         meal_value = result_df.loc[meal_time, "food_g"]
         # print(f" Meal value: {meal_value} g")
         meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
-            meal_value, CARB_ABSORPTION, TS_MIN, T_ACTION_MAX_MIN
+            meal_value, CARB_ABSORPTION, ts_min, T_ACTION_MAX_MIN
         )
 
         # Add values for the current time
@@ -120,7 +172,7 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
         result_df.loc[meal_time, COB_COL] += cob[0]
 
         # Continue with future times
-        next_index = meal_time + pd.Timedelta(minutes=1)
+        next_index = meal_time + pd.Timedelta(minutes=ts_min)
         time_since_meal_mins = 0
 
         while next_index in result_df.index and time_since_meal_mins < T_ACTION_MAX_MIN:
@@ -133,7 +185,7 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
                 ]
                 result_df.loc[next_index, COB_COL] += cob[time_since_meal_mins]
 
-            next_index += pd.Timedelta(minutes=1)
+            next_index += pd.Timedelta(minutes=ts_min)
 
     return result_df
 

@@ -44,16 +44,17 @@ def derive_features(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("DataFrame must have a datetime index")
 
     logger.info("Deriving features...")
-    logger.info("Filling in gaps...")
-    df = ensure_regular_time_intervals(df)
-
-    logger.info("Creating COB and carb availability columns...")
-    df = create_cob_and_carb_availability_cols(df)
-    # print(df.head())
+    logger.info("\tEnsuring regular time intervals...")
+    df, freq = ensure_regular_time_intervals(df)
+    
     logger.info(
-        "Creating IOB and insulin availability columns. This may take a while depending on the size of the data."
+        "\tCreating IOB and insulin availability columns. This may take a while depending on the size of the data."
     )
-    # df = create_iob_and_ins_availability_cols(df)
+    logger.info("\tCreating COB and carb availability columns...")
+    df = create_cob_and_carb_availability_cols(df, freq)
+
+    logger.info("\tCreating IOB and insulin availability columns...")
+    # df = create_iob_and_ins_availability_cols(df, freq)
 
     logger.info("Done deriving features.\n")
     return df

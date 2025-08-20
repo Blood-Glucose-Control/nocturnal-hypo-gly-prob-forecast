@@ -19,13 +19,13 @@ Functions:
 """
 
 import pandas as pd
-from typing import Literal
+from typing import Literal, Tuple
 from src.data.preprocessing.time_processing import get_most_common_time_interval
 
 
 def ensure_regular_time_intervals(
     df: pd.DataFrame, direction: Literal["backward", "forward", "nearest"] = "forward"
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, int]:
     """Ensures regular time intervals exist in the dataframe by adding rows with NaN values
     where timestamps are missing, and maps shifted timestamps to the nearest regular interval.
 
@@ -38,7 +38,7 @@ def ensure_regular_time_intervals(
     """
     # Validate inputs
     if df.empty:
-        return df.copy()  # Return empty DataFrame with same structure
+        return df.copy(), 0  # Return empty DataFrame with same structure
 
     if df.shape[0] <= 1:
         raise ValueError("DataFrame must contain more than 1 row")
@@ -98,4 +98,4 @@ def ensure_regular_time_intervals(
         f"Post-ensure_regular_time_intervals(): \n\tPatient {df['p_num'].iloc[0]} \n\t old index length: {len(df.index)}, \n\t new index length: {len(mapped_data.index)}"
     )
 
-    return mapped_data
+    return mapped_data, freq
