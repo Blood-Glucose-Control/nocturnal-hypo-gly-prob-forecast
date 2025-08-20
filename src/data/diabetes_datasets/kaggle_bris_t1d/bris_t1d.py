@@ -44,10 +44,12 @@ from src.data.diabetes_datasets.kaggle_bris_t1d.data_cleaner import (
 logger = logging.getLogger(__name__)
 
 
-def create_datetime_column_standalone(time_series: pd.Series, patient_start_date: pd.Timestamp) -> tuple[pd.Series, pd.Series]:
+def create_datetime_column_standalone(
+    time_series: pd.Series, patient_start_date: pd.Timestamp
+) -> tuple[pd.Series, pd.Series]:
     """
     Simple version that detects day rollovers and increments date accordingly.
-    
+
     Args:
         time_series (pd.Series): Series of times as strings ("%H:%M:%S")
         patient_start_date (pd.Timestamp): The date to start from
@@ -58,7 +60,7 @@ def create_datetime_column_standalone(time_series: pd.Series, patient_start_date
             - time_series: Series of times (time objects)
     """
     if len(time_series) == 0:
-        return pd.Series([], dtype='datetime64[ns]'), pd.Series([], dtype='time')
+        return pd.Series([], dtype="datetime64[ns]"), pd.Series([], dtype="time")
 
     # Clean and convert to time objects
     time_series = time_series.str.strip()
@@ -69,22 +71,22 @@ def create_datetime_column_standalone(time_series: pd.Series, patient_start_date
         if pd.isna(current_time):
             result_dates.append(pd.NaT)
             continue
-            
+
         # Check for day rollover (current hour:minute < previous hour:minute)
-        if i > 0 and not pd.isna(times.iloc[i-1]):
-            prev_time = times.iloc[i-1]
-            
+        if i > 0 and not pd.isna(times.iloc[i - 1]):
+            prev_time = times.iloc[i - 1]
+
             # Simple comparison: if current time < previous time, we rolled over
             current_minutes = current_time.hour * 60 + current_time.minute
             prev_minutes = prev_time.hour * 60 + prev_time.minute
-            
+
             if current_minutes < prev_minutes:
                 current_date = current_date + pd.Timedelta(days=1)
-        
+
         # Combine current date with current time
         result_dates.append(current_date)
 
-    result_dates = pd.Series(result_dates, dtype='datetime64[ns]')
+    result_dates = pd.Series(result_dates, dtype="datetime64[ns]")
     print(f"\n\t Result start date: {result_dates.iloc[0]}")
     print(f"\t Result end date: {result_dates.iloc[-1]}")
     print(f"\t Result start time: {times.iloc[0]}")
@@ -92,56 +94,66 @@ def create_datetime_column_standalone(time_series: pd.Series, patient_start_date
     print(f"\t Result VERY End (last 5): \n{result_dates.tail()}")
     print(f"\t Any NaT values in dates? {result_dates.isna().sum()}")
     print(f"\t Any NaT values in times? {times.isna().sum()}")
-   #print(f"Current result_dates length: {len(result_dates)}, times length: {len(times)}")
+    # print(f"Current result_dates length: {len(result_dates)}, times length: {len(times)}")
     return (result_dates, times)
+
 
 def process_patient_data_standalone(patient_data_tuple: tuple) -> tuple:
     """
     Process a single patient's data including datetime creation and preprocessing.
-    
+
     Note: Standalones were created to support multiprocessing, corruption issues occur otherwise.
-    
+
     Args:
         patient_data_tuple: Tuple containing (p_num, data, generic_patient_start_date)
-        
+
     Returns:
         Tuple containing (p_num, processed_data)
     """
     p_num, data, generic_patient_start_date = patient_data_tuple
-    print(f"Running process_patient_data_standalone(), \n Processing patient {p_num} data...\n \t patient start date: {generic_patient_start_date}")
+    print(
+        f"Running process_patient_data_standalone(), \n Processing patient {p_num} data...\n \t patient start date: {generic_patient_start_date}"
+    )
     print(f"\t Inputed patient start time: {data['datetime'].iloc[0]}")
     # Create a copy to avoid modifying the original
     data_copy = data.copy()
-    
+
     # Create datetime column
     patient_dates, patient_times = create_datetime_column_standalone(
-        data_copy['datetime'], 
-        generic_patient_start_date
+        data_copy["datetime"], generic_patient_start_date
     )
-    print(f"\n Created columns for patient {p_num} data...\n \t patient start date: {patient_dates.iloc[0]}")
+    print(
+        f"\n Created columns for patient {p_num} data...\n \t patient start date: {patient_dates.iloc[0]}"
+    )
     print(f"\t Result patient start time: {patient_times.iloc[0]}")
-    print(f'Length of dates: {len(patient_dates)}')
-    print(f'Length of times: {len(patient_times)}')
-    # THIS BREAKS EVERYTHING, WHY DOES THIS BREAK EVERYTHING IT MAKES NO SENSE 
+    print(f"Length of dates: {len(patient_dates)}")
+    print(f"Length of times: {len(patient_times)}")
+    # THIS BREAKS EVERYTHING, WHY DOES THIS BREAK EVERYTHING IT MAKES NO SENSE
     # data_copy['datetime'] = pd.Series([
     #     pd.Timestamp.combine(date, time) if pd.notna(date) and pd.notna(time) else pd.NaT
     #     for date, time in zip(data_copy['dates'], data_copy['times'])
     # ])
 
-    data_copy['datetime'] = [
-        pd.Timestamp.combine(date, time) if pd.notna(date) and pd.notna(time) else "BAD: " +str(date)+' '+str(time)
+    data_copy["datetime"] = [
+        pd.Timestamp.combine(date, time)
+        if pd.notna(date) and pd.notna(time)
+        else "BAD: " + str(date) + " " + str(time)
         for date, time in zip(patient_dates, patient_times)
     ]
 
     # Convert datetime column to index
-    data_copy = data_copy.set_index('datetime', drop=False)
+    data_copy = data_copy.set_index("datetime", drop=True)
     # TODO:TONY - Remove this
     cache_manager = get_cache_manager()
     cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
-    data_copy.to_csv(cache_manager.get_cleaning_step_data_path("kaggle_brisT1D") / f"datetime_index/{p_num}.csv", index=True)
+    data_copy.to_csv(
+        cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
+        / f"datetime_index/{p_num}.csv",
+        index=True,
+    )
     # Run preprocessing pipeline
     processed_data = preprocessing_pipeline(p_num, data_copy)
-    
+
     return p_num, processed_data
 
 
@@ -175,7 +187,7 @@ class BrisT1DDataLoader(DatasetBase):
         use_cached: bool = True,
         dataset_type: str = "train",
         parallel: bool = True,
-        generic_patient_start_date: pd.Timestamp = pd.Timestamp("2024-01-01")
+        generic_patient_start_date: pd.Timestamp = pd.Timestamp("2024-01-01"),
     ):
         """
         Initialize the Bristol T1D data loader.
@@ -199,7 +211,7 @@ class BrisT1DDataLoader(DatasetBase):
         if keep_columns is not None:
             if "datetime" not in keep_columns:
                 keep_columns = keep_columns + ["datetime"]
-        self.generic_patient_start_date = generic_patient_start_date  
+        self.generic_patient_start_date = generic_patient_start_date
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
         self.use_cached = use_cached
@@ -449,7 +461,9 @@ class BrisT1DDataLoader(DatasetBase):
         if self.raw_data is None:
             raise ValueError("Raw data not loaded. Call load_raw() first.")
 
-        logger.info("_process_raw_train_data: Processing train data. This may take a while...")
+        logger.info(
+            "_process_raw_train_data: Processing train data. This may take a while..."
+        )
         pre_processed_data = self._translate_raw_data(self.raw_data)
 
         # Type narrowing: ensure train data returns a DataFrame
@@ -462,11 +476,17 @@ class BrisT1DDataLoader(DatasetBase):
             pre_processed_data
         )
         logger.info(f"Processing {len(multipatient_data_dict)} patients in parallel:")
-        logger.info(f"\t Converting time to datetime using start date: {self.generic_patient_start_date}")
+        logger.info(
+            f"\t Converting time to datetime using start date: {self.generic_patient_start_date}"
+        )
         # Store pre-parallel dfs
-        pre_parallel_dfs_path = self.cache_manager.get_cleaning_step_data_path(self.dataset_name)
+        pre_parallel_dfs_path = self.cache_manager.get_cleaning_step_data_path(
+            self.dataset_name
+        )
         for p_num, df in multipatient_data_dict.items():
-            df.to_csv(pre_parallel_dfs_path / f"patient_{p_num}_pre_parallel.csv", index=False)
+            df.to_csv(
+                pre_parallel_dfs_path / f"patient_{p_num}_pre_parallel.csv", index=False
+            )
             logger.info(f"Stored pre-parallel DataFrame for patient {p_num}")
         if self.parallel:
             processed_results = {}
@@ -476,28 +496,42 @@ class BrisT1DDataLoader(DatasetBase):
                     (p_num, patient_df, self.generic_patient_start_date)
                     for p_num, patient_df in multipatient_data_dict.items()
                 ]
-                
+
                 # Submit all tasks
                 future_to_patient = {
-                    executor.submit(process_patient_data_standalone, patient_tuple): patient_tuple[0]
+                    executor.submit(
+                        process_patient_data_standalone, patient_tuple
+                    ): patient_tuple[0]
                     for patient_tuple in patient_data_tuples
                 }
-                
+
                 # Collect results
                 for future in as_completed(future_to_patient):
                     p_num = future_to_patient[future]
                     try:
                         patient_id, result = future.result()
                         processed_results[patient_id] = result
-                        logger.info(f"processed_results: Successfully processed patient {patient_id}")
+                        logger.info(
+                            f"processed_results: Successfully processed patient {patient_id}"
+                        )
                     except Exception as exc:
-                        logger.error(f"processed_results: Patient {p_num} generated an exception: {exc}")
+                        logger.error(
+                            f"processed_results: Patient {p_num} generated an exception: {exc}"
+                        )
         else:
             processed_results = {}
             for p_num, patient_df in multipatient_data_dict.items():
-                print(f"\n========================\n Processing patient {p_num} data...\n========================\n ")
-                patient_data_tuple = (p_num, patient_df, self.generic_patient_start_date)
-                p_num, processed_patient_df = process_patient_data_standalone(patient_data_tuple)
+                print(
+                    f"\n========================\n Processing patient {p_num} data...\n========================\n "
+                )
+                patient_data_tuple = (
+                    p_num,
+                    patient_df,
+                    self.generic_patient_start_date,
+                )
+                p_num, processed_patient_df = process_patient_data_standalone(
+                    patient_data_tuple
+                )
                 processed_results[p_num] = processed_patient_df
 
         logger.info("Done processing train data. Saving processed data to cache...")
@@ -506,8 +540,10 @@ class BrisT1DDataLoader(DatasetBase):
             self.cache_manager.save_processed_data(
                 self.dataset_name, self.dataset_type, p_num, patient_df
             )
-        
-        logger.info(f"Successfully processed and cached data for {len(processed_results)} patients")
+
+        logger.info(
+            f"Successfully processed and cached data for {len(processed_results)} patients"
+        )
         return processed_results
 
     def _process_raw_test_data(self) -> dict[str, dict[str, pd.DataFrame]]:
@@ -657,12 +693,14 @@ class BrisT1DDataLoader(DatasetBase):
         """
         unique_patient_ids = data["p_num"].unique()
         patient_data = {
-            patient_id: data[data["p_num"] == patient_id].copy() 
+            patient_id: data[data["p_num"] == patient_id].copy()
             for patient_id in unique_patient_ids
         }
         return patient_data
 
-    def _create_datetime_column(self, time_series: pd.Series, patient_start_date: pd.Timestamp) -> pd.Series:
+    def _create_datetime_column(
+        self, time_series: pd.Series, patient_start_date: pd.Timestamp
+    ) -> pd.Series:
         """
         Given a Series of times (format "%H:%M:%S") and a start date,
         create a datetime column where the time stays the same and the date rolls forward
@@ -694,7 +732,9 @@ class BrisT1DDataLoader(DatasetBase):
 
         # Build full datetime for each row
         datetime_series = [
-            pd.Timestamp.combine(patient_start_date + pd.Timedelta(days=int(day_offset)), t)
+            pd.Timestamp.combine(
+                patient_start_date + pd.Timedelta(days=int(day_offset)), t
+            )
             for day_offset, t in zip(day_offsets, times)
         ]
         return pd.Series(datetime_series)

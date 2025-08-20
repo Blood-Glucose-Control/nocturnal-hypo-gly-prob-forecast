@@ -2,7 +2,6 @@ import logging
 import pandas as pd
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from src.data.preprocessing.feature_engineering import derive_features
-from src.data.preprocessing.generic_cleaning import ensure_datetime_index
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +91,10 @@ def preprocessing_pipeline(p_num: str, df: pd.DataFrame) -> pd.DataFrame:
 
     check_data_format(df)
     patient_df = df.copy(deep=True)
-    #patient_df = ensure_datetime_index(patient_df)
-    print(f"Post-ensure_datetime_index(): \n\tPatient {p_num} \n\tindex: {patient_df.index}")
+    # patient_df = ensure_datetime_index(patient_df)
+    print(
+        f"Post-ensure_datetime_index(): \n\tPatient {p_num} \n\tindex: {patient_df.index}"
+    )
     processed_df = derive_features(patient_df)
     return processed_df
 
@@ -103,9 +104,16 @@ def check_data_format(df: pd.DataFrame) -> bool:
     Checks if the data is in the correct format.
     """
     required_columns_set = set(required_columns)
+
+    # Get all available columns including the index
     df_columns_set = set(df.columns)
+    if df.index.name:
+        df_columns_set.add(str(df.index.name))
+
     if not required_columns_set.issubset(df_columns_set):
+        missing_columns = required_columns_set - df_columns_set
         raise ValueError(
-            f"Data is not in the correct format. Please make sure these columns are present: {required_columns_set - df_columns_set}"
+            f"Data is not in the correct format. Missing columns: {missing_columns}. "
+            f"Available columns: {sorted(df_columns_set)}"
         )
     return True

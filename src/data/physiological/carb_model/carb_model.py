@@ -56,8 +56,10 @@ def calculate_carb_availability_and_cob_single_meal(
             # At time zero, inject the meal into q1
             try:
                 dq1[tt] = -(q1[tt] / tmax) + (carb_absorption * meal_carbs / ts_min)
-            except:
-                raise ValueError(f"Error in calculating dq1. tt: {tt}, Meal Carbs: {meal_carbs}, Carb Absorption: {carb_absorption}, Time Step: {ts_min}")
+            except (ZeroDivisionError, TypeError, ValueError) as e:
+                raise ValueError(
+                    f"Error in calculating dq1. tt: {tt}, Meal Carbs: {meal_carbs}, Carb Absorption: {carb_absorption}, Time Step: {ts_min}"
+                ) from e
         else:
             # After the first time step, no additional input is added
             dq1[tt] = -(q1[tt] / tmax)
@@ -79,6 +81,7 @@ def calculate_carb_availability_and_cob_single_meal(
     mob = carb_absorption * meal_carbs - q3
 
     return meal_availability, mob
+
 
 def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -103,11 +106,11 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
 
     # Single patient processing only
     for meal_time in result_df.index[result_df["food_g"].notna()]:
-        #print(f"\n Processing meal at {meal_time}")
-        #print(f" Meal time type: {type(meal_time)}")
-        #print(f" Meal time index: {result_df.loc[meal_time, 'id']}")
+        # print(f"\n Processing meal at {meal_time}")
+        # print(f" Meal time type: {type(meal_time)}")
+        # print(f" Meal time index: {result_df.loc[meal_time, 'id']}")
         meal_value = result_df.loc[meal_time, "food_g"]
-        #print(f" Meal value: {meal_value} g")
+        # print(f" Meal value: {meal_value} g")
         meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
             meal_value, CARB_ABSORPTION, TS_MIN, T_ACTION_MAX_MIN
         )
@@ -120,14 +123,9 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
         next_index = meal_time + pd.Timedelta(minutes=1)
         time_since_meal_mins = 0
 
-        while (
-            next_index in result_df.index
-            and time_since_meal_mins < T_ACTION_MAX_MIN
-        ):
+        while next_index in result_df.index and time_since_meal_mins < T_ACTION_MAX_MIN:
             # Calculate time difference using index
-            time_since_meal_mins = int(
-                (next_index - meal_time).total_seconds() / 60
-            )
+            time_since_meal_mins = int((next_index - meal_time).total_seconds() / 60)
 
             if time_since_meal_mins < T_ACTION_MAX_MIN:
                 result_df.loc[next_index, CARB_AVAIL_COL] += meal_avail[
@@ -138,6 +136,7 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
             next_index += pd.Timedelta(minutes=1)
 
     return result_df
+
 
 def _deprecated_create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     """

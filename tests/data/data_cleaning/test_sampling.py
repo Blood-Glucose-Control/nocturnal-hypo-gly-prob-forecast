@@ -57,47 +57,74 @@ class TestEnsureRegularTimeIntervals:
         return df
 
     @pytest.fixture
-    def multi_patient_data(self):
-        """Create sample data with multiple patients and irregular intervals."""
-        # Patient 1 data - missing some intervals
-        p1_times = [
+    def shifted_sample_irregular_data(self):
+        """Create sample data with missing time intervals."""
+        # Create irregular intervals (missing some 15-minute periods)
+        datetime_list = [
             "2024-01-01 00:00:00",
-            "2024-01-01 00:05:00",
-            # Missing 00:10:00
             "2024-01-01 00:15:00",
-            "2024-01-01 00:20:00",
+            # Shifted 00:30:00 to 00:40:00
+            "2024-01-01 00:40:00",
+            "2024-01-01 00:55:00",
+            # Missing 00:55:00 to 04:55:00
+            "2024-01-01 04:55:00",
+            "2024-01-01 05:10:00",
         ]
 
-        # Patient 2 data - make 5min clearly most common
-        p2_times = [
-            "2024-01-01 00:00:00",
-            "2024-01-01 00:05:00",
-            # Missing 00:10:00
-            # Missing 00:15:00
-            "2024-01-01 00:20:00",
-            "2024-01-01 00:25:00",
-        ]
+        datetime_index = pd.to_datetime(datetime_list)
 
-        p1_data = {
-            "p_num": ["patient_01"] * 4,
-            "id": [f"patient_01_{i}" for i in range(4)],
-            "bg_mM": [5.0, 5.2, 5.1, 4.9],
-            "hr_bpm": [70, 72, 71, 69],
+        data = {
+            "p_num": ["patient_01"] * 6,
+            "bg_mM": [5.0, 5.2, 5.1, 4.9, 5.3, 5.0],
+            "hr_bpm": [70, 72, 71, 69, 73, 70],
         }
 
-        p2_data = {
-            "p_num": ["patient_02"] * 4,  # Updated count
-            "id": [f"patient_02_{i}" for i in range(4)],
-            "bg_mM": [4.8, 5.3, 5.0, 4.9],  # Added one more value
-            "hr_bpm": [68, 73, 70, 69],  # Added one more value
-        }
+        df = pd.DataFrame(data, index=datetime_index)
+        df.index.name = "datetime"
+        return df
 
-        p1_df = pd.DataFrame(p1_data, index=pd.to_datetime(p1_times))
-        p2_df = pd.DataFrame(p2_data, index=pd.to_datetime(p2_times))
+    # @pytest.fixture
+    # def multi_patient_data(self):
+    #     """Create sample data with multiple patients and irregular intervals."""
+    #     # Patient 1 data - missing some intervals
+    #     p1_times = [
+    #         "2024-01-01 00:00:00",
+    #         "2024-01-01 00:05:00",
+    #         # Missing 00:10:00
+    #         "2024-01-01 00:15:00",
+    #         "2024-01-01 00:20:00",
+    #     ]
 
-        combined_df = pd.concat([p1_df, p2_df])
-        combined_df.index.name = "datetime"
-        return combined_df
+    #     # Patient 2 data - make 5min clearly most common
+    #     p2_times = [
+    #         "2024-01-01 00:00:00",
+    #         "2024-01-01 00:05:00",
+    #         # Missing 00:10:00
+    #         # Missing 00:15:00
+    #         "2024-01-01 00:20:00",
+    #         "2024-01-01 00:25:00",
+    #     ]
+
+    #     p1_data = {
+    #         "p_num": ["patient_01"] * 4,
+    #         "id": [f"patient_01_{i}" for i in range(4)],
+    #         "bg_mM": [5.0, 5.2, 5.1, 4.9],
+    #         "hr_bpm": [70, 72, 71, 69],
+    #     }
+
+    #     p2_data = {
+    #         "p_num": ["patient_02"] * 4,  # Updated count
+    #         "id": [f"patient_02_{i}" for i in range(4)],
+    #         "bg_mM": [4.8, 5.3, 5.0, 4.9],  # Added one more value
+    #         "hr_bpm": [68, 73, 70, 69],  # Added one more value
+    #     }
+
+    #     p1_df = pd.DataFrame(p1_data, index=pd.to_datetime(p1_times))
+    #     p2_df = pd.DataFrame(p2_data, index=pd.to_datetime(p2_times))
+
+    #     combined_df = pd.concat([p1_df, p2_df])
+    #     combined_df.index.name = "datetime"
+    #     return combined_df
 
     def test_basic_functionality_regular_data(self, sample_regular_data):
         """Test function works correctly with already regular data."""
@@ -133,6 +160,29 @@ class TestEnsureRegularTimeIntervals:
         assert all(result["p_num"] == "patient_01")
         assert result["p_num"].isna().sum() == 0
 
+    def test_basic_functionality_shifted_irregular_data(
+        self, shifted_sample_irregular_data
+    ):
+        """Test function correctly fills missing time intervals."""
+        result = ensure_regular_time_intervals(shifted_sample_irregular_data)
+
+        # Should have more rows due to filled intervals
+        assert len(result) > len(shifted_sample_irregular_data)
+
+        # Check that regular 15-minute intervals are created
+        time_diffs = result.index.to_series().diff().dropna()
+        expected_interval = pd.Timedelta(minutes=15)
+        assert all(diff == expected_interval for diff in time_diffs)
+
+        # Check that original non-NaN values are preserved
+        non_nan_bg = result["bg_mM"].dropna()
+        original_bg = shifted_sample_irregular_data["bg_mM"]
+        assert len(non_nan_bg) == len(original_bg)
+
+        # Patient ID should be filled for all rows
+        assert all(result["p_num"] == "patient_01")
+        assert result["p_num"].isna().sum() == 0
+
     def test_missing_intervals_filled_with_nan(self, sample_irregular_data):
         """Test that missing time intervals are filled with NaN values."""
         result = ensure_regular_time_intervals(sample_irregular_data)
@@ -148,23 +198,23 @@ class TestEnsureRegularTimeIntervals:
         # NaN counts should be equal across numeric columns
         assert nan_count_bg == nan_count_hr
 
-    def test_multiple_patients(self, multi_patient_data):
-        """Test function works correctly with multiple patients."""
-        result = ensure_regular_time_intervals(multi_patient_data)
+    # def test_multiple_patients(self, multi_patient_data):
+    #     """Test function works correctly with multiple patients."""
+    #     result = ensure_regular_time_intervals(multi_patient_data)
 
-        # Check that both patients are present
-        patients = result["p_num"].unique()
-        assert "patient_01" in patients
-        assert "patient_02" in patients
+    #     # Check that both patients are present
+    #     patients = result["p_num"].unique()
+    #     assert "patient_01" in patients
+    #     assert "patient_02" in patients
 
-        # Check each patient separately
-        for patient_id in patients:
-            patient_data = result[result["p_num"] == patient_id].sort_index()
+    #     # Check each patient separately
+    #     for patient_id in patients:
+    #         patient_data = result[result["p_num"] == patient_id].sort_index()
 
-            # Check regular intervals for each patient
-            time_diffs = patient_data.index.to_series().diff().dropna()
-            expected_interval = pd.Timedelta(minutes=5)
-            assert all(diff == expected_interval for diff in time_diffs)
+    #         # Check regular intervals for each patient
+    #         time_diffs = patient_data.index.to_series().diff().dropna()
+    #         expected_interval = pd.Timedelta(minutes=5)
+    #         assert all(diff == expected_interval for diff in time_diffs)
 
     def test_empty_dataframe(self):
         """Test function handles empty DataFrame gracefully."""

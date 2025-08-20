@@ -52,7 +52,7 @@ class GlurooDataLoader(DatasetBase):
         file_path: str | None = None,
         config: dict | None = None,
         use_cached: bool = False,
-        parallel: bool = True
+        parallel: bool = True,
     ):
         """
         Initialize the Gluroo data loader.
@@ -82,7 +82,10 @@ class GlurooDataLoader(DatasetBase):
         self.load_data()
 
         if self.parallel:
-            print("Parallel processing is not yet developed for Gluroo data loader. Proceeding with sequential processing.")
+            print(
+                "Parallel processing is not yet developed for Gluroo data loader. Proceeding with sequential processing."
+            )
+
     @property
     def dataset_name(self):
         """

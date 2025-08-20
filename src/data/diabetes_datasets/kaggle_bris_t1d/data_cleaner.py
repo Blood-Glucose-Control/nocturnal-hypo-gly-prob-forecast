@@ -5,6 +5,7 @@ This module provides functions to clean and preprocess the Bristol T1D dataset b
 handling time-series data, removing historical data points, and restructuring the
 dataframes into more usable formats for analysis and modeling.
 """
+
 import logging
 import pandas as pd
 from src.utils.kaggle_util import create_time_variable_lists
@@ -12,6 +13,7 @@ from src.data.cache_manager import get_cache_manager
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
+
 
 def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFrame]]:
     """
@@ -150,7 +152,7 @@ def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
             "steps-0:00": "steps",
             "cals-0:00": "cals",
             "activity-0:00": "activity",
-            "time" : "datetime"
+            "time": "datetime",
         }
     )
 
@@ -164,6 +166,9 @@ def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
     # TODO:TONY - Remove this
     cache_manager = get_cache_manager()
     cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
-    data.to_csv(cache_manager.get_cleaning_step_data_path("kaggle_brisT1D") / "data_clean/data_after_cleaning.csv", index=False)
+    data.to_csv(
+        cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
+        / "data_clean/data_after_cleaning.csv",
+        index=False,
+    )
     return data
-

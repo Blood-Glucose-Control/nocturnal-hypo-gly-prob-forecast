@@ -27,7 +27,7 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     config: Optional[Dict[str, Any]] = None,
-    parallel: bool = True
+    parallel: bool = True,
 ) -> BrisT1DDataLoader: ...
 
 
@@ -39,7 +39,7 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     config: Optional[Dict[str, Any]] = None,
-    parallel: bool = True
+    parallel: bool = True,
 ) -> GlurooDataLoader: ...
 
 
@@ -50,7 +50,7 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     config: dict | None = None,
-    parallel: bool = True
+    parallel: bool = True,
 ) -> Union[BrisT1DDataLoader, GlurooDataLoader]:
     """
     Factory function to create and return the appropriate data loader instance.
@@ -84,14 +84,14 @@ def get_loader(
             num_validation_days=num_validation_days,
             use_cached=use_cached,
             dataset_type=dataset_type,
-            parallel=parallel
+            parallel=parallel,
         )
     elif data_source_name == "gluroo":
         return GlurooDataLoader(
             keep_columns=keep_columns,
             num_validation_days=num_validation_days,
             config=config,
-            parallel=parallel
+            parallel=parallel,
         )
     else:
         raise ValueError(f"Invalid dataset_name: {data_source_name}.")

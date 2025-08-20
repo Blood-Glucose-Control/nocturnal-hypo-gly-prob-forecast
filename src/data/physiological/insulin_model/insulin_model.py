@@ -89,6 +89,7 @@ def calculate_insulin_availability_and_iob_single_delivery(
     # Return all relevant states
     return ins_availability, iob, q1, q2, I_p
 
+
 def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
     Computes the insulin availability (INS_AVAIL_COL) and insulin on board (IOB_COL)
@@ -135,19 +136,14 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
         time_since_insulin_mins = 0
 
         while (
-            next_index in result_df.index
-            and time_since_insulin_mins < T_ACTION_MAX_MIN
+            next_index in result_df.index and time_since_insulin_mins < T_ACTION_MAX_MIN
         ):
             timestep_count += 1
             if timestep_count % 10000 == 0:
-                logger.info(
-                    f"Processing insulin dynamics - timestep: {timestep_count}"
-                )
+                logger.info(f"Processing insulin dynamics - timestep: {timestep_count}")
 
             # Calculate time difference using index
-            time_since_insulin_mins = int(
-                (next_index - ins_time).total_seconds() / 60
-            )
+            time_since_insulin_mins = int((next_index - ins_time).total_seconds() / 60)
 
             if time_since_insulin_mins < T_ACTION_MAX_MIN:
                 result_df.loc[next_index, INSULIN_AVAIL_COL] += ins_avail[
@@ -158,6 +154,7 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
             next_index += pd.Timedelta(minutes=1)  # Use timedelta
 
     return result_df
+
 
 def _deprecated_create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     """
