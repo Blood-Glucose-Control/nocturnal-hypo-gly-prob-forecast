@@ -123,7 +123,7 @@ class DatasetBase(ABC):
         """
         raise NotImplementedError("_process_raw_data must be implemented by subclass")
 
-    def _translate_raw_data(
+    def _clean_and_format_raw_data(
         self, raw_data: pd.DataFrame
     ) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
         """

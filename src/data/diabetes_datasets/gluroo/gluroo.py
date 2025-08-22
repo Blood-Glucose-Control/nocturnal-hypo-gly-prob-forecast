@@ -171,7 +171,7 @@ class GlurooDataLoader(DatasetBase):
             else:
                 raw = self.raw_data[self.keep_columns].copy()
 
-        raw = self._translate_raw_data(raw)
+        raw = self._clean_and_format_raw_data(raw)
         to_return = preprocessing_pipeline(raw)
         return to_return
 
@@ -205,7 +205,7 @@ class GlurooDataLoader(DatasetBase):
         for train_period, test_period in self._get_day_splits(patient_data):
             yield patient_id, train_period, test_period
 
-    def _translate_raw_data(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+    def _clean_and_format_raw_data(self, raw_data: pd.DataFrame) -> pd.DataFrame:
         """
         Translate raw Gluroo data to standardized format.
 
