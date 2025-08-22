@@ -87,14 +87,11 @@ def preprocessing_pipeline(p_num: str, df: pd.DataFrame) -> pd.DataFrame:
     # TODO: Create an option for both serial and parallel processing of the multipatient files.
     logger.info("==============================")
     logger.info(f"Preprocessing patient {p_num}")
-    logger.info("==============================\n")
+    logger.info("==============================")
 
     check_data_format(df)
     patient_df = df.copy(deep=True)
     # patient_df = ensure_datetime_index(patient_df)
-    # print(
-    #     f"Post-ensure_datetime_index(): \n\tPatient {p_num} \n\tindex: {patient_df.index}"
-    # )
     processed_df = derive_features(patient_df)
     return processed_df
 

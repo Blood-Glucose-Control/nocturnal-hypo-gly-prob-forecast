@@ -28,6 +28,7 @@ def get_loader(
     num_validation_days: int = 20,
     config: Optional[Dict[str, Any]] = None,
     parallel: bool = True,
+    max_workers: int = 3,
 ) -> BrisT1DDataLoader: ...
 
 
@@ -51,6 +52,7 @@ def get_loader(
     num_validation_days: int = 20,
     config: dict | None = None,
     parallel: bool = True,
+    max_workers: int = 3,
 ) -> Union[BrisT1DDataLoader, GlurooDataLoader]:
     """
     Factory function to create and return the appropriate data loader instance.
@@ -85,6 +87,7 @@ def get_loader(
             use_cached=use_cached,
             dataset_type=dataset_type,
             parallel=parallel,
+            max_workers=max_workers,
         )
     elif data_source_name == "gluroo":
         return GlurooDataLoader(

@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from scipy.integrate import solve_ivp
 from src.data.physiological.insulin_model.constants import (
     TMAX,
     KE,
@@ -88,6 +87,7 @@ def calculate_insulin_availability_and_iob_single_delivery(
 
     return ins_availability, iob, q1, q2, I_p
 
+
 def create_iob_and_ins_availability_cols(df: pd.DataFrame, ts_min: int) -> pd.DataFrame:
     """
     Computes the insulin availability (INS_AVAIL_COL) and insulin on board (IOB_COL)
@@ -116,26 +116,28 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame, ts_min: int) -> pd.Da
     ]:
         insulin_dose = result_df.loc[ins_time, "dose_units"]
         # Simulate insulin dynamics
-        ins_avail, iob, _, _, _ = calculate_insulin_availability_and_iob_single_delivery(
-            insulin_dose, ts_min, T_ACTION_MAX_MIN
+        ins_avail, iob, _, _, _ = (
+            calculate_insulin_availability_and_iob_single_delivery(
+                insulin_dose, ts_min, T_ACTION_MAX_MIN
+            )
         )
 
         # Create time range for this meal's effect
         time_range = pd.date_range(
-            start=ins_time,
-            periods=len(ins_avail),
-            freq=f'{ts_min}min'
+            start=ins_time, periods=len(ins_avail), freq=f"{ts_min}min"
         )
         # Find indices that exist in both the time range and the dataframe
         valid_indices = time_range.intersection(result_df.index)
 
         # Calculate the positions in the ins_avail/iob arrays for valid indices
-        time_positions = [(idx - ins_time).total_seconds() // (ts_min * 60) for idx in valid_indices]
+        time_positions = [
+            (idx - ins_time).total_seconds() // (ts_min * 60) for idx in valid_indices
+        ]
         time_positions = [int(pos) for pos in time_positions if pos < len(ins_avail)]
-        
+
         # Get corresponding valid indices (same length as time_positions)
-        valid_indices = valid_indices[:len(time_positions)]
-        
+        valid_indices = valid_indices[: len(time_positions)]
+
         # Vectorized addition
         result_df.loc[valid_indices, INSULIN_AVAIL_COL] += ins_avail[time_positions]
         result_df.loc[valid_indices, IOB_COL] += iob[time_positions]

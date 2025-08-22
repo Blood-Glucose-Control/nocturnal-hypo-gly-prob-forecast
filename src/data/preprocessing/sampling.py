@@ -21,6 +21,9 @@ Functions:
 import pandas as pd
 from typing import Literal, Tuple
 from src.data.preprocessing.time_processing import get_most_common_time_interval
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_regular_time_intervals(
@@ -36,6 +39,7 @@ def ensure_regular_time_intervals(
         pd.DataFrame: DataFrame with regular time intervals, missing times filled with NaN,
                      and shifted data mapped to nearest regular intervals
     """
+    logger.info("ensure_regular_time_intervals(): Ensuring regular time intervals...")
     # Validate inputs
     if df.empty:
         return df.copy(), 0  # Return empty DataFrame with same structure
@@ -51,7 +55,7 @@ def ensure_regular_time_intervals(
 
     original_data = df.copy()
     freq = get_most_common_time_interval(df)
-    print(f"Most common time interval: {freq} minutes")
+    logger.info(f"\tMost common time interval: {freq} minutes")
 
     # Create complete time range for this patient
     full_time_range = pd.date_range(
@@ -94,8 +98,8 @@ def ensure_regular_time_intervals(
     # For any regular timestamps that didn't get matched, we'll have NaN values
     # This preserves the regular time grid while capturing shifted data
 
-    print(
-        f"Post-ensure_regular_time_intervals(): \n\tPatient {df['p_num'].iloc[0]} \n\t old index length: {len(df.index)}, \n\t new index length: {len(mapped_data.index)}"
+    logger.info(
+        f"Post-ensure_regular_time_intervals(): \n\t\t\tPatient {df['p_num'].iloc[0]} \n\t\t\t - old index length: {len(df.index)}, \n\t\t\t - new index length: {len(mapped_data.index)}"
     )
 
     return mapped_data, freq

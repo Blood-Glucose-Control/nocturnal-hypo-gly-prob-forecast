@@ -43,10 +43,9 @@ def derive_features(df: pd.DataFrame) -> pd.DataFrame:
     if not isinstance(df.index, pd.DatetimeIndex):
         raise ValueError("DataFrame must have a datetime index")
 
-    logger.info("Deriving features...")
-    logger.info("\tEnsuring regular time intervals...")
+    logger.info("derive_features(): Deriving features...")
     df, freq = ensure_regular_time_intervals(df)
-    
+
     logger.info(
         "\tCreating COB/IOB and availability columns. This may take a while depending on the size of the data."
     )

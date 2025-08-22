@@ -433,7 +433,9 @@ class CacheManager:
         else:
             raise ValueError(f"Unsupported file format: {file_format}")
 
-        logger.info(f"Saved processed {dataset_type} data for {dataset_name}")
+        logger.info(
+            f"\tSaved processed {dataset_type} data for {dataset_name} - patient: {patient_id}"
+        )
 
     def load_processed_data(
         self, dataset_name: str, dataset_type: str, file_format: str = "csv"
