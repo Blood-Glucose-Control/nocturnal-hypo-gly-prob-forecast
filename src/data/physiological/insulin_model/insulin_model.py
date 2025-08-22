@@ -86,11 +86,9 @@ def calculate_insulin_availability_and_iob_single_delivery(
     iob = insulin - q4
     iob[iob < 0] = 0  # Ensure IOB never goes negative
 
-    # Return all relevant states
     return ins_availability, iob, q1, q2, I_p
 
-
-def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
+def create_iob_and_ins_availability_cols(df: pd.DataFrame, ts_min: int) -> pd.DataFrame:
     """
     Computes the insulin availability (INS_AVAIL_COL) and insulin on board (IOB_COL)
     for each insulin dose in the dataframe.
@@ -111,48 +109,36 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.DataFrame:
     if not isinstance(result_df.index, pd.DatetimeIndex):
         raise ValueError("DataFrame must have a datetime index")
 
-    timestep_count = 0
-
     # Single patient processing only
-    logger.info("Processing insulin dynamics")
+    logger.info("\tProcessing insulin dynamics")
     for ins_time in result_df.index[
         (result_df["dose_units"].notna()) & (result_df["dose_units"] > 0)
     ]:
         insulin_dose = result_df.loc[ins_time, "dose_units"]
-
         # Simulate insulin dynamics
-        ins_avail, iob, _, _, _ = (
-            calculate_insulin_availability_and_iob_single_delivery(
-                insulin_dose, TS_MIN, T_ACTION_MAX_MIN
-            )
+        ins_avail, iob, _, _, _ = calculate_insulin_availability_and_iob_single_delivery(
+            insulin_dose, ts_min, T_ACTION_MAX_MIN
         )
 
-        # Add values for the current time
-        result_df.loc[ins_time, INSULIN_AVAIL_COL] += ins_avail[0]
-        result_df.loc[ins_time, IOB_COL] += iob[0]
+        # Create time range for this meal's effect
+        time_range = pd.date_range(
+            start=ins_time,
+            periods=len(ins_avail),
+            freq=f'{ts_min}min'
+        )
+        # Find indices that exist in both the time range and the dataframe
+        valid_indices = time_range.intersection(result_df.index)
 
-        # Continue with future times
-        next_index = ins_time + pd.Timedelta(minutes=1)  # Use timedelta
-        time_since_insulin_mins = 0
-
-        while (
-            next_index in result_df.index and time_since_insulin_mins < T_ACTION_MAX_MIN
-        ):
-            timestep_count += 1
-            if timestep_count % 10000 == 0:
-                logger.info(f"Processing insulin dynamics - timestep: {timestep_count}")
-
-            # Calculate time difference using index
-            time_since_insulin_mins = int((next_index - ins_time).total_seconds() / 60)
-
-            if time_since_insulin_mins < T_ACTION_MAX_MIN:
-                result_df.loc[next_index, INSULIN_AVAIL_COL] += ins_avail[
-                    time_since_insulin_mins
-                ]
-                result_df.loc[next_index, IOB_COL] += iob[time_since_insulin_mins]
-
-            next_index += pd.Timedelta(minutes=1)  # Use timedelta
-
+        # Calculate the positions in the ins_avail/iob arrays for valid indices
+        time_positions = [(idx - ins_time).total_seconds() // (ts_min * 60) for idx in valid_indices]
+        time_positions = [int(pos) for pos in time_positions if pos < len(ins_avail)]
+        
+        # Get corresponding valid indices (same length as time_positions)
+        valid_indices = valid_indices[:len(time_positions)]
+        
+        # Vectorized addition
+        result_df.loc[valid_indices, INSULIN_AVAIL_COL] += ins_avail[time_positions]
+        result_df.loc[valid_indices, IOB_COL] += iob[time_positions]
     return result_df
 
 
@@ -231,77 +217,3 @@ def _deprecated_create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.Dat
                 next_index += pd.Timedelta(minutes=1)  # Use timedelta
 
     return result_df
-
-
-def calculate_insulin_availability_and_iob_single_delivery_new(
-    insulin, ts_min, t_action_max_min
-):
-    """
-    Simulates insulin absorption and availability using Hovorka's 3-compartment model (2004).
-    Using SciPy's ODE solver for improved accuracy and performance.
-    TODO: Verify that this is the correct model to use, that it matches the original implementation, and is more performant.
-    TODO: See if there are ways of improving the performance of this function further.
-        1. JIT compilation with Numba
-        2. Vectorization of the ODE system
-        3. Parallel processing for multiple insulin doses/days
-        4. Caching results for repeated doses
-
-    Parameters:
-        insulin (float): Amount of insulin injected (units).
-        ts_min (int): Time step in minutes.
-        t_action_max_min (int): Maximum duration of insulin action (minutes).
-
-    Returns:
-        ins_availability (numpy array): Insulin available in plasma over time.
-        iob (numpy array): Insulin on board over time.
-        s1 (numpy array): Subcutaneous insulin compartment 1 (q1).
-        s2 (numpy array): Subcutaneous insulin compartment 2 (q2).
-        I (numpy array): Plasma insulin concentration.
-    """
-
-    # Define the differential equation system
-    def insulin_dynamics(t, y):
-        q1, q2, I_p, q4 = y
-
-        # At t=0, add the insulin injection
-        u = insulin if t < ts_min else 0
-
-        dq1 = -(q1 / TMAX) + (u / ts_min if t < ts_min else 0)
-        dq2 = (q1 / TMAX) - (q2 / TMAX)
-        dI = (q2 / TMAX) - (KE * I_p)
-        dq4 = KE * I_p
-
-        return [dq1, dq2, dI, dq4]
-
-    # Initial conditions
-    y0 = [0, 0, 0, 0]  # [q1, q2, I_p, q4]
-
-    # Time points to solve for
-    t_span = (0, t_action_max_min)
-    t_eval = np.linspace(0, t_action_max_min, t_action_max_min // ts_min)
-
-    # Solve the ODE system
-    solution = solve_ivp(
-        insulin_dynamics,
-        t_span,
-        y0,
-        method="RK45",  # 4th-order Runge-Kutta method
-        t_eval=t_eval,
-        rtol=1e-4,  # Relative tolerance
-        atol=1e-6,  # Absolute tolerance
-    )
-
-    # Extract solutions
-    q1 = solution.y[0]
-    q2 = solution.y[1]
-    I_p = solution.y[2]
-    q4 = solution.y[3]
-
-    # Compute insulin availability (plasma insulin)
-    ins_availability = I_p
-
-    # Compute Insulin on Board (IOB)
-    iob = insulin - q4
-    iob[iob < 0] = 0  # Ensure IOB never goes negative
-
-    return ins_availability, iob, q1, q2, I_p

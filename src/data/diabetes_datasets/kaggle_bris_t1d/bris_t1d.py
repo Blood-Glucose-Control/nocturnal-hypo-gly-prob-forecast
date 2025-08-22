@@ -91,7 +91,6 @@ def create_datetime_column_standalone(
     print(f"\t Result end date: {result_dates.iloc[-1]}")
     print(f"\t Result start time: {times.iloc[0]}")
     print(f"\t Result end time: {times.iloc[-1]}")
-    print(f"\t Result VERY End (last 5): \n{result_dates.tail()}")
     print(f"\t Any NaT values in dates? {result_dates.isna().sum()}")
     print(f"\t Any NaT values in times? {times.isna().sum()}")
     # print(f"Current result_dates length: {len(result_dates)}, times length: {len(times)}")
@@ -111,10 +110,10 @@ def process_patient_data_standalone(patient_data_tuple: tuple) -> tuple:
         Tuple containing (p_num, processed_data)
     """
     p_num, data, generic_patient_start_date = patient_data_tuple
-    print(
+    logger.info(
         f"Running process_patient_data_standalone(), \n Processing patient {p_num} data...\n \t patient start date: {generic_patient_start_date}"
     )
-    print(f"\t Inputed patient start time: {data['datetime'].iloc[0]}")
+    logger.info(f"\t Inputed patient start time: {data['datetime'].iloc[0]}")
     # Create a copy to avoid modifying the original
     data_copy = data.copy()
 
@@ -122,17 +121,12 @@ def process_patient_data_standalone(patient_data_tuple: tuple) -> tuple:
     patient_dates, patient_times = create_datetime_column_standalone(
         data_copy["datetime"], generic_patient_start_date
     )
-    print(
+    logger.info(
         f"\n Created columns for patient {p_num} data...\n \t patient start date: {patient_dates.iloc[0]}"
     )
-    print(f"\t Result patient start time: {patient_times.iloc[0]}")
-    print(f"Length of dates: {len(patient_dates)}")
-    print(f"Length of times: {len(patient_times)}")
-    # THIS BREAKS EVERYTHING, WHY DOES THIS BREAK EVERYTHING IT MAKES NO SENSE
-    # data_copy['datetime'] = pd.Series([
-    #     pd.Timestamp.combine(date, time) if pd.notna(date) and pd.notna(time) else pd.NaT
-    #     for date, time in zip(data_copy['dates'], data_copy['times'])
-    # ])
+    logger.info(f"\tResult patient start time: {patient_times.iloc[0]}")
+    logger.info(f"\tLength of dates: {len(patient_dates)}")
+    logger.info(f"\tLength of times: {len(patient_times)}")
 
     data_copy["datetime"] = [
         pd.Timestamp.combine(date, time)
@@ -274,6 +268,17 @@ class BrisT1DDataLoader(DatasetBase):
         Load processed data from cache or process raw data and save to cache.
         Then split train/validation data.
         """
+        logger.info("============================================================")
+        logger.info("Beginning data loading process with the following parmeters:")
+        logger.info(f"\tDataset: {self.dataset_name} - {self.dataset_type}")
+        logger.info(f"\tColumns: {self.keep_columns}")
+        logger.info(f"\tGeneric patient start date: {self.generic_patient_start_date}")
+        logger.info(f"\tNumber of validation days: {self.num_validation_days}")
+        if self.parallel:
+            logger.info(f"\tIn parallel with up to {self.max_workers} workers.\n")
+        else:
+            logger.info(f"\tNot using parallel processing.\n")
+
         need_to_process_data = True
         if self.use_cached:
             cached_data = self.cache_manager.load_processed_data(
@@ -475,19 +480,16 @@ class BrisT1DDataLoader(DatasetBase):
         multipatient_data_dict = self.multipatient_to_dict_of_single_patient(
             pre_processed_data
         )
-        logger.info(f"Processing {len(multipatient_data_dict)} patients in parallel:")
-        logger.info(
-            f"\t Converting time to datetime using start date: {self.generic_patient_start_date}"
-        )
-        # Store pre-parallel dfs
-        pre_parallel_dfs_path = self.cache_manager.get_cleaning_step_data_path(
+        logger.info(f"Processing {len(multipatient_data_dict)} patients:")
+        # Store pre-cleaning dfs
+        pre_cleaning_dfs_path = self.cache_manager.get_cleaning_step_data_path(
             self.dataset_name
         )
         for p_num, df in multipatient_data_dict.items():
             df.to_csv(
-                pre_parallel_dfs_path / f"patient_{p_num}_pre_parallel.csv", index=False
+                pre_cleaning_dfs_path / f"patient_{p_num}_pre_cleaning.csv", index=False
             )
-            logger.info(f"Stored pre-parallel DataFrame for patient {p_num}")
+            logger.info(f"Stored pre-cleaning DataFrame for patient {p_num}")
         if self.parallel:
             processed_results = {}
             with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
@@ -521,7 +523,7 @@ class BrisT1DDataLoader(DatasetBase):
         else:
             processed_results = {}
             for p_num, patient_df in multipatient_data_dict.items():
-                print(
+                logger.info(
                     f"\n========================\n Processing patient {p_num} data...\n========================\n "
                 )
                 patient_data_tuple = (

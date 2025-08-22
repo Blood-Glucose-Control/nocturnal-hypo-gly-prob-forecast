@@ -8,7 +8,9 @@ from src.data.physiological.carb_model.constants import (
     COB_COL,
     CARB_AVAIL_COL,
 )
+import logging
 
+logger = logging.getLogger(__name__)
 
 # https://ieeexplore.ieee.org/ielx7/4664312/10398544/10313965/supp1-3331297.pdf?arnumber=10313965
 # This function was ported to Python from a Matlab function provided by PJacobs on (08/10/2023)
@@ -79,8 +81,6 @@ def calculate_carb_availability_and_cob_single_meal(
     meal_availability = q2
     # Meal on Board (MOB) is the effective meal size minus the cumulative absorption
     mob = carb_absorption * meal_carbs - q3
-    print(f"Meal Availability: {meal_availability}")
-    print(f"Meal on Board: {mob}")
     return meal_availability, mob
 
 
@@ -105,9 +105,11 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame, ts_min: int) -> pd.D
     if not isinstance(result_df.index, pd.DatetimeIndex):
         raise ValueError("DataFrame must have a datetime index")
 
+    logger.info("\tProcessing glucose dynamics")
     # Single patient processing only
     for meal_time in result_df.index[result_df["food_g"].notna()]:
         meal_value = result_df.loc[meal_time, "food_g"]
+        # Simulate glucose dynamics
         meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
             meal_value, CARB_ABSORPTION, ts_min, T_ACTION_MAX_MIN
         )
@@ -118,7 +120,6 @@ def create_cob_and_carb_availability_cols(df: pd.DataFrame, ts_min: int) -> pd.D
             periods=len(meal_avail),
             freq=f'{ts_min}min'
         )
-        
         # Find indices that exist in both the time range and the dataframe
         valid_indices = time_range.intersection(result_df.index)
         

@@ -5,9 +5,9 @@ from src.data.physiological.carb_model.carb_model import (
 )
 from src.data.preprocessing.sampling import ensure_regular_time_intervals
 
-""" from src.data.physiological.insulin_model.insulin_model import (
+from src.data.physiological.insulin_model.insulin_model import (
     create_iob_and_ins_availability_cols,
-) """
+)
 
 
 logger = logging.getLogger(__name__)
@@ -48,13 +48,13 @@ def derive_features(df: pd.DataFrame) -> pd.DataFrame:
     df, freq = ensure_regular_time_intervals(df)
     
     logger.info(
-        "\tCreating IOB and insulin availability columns. This may take a while depending on the size of the data."
+        "\tCreating COB/IOB and availability columns. This may take a while depending on the size of the data."
     )
     logger.info("\tCreating COB and carb availability columns...")
     df = create_cob_and_carb_availability_cols(df, freq)
 
     logger.info("\tCreating IOB and insulin availability columns...")
-    # df = create_iob_and_ins_availability_cols(df, freq)
+    df = create_iob_and_ins_availability_cols(df, freq)
 
-    logger.info("Done deriving features.\n")
+    logger.info("\tDone deriving features.\n")
     return df

@@ -92,9 +92,9 @@ def preprocessing_pipeline(p_num: str, df: pd.DataFrame) -> pd.DataFrame:
     check_data_format(df)
     patient_df = df.copy(deep=True)
     # patient_df = ensure_datetime_index(patient_df)
-    print(
-        f"Post-ensure_datetime_index(): \n\tPatient {p_num} \n\tindex: {patient_df.index}"
-    )
+    # print(
+    #     f"Post-ensure_datetime_index(): \n\tPatient {p_num} \n\tindex: {patient_df.index}"
+    # )
     processed_df = derive_features(patient_df)
     return processed_df
 
