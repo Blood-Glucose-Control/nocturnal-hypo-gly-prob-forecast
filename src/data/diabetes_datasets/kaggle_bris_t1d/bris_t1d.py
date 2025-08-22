@@ -286,7 +286,8 @@ class BrisT1DDataLoader(DatasetBase):
         logger.info(f"\tDataset: {self.dataset_name} - {self.dataset_type}")
         logger.info(f"\tColumns: {self.keep_columns}")
         logger.info(f"\tGeneric patient start date: {self.generic_patient_start_date}")
-        logger.info(f"\tNumber of validation days: {self.num_validation_days}")
+        if self.dataset_type != "test":
+            logger.info(f"\tNumber of validation days: {self.num_validation_days}")
         if self.parallel:
             logger.info(f"\tIn parallel with up to {self.max_workers} workers.\n")
         else:
