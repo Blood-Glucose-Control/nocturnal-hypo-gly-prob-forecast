@@ -73,7 +73,7 @@ def create_datetime_with_rollover_detection(
         #     continue
 
         # Check for day rollover (current hour:minute < previous hour:minute)
-        if i > 0: #and not pd.isna(times.iloc[i - 1]):
+        if i > 0:  # and not pd.isna(times.iloc[i - 1]):
             prev_time = times.iloc[i - 1]
 
             # Simple comparison: if current time < previous time, we rolled over
@@ -99,16 +99,18 @@ def create_datetime_with_rollover_detection(
     return (result_dates, times)
 
 
-def process_single_patient_data(patient_data_tuple: tuple, store_in_between_data=False) -> tuple:
+def process_single_patient_data(
+    patient_data_tuple: tuple, store_in_between_data=False
+) -> tuple:
     """
     Process a single patient's data including datetime creation and preprocessing.
 
-    Note: Standalone functions were created to support multiprocessing, as corruption issues 
+    Note: Standalone functions were created to support multiprocessing, as corruption issues
     occur when using class methods with ProcessPoolExecutor.
 
     Args:
         patient_data_tuple (tuple): Tuple containing (p_num, data, generic_patient_start_date)
-            where p_num is patient ID, data is DataFrame, and generic_patient_start_date 
+            where p_num is patient ID, data is DataFrame, and generic_patient_start_date
             is the Timestamp to use as the starting date.
         store_in_between_data (bool, optional): Whether to save intermediate data to cache.
             Defaults to False.
@@ -151,7 +153,7 @@ def process_single_patient_data(patient_data_tuple: tuple, store_in_between_data
         data_copy.to_csv(
             cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
             / f"datetime_index/{p_num}.csv",
-        index=True,
+            index=True,
         )
     # Run preprocessing pipeline
     processed_data = preprocessing_pipeline(p_num, data_copy)
@@ -207,7 +209,7 @@ class BrisT1DDataLoader(DatasetBase):
                 Defaults to "train".
             parallel (bool, optional): Whether to use parallel processing.
                 Defaults to True.
-            generic_patient_start_date (pd.Timestamp, optional): Starting date to use for 
+            generic_patient_start_date (pd.Timestamp, optional): Starting date to use for
                 all patients when creating datetime columns. Defaults to "2024-01-01".
             max_workers (int, optional): Maximum number of workers for parallel processing.
                 Defaults to 3.
@@ -442,26 +444,28 @@ class BrisT1DDataLoader(DatasetBase):
                 f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
             )
 
-    def _process_raw_data(self) -> dict[str, pd.DataFrame] | dict[str, dict[str, pd.DataFrame]]:
+    def _process_raw_data(
+        self,
+    ) -> dict[str, pd.DataFrame] | dict[str, dict[str, pd.DataFrame]]:
         """
         Process raw test or train data with appropriate preprocessing pipelines.
-        
-        For train data: processes the entire dataset and returns a dictionary mapping 
+
+        For train data: processes the entire dataset and returns a dictionary mapping
         patient IDs to their processed DataFrames.
-        For test data: processes each row as a separate prediction instance and returns 
+        For test data: processes each row as a separate prediction instance and returns
         a nested dictionary mapping patient IDs to row IDs to DataFrames.
-        
+
         The processed data is automatically saved to cache for future use.
 
         Returns:
             dict[str, pd.DataFrame] | dict[str, dict[str, pd.DataFrame]]:
-                - For train: dict mapping patient_id -> DataFrame  
+                - For train: dict mapping patient_id -> DataFrame
                 - For test: dict mapping patient_id -> dict mapping row_id -> DataFrame
 
         Raises:
             ValueError: If raw data is not loaded or dataset_type is invalid.
         """
-        #TODO:TONY = Test the test set's caching functions
+        # TODO:TONY = Test the test set's caching functions
         # Ensure raw data is loaded
         if self.raw_data is None:
             raise ValueError("Raw data not loaded. Call load_raw() first.")
@@ -478,16 +482,18 @@ class BrisT1DDataLoader(DatasetBase):
                 f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
             )
 
-    def _process_raw_train_data(self, store_in_between_data=False) -> dict[str, pd.DataFrame]:
+    def _process_raw_train_data(
+        self, store_in_between_data=False
+    ) -> dict[str, pd.DataFrame]:
         """
         Process raw training data with full preprocessing pipeline.
 
         Splits the multi-patient training data into individual patient DataFrames,
-        applies datetime processing and preprocessing pipeline to each patient 
+        applies datetime processing and preprocessing pipeline to each patient
         (either in parallel or sequentially), and saves all processed data to cache.
 
         Args:
-            store_in_between_data (bool, optional): Whether to save intermediate data 
+            store_in_between_data (bool, optional): Whether to save intermediate data
                 (pre-cleaning patient data) to cache for debugging. Defaults to False.
 
         Returns:
@@ -514,9 +520,7 @@ class BrisT1DDataLoader(DatasetBase):
                 f"Expected DataFrame for train data, got {type(pre_processed_data)}"
             )
 
-        multipatient_data_dict = self.split_multipatient_dataframe(
-            pre_processed_data
-        )
+        multipatient_data_dict = self.split_multipatient_dataframe(pre_processed_data)
         logger.info(f"Processing {len(multipatient_data_dict)} patients:")
         # Store pre-cleaning dfs
         pre_cleaning_dfs_path = self.cache_manager.get_cleaning_step_data_path(
@@ -525,7 +529,8 @@ class BrisT1DDataLoader(DatasetBase):
         if store_in_between_data:
             for p_num, df in multipatient_data_dict.items():
                 df.to_csv(
-                    pre_cleaning_dfs_path / f"patient_{p_num}_pre_cleaning.csv", index=False
+                    pre_cleaning_dfs_path / f"patient_{p_num}_pre_cleaning.csv",
+                    index=False,
                 )
                 logger.info(f"\tStored pre-cleaning DataFrame for patient {p_num}")
         if self.parallel:
@@ -704,7 +709,7 @@ class BrisT1DDataLoader(DatasetBase):
                 "Validation data is not available. This method only works with 'train' dataset_type "
                 "after train/validation splitting has been performed."
             )
-        
+
         patient_data = self.validation_data[self.validation_data["p_num"] == patient_id]
         for y_input_ts_period, y_test_period in self._iter_day_splits(patient_data):
             yield patient_id, y_input_ts_period, y_test_period
@@ -776,11 +781,11 @@ class BrisT1DDataLoader(DatasetBase):
         """
         Create datetime column by inferring day rollovers from time intervals.
 
-        DEPRECATED: This method uses interval-based day rollover detection which can be 
+        DEPRECATED: This method uses interval-based day rollover detection which can be
         inaccurate. Use create_datetime_column_standalone() instead for better rollover detection.
 
         Given a Series of times (format "%H:%M:%S") and a start date,
-        create a datetime column where the date increments based on inferred 
+        create a datetime column where the date increments based on inferred
         data collection intervals (assumes regular intervals throughout).
 
         Args:
@@ -791,7 +796,7 @@ class BrisT1DDataLoader(DatasetBase):
             pd.Series: Series of full datetime objects with inferred dates
 
         Note:
-            This method assumes regular time intervals and may not handle irregular 
+            This method assumes regular time intervals and may not handle irregular
             data collection periods correctly.
         """
         # Remove whitespace
