@@ -1,6 +1,5 @@
 from src.data.diabetes_datasets.data_loader import get_loader
 
-
 # def test_load_brist1d_data():
 #     data = load_data(data_source_name="kaggle_brisT1D", dataset_type="train")
 #     assert data is not None
@@ -15,8 +14,8 @@ def test_load_brist1d_data_with_missing_values():
     )
     assert kaggle_loader is not None
     data = kaggle_loader.processed_data
-    assert len(data) > 0
-    assert len(data.columns) > 0
+    assert len(data["p01"]) > 0
+    assert len(data["p01"].columns) > 0
 
 
 def test_keep_columns():
@@ -28,10 +27,11 @@ def test_keep_columns():
     )
     assert kaggle_loader is not None
     data = kaggle_loader.processed_data
-    assert len(data) > 0
-    assert len(data.columns) == 3
-    assert "bg_mM" in data.columns
-    assert "p_num" in data.columns
+    assert len(data["p01"]) > 0
+    assert len(data["p01"].columns) == 2
+    assert "bg_mM" in data["p01"].columns
+    assert "p_num" in data["p01"].columns
+    assert "datetime" in data["p01"].index.name
 
 
 # NOTE: can be added later

@@ -11,11 +11,12 @@ and train/validation splitting.
 """
 
 import functools
+import gzip
 import logging
 import pickle
-import gzip
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
 
 import pandas as pd
 
@@ -100,7 +101,7 @@ def create_datetime_with_rollover_detection(
 
 def process_patient_test_data_standalone(
     patient_item,
-    base_cache_path,
+    base_cache_path: Path,
     generic_patient_start_date=pd.Timestamp("2024-01-01"),
     save_individual_files=False,
 ):
@@ -125,7 +126,7 @@ def process_patient_test_data_standalone(
 
     if save_individual_files:
         # Make new dir for each patient
-        patient_cache_dir = base_cache_path / pid
+        patient_cache_dir: Path = base_cache_path / pid
         patient_cache_dir.mkdir(exist_ok=True)
 
     for row_id, row_df in patient_data.items():
@@ -158,9 +159,9 @@ def process_patient_test_data_standalone(
         ).pipe(create_iob_and_ins_availability_cols, freq)
 
         if save_individual_files:
-            # Cache processed data
-            cache_file = patient_cache_dir / f"{row_id}.csv"
-            row_df_copy.to_csv(cache_file, index=True)
+            # Cache processed data - ensure we're working with Path objects
+            cache_file = Path(patient_cache_dir) / f"{row_id}.csv"
+            row_df_copy.to_csv(str(cache_file), index=True)
 
         processed_rows[row_id] = row_df_copy
 
