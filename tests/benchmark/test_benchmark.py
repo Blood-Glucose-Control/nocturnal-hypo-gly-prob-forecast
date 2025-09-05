@@ -3,7 +3,7 @@ from src.tuning.benchmark import run_benchmark
 import os
 import pytest
 import json
-
+from datetime import datetime
 
 class TestBenchmark:
     timestamp = "2025-03-20_18-54-56"
@@ -14,8 +14,8 @@ class TestBenchmark:
     }
     yaml_name = yaml_path.split("/")[-1].replace(".yaml", "")
     results_dir = "./results"
-    raw_output_file_path = "./results/raw/2025-03-20_18-54-56_0_naive_05min.csv"
-    processed_dir = "./results/processed/2025-03-20_18-54-56"
+    raw_output_file_path = "./results/raw/tests/"+datetime.now().strftime('%Y-%m-%dT%H:%M:%S')+"_0_naive_05min.csv"
+    processed_dir = "./results/processed/tests/"+datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
     x_features = [
         "hr_bpm",
         "steps",

@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import logging
 import pandas as pd
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,7 @@ class CacheManager:
         Returns:
             Path: Path to the processed data directory
         """
+        logger.info(f"Processed data path for {dataset_name}: {self.get_dataset_cache_path(dataset_name) / 'processed'}")
         return self.get_dataset_cache_path(dataset_name) / "processed"
 
     def ensure_raw_data(
@@ -439,7 +441,7 @@ class CacheManager:
 
     def load_processed_data(
         self, dataset_name: str, dataset_type: str, file_format: str = "csv"
-    ):
+    )-> dict[str, pd.DataFrame] | None:
         """
         Load processed data with datetime index from cache.
 
@@ -449,16 +451,30 @@ class CacheManager:
             file_format (str): Format of the saved data
 
         Returns:
-            Loaded data or None if not found
+            Dictionary with patient IDs as keys and DataFrames as values, or None if not found
         """
         processed_path = self.get_processed_data_path_for_type(
             dataset_name, dataset_type
         )
 
         if file_format == "csv":
-            csv_file = processed_path / f"{dataset_type}.csv"
-            if csv_file.exists():
-                return pd.read_csv(csv_file, index_col="datetime", parse_dates=True)
+            if processed_path.exists():
+                result = {}
+                # Get all CSV files in the directory
+                csv_files = [f for f in processed_path.iterdir() if f.suffix == '.csv']
+                
+                for csv_file in csv_files:
+                    # Extract patient ID from filename: remove _{dataset_type}.csv suffix
+                    filename = csv_file.stem  # filename without extension
+                    suffix_to_remove = f"_{dataset_type}"
+                    
+                    if filename.endswith(suffix_to_remove):
+                        patient_id = filename[:-len(suffix_to_remove)]
+                        # Load the CSV with datetime index
+                        df = pd.read_csv(csv_file, index_col="datetime", parse_dates=True)
+                        result[patient_id] = df
+                
+                return result if result else None
 
         return None
 

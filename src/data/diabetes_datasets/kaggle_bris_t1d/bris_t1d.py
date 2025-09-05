@@ -298,6 +298,7 @@ class BrisT1DDataLoader(DatasetBase):
             cached_data = self.cache_manager.load_processed_data(
                 self.dataset_name, self.dataset_type
             )
+            logger.info(f"cache_manager.load_processed_data() returned:\n {list(cached_data.keys()) if cached_data is not None else 'None'}")
             # Processed data exists
             if cached_data is not None:
                 # This sets the data given the dataset type (train or test)
@@ -313,7 +314,7 @@ class BrisT1DDataLoader(DatasetBase):
 
         # Split train/validation data
         if self.dataset_type == "train" and isinstance(
-            self.processed_data, pd.DataFrame
+            self.processed_data, dict
         ):
             self._split_train_validation()
 
@@ -322,22 +323,55 @@ class BrisT1DDataLoader(DatasetBase):
         Load processed data from cache to self.processed_data.
 
         Args:
-            cached_data: The cached data loaded from the cache manager
+            cached_data: The cached data loaded from the cache manager.
+                For train data: dict[str, pd.DataFrame] mapping patient_id -> DataFrame
+                For test data: Handled by _load_nested_test_data_from_cache()
         """
+        logger.info("Loading processed data from cache...")
         if self.dataset_type == "train":
+            # cached_data is now dict[str, pd.DataFrame] for train data
+            if not isinstance(cached_data, dict):
+                raise TypeError(
+                    f"Expected dict for cached train data, got {type(cached_data)}"
+                )
+            
             self.processed_data = cached_data
+            
+            # Apply column filtering to each patient's DataFrame if needed
             if self.keep_columns:
-                # Check if datetime is in keep_columns but is actually the index
-                if (
-                    "datetime" in self.keep_columns
-                    and "datetime" not in self.processed_data.columns
-                ):
-                    # datetime is the index, so we need to reset it to a column first
-                    self.processed_data = self.processed_data.reset_index()
-
-                # Now filter by keep_columns
-                self.processed_data = self.processed_data[self.keep_columns]
-                self.keep_columns = self.processed_data.columns.tolist()
+                filtered_data = {}
+                for patient_id, patient_df in cached_data.items():
+                    # Filter columns, but handle datetime specially since it should be the index
+                    columns_to_keep = [col for col in self.keep_columns if col != "datetime"]
+                    
+                    # Check if all required columns are available
+                    if all(col in patient_df.columns for col in columns_to_keep):
+                        filtered_data[patient_id] = patient_df[columns_to_keep]
+                    else:
+                        missing_cols = [col for col in columns_to_keep if col not in patient_df.columns]
+                        logger.warning(
+                            f"Index name: {patient_df.index.name}. "
+                            f"Patient {patient_id}: Missing columns {missing_cols}. "
+                            f"Available columns: {list(patient_df.columns)}"
+                        )
+                        # Keep all available columns from keep_columns (excluding datetime)
+                        available_cols = [col for col in columns_to_keep if col in patient_df.columns]
+                        filtered_data[patient_id] = patient_df[available_cols]
+                    
+                    # Ensure datetime index is preserved
+                    if patient_df.index.name != "datetime" and not isinstance(patient_df.index, pd.DatetimeIndex):
+                        logger.warning(f"Patient {patient_id}: Expected datetime index, but got {type(patient_df.index)}")
+                        if "datetime" in patient_df.columns:
+                            filtered_data[patient_id] = filtered_data[patient_id].set_index(patient_df["datetime"])
+                            filtered_data[patient_id].index.name = "datetime"
+                
+                self.processed_data = filtered_data
+                # Update keep_columns to reflect what was actually available (excluding datetime)
+                if filtered_data:
+                    # Use the columns from the first patient as representative
+                    first_patient_df = next(iter(filtered_data.values()))
+                    self.keep_columns = ["datetime"] + first_patient_df.columns.tolist()
+                    
         elif self.dataset_type == "test":
             # For test data, we need to load the nested structure from cache
             self._load_nested_test_data_from_cache()
@@ -395,22 +429,75 @@ class BrisT1DDataLoader(DatasetBase):
     def _split_train_validation(self):
         """
         Split processed data into training and validation sets based on num_validation_days.
+        Maintains dictionary structure where each patient's data is split individually.
         Calculates metadata (datetime column types, number of training days) for later use.
 
         Raises:
-            TypeError: If processed_data is not a DataFrame.
+            TypeError: If processed_data is not a dictionary of patient DataFrames.
         """
-        if not isinstance(self.processed_data, pd.DataFrame):
+        if not isinstance(self.processed_data, dict):
             raise TypeError(
-                f"Cannot split train/validation data: processed_data must be a DataFrame, but got {type(self.processed_data)}"
+                f"Cannot split train/validation data: processed_data must be a dict[str, pd.DataFrame], but got {type(self.processed_data)}"
             )
 
-        self.train_data, self.validation_data = get_train_validation_split(
-            self.processed_data, num_validation_days=self.num_validation_days
-        )
-        self.train_dt_col_type = self.train_data["datetime"].dtype
-        self.val_dt_col_type = self.validation_data["datetime"].dtype
-        self.num_train_days = len(self.train_data["datetime"].dt.date.unique())
+        # Split each patient's data individually
+        train_data_dict = {}
+        validation_data_dict = {}
+        
+        for patient_id, patient_df in self.processed_data.items():
+            # Ensure patient_df is a DataFrame
+            if not isinstance(patient_df, pd.DataFrame):
+                raise TypeError(f"Expected DataFrame for patient {patient_id}, got {type(patient_df)}")
+            
+            # Ensure datetime index exists - it should already be the index
+            patient_data = patient_df.copy()
+            if not isinstance(patient_data.index, pd.DatetimeIndex) and patient_data.index.name != "datetime":
+                if "datetime" in patient_data.columns:
+                    # If datetime is a column, set it as index
+                    patient_data = patient_data.set_index("datetime")
+                else:
+                    raise ValueError(f"No datetime index found for patient {patient_id}")
+            
+            # Ensure p_num column exists for compatibility with get_train_validation_split
+            if "p_num" not in patient_data.columns:
+                patient_data["p_num"] = patient_id
+            
+            # Split this patient's data (we need to temporarily convert to column for compatibility)
+            temp_data = patient_data.reset_index()
+            patient_train, patient_validation = get_train_validation_split(
+                temp_data, num_validation_days=self.num_validation_days
+            )
+            
+            # Convert back to datetime index for both train and validation
+            if len(patient_train) > 0:
+                patient_train = patient_train.set_index("datetime")
+                train_data_dict[patient_id] = patient_train
+            if len(patient_validation) > 0:
+                patient_validation = patient_validation.set_index("datetime")
+                validation_data_dict[patient_id] = patient_validation
+        
+        # Store as dictionaries
+        self.train_data = train_data_dict
+        self.validation_data = validation_data_dict
+        
+        # Calculate metadata from the first available patient for compatibility
+        if validation_data_dict:
+            first_validation_df = next(iter(validation_data_dict.values()))
+            # For datetime index, get dtype of the index
+            self.val_dt_col_type = first_validation_df.index.dtype
+        
+        if train_data_dict:
+            first_train_df = next(iter(train_data_dict.values()))
+            # For datetime index, get dtype of the index
+            self.train_dt_col_type = first_train_df.index.dtype
+            
+            # Calculate total unique training days across all patients
+            all_train_dates = set()
+            for patient_train_df in train_data_dict.values():
+                # Use index instead of datetime column
+                patient_dates = patient_train_df.index.date
+                all_train_dates.update(patient_dates)
+            self.num_train_days = len(all_train_dates)
 
     def _clean_and_format_raw_data(
         self, raw_data: pd.DataFrame
@@ -664,11 +751,15 @@ class BrisT1DDataLoader(DatasetBase):
 
         for row_id, row_df in patient_data.items():
             # Apply all transformations at once
+            row_df = row_df.pipe(create_datetime_index).pipe(lambda df: df.set_index("datetime"))  # Set datetime as index
+            
+            # Get regular intervals and frequency
+            row_df, freq = ensure_regular_time_intervals(row_df)
+            
+            # Apply COB and IOB calculations with frequency
             row_df = (
-                row_df.pipe(create_datetime_index)
-                .pipe(ensure_regular_time_intervals)
-                .pipe(create_cob_and_carb_availability_cols)
-                .pipe(create_iob_and_ins_availability_cols)
+                row_df.pipe(create_cob_and_carb_availability_cols, freq)
+                .pipe(create_iob_and_ins_availability_cols, freq)
             )
 
             # Cache processed data
@@ -703,7 +794,7 @@ class BrisT1DDataLoader(DatasetBase):
                 - y_test_period is the data from 12am to 6am of the next day, ground truth to compare y_pred to.
 
         Raises:
-            ValueError: If validation_data is None (dataset not split or dataset_type is not 'train').
+            ValueError: If validation_data is None or patient not found.
         """
         if self.validation_data is None:
             raise ValueError(
@@ -711,7 +802,14 @@ class BrisT1DDataLoader(DatasetBase):
                 "after train/validation splitting has been performed."
             )
 
-        patient_data = self.validation_data[self.validation_data["p_num"] == patient_id]
+        # validation_data is now a dictionary, get the specific patient's data
+        if not isinstance(self.validation_data, dict):
+            raise TypeError(f"Expected dict for validation_data, got {type(self.validation_data)}")
+            
+        if patient_id not in self.validation_data:
+            raise ValueError(f"Patient {patient_id} not found in validation data. Available patients: {list(self.validation_data.keys())}")
+        
+        patient_data = self.validation_data[patient_id]
         for y_input_ts_period, y_test_period in self._iter_day_splits(patient_data):
             yield patient_id, y_input_ts_period, y_test_period
 
@@ -727,7 +825,7 @@ class BrisT1DDataLoader(DatasetBase):
         - Test period: midnight to 6am of the next day
 
         Args:
-            patient_data (pd.DataFrame): Data for a single patient containing datetime column
+            patient_data (pd.DataFrame): Data for a single patient with datetime index
 
         Yields:
             tuple[pd.DataFrame, pd.DataFrame]: (train_period, test_period) where:
@@ -737,22 +835,33 @@ class BrisT1DDataLoader(DatasetBase):
         Note:
             Only yields splits where both periods have data available.
         """
-        patient_data.loc[:, "datetime"] = pd.to_datetime(patient_data["datetime"])
+        # Ensure data has datetime index
+        if not isinstance(patient_data.index, pd.DatetimeIndex):
+            if "datetime" in patient_data.columns:
+                patient_data = patient_data.set_index("datetime")
+            else:
+                raise ValueError("Patient data must have datetime index or datetime column")
 
-        # Ensure data is sorted by datetime
-        patient_data = patient_data.sort_values("datetime")
+        # Ensure data is sorted by datetime index
+        patient_data = patient_data.sort_index()
+        
+        # Get datetime index for date operations
+        datetime_index = pd.to_datetime(patient_data.index)
 
         # Group by date
-        for date, day_data in patient_data.groupby(patient_data["datetime"].dt.date):
+        for date_key, day_data in patient_data.groupby(datetime_index.date):
+            # Convert date key to proper date object
+            current_date = pd.to_datetime(date_key)
+            
             # Get next day's early morning data (12am-6am)
-            next_date = date + pd.Timedelta(days=1)
-            next_day_data = patient_data[
-                (patient_data["datetime"].dt.date == next_date)
-                & (patient_data["datetime"].dt.hour < 6)
-            ]
+            next_date = current_date + pd.Timedelta(days=1)
+            next_day_mask = (datetime_index.date == next_date.date) & (datetime_index.hour < 6)
+            next_day_data = patient_data[next_day_mask]
 
-            # Get current day's data (6am-12am)
-            current_day_data = day_data[day_data["datetime"].dt.hour >= 6]
+            # Get current day's data (6am-12am) - use datetime index from day_data
+            day_datetime_index = pd.to_datetime(day_data.index)
+            current_day_mask = day_datetime_index.hour >= 6
+            current_day_data = day_data[current_day_mask]
 
             if len(next_day_data) > 0 and len(current_day_data) > 0:
                 yield current_day_data, next_day_data
