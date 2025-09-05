@@ -7,10 +7,12 @@ dataframes into more usable formats for analysis and modeling.
 """
 
 import logging
-import pandas as pd
-from src.utils.kaggle_util import create_time_variable_lists
-from src.data.cache_manager import get_cache_manager
 from collections import defaultdict
+
+import pandas as pd
+
+from src.data.cache_manager import get_cache_manager
+from src.utils.kaggle_util import create_time_variable_lists
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +95,19 @@ def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFram
             new_df = new_df.drop("id", axis=1)
 
             new_df["p_num"] = patient_id
+
+            new_df = new_df.rename(
+                columns={
+                    "bg-0:00": "bg_mM",
+                    "insulin-0:00": "dose_units",
+                    "carbs-0:00": "food_g",
+                    "hr-0:00": "hr_bpm",
+                    "steps-0:00": "steps",
+                    "cals-0:00": "cals",
+                    "activity-0:00": "activity",
+                    "time": "datetime",
+                }
+            )
 
             patient_dfs[patient_id][row_id] = new_df
 
