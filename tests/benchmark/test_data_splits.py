@@ -49,9 +49,9 @@ def test_get_train_validation_split(dataset):
     # With our controlled dataset, we expect the split to be exact (no data loss)
     # The function should preserve all data points
     total_split_length = len(train_data) + len(validation_data)
-    assert total_split_length == len(
-        dataset
-    ), f"Expected {len(dataset)} total rows, got {total_split_length}"
+    assert total_split_length == len(dataset), (
+        f"Expected {len(dataset)} total rows, got {total_split_length}"
+    )
 
     # Verify we have data for all patients in both splits
     train_patients = set(train_data["p_num"].unique())
@@ -59,9 +59,9 @@ def test_get_train_validation_split(dataset):
     original_patients = set(dataset["p_num"].unique())
 
     assert train_patients == original_patients, "Train data should contain all patients"
-    assert (
-        validation_patients == original_patients
-    ), "Validation data should contain all patients"
+    assert validation_patients == original_patients, (
+        "Validation data should contain all patients"
+    )
 
 
 def test_num_validation_days(dataset):
@@ -93,9 +93,9 @@ def test_num_validation_days(dataset):
         if len(patient_train) > 0 and len(patient_validation) > 0:
             max_train_time = patient_train["datetime"].max()
             min_validation_time = patient_validation["datetime"].min()
-            assert (
-                max_train_time <= min_validation_time
-            ), f"Train data should come before validation data for patient {patient_id}"
+            assert max_train_time <= min_validation_time, (
+                f"Train data should come before validation data for patient {patient_id}"
+            )
 
             # Verify training data spans approximately 70 days
             train_time_span = (

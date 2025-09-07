@@ -116,6 +116,8 @@ class TestCacheManager:
         # Load data
         loaded_data = self.cache_manager.load_processed_data("test_dataset", "train")
 
+        # Verify it's a dictionary
+        assert isinstance(loaded_data, dict), f"Expected dict, got {type(loaded_data)}"
         # Verify data
         assert loaded_data["patient_1"] is not None
         assert loaded_data["patient_1"].equals(test_data)
