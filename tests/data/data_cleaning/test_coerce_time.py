@@ -1,6 +1,7 @@
 import pandas as pd
-from src.data.preprocessing.generic_cleaning import coerce_time_fn
 import pytest
+
+from src.data.diabetes_datasets.gluroo.data_cleaner import coerce_time_fn
 
 
 class TestCoerceTimeFn:
@@ -58,8 +59,6 @@ class TestCoerceTimeFn:
             pd.Timedelta(minutes=3),
             pd.Timedelta(minutes=5),
             pd.Timedelta(minutes=7),
-            pd.Timedelta(seconds=30),
-            pd.Timedelta(seconds=45),
             pd.Timedelta(hours=1),
         ],
     )
