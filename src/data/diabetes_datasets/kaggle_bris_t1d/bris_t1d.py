@@ -785,14 +785,6 @@ class BrisT1DDataLoader(DatasetBase):
                 patient_data, num_validation_days=self.num_validation_days
             )
 
-            # Convert back to datetime index for both train and validation
-            if len(patient_train) > 0:
-                patient_train = patient_train.set_index("datetime")
-                train_data_dict[patient_id] = patient_train
-            if len(patient_validation) > 0:
-                patient_validation = patient_validation.set_index("datetime")
-                validation_data_dict[patient_id] = patient_validation
-
         # Store as dictionaries
         self.train_data = train_data_dict
         self.validation_data = validation_data_dict
