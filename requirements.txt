@@ -22,6 +22,7 @@ neuralforecast
 notebook
 numba
 numpy
+orjson
 pandas
 pre-commit
 pydantic

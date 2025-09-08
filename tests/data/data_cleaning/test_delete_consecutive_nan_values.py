@@ -1,4 +1,8 @@
-from src.data.preprocessing.generic_cleaning import erase_consecutive_nan_values
+from typing import cast
+
+import pandas as pd
+
+from src.data.diabetes_datasets.gluroo.data_cleaner import erase_consecutive_nan_values
 
 
 class TestDeleteConsecutiveNanValues:
@@ -44,6 +48,9 @@ class TestDeleteConsecutiveNanValues:
         result_df = erase_consecutive_nan_values(
             noisy_df, max_consecutive_nan_values_per_day
         )
+        result_df.index = cast(
+            pd.DatetimeIndex, pd.to_datetime(result_df.index, utc=False)
+        )
         # Just check that the days with too many consecutive NaNs are deleted
         assert not any(day in days_with_too_many_nans for day in result_df.index.date)
 
@@ -77,6 +84,9 @@ class TestDeleteConsecutiveNanValues:
         # then check that those days are deleted
         result_df = erase_consecutive_nan_values(
             noisy_df, max_consecutive_nan_values_per_day
+        )
+        result_df.index = cast(
+            pd.DatetimeIndex, pd.to_datetime(result_df.index, utc=False)
         )
         # Just check that all days in the resulting df has fewer than max_consecutive_nan_values_per_day consecutive NaN values
         assert all(day in days_under_max_nans for day in result_df.index.date)

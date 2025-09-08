@@ -44,6 +44,7 @@ from src.data.preprocessing.time_processing import (
 logger = logging.getLogger(__name__)
 
 
+# TODO: Move to kaggle_bris_t1d/data_cleaner.py
 def create_datetime_with_rollover_detection(
     time_series: pd.Series, patient_start_date: pd.Timestamp
 ) -> tuple[pd.Series, pd.Series]:
@@ -99,6 +100,8 @@ def create_datetime_with_rollover_detection(
     return (result_dates, times)
 
 
+# TODO: Move to kaggle_bris_t1d/data_cleaner.py
+# TODO: Rename to something more appropriate.
 def process_patient_test_data_standalone(
     patient_item,
     base_cache_path: Path,
@@ -168,6 +171,8 @@ def process_patient_test_data_standalone(
     return pid, processed_rows
 
 
+# TODO: Move to kaggle_bris_t1d/data_cleaner.py
+# TODO: Rename to something more appropriate.
 def process_single_patient_data(
     patient_data_tuple: tuple, store_in_between_data=False
 ) -> tuple:
@@ -650,7 +655,6 @@ class BrisT1DDataLoader(DatasetBase):
 
         Note:
             Currently uses basic transformations (datetime index, regular intervals, COB/IOB).
-            TODO: Add full preprocessing pipeline to test set processing.
         """
         # Ensure raw data is loaded
         if self.raw_data is None:
