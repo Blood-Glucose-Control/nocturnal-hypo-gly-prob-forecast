@@ -67,6 +67,6 @@ class TestCoerceTimeFn:
         result = coerce_time_fn(df_to_coerce.copy(), interval)
 
         time_diffs = result.index.to_series().diff().dropna()
-        assert all(diff == interval for diff in time_diffs), (
-            f"Expected {interval} intervals but got different intervals."
-        )
+        assert all(
+            diff == interval for diff in time_diffs
+        ), f"Expected {interval} intervals but got different intervals."

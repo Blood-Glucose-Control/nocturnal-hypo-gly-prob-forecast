@@ -85,15 +85,15 @@ def test_get_train_validation_split_complete_days(dataset):
     validation_timestamps = set(validation_data.index)
     overlap = train_timestamps.intersection(validation_timestamps)
 
-    assert len(overlap) == 0, (
-        f"Found {len(overlap)} overlapping timestamps between train and validation"
-    )
+    assert (
+        len(overlap) == 0
+    ), f"Found {len(overlap)} overlapping timestamps between train and validation"
 
     # Total should equal original (no data loss)
     total_split_length = len(train_data) + len(validation_data)
-    assert total_split_length == len(dataset), (
-        f"Expected {len(dataset)} total rows, got {total_split_length}"
-    )
+    assert total_split_length == len(
+        dataset
+    ), f"Expected {len(dataset)} total rows, got {total_split_length}"
 
     print(f"Train data: {len(train_data)} rows")
     print(f"Validation data: {len(validation_data)} rows")
@@ -153,25 +153,25 @@ def test_num_validation_days(dataset):
     validation_span_days = (
         validation_data.index.max() - validation_data.index.min()
     ).days
-    assert 9 <= validation_span_days <= 10, (
-        f"Validation data spans {validation_span_days} days, expected around 10"
-    )
+    assert (
+        9 <= validation_span_days <= 10
+    ), f"Validation data spans {validation_span_days} days, expected around 10"
 
     # Test that train data comes before validation data chronologically
     max_train_time = train_data.index.max()
     min_validation_time = validation_data.index.min()
 
-    assert max_train_time < min_validation_time, (
-        "Train data should come before validation data chronologically"
-    )
+    assert (
+        max_train_time < min_validation_time
+    ), "Train data should come before validation data chronologically"
 
     # Check train data spans expected time
     train_span_days = (train_data.index.max() - train_data.index.min()).days
     expected_train_days = 30 - 10  # Total days minus validation days
 
-    assert expected_train_days - 2 <= train_span_days <= expected_train_days + 2, (
-        f"Train data spans {train_span_days} days, expected around {expected_train_days}"
-    )
+    assert (
+        expected_train_days - 2 <= train_span_days <= expected_train_days + 2
+    ), f"Train data spans {train_span_days} days, expected around {expected_train_days}"
 
 
 @pytest.mark.parametrize("dataset_fixture", ["dataset", "partial_day_dataset"])
@@ -189,9 +189,9 @@ def test_no_duplicate_timestamps(dataset_fixture, request):
     validation_timestamps = set(validation_data.index)
     overlap = train_timestamps.intersection(validation_timestamps)
 
-    assert len(overlap) == 0, (
-        f"Found {len(overlap)} duplicate timestamps between train and validation sets"
-    )
+    assert (
+        len(overlap) == 0
+    ), f"Found {len(overlap)} duplicate timestamps between train and validation sets"
 
 
 def test_edge_cases():

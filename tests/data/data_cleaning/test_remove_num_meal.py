@@ -56,6 +56,6 @@ def test_remove_num_meal():
         index=pd.to_datetime(expected_timestamps),
     )
 
-    assert processed_df.equals(expected_df), (
-        f"Test failed: {processed_df} does not match {expected_df}"
-    )
+    assert processed_df.equals(
+        expected_df
+    ), f"Test failed: {processed_df} does not match {expected_df}"

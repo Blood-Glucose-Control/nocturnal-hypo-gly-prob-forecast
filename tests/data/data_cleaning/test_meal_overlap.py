@@ -39,16 +39,16 @@ class TestMealOverlap:
             window_entries = result_df.loc[idx + pd.Timedelta(seconds=1) : window_end]
 
             # Check that all food_g values in window after ANNOUNCE_MEAL are 0
-            assert (window_entries["food_g"] == 0).all(), (
-                f"Found non-zero food_g values after ANNOUNCE_MEAL at {idx}"
-            )
+            assert (
+                window_entries["food_g"] == 0
+            ).all(), f"Found non-zero food_g values after ANNOUNCE_MEAL at {idx}"
 
             # Check that the ANNOUNCE_MEAL entry contains the sum from original data
             original_window = sample_meal_df.loc[idx:window_end]
             expected_sum = original_window["food_g"].sum()
-            assert result_df.at[idx, "food_g"] == expected_sum, (
-                f"ANNOUNCE_MEAL at {idx} does not contain correct sum of food_g values"
-            )
+            assert (
+                result_df.at[idx, "food_g"] == expected_sum
+            ), f"ANNOUNCE_MEAL at {idx} does not contain correct sum of food_g values"
 
     def test_min_carbs_threshold(self, sample_meal_df, meal_length, min_carbs):
         """
@@ -56,6 +56,6 @@ class TestMealOverlap:
         """
         result_df = erase_meal_overlap_fn(sample_meal_df, meal_length, min_carbs)
         announce_meals = result_df[result_df["msg_type"] == "ANNOUNCE_MEAL"]
-        assert (announce_meals["food_g"] >= min_carbs).all(), (
-            "Found ANNOUNCE_MEAL entries with food_g below min_carbs threshold"
-        )
+        assert (
+            announce_meals["food_g"] >= min_carbs
+        ).all(), "Found ANNOUNCE_MEAL entries with food_g below min_carbs threshold"

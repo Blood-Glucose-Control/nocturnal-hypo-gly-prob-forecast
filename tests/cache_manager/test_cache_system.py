@@ -102,7 +102,7 @@ class TestCacheManager:
         """Test saving and loading processed data."""
 
         # Create test data with datetime index
-        dates = pd.date_range("2025-01-01", periods=3, freq="H")
+        dates = pd.date_range("2025-01-01", periods=3, freq="h")
         test_data = pd.DataFrame(
             {"col1": [1, 2, 3], "col2": ["a", "b", "c"]}, index=dates
         )

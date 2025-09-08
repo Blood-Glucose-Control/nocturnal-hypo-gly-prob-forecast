@@ -821,9 +821,9 @@ class BrisT1DDataLoader(DatasetBase):
         if self.dataset_type == "train":
             result = clean_brist1d_train_data(raw_data)
             # Ensure type safety - this should always be a DataFrame for train data
-            assert isinstance(result, pd.DataFrame), (
-                "Train data cleaning should return DataFrame"
-            )
+            assert isinstance(
+                result, pd.DataFrame
+            ), "Train data cleaning should return DataFrame"
             return result
         elif self.dataset_type == "test":
             return clean_brist1d_test_data(raw_data)

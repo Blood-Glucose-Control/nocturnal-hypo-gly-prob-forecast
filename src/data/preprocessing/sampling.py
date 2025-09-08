@@ -78,10 +78,6 @@ def ensure_regular_time_intervals(
     # original_data = result_df.reset_index()
     regular_times = pd.DataFrame({"datetime": full_time_range})
 
-    # Sort both dataframes by datetime
-    # original_data = result_df.sort_values('datetime')
-    # regular_times = regular_times.sort_values('datetime')
-
     # Use merge_asof with tolerance to map shifted timestamps to regular intervals
     mapped_data = pd.merge_asof(
         regular_times,

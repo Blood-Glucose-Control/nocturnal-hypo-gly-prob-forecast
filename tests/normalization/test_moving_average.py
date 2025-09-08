@@ -65,14 +65,14 @@ class TestMovingAverage:
         normalized_data = normalizer(sample_data)
 
         # check that output is the same length as input
-        assert len(normalized_data) == len(sample_data), (
-            "Output is not the same length as input"
-        )
+        assert len(normalized_data) == len(
+            sample_data
+        ), "Output is not the same length as input"
 
         # ensure no NaNs (the function assumes no NaNs in the data, but anyhow)
-        assert not normalized_data["bg_mM"][23:].isna().any(), (
-            "There are NaNs in the data"
-        )
+        assert (
+            not normalized_data["bg_mM"][23:].isna().any()
+        ), "There are NaNs in the data"
 
     def test_invalid_window_size(self, sample_data, normalizer):
         """
