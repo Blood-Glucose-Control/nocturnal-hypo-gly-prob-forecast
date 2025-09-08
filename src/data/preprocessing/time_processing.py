@@ -25,8 +25,10 @@ Functions:
     get_most_common_time_interval: Determine the most frequent sampling interval
     ensure_regular_time_intervals: Normalize data to have consistent time intervals
     split_patient_data_by_day: Split patient data into daily segments based on 6am transitions
-    get_train_validation_split: Create robust train and validation sets as patient-separated dictionaries with DatetimeIndex requirement for optimal performance
+    get_train_validation_split: Create robust train and validation sets for a single patient with DatetimeIndex requirement for optimal performance
 """
+
+from typing import cast
 
 import pandas as pd
 
@@ -177,44 +179,40 @@ def get_train_validation_split(
     df: pd.DataFrame,
     num_validation_days: int = 20,
     day_start_hour: int = 6,
-    patient_col: str = "p_num",
     min_data_days: int = 1,
     include_partial_days: bool = False,
-) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame], dict]:
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     """
-    Split the data into train and validation sets based on complete days.
+    Split a single patient's data into train and validation sets based on complete days.
 
-    This function separates data into training and validation sets, where the validation set
-    contains the specified number of complete days. A day is defined as starting at the
-    specified hour (default: 6am) and ending just before the same hour the next day.
+    This function separates a single patient's data into training and validation sets,
+    where the validation set contains the specified number of complete days. A day is
+    defined as starting at the specified hour (default: 6am) and ending just before
+    the same hour the next day.
 
     IMPORTANT: This function requires the input DataFrame to have a DatetimeIndex for
     optimal performance and semantic correctness of time-series operations.
 
     Args:
-        df (pd.DataFrame): Input dataframe with DatetimeIndex (REQUIRED)
+        df (pd.DataFrame): Input dataframe for a SINGLE patient with DatetimeIndex (REQUIRED)
         num_validation_days (int): Number of complete days to use for validation
         day_start_hour (int): Hour that defines the start of a day (default: 6 for 6am)
-        patient_col (str): Column name containing patient identifiers (default: "p_num")
-        min_data_days (int): Minimum number of days of data required per patient (default: 1)
+        min_data_days (int): Minimum number of days of data required (default: 1)
         include_partial_days (bool): Whether to include partial days at the end of data (default: False)
 
     Returns:
-        tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame], dict]:
-            (train_data_dict, validation_data_dict, split_info)
-            where train_data_dict and validation_data_dict are dictionaries with patient IDs as keys
-            and individual patient DataFrames as values. This prevents accidental cross-patient
-            operations and makes patient-specific processing more explicit.
+        tuple[pd.DataFrame, pd.DataFrame, dict]:
+            (train_data, validation_data, split_info)
+            where train_data and validation_data are DataFrames for the single patient
 
     Raises:
-        ValueError: If DatetimeIndex is not found, patient_col doesn't exist, or
-                   insufficient data for requested validation period
+        ValueError: If DatetimeIndex is not found or insufficient data for requested validation period
         TypeError: If the DataFrame index is not a DatetimeIndex
     """
     # Input validation
     if not isinstance(df, pd.DataFrame):
         raise ValueError("Input must be a pandas DataFrame")
-    
+
     # Check for DatetimeIndex (REQUIRED for optimal performance)
     if not isinstance(df.index, pd.DatetimeIndex):
         raise TypeError(
@@ -222,141 +220,129 @@ def get_train_validation_split(
             "Please set your datetime column as the index using: "
             "df.set_index('datetime_column_name', inplace=True)"
         )
-    
+
     if num_validation_days <= 0:
         raise ValueError("num_validation_days must be positive")
-    
+
     if not 0 <= day_start_hour <= 23:
         raise ValueError("day_start_hour must be between 0 and 23")
-    
+
     if min_data_days <= 0:
         raise ValueError("min_data_days must be positive")
-    
-    if patient_col not in df.columns:
-        raise ValueError(f"Patient column '{patient_col}' not found in DataFrame")
 
     # Work with a copy to avoid modifying original
     df = df.copy()
 
     # Initialize split info dictionary
     split_info = {
-        "total_patients": 0,
-        "patients_included": 0,
-        "patients_excluded": [],
-        "exclusion_reasons": {},
-        "validation_days_actual": {},
-        "train_data_range": {},
-        "validation_data_range": {},
+        "data_start": df.index.min().strftime("%Y-%m-%d %H:%M:%S"),
+        "data_end": df.index.max().strftime("%Y-%m-%d %H:%M:%S"),
+        "total_records": len(df),
+        "validation_days_requested": num_validation_days,
+        "validation_days_actual": 0,
+        "day_start_hour": day_start_hour,
+        "include_partial_days": include_partial_days,
+        "dropped_partial_day_records": 0,
+        "dropped_partial_day_start": None,
+        "dropped_partial_day_end": None,
     }
 
-    # For each patient:
-    # 1. Find day boundary timestamps based on day_start_hour
-    # 2. Go back num_validation_days to get the start of validation
-    # 3. Optionally include partial days
-    train_data_dict = {}
-    validation_data_dict = {}
+    # Type assertion to help the type checker
+    datetime_index = cast(pd.DatetimeIndex, df.index)
 
-    for patient_id, patient_df in df.groupby(patient_col):
-        split_info["total_patients"] += 1
+    # Get timestamps where hour matches day_start_hour (using efficient index operations)
+    day_boundary_mask = datetime_index.hour == day_start_hour
+    day_boundary_times = datetime_index[day_boundary_mask]
 
-        # Get timestamps where hour matches day_start_hour (using efficient index operations)
-        # We've already validated this is a DatetimeIndex in input validation
-        day_boundary_mask = patient_df.index.hour == day_start_hour  # type: ignore
-        day_boundary_times = patient_df.index[day_boundary_mask]
-
-        # Check if patient has enough data
-        if len(day_boundary_times) == 0:
-            split_info["patients_excluded"].append(patient_id)
-            split_info["exclusion_reasons"][patient_id] = (
-                f"No {day_start_hour}:00 timestamps found"
-            )
-            continue
-
-        # Calculate total days of data available (using efficient index operations)
-        total_data_span = (patient_df.index.max() - patient_df.index.min()).days
-
-        if total_data_span < min_data_days:
-            split_info["patients_excluded"].append(patient_id)
-            split_info["exclusion_reasons"][patient_id] = (
-                f"Insufficient data: {total_data_span} days < {min_data_days} required"
-            )
-            continue
-
-        # Get the last day boundary timestamp
-        if include_partial_days:
-            # Use the latest data point
-            last_boundary = patient_df.index.max()
-        else:
-            # Use the last day_start_hour timestamp
-            last_boundary = day_boundary_times.max()
-
-        # Calculate the start of validation period
-        validation_start = last_boundary - pd.Timedelta(days=num_validation_days)
-
-        # Ensure we don't go before the start of available data
-        data_start = patient_df.index.min()
-        if validation_start < data_start:
-            available_days = (last_boundary - data_start).days
-            split_info["patients_excluded"].append(patient_id)
-            split_info["exclusion_reasons"][patient_id] = (
-                f"Insufficient data for {num_validation_days} validation days: only {available_days} days available"
-            )
-            continue
-
-        # Split the patient's data using efficient index-based slicing
-        if include_partial_days:
-            # Include all data from validation_start onwards
-            patient_validation = patient_df.loc[validation_start:]
-            patient_train = patient_df.loc[:validation_start]
-        else:
-            # Use precise time range slicing
-            patient_validation = patient_df.loc[validation_start:last_boundary]
-            patient_train = patient_df.loc[:validation_start]
-
-        # Only include if we have meaningful data
-        if len(patient_validation) > 0 and len(patient_train) > 0:
-            # Store each patient's data separately in dictionaries (make copies to avoid warnings)
-            validation_data_dict[patient_id] = patient_validation.copy()
-            train_data_dict[patient_id] = patient_train.copy()
-
-            split_info["patients_included"] += 1
-            actual_validation_days = (
-                patient_validation.index.max() - patient_validation.index.min()
-            ).days
-            split_info["validation_days_actual"][patient_id] = actual_validation_days
-            split_info["train_data_range"][patient_id] = (
-                patient_train.index.min().strftime("%Y-%m-%d %H:%M:%S"),
-                patient_train.index.max().strftime("%Y-%m-%d %H:%M:%S"),
-            )
-            split_info["validation_data_range"][patient_id] = (
-                patient_validation.index.min().strftime("%Y-%m-%d %H:%M:%S"),
-                patient_validation.index.max().strftime("%Y-%m-%d %H:%M:%S"),
-            )
-        else:
-            split_info["patients_excluded"].append(patient_id)
-            split_info["exclusion_reasons"][patient_id] = (
-                "Empty train or validation set after split"
-            )
-
-    # Check if we have any data to return
-    if not validation_data_dict or not train_data_dict:
+    # Check if patient has enough data
+    if len(day_boundary_times) == 0:
         raise ValueError(
-            f"No patients met the criteria for train/validation split. "
-            f"Excluded {split_info['total_patients']} patients. "
-            f"Reasons: {split_info['exclusion_reasons']}"
+            f"No {day_start_hour}:00 timestamps found in the data. "
+            f"Cannot determine day boundaries for splitting."
         )
 
-    # Since we're using DatetimeIndex, no need for datetime column conversion
-    # The index is already properly typed as DatetimeIndex
+    # Calculate total days of data available (using efficient index operations)
+    total_data_span = (df.index.max() - df.index.min()).days
 
-    # Add summary statistics to split_info
-    total_train_records = sum(len(df) for df in train_data_dict.values())
-    total_validation_records = sum(len(df) for df in validation_data_dict.values())
+    if total_data_span < min_data_days:
+        raise ValueError(
+            f"Insufficient data: {total_data_span} days < {min_data_days} required"
+        )
 
-    split_info["train_records"] = total_train_records
-    split_info["validation_records"] = total_validation_records
-    split_info["split_ratio"] = total_validation_records / (
-        total_train_records + total_validation_records
+    # Get the last day boundary timestamp
+    if include_partial_days:
+        # Use the latest data point
+        last_boundary = df.index.max()
+    else:
+        # Use the last day_start_hour timestamp
+        last_boundary = day_boundary_times.max()
+
+        # Calculate dropped partial day information when excluding partial days
+        original_end = df.index.max()
+        if original_end > last_boundary:
+            dropped_partial_data = df.loc[last_boundary:].iloc[1:]
+            split_info.update(
+                {
+                    "dropped_partial_day_records": len(dropped_partial_data),
+                    "dropped_partial_day_start": last_boundary.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                    "dropped_partial_day_end": original_end.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                }
+            )
+
+    # Calculate the start of validation period
+    validation_start = last_boundary - pd.Timedelta(days=num_validation_days)
+
+    # Ensure we don't go before the start of available data
+    data_start = df.index.min()
+    if validation_start < data_start:
+        available_days = (last_boundary - data_start).days
+        raise ValueError(
+            f"Insufficient data for {num_validation_days} validation days: "
+            f"only {available_days} days available"
+        )
+
+    # Split the data using efficient index-based slicing
+    if include_partial_days:
+        # Include all data from validation_start onwards
+        validation_data = df.loc[validation_start:].copy()
+        train_data = df.loc[:validation_start].iloc[:-1].copy()
+    else:
+        # Use precise time range slicing
+        validation_data = df.loc[validation_start:last_boundary].copy()
+        train_data = df.loc[:validation_start].iloc[:-1].copy()
+
+    # Ensure we have meaningful data
+    if len(validation_data) == 0:
+        raise ValueError("Validation set is empty after split")
+
+    if len(train_data) == 0:
+        raise ValueError("Training set is empty after split")
+
+    # Calculate actual validation days
+    actual_validation_days = (
+        validation_data.index.max() - validation_data.index.min()
+    ).days
+
+    # Update split info with results
+    split_info.update(
+        {
+            "validation_days_actual": actual_validation_days,
+            "train_records": len(train_data),
+            "validation_records": len(validation_data),
+            "split_ratio": len(validation_data) / len(df),
+            "train_data_start": train_data.index.min().strftime("%Y-%m-%d %H:%M:%S"),
+            "train_data_end": train_data.index.max().strftime("%Y-%m-%d %H:%M:%S"),
+            "validation_data_start": validation_data.index.min().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            "validation_data_end": validation_data.index.max().strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+        }
     )
 
-    return train_data_dict, validation_data_dict, split_info
+    return train_data, validation_data, split_info

@@ -781,10 +781,8 @@ class BrisT1DDataLoader(DatasetBase):
             if "p_num" not in patient_data.columns:
                 patient_data["p_num"] = patient_id
 
-            # Split this patient's data (we need to temporarily convert to column for compatibility)
-            temp_data = patient_data.reset_index()
             patient_train, patient_validation, _ = get_train_validation_split(
-                temp_data, num_validation_days=self.num_validation_days
+                patient_data, num_validation_days=self.num_validation_days
             )
 
             # Convert back to datetime index for both train and validation
