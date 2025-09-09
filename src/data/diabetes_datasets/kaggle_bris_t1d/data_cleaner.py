@@ -223,11 +223,8 @@ def create_datetime_with_rollover_detection(
     times = pd.to_datetime(time_series, format="%H:%M:%S", errors="coerce").dt.time
     result_dates = []
     current_date = patient_start_date.date()  # Get just the date part!
+    one_day = pd.Timedelta(days=1)
     for i, current_time in enumerate(times):
-        # if pd.isna(current_time):
-        #     result_dates.append(pd.NaT)
-        #     continue
-
         # Check for day rollover (current hour:minute < previous hour:minute)
         if i > 0:  # and not pd.isna(times.iloc[i - 1]):
             prev_time = times.iloc[i - 1]
@@ -237,7 +234,7 @@ def create_datetime_with_rollover_detection(
             prev_minutes = prev_time.hour * 60 + prev_time.minute
 
             if current_minutes < prev_minutes:
-                current_date = current_date + pd.Timedelta(days=1)
+                current_date = current_date + one_day
 
         # Combine current date with current time
         result_dates.append(current_date)
@@ -295,12 +292,7 @@ def process_single_patient_data(
     logger.info(f"\tLength of dates: {len(patient_dates)}")
     logger.info(f"\tLength of times: {len(patient_times)}")
 
-    data_copy["datetime"] = [
-        pd.Timestamp.combine(date, time)
-        if pd.notna(date) and pd.notna(time)
-        else "BAD: " + str(date) + " " + str(time)
-        for date, time in zip(patient_dates, patient_times)
-    ]
+    data_copy["datetime"] = date_time_zipper(patient_dates, patient_times)
 
     # Convert datetime column to index
     data_copy = data_copy.set_index("datetime", drop=True)
@@ -359,12 +351,7 @@ def process_patient_prediction_instances(
             row_df_copy["datetime"], generic_patient_start_date
         )
 
-        row_df_copy["datetime"] = [
-            pd.Timestamp.combine(date, time)
-            if pd.notna(date) and pd.notna(time)
-            else "BAD: " + str(date) + " " + str(time)
-            for date, time in zip(patient_dates, patient_times)
-        ]
+        row_df_copy["datetime"] = date_time_zipper(patient_dates, patient_times)
 
         # Convert datetime column to index
         row_df_copy = row_df_copy.set_index("datetime", drop=True)
@@ -385,3 +372,22 @@ def process_patient_prediction_instances(
         processed_rows[row_id] = row_df_copy
 
     return pid, processed_rows
+
+
+def date_time_zipper(patient_dates, patient_times):
+    """
+    Combine separate date and time series into a single datetime series.
+    Args:
+        patient_dates (pd.Series): Series of dates (datetime64[ns] with date info)
+        patient_times (pd.Series): Series of times (time objects)
+    Returns:
+        zipped_date_time_list: List of combined datetime (datetime64[ns])
+    """
+    zipped_date_time_list = [
+        pd.Timestamp.combine(date, time)
+        if pd.notna(date) and pd.notna(time)
+        else pd.NaT
+        for date, time in zip(patient_dates, patient_times)
+    ]
+
+    return zipped_date_time_list
