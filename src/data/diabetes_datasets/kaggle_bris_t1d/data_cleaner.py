@@ -234,7 +234,7 @@ def create_datetime_with_rollover_detection(
             prev_minutes = prev_time.hour * 60 + prev_time.minute
 
             if current_minutes < prev_minutes:
-                current_date = current_date + one_day
+                current_date += one_day
 
         # Combine current date with current time
         result_dates.append(current_date)

@@ -28,6 +28,7 @@ from src.data.diabetes_datasets.kaggle_bris_t1d.data_cleaner import (
     process_patient_prediction_instances,
     process_single_patient_data,
 )
+from src.data.preprocessing.data_splitting import split_multipatient_dataframe
 from src.data.preprocessing.time_processing import (
     get_train_validation_split,
 )
@@ -370,7 +371,9 @@ class BrisT1DDataLoader(DatasetBase):
                 f"Expected DataFrame for train data, got {type(pre_processed_data)}"
             )
 
-        multipatient_data_dict = self.split_multipatient_dataframe(pre_processed_data)
+        multipatient_data_dict = split_multipatient_dataframe(
+            pre_processed_data, "p_num"
+        )
         logger.info(f"Processing {len(multipatient_data_dict)} patients:")
         # Store pre-cleaning dfs
         pre_cleaning_dfs_path = self.cache_manager.get_cleaning_step_data_path(
@@ -691,7 +694,7 @@ class BrisT1DDataLoader(DatasetBase):
 
     # TODO: MOVE THIS TO THE preprocessing.time_processing.py instead of splitter.py (fns were migrated)
     # TODO: change this function to be more general, so it can be used for both train and validation data
-    # TODO: Change this function so that you cna specify the training and test periods lengths e.g. 6 hours, 8 hours, etc.
+    # TODO: Change this function so that you can specify the training and test periods lengths e.g. 6 hours, 8 hours, etc.
     def _iter_day_splits(self, patient_data: pd.DataFrame):
         """
         Split each day's data into training period (6am-12am) and test period (12am-6am next day).
@@ -745,25 +748,6 @@ class BrisT1DDataLoader(DatasetBase):
 
             if len(next_day_data) > 0 and len(current_day_data) > 0:
                 yield current_day_data, next_day_data
-
-    def split_multipatient_dataframe(
-        self, data: pd.DataFrame
-    ) -> dict[str, pd.DataFrame]:
-        """
-        Convert multi-patient data to single patient data.
-
-        Args:
-            data (pd.DataFrame): Multi-patient data, with p_num column.
-
-        Returns:
-            dict[str, pd.DataFrame]: Dictionary mapping patient IDs to their data.
-        """
-        unique_patient_ids = data["p_num"].unique()
-        patient_data = {
-            patient_id: data[data["p_num"] == patient_id].copy()
-            for patient_id in unique_patient_ids
-        }
-        return patient_data
 
     def _create_datetime_column(
         self, time_series: pd.Series, patient_start_date: pd.Timestamp
