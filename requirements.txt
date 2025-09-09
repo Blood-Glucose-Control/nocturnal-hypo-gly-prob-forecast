@@ -39,7 +39,7 @@ skchange
 sktime[all_extras]
 torch
 tqdm
-transformers==4.49.0
+transformers
 
 # Utilities
 typer
