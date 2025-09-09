@@ -8,10 +8,21 @@ dataframes into more usable formats for analysis and modeling.
 
 import logging
 from collections import defaultdict
+from pathlib import Path
 
 import pandas as pd
 
 from src.data.cache_manager import get_cache_manager
+from src.data.physiological.carb_model.carb_model import (
+    create_cob_and_carb_availability_cols,
+)
+from src.data.physiological.insulin_model.insulin_model import (
+    create_iob_and_ins_availability_cols,
+)
+from src.data.preprocessing.pipeline import preprocessing_pipeline
+from src.data.preprocessing.sampling import (
+    ensure_regular_time_intervals,
+)
 from src.utils.kaggle_util import create_time_variable_lists
 
 logger = logging.getLogger(__name__)
@@ -187,3 +198,190 @@ def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
         index=False,
     )
     return data
+
+
+def create_datetime_with_rollover_detection(
+    time_series: pd.Series, patient_start_date: pd.Timestamp
+) -> tuple[pd.Series, pd.Series]:
+    """
+    Simple version that detects day rollovers and increments date accordingly.
+
+    Args:
+        time_series (pd.Series): Series of times as strings ("%H:%M:%S")
+        patient_start_date (pd.Timestamp): The date to start from
+
+    Returns:
+        tuple[pd.Series, pd.Series]: (date_series, time_series) where:
+            - date_series: Series of dates (datetime64[ns] with date info)
+            - time_series: Series of times (time objects)
+    """
+    if len(time_series) == 0:
+        return pd.Series([], dtype="datetime64[ns]"), pd.Series([], dtype="time")
+
+    # Clean and convert to time objects
+    time_series = time_series.str.strip()
+    times = pd.to_datetime(time_series, format="%H:%M:%S", errors="coerce").dt.time
+    result_dates = []
+    current_date = patient_start_date.date()  # Get just the date part!
+    for i, current_time in enumerate(times):
+        # if pd.isna(current_time):
+        #     result_dates.append(pd.NaT)
+        #     continue
+
+        # Check for day rollover (current hour:minute < previous hour:minute)
+        if i > 0:  # and not pd.isna(times.iloc[i - 1]):
+            prev_time = times.iloc[i - 1]
+
+            # Simple comparison: if current time < previous time, we rolled over
+            current_minutes = current_time.hour * 60 + current_time.minute
+            prev_minutes = prev_time.hour * 60 + prev_time.minute
+
+            if current_minutes < prev_minutes:
+                current_date = current_date + pd.Timedelta(days=1)
+
+        # Combine current date with current time
+        result_dates.append(current_date)
+
+    result_dates = pd.Series(result_dates, dtype="datetime64[ns]")
+    logger.info("create_datetime_with_rollover_detection(): ")
+    logger.info(f"\tcreate_dt_col() - Result start date: {result_dates.iloc[0]}")
+    logger.info(f"\tcreate_dt_col() - Result end date: {result_dates.iloc[-1]}")
+    logger.info(f"\tcreate_dt_col() - Result start time: {times.iloc[0]}")
+    logger.info(f"\tcreate_dt_col() - Result end time: {times.iloc[-1]}")
+    logger.info(
+        f"\tcreate_dt_col() - Any NaT values in dates? {result_dates.isna().sum()}"
+    )
+    logger.info(f"\tcreate_dt_col() - Any NaT values in times? {times.isna().sum()}")
+
+    return (result_dates, times)
+
+
+def process_single_patient_data(
+    patient_data_tuple: tuple, store_in_between_data=False
+) -> tuple:
+    """
+    Process a single patient's data including datetime creation and preprocessing.
+
+    Note: Standalone functions were created to support multiprocessing, as corruption issues
+    occur when using class methods with ProcessPoolExecutor.
+
+    Args:
+        patient_data_tuple (tuple): Tuple containing (p_num, data, generic_patient_start_date)
+            where p_num is patient ID, data is DataFrame, and generic_patient_start_date
+            is the Timestamp to use as the starting date.
+        store_in_between_data (bool, optional): Whether to save intermediate data to cache.
+            Defaults to False.
+
+    Returns:
+        tuple: Tuple containing (p_num, processed_data) where p_num is the patient ID
+            and processed_data is the DataFrame after preprocessing pipeline.
+    """
+    p_num, data, generic_patient_start_date = patient_data_tuple
+    logger.info(
+        f"Running process_single_patient_data(), \n\t\t\tProcessing patient {p_num} data...\n\t\t\tPatient start date: {generic_patient_start_date.date()}"
+    )
+    logger.info(f"\tInputed patient start time: {data['datetime'].iloc[0]}")
+    # Create a copy to avoid modifying the original
+    data_copy = data.copy()
+
+    # Create datetime column
+    patient_dates, patient_times = create_datetime_with_rollover_detection(
+        data_copy["datetime"], generic_patient_start_date
+    )
+    logger.info(
+        f"\tCreated columns for patient {p_num} data...\n\t\t\tPatient start date: {patient_dates.iloc[0]}"
+    )
+    logger.info(f"\tResult patient start time: {patient_times.iloc[0]}")
+    logger.info(f"\tLength of dates: {len(patient_dates)}")
+    logger.info(f"\tLength of times: {len(patient_times)}")
+
+    data_copy["datetime"] = [
+        pd.Timestamp.combine(date, time)
+        if pd.notna(date) and pd.notna(time)
+        else "BAD: " + str(date) + " " + str(time)
+        for date, time in zip(patient_dates, patient_times)
+    ]
+
+    # Convert datetime column to index
+    data_copy = data_copy.set_index("datetime", drop=True)
+    if store_in_between_data:
+        cache_manager = get_cache_manager()
+        cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
+        data_copy.to_csv(
+            cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
+            / f"datetime_index/{p_num}.csv",
+            index=True,
+        )
+    # Run preprocessing pipeline
+    processed_data = preprocessing_pipeline(p_num, data_copy)
+
+    return p_num, processed_data
+
+
+def process_patient_prediction_instances(
+    patient_item,
+    base_cache_path: Path,
+    generic_patient_start_date=pd.Timestamp("2024-01-01"),
+    save_individual_files=False,
+):
+    """
+    Standalone function to process test data for a single patient in parallel.
+
+    Applies transformations (datetime index, regular intervals, COB/IOB calculations)
+    to each row of patient data. Returns processed data in memory rather than saving
+    individual files, as the entire nested structure will be saved as compressed pickle.
+
+    Args:
+        patient_item (tuple): (patient_id, patient_data_dict) mapping row_ids to DataFrames
+        base_cache_path (Path): Base directory for caching processed data
+        generic_patient_start_date (pd.Timestamp, optional): Starting date to use for
+            datetime creation. Defaults to pd.Timestamp("2024-01-01").
+
+    Returns:
+        tuple: (patient_id, processed_rows_dict) mapping row_ids to processed DataFrames
+    """
+    pid, patient_data = patient_item
+    processed_rows = {}
+
+    if save_individual_files:
+        # Make new dir for each patient
+        patient_cache_dir: Path = base_cache_path / pid
+        patient_cache_dir.mkdir(exist_ok=True)
+
+    for row_id, row_df in patient_data.items():
+        logger.info(f"Processing patient {pid}, row {row_id}...")
+
+        # Create a copy to avoid modifying the original
+        row_df_copy = row_df.copy()
+
+        # Create datetime column using the same approach as training data
+        patient_dates, patient_times = create_datetime_with_rollover_detection(
+            row_df_copy["datetime"], generic_patient_start_date
+        )
+
+        row_df_copy["datetime"] = [
+            pd.Timestamp.combine(date, time)
+            if pd.notna(date) and pd.notna(time)
+            else "BAD: " + str(date) + " " + str(time)
+            for date, time in zip(patient_dates, patient_times)
+        ]
+
+        # Convert datetime column to index
+        row_df_copy = row_df_copy.set_index("datetime", drop=True)
+
+        # Get regular intervals and frequency
+        row_df_copy, freq = ensure_regular_time_intervals(row_df_copy)
+
+        # Apply COB and IOB calculations with frequency
+        row_df_copy = row_df_copy.pipe(
+            create_cob_and_carb_availability_cols, freq
+        ).pipe(create_iob_and_ins_availability_cols, freq)
+
+        if save_individual_files:
+            # Cache processed data - ensure we're working with Path objects
+            cache_file = Path(patient_cache_dir) / f"{row_id}.csv"
+            row_df_copy.to_csv(str(cache_file), index=True)
+
+        processed_rows[row_id] = row_df_copy
+
+    return pid, processed_rows
