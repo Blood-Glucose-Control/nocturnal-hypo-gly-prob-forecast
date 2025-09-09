@@ -1,28 +1,43 @@
-"""
-Gluroo Data Cleaning Module
-
-This module provides functions for processing and cleaning Gluroo diabetes data.
-It handles tasks such as standardizing timestamps, handling missing values,
-processing meal data, and transforming data into a consistent format.
-
-Key functionality includes:
-- Converting timestamps to regular intervals
-- Identifying and filtering days with excessive missing data
-- Processing meal announcements and handling overlaps
-- Selecting top carbohydrate meals per day
-- Standardizing column names and formats
-"""
+from typing import cast
 
 import pandas as pd
 
 
-# Gluroo data one dataframe per patient
-def clean_gluroo_data(
+def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
+    """
+    Translates the data to a standardized format for data_cleaning_pipeline
+
+    1. blood glucose values from mg/dL to mmol/L.
+    2. Convert date to datetime
+    3. Adds patient identifier "glu001" as p_num column
+
+    Args:
+        df_raw (pd.DataFrame): Input DataFrame with raw Gluroo data
+
+    Returns:
+        pd.DataFrame: DataFrame with standardized column names and formats
+
+    TODO:
+    - Gluroo's data might have HR, steps and activity data in the future.
+    """
+
+    df = df_raw.copy()
+    # TODO: Remove the dependency of p_num. Kaggle data is the very few dataset where there are multiple patients in the same file.
+    df["p_num"] = "glu001"
+    df["datetime"] = df["date"]
+
+    # Convert blood glucose from mg/dL to mmol/L
+    df["bg_mM"] = (df["bgl"] / 18.0).round(2)
+
+    return df
+
+
+def meal_identification_cleaning_pipeline(
     df_raw: pd.DataFrame,
     config: dict | None = None,
 ) -> pd.DataFrame:
     """
-    Cleans the Gluroo dataset by applying several transformations:
+    Cleans the dataset by applying several transformations:
     1. Ensures datetime index
     2. Coerces timestamps to regular intervals
     3. Groups data by day starting at configured time
@@ -31,7 +46,7 @@ def clean_gluroo_data(
     6. Keeps only top N carb meals
 
     Args:
-        df_raw (pd.DataFrame): Input DataFrame containing Gluroo data. One dataframe per patient.
+        df_raw (pd.DataFrame): One dataframe per patient.
     config : dict
         Configuration dictionary containing:
         - max_consecutive_nan_values_per_day: Maximum allowed consecutive NaN values per day. The entire day is removed if this threshold is exceeded.
@@ -52,7 +67,7 @@ def clean_gluroo_data(
             "day_start_time": pd.Timedelta(hours=4),
             "min_carbs": 5,
             "meal_length": pd.Timedelta(hours=2),
-            "n_top_carb_meals": 3,
+            "n_top_carb_meals": 3,  # This erases small meals, its for meal identification problems
         }
 
     max_consecutive_nan_values_per_day: int = config[
@@ -66,61 +81,20 @@ def clean_gluroo_data(
 
     df = df_raw.copy()
 
+    # This pipeline needs a datetime as index?
     df = ensure_datetime_index(df)
     # Explicitly tell the type checker that df.index is a DatetimeIndex
-    from typing import cast
-
-    df.index = cast(pd.DatetimeIndex, df.index)
+    df.index = pd.DatetimeIndex(df.index)
 
     # From meal identification repo
+    print("Patient ID:", df["p_num"].iloc[0])
+    print(df[["id", "bg_mM", "food_g", "msg_type"]].iloc[330:340])
     df = coerce_time_fn(data=df, coerce_time_interval=coerce_time_interval)
     df["day_start_shift"] = (df.index - day_start_time).to_series().dt.date
+    print(df[["id", "bg_mM", "food_g", "msg_type"]].head())
     df = erase_consecutive_nan_values(df, max_consecutive_nan_values_per_day)
     df = erase_meal_overlap_fn(df, meal_length, min_carbs)
     df = keep_top_n_carb_meals(df, n_top_carb_meals=n_top_carb_meals)
-
-    # Translate data to the correct format
-    df = data_translation(df)
-
-    return df
-
-
-def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
-    """
-    Translates the data to a standardized format with consistent column names.
-
-    Performs column renaming, adds required metadata columns, and converts
-    blood glucose values from mg/dL to mmol/L.
-
-    Args:
-        df_raw (pd.DataFrame): Input DataFrame with raw Gluroo data
-
-    Returns:
-        pd.DataFrame: DataFrame with standardized column names and formats
-
-    Notes:
-        - Blood glucose values are converted from mg/dL to mmol/L using the factor 18.0
-        - Adds a datetime column that duplicates the index for compatibility
-        - Adds patient identifier "glu001" as p_num column
-    TODO:
-    - Gluroo's data might have HR, steps and activity data in the future.
-    """
-
-    df = df_raw.copy()
-    df = df.rename(
-        columns={
-            "bgl": "bg-0:00",
-            "food_g": "carbs-0:00",
-            "dose_units": "insulin-0:00",
-        }
-    )
-    df["datetime"] = df.index
-    df["p_num"] = (
-        "glu001"  # TODO: Remove the dependency of p_num. Kaggle data is the very few dataset where there are multiple patients in the same file.
-    )
-
-    # Convert blood glucose from mg/dL to mmol/L
-    df["bg-0:00"] = (df["bg-0:00"] / 18.0).round(2)
 
     return df
 
@@ -135,8 +109,7 @@ def ensure_datetime_index(
     as the index if available. Handles timezone conversion to ensure consistent datetime handling.
 
     Args:
-        data (pd.DataFrame): Input DataFrame that either has a datetime index or a 'datetime' column
-                           that can be converted to datetime.
+        data (pd.DataFrame): Input DataFrame that either has a datetime index or a 'datetime' column that can be converted to datetime.
 
     Returns:
         pd.DataFrame: DataFrame with sorted UTC datetime index.
@@ -156,13 +129,16 @@ def ensure_datetime_index(
                 "DataFrame must have a 'datetime' column or a DatetimeIndex."
             )
 
-    # Convert to UTC to handle DST transitions
-    df.index = pd.to_datetime(df.index, utc=True)
+    # Use UTC should not be True because we need to preserve time of day context.
+    df.index = pd.to_datetime(df.index, utc=False)
 
     return df
 
 
-def coerce_time_fn(data, coerce_time_interval):
+# TODO: Move back to Gluroo Data Cleaning.
+def coerce_time_fn(
+    data: pd.DataFrame, coerce_time_interval: pd.Timedelta
+) -> pd.DataFrame:
     """
     Coerces the time interval of data to a regular frequency and handles meal announcements.
 
@@ -172,7 +148,7 @@ def coerce_time_fn(data, coerce_time_interval):
 
     Args:
         data (pd.DataFrame): The input DataFrame with a 'datetime' index and columns including
-                           'msg_type', 'bgl', and 'food_g'.
+                           'msg_type', 'bg_mM', and 'food_g'.
         coerce_time_interval (pd.Timedelta): The interval for time resampling.
 
     Returns:
@@ -193,6 +169,31 @@ def coerce_time_fn(data, coerce_time_interval):
             f"coerce_time_interval must be a pandas Timedelta object, got {type(coerce_time_interval)} instead"
         )
 
+    data.index = cast(pd.DatetimeIndex, pd.to_datetime(data.index, utc=False))
+    # Try removing timezone for frequency inference
+    freq_str = pd.infer_freq(data.index.tz_localize(None)[:20])
+    print(f"Inferred frequency: {freq_str}")
+    if freq_str:
+        # Convert to Timedelta and extract minutes
+        freq_timedelta = pd.Timedelta(freq_str)
+        minutes = freq_timedelta.total_seconds() / 60
+        print(f"Frequency: {minutes} minutes")
+
+        # Convert coerce_time_interval to minutes for comparison
+        target_minutes = coerce_time_interval.total_seconds() / 60
+
+        # Now compare minutes to minutes
+        if minutes >= target_minutes:
+            print(
+                f"The data is in {minutes} minute intervals, will not upsample to {target_minutes} minutes."
+            )
+            return data
+        else:
+            print(f"Downsampling from {minutes} minutes to {target_minutes} minutes.")
+    else:
+        print("Could not infer frequency... returning data unchanged.")
+        return data
+
     # Separate meal announcements and non-meal data
     meal_announcements = data[data["msg_type"] == "ANNOUNCE_MEAL"].copy()
     non_meals = data[data["msg_type"] != "ANNOUNCE_MEAL"].copy()
@@ -209,7 +210,7 @@ def coerce_time_fn(data, coerce_time_interval):
     data_resampled = non_meals.join(meal_announcements, how="left", rsuffix="_meal")
 
     # Combine the columns
-    for col in ["bgl", "msg_type", "food_g"]:
+    for col in ["bg_mM", "msg_type", "food_g"]:
         meal_col = f"{col}_meal"
         if meal_col in data_resampled.columns:
             data_resampled[col] = data_resampled[col + "_meal"].combine_first(
@@ -376,12 +377,12 @@ def erase_consecutive_nan_values(
     Handle consecutive NaN values in blood glucose data based on configurable threshold.
 
     This function processes each day separately to:
-    1. Count the maximum number of consecutive NaN values in the 'bgl' column
+    1. Count the maximum number of consecutive NaN values in the 'bg_mM' column
     2. If max consecutive NaNs exceeds threshold, remove the entire day
     3. If max consecutive NaNs is within threshold, keep the day but remove individual NaN values
 
     Args:
-        patient_df (pd.DataFrame): DataFrame with a 'bgl' column and datetime index.
+        patient_df (pd.DataFrame): DataFrame with a 'bg_mM' column and datetime index.
         max_consecutive_nan_values_per_day (int): Maximum allowed consecutive NaN values per day.
             Days exceeding this threshold are completely removed.
 
@@ -398,7 +399,7 @@ def erase_consecutive_nan_values(
     days_to_keep = []
     for day, day_data in df.groupby("day"):
         # Get boolean mask of NaN values
-        nan_mask = day_data["bgl"].isnull()
+        nan_mask = day_data["bg_mM"].isnull()
 
         # Count consecutive NaNs
         consecutive_nans = 0
@@ -421,6 +422,6 @@ def erase_consecutive_nan_values(
     result_df.drop("day", axis=1, inplace=True)
 
     # Drop remaining NaN values since they consecutively dont form a long enough chain
-    result_df = result_df.dropna(subset=["bgl"])
+    result_df = result_df.dropna(subset=["bg_mM"])
 
     return result_df

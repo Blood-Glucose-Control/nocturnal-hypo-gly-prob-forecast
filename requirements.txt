@@ -22,6 +22,7 @@ neuralforecast
 notebook
 numba
 numpy
+orjson
 pandas
 pre-commit
 pydantic
@@ -36,9 +37,11 @@ scikit-learn
 seaborn
 skchange
 sktime[all_extras]
+tf-keras
 torch
 tqdm
-transformers==4.49.0
+transformers
+#transformers==4.49.0
 
 # Utilities
 typer

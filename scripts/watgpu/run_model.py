@@ -35,11 +35,11 @@ if __name__ == "__main__":
     print(f"Starting..... {yaml_filename}")
 
     run_benchmark(
-        y_features=["bg-0:00"],
+        y_features=["bg_mM"],
         x_features=[
-            "hr-0:00",
-            "steps-0:00",
-            "cals-0:00",
+            "hr_bpm",
+            "steps",
+            "cals",
             "cob",
             "carb_availability",
             "insulin_availability",

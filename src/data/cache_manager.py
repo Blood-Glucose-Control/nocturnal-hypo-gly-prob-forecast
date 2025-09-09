@@ -13,11 +13,12 @@ Root_dir/cache/data/{DatasetName}/raw
 Root_dir/cache/data/{DatasetName}/processed
 """
 
-import subprocess
-import shutil
-from pathlib import Path
-from typing import Optional, Dict, Any
 import logging
+import shutil
+import subprocess
+from pathlib import Path
+from typing import Any, Dict, Optional
+
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -92,6 +93,18 @@ class CacheManager:
         """
         return self.get_dataset_cache_path(dataset_name) / "raw"
 
+    def get_cleaning_step_data_path(self, dataset_name: str) -> Path:
+        """
+        Get the cleaning step data path for a specific dataset.
+
+        Args:
+            dataset_name (str): Name of the dataset
+
+        Returns:
+            Path: Path to the cleaning step data directory
+        """
+        return self.get_dataset_cache_path(dataset_name) / "cleaning_step"
+
     def get_processed_data_path(self, dataset_name: str) -> Path:
         """
         Get the processed data path for a specific dataset.
@@ -102,6 +115,9 @@ class CacheManager:
         Returns:
             Path: Path to the processed data directory
         """
+        logger.info(
+            f"Processed data path for {dataset_name}: {self.get_dataset_cache_path(dataset_name) / 'processed'}"
+        )
         return self.get_dataset_cache_path(dataset_name) / "processed"
 
     def ensure_raw_data(
@@ -130,7 +146,7 @@ class CacheManager:
 
         # Fetch data from source
         logger.info(
-            f"Raw data for {dataset_name} not found in cache, fetching from source"
+            f"Raw data for {dataset_name} not found in cache: {raw_path} \n fetching from source"
         )
         source = dataset_config.get("source", "unknown")
         if source == "kaggle":
@@ -389,14 +405,20 @@ class CacheManager:
         return processed_path / dataset_type
 
     def save_processed_data(
-        self, dataset_name: str, dataset_type: str, data, file_format: str = "csv"
+        self,
+        dataset_name: str,
+        dataset_type: str,
+        patient_id,
+        data,
+        file_format: str = "csv",
     ):
         """
-        Save processed data to cache. This function assume nothing about the index so index=False.
+        Save processed data to cache. The index is datetime.
 
         Args:
             dataset_name (str): Name of the dataset
             dataset_type (str): Type of dataset (train, test, etc.)
+            patient_id: ID of the patient
             data: Data to save (DataFrame, dict, etc.)
             file_format (str): Format to save the data in
         """
@@ -407,19 +429,23 @@ class CacheManager:
 
         if file_format == "csv":
             if hasattr(data, "to_csv"):
-                data.to_csv(processed_path / f"{dataset_type}.csv", index=False)
+                data.to_csv(
+                    processed_path / f"{patient_id}_{dataset_type}.csv", index=True
+                )
             else:
                 raise ValueError(f"Cannot save data of type {type(data)} as CSV")
         else:
             raise ValueError(f"Unsupported file format: {file_format}")
 
-        logger.info(f"Saved processed {dataset_type} data for {dataset_name}")
+        logger.info(
+            f"\tSaved processed {dataset_type} data for {dataset_name} - patient: {patient_id}"
+        )
 
     def load_processed_data(
         self, dataset_name: str, dataset_type: str, file_format: str = "csv"
-    ):
+    ) -> dict[str, pd.DataFrame] | None:
         """
-        Load processed data from cache.
+        Load processed data with datetime index from cache.
 
         Args:
             dataset_name (str): Name of the dataset
@@ -427,18 +453,88 @@ class CacheManager:
             file_format (str): Format of the saved data
 
         Returns:
-            Loaded data or None if not found
+            Dictionary with patient IDs as keys and DataFrames as values, or None if not found
+            Note: For test data with nested structure, returns None to trigger custom loading
         """
+        # Special handling for test data with nested structure - return None to trigger custom loading
+        if dataset_type == "test" and dataset_name == "kaggle_brisT1D":
+            return None
+
         processed_path = self.get_processed_data_path_for_type(
             dataset_name, dataset_type
         )
 
         if file_format == "csv":
-            csv_file = processed_path / f"{dataset_type}.csv"
-            if csv_file.exists():
-                return pd.read_csv(csv_file)
+            if processed_path.exists():
+                result = {}
+                # Get all CSV files in the directory
+                csv_files = [f for f in processed_path.iterdir() if f.suffix == ".csv"]
+
+                for csv_file in csv_files:
+                    # Extract patient ID from filename: remove _{dataset_type}.csv suffix
+                    filename = csv_file.stem  # filename without extension
+                    suffix_to_remove = f"_{dataset_type}"
+
+                    if filename.endswith(suffix_to_remove):
+                        patient_id = filename[: -len(suffix_to_remove)]
+                        # Load the CSV with datetime index
+                        df = pd.read_csv(
+                            csv_file, index_col="datetime", parse_dates=True
+                        )
+                        result[patient_id] = df
+
+                return result if result else None
 
         return None
+
+    def load_nested_test_data(
+        self, dataset_name: str, dataset_type: str
+    ) -> dict[str, dict[str, pd.DataFrame]] | None:
+        """
+        Load nested test data from compressed pickle file.
+
+        Args:
+            dataset_name (str): Name of the dataset
+            dataset_type (str): Type of dataset (should be "test")
+
+        Returns:
+            Nested dictionary {patient_id: {row_id: DataFrame}} or None if not found
+        """
+        import gzip
+        import pickle
+
+        processed_path = self.get_processed_data_path_for_type(
+            dataset_name, dataset_type
+        )
+
+        nested_data_file = processed_path / "nested_test_data.pkl.gz"
+
+        if nested_data_file.exists():
+            try:
+                with gzip.open(nested_data_file, "rb") as f:
+                    return pickle.load(f)
+            except Exception as e:
+                logger.error(f"Error loading nested test data: {e}")
+                return None
+
+        return None
+
+    def nested_test_data_exists(self, dataset_name: str, dataset_type: str) -> bool:
+        """
+        Check if nested test data exists in cache.
+
+        Args:
+            dataset_name (str): Name of the dataset
+            dataset_type (str): Type of dataset
+
+        Returns:
+            bool: True if nested test data exists, False otherwise
+        """
+        processed_path = self.get_processed_data_path_for_type(
+            dataset_name, dataset_type
+        )
+        nested_data_file = processed_path / "nested_test_data.pkl.gz"
+        return nested_data_file.exists()
 
     def clear_cache(self, dataset_name: Optional[str] = None):
         """

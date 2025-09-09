@@ -6,14 +6,20 @@ handling time-series data, removing historical data points, and restructuring th
 dataframes into more usable formats for analysis and modeling.
 """
 
-import pandas as pd
-from src.utils.kaggle_util import create_time_variable_lists
+import logging
 from collections import defaultdict
+
+import pandas as pd
+
+from src.data.cache_manager import get_cache_manager
+from src.utils.kaggle_util import create_time_variable_lists
+
+logger = logging.getLogger(__name__)
 
 
 def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFrame]]:
     """
-    Clean and transform test data from the Bristol T1D dataset.
+    Clean and transform test data from the Bristol T1D dataset (from offset to regular time intervals).
 
     This function processes the test dataset by:
     1. Melting the time-series data into a more structured format
@@ -90,6 +96,19 @@ def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFram
 
             new_df["p_num"] = patient_id
 
+            new_df = new_df.rename(
+                columns={
+                    "bg-0:00": "bg_mM",
+                    "insulin-0:00": "dose_units",
+                    "carbs-0:00": "food_g",
+                    "hr-0:00": "hr_bpm",
+                    "steps-0:00": "steps",
+                    "cals-0:00": "cals",
+                    "activity-0:00": "activity",
+                    "time": "datetime",
+                }
+            )
+
             patient_dfs[patient_id][row_id] = new_df
 
     return patient_dfs
@@ -118,6 +137,7 @@ def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
     data = df.copy()
 
     # Create the list of columns to drop
+    # Only keep the current measurements (those with -0:00 suffix)
     columns_to_drop = [
         col
         for col in data.columns
@@ -126,4 +146,44 @@ def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
     ]
     data.drop(columns=columns_to_drop, inplace=True)
 
+    # datetime
+    # id
+    # p_num
+    # time
+    # bg-0:00 (already in mmol/L)
+    # insulin-0:00
+    # carbs-0:00
+    # hr-0:00
+    # steps-0:00
+    # cals-0:00
+    # activity-0:00
+    # Rename the columns to the correct format
+    data = data.rename(
+        columns={
+            "bg-0:00": "bg_mM",
+            "insulin-0:00": "dose_units",
+            "carbs-0:00": "food_g",
+            "hr-0:00": "hr_bpm",
+            "steps-0:00": "steps",
+            "cals-0:00": "cals",
+            "activity-0:00": "activity",
+            "time": "datetime",
+        }
+    )
+
+    # Add addition columns: [hr_bpm, steps, message_type]
+    # Set default message type to "bg"
+    # For rows with food_g values, add ANNOUNCE_MEAL to msg_type
+    data.loc[data["food_g"].notna() & (data["food_g"] != 0), "msg_type"] = (
+        "ANNOUNCE_MEAL"
+    )
+
+    # TODO:TONY - Remove this
+    cache_manager = get_cache_manager()
+    cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
+    data.to_csv(
+        cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
+        / "data_clean/data_after_cleaning.csv",
+        index=False,
+    )
     return data

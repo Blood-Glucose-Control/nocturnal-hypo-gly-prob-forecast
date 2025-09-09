@@ -5,16 +5,18 @@ This module tests the cache manager and data loader functionality
 to ensure the new cache system works correctly.
 """
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
+
+import pandas as pd
+import pytest
 
 from src.data.cache_manager import CacheManager, get_cache_manager
 from src.data.dataset_configs import (
     get_dataset_config,
-    list_available_datasets,
     get_dataset_info,
+    list_available_datasets,
 )
 
 
@@ -98,20 +100,27 @@ class TestCacheManager:
 
     def test_save_and_load_processed_data(self):
         """Test saving and loading processed data."""
-        import pandas as pd
 
-        # Create test data
-        test_data = pd.DataFrame({"col1": [1, 2, 3], "col2": ["a", "b", "c"]})
-
+        # Create test data with datetime index
+        dates = pd.date_range("2025-01-01", periods=3, freq="h")
+        test_data = pd.DataFrame(
+            {"col1": [1, 2, 3], "col2": ["a", "b", "c"]}, index=dates
+        )
+        test_data.index.name = "datetime"
+        patient_id = "patient_1"
         # Save data
-        self.cache_manager.save_processed_data("test_dataset", "train", test_data)
+        self.cache_manager.save_processed_data(
+            "test_dataset", "train", patient_id, test_data
+        )
 
         # Load data
         loaded_data = self.cache_manager.load_processed_data("test_dataset", "train")
 
+        # Verify it's a dictionary
+        assert isinstance(loaded_data, dict), f"Expected dict, got {type(loaded_data)}"
         # Verify data
-        assert loaded_data is not None
-        assert loaded_data.equals(test_data)
+        assert loaded_data["patient_1"] is not None
+        assert loaded_data["patient_1"].equals(test_data)
 
     def test_clear_cache_specific_dataset(self):
         """Test clearing cache for specific dataset."""

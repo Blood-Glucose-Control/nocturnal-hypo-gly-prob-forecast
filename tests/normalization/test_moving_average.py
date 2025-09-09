@@ -14,7 +14,7 @@ class TestMovingAverage:
         np.random.seed(42)
         dates = pd.date_range(start="2023-01-01", periods=100, freq="h")
         values = np.sin(np.linspace(0, 4 * np.pi, 100)) + np.random.normal(0, 0.1, 100)
-        return pd.DataFrame({"bg-0:00": values}, index=dates)
+        return pd.DataFrame({"bg_mM": values}, index=dates)
 
     @pytest.fixture
     def normalizer(self):
@@ -25,7 +25,7 @@ class TestMovingAverage:
         # construct a sample data with 24 hours of data
         dates = pd.date_range(start="2023-01-01", periods=24, freq="h")
         values = np.linspace(0, 2.3, 24)  # Simple linear sequence from 0 to 2.3
-        sample_data = pd.DataFrame({"bg-0:00": values}, index=dates)
+        sample_data = pd.DataFrame({"bg_mM": values}, index=dates)
         normalized_data = normalizer(sample_data, window_size=5)
         assert not normalized_data.empty
         # check moving average is applied correctly (i.e rolling average)
@@ -57,7 +57,7 @@ class TestMovingAverage:
             2.1,  # Moving window of 5 values
         ]
         np.testing.assert_array_almost_equal(
-            normalized_data["bg-0:00"].values, expected_values
+            normalized_data["bg_mM"].values, expected_values
         )
 
     def test_moving_average_normalization(self, sample_data, normalizer):
@@ -71,7 +71,7 @@ class TestMovingAverage:
 
         # ensure no NaNs (the function assumes no NaNs in the data, but anyhow)
         assert (
-            not normalized_data["bg-0:00"][23:].isna().any()
+            not normalized_data["bg_mM"][23:].isna().any()
         ), "There are NaNs in the data"
 
     def test_invalid_window_size(self, sample_data, normalizer):
@@ -88,13 +88,13 @@ class TestMovingAverage:
         """
         Test behavior with empty series
         """
-        empty_series = pd.DataFrame({"bg-0:00": []})
+        empty_series = pd.DataFrame({"bg_mM": []})
         res = normalizer(empty_series)
         assert res.empty
 
     def test_series_shorter_than_window(self, normalizer):
         """Test behavior when series is shorter than window size"""
-        short_series = pd.DataFrame({"bg-0:00": np.random.randn(10)})
+        short_series = pd.DataFrame({"bg_mM": np.random.randn(10)})
         normalized = normalizer(short_series)
 
         # check non-empty and non-nan

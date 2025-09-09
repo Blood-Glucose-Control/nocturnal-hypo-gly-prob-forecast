@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
     run_benchmark(
         data_source_name="gluroo",
-        y_features=["bg-0:00"],
+        y_features=["bg_mM"],
         x_features=[
             # "hr-0:00", // DNE
             # "steps-0:00", // DNE
