@@ -374,6 +374,10 @@ class BrisT1DDataLoader(DatasetBase):
         # Split train/validation data
         if self.dataset_type == "train" and isinstance(self.processed_data, dict):
             self._split_train_validation()
+        else:
+            logger.info(
+                f"Skipping train/validation split for test data or invalid processed data type. \nDataset: {self.dataset_type}\nProcessed data type: {type(self.processed_data)}"
+            )
 
     def _load_from_cache(self, cached_data):
         """
@@ -755,7 +759,9 @@ class BrisT1DDataLoader(DatasetBase):
             raise TypeError(
                 f"Cannot split train/validation data: processed_data must be a dict[str, pd.DataFrame], but got {type(self.processed_data)}"
             )
-
+        logger.info(
+            f"Splitting train/validation data with {self.num_validation_days} validation days..."
+        )
         # Split each patient's data individually
         train_data_dict = {}
         validation_data_dict = {}
@@ -788,10 +794,14 @@ class BrisT1DDataLoader(DatasetBase):
             patient_train, patient_validation, _ = get_train_validation_split(
                 patient_data, num_validation_days=self.num_validation_days
             )
+            train_data_dict[patient_id] = patient_train
+            validation_data_dict[patient_id] = patient_validation
 
         # Store as dictionaries
         self.train_data = train_data_dict
         self.validation_data = validation_data_dict
+
+        # TODO: Fixed storage of train_data and validation data using cache manager
 
         # Calculate metadata from the first available patient for compatibility
         if validation_data_dict:

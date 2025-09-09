@@ -1,27 +1,27 @@
 import itertools
+import json
+import os
 import time
 from typing import Callable
+
+import numpy as np
+import pandas as pd
 from sktime.benchmarking.forecasting import ForecastingBenchmark
 from sktime.forecasting.compose import FallbackForecaster
 from sktime.performance_metrics.forecasting import MeanSquaredError
 from sktime.split import ExpandingSlidingWindowSplitter, ExpandingWindowSplitter
 from sktime.split.base import BaseWindowSplitter
 from sktime.transformations.series.impute import Imputer
-import pandas as pd
-import numpy as np
-import os
-import json
+
 from src.data.diabetes_datasets.data_loader import get_loader
-from src.data.preprocessing.time_processing import get_train_validation_split
 from src.data.preprocessing.signal_processing import apply_moving_average
-from src.tuning.param_grid import generate_param_grid
-from src.utils.config_loader import load_yaml_config
 from src.tuning.load_estimators import (
+    get_estimator,
     load_all_forecasters,
     load_all_regressors,
-    get_estimator,
 )
-
+from src.tuning.param_grid import generate_param_grid
+from src.utils.config_loader import load_yaml_config
 
 forecasters = load_all_forecasters()
 regressors = load_all_regressors()
@@ -202,8 +202,13 @@ def load_diabetes_data(patient_id, df=None, y_feature=None, x_features=[]):
         raise ValueError("dataframe must be provided")
 
     patient_data = df[df["p_num"] == patient_id].copy()
-    patient_data["time"] = pd.to_datetime(patient_data["time"], format="%H:%M:%S")
-
+    # patient_data["time"] = pd.to_datetime(patient_data["time"], format="%H:%M:%S")
+    print(f"load_diabetes_data() - Patient Data Index: {patient_data.index}")
+    print(f"load_diabetes_data() - Patient Data Columns: {patient_data.columns}")
+    print(
+        f"load_diabetes_data() - Patient Data {y_feature} Head: {patient_data[y_feature].head()}"
+    )
+    patient_data["time"] = patient_data.index.time
     y = patient_data[y_feature]
     X = patient_data[x_features]
 
@@ -236,7 +241,9 @@ def get_patient_ids(df, is_5min, n_patients=-1):
 
     interval = "5-min" if is_5min else "15-min"
 
-    print(f"Loading {n_patients} patients with {interval} interval: {final_patients}")
+    print(
+        f"get_patient_ids() - Loading {n_patients} patients with {interval} interval: {final_patients}"
+    )
     run_config["interval"] = interval
     run_config["patient_numbers"] = final_patients
 
@@ -277,40 +284,55 @@ def get_dataset_loaders(
         dict[str, Callable]: Dictionary of dataset loader functions, one for each patient.
     """
     # Load and clean data
-    loader = get_loader(data_source_name=data_source_name, use_cached=True)
-    df = loader.processed_data
+    loader = get_loader(
+        data_source_name=data_source_name,
+        num_validation_days=validation_days,
+        use_cached=True,
+    )
+
     # TODO: It is default of 20 days. Might need to change that
-    df, _ = get_train_validation_split(df, num_validation_days=validation_days)
+    train_data = loader.train_data
+    imputed_dfs = {}
+    for patient_id, patient_train_df in train_data.items():
+        # TODO: Impute Missing values for each columns
+        patient_train_df = impute_missing_values(
+            patient_train_df, columns=x_features, bg_method=bg_method
+        )
+        patient_train_df = impute_missing_values(
+            patient_train_df,
+            columns=y_feature,
+            hr_method=hr_method,
+            step_method=step_method,
+            cal_method=cal_method,
+        )
+        # smooth the data
+        patient_train_df = smooth_bgl_data(
+            df=patient_train_df,
+            bgl_column="bg_mM",
+            normalization_technique="moving_average",
+        )
+        imputed_dfs[patient_id] = patient_train_df
 
-    # TODO: Impute Missing values for each columns
-    df = impute_missing_values(df, columns=x_features, bg_method=bg_method)
-    df = impute_missing_values(
-        df,
-        columns=y_feature,
-        hr_method=hr_method,
-        step_method=step_method,
-        cal_method=cal_method,
-    )
-    # smooth the data
-    df = smooth_bgl_data(
-        df=df,
-        bgl_column="bg_mM",
-        normalization_technique="moving_average",
-    )
-
-    if n_patients == -1:
-        n_patients = len(df["p_num"].unique())
+    # if n_patients == -1:
+    #     n_patients = len(train_data["p_num"].unique())
 
     # Create dataset loaders for each patient
-    patient_ids = get_patient_ids(df, is_5min, n_patients)
+    # patient_ids = get_patient_ids(train_data, is_5min, n_patients)
     # patient_ids = df["p_num"].unique() // TODO: Probably need this for gluroot to work
 
     # Create dictionary of dataset loaders mapping patient_id to dataset loader function so we can get the correct patient_id in the benchmark
     dataset_loaders = {}
-    for patient_id in patient_ids[:n_patients]:
+    for patient_id, patient_train_df in imputed_dfs.items():
         dataset_loaders[patient_id] = lambda p=patient_id: load_diabetes_data(
-            patient_id=p, df=df, y_feature=y_feature, x_features=x_features
+            patient_id=patient_id,
+            df=patient_train_df,
+            y_feature=y_feature,
+            x_features=x_features,
         )
+    print(
+        "get_dataset_loaders() - Dataset loaders created for patients:",
+        list(dataset_loaders.keys()),
+    )
     return dataset_loaders
 
 
@@ -331,6 +353,13 @@ def get_cv_splitter(
             - Step size of steps_per_hour between splits
             - Forecast horizon of steps_per_hour * hours_to_forecast
     """
+
+    # Add validation
+    if steps_per_hour is None or hours_to_forecast is None:
+        raise ValueError("steps_per_hour and hours_to_forecast cannot be None")
+
+    if not isinstance(steps_per_hour, int) or not isinstance(hours_to_forecast, int):
+        raise TypeError("steps_per_hour and hours_to_forecast must be integers")
 
     to = steps_per_hour * hours_to_forecast + 1
 
@@ -355,7 +384,8 @@ def get_cv_splitter(
     run_config["step_length"] = step_length
     run_config["steps_per_hour"] = steps_per_hour
     run_config["hours_to_forecast"] = hours_to_forecast
-
+    print("get_cv_splitter() - CV Splitter:", cv_splitter)
+    print("get_cv_splitter() - Run Config:", run_config)
     return cv_splitter
 
 
@@ -414,7 +444,9 @@ def generate_estimators_from_param_grid(yaml_path) -> list[tuple[Callable, str]]
             estimators.append((forecaster, estimator_id))
             count += 1
 
-        print(f"Training {count} {forecaster_name} models with different parameters")
+        print(
+            f"generate_estimators_from_param_grid() - Training {count} {forecaster_name} models with different parameters"
+        )
         run_config["models_count"].append({forecaster_name: count})
 
     return estimators
@@ -439,7 +471,7 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
 
     # Generate all estimators
     estimators = generate_estimators_from_param_grid(yaml_path)
-
+    print(f"get_benchmark() - Estimators to evaluate: {estimators}")
     for estimator, estimator_id in estimators:
         benchmark.add_estimator(estimator=estimator, estimator_id=estimator_id)
 
@@ -451,6 +483,13 @@ def get_benchmark(dataset_loaders, cv_splitter, scorers, yaml_path, cores_num=-1
             task_id=patient_id,
             error_score="raise",
         )
+        print(f"get_benchmark() - Added task for patient: {patient_id}")
+        print(
+            f"get_benchmark() - Dataset loader for patient {patient_id}: {dataset_loader}"
+        )
+        print(f"get_benchmark() - cv_splitter: {cv_splitter}")
+        print(f"get_benchmark() - scorers: {scorers}")
+
     return benchmark
 
 
@@ -579,7 +618,7 @@ def run_benchmark(
         n_patients=n_patients,
         is_5min=is_5min,
     )
-
+    print(f"\nrun_benchmark() - Dataset loaders: {dataset_loaders.keys()}")
     # ADD THE SCORERS HERE
     scorers = [
         # PinballLoss(),
@@ -607,7 +646,7 @@ def run_benchmark(
 
     # Run the benchmark with timer!
     start_time = time.time()
-    print(json.dumps(run_config, indent=4))
+    print("run_benchmark() -JSONDUMP:", json.dumps(run_config, indent=4))
     try:
         benchmark.run(raw_output_dir)
     except Exception as e:
