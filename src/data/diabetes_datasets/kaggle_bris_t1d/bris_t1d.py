@@ -625,26 +625,6 @@ class BrisT1DDataLoader(DatasetBase):
                 all_train_dates.update(patient_dates)
             self.num_train_days = len(all_train_dates)
 
-    def _clean_and_format_raw_data(
-        self, raw_data: pd.DataFrame
-    ) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
-        """
-        DEPRECATED
-        """
-        if self.dataset_type == "train":
-            result = clean_brist1d_train_data(raw_data)
-            # Ensure type safety - this should always be a DataFrame for train data
-            assert isinstance(
-                result, pd.DataFrame
-            ), "Train data cleaning should return DataFrame"
-            return result
-        elif self.dataset_type == "test":
-            return clean_brist1d_test_data(raw_data)
-        else:
-            raise ValueError(
-                f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
-            )
-
     # TODO: MOVE THIS TO THE time_processing.py improve the name to be more clear what this function does
     # This function is used to split the validation data by day for each patient
     # It yields tuples of (patient_id, y_input_ts_period, y_test_period) for each day
