@@ -28,14 +28,7 @@ class TestIterDailyForecastPeriods:
 
     def test_default_periods(self, sample_patient_data):
         """Test with default context_period (6, 24) and forecast_horizon (0, 6)."""
-        print(f"Sample data shape: {sample_patient_data.shape}")
-        print(
-            f"Date range: {sample_patient_data.index.min()} to {sample_patient_data.index.max()}"
-        )
-        print(f"Sample hours: {sample_patient_data.index.hour.unique()}")
-
         splits = list(iter_daily_forecast_periods(sample_patient_data))
-        print(f"Number of splits: {len(splits)}")
 
         # Should get 2 splits (day1->day2, day2->day3)
         assert len(splits) == 2
@@ -58,20 +51,26 @@ class TestIterDailyForecastPeriods:
         # Custom: context 8am-2pm, forecast 2pm-8pm same day
         splits = list(
             iter_daily_forecast_periods(
-                sample_patient_data, context_period=(8, 14), forecast_horizon=(14, 20)
+                sample_patient_data, context_period=(6, 22), forecast_horizon=(22, 6)
             )
         )
 
-        assert len(splits) > 0
+        assert len(splits) == 3
+        assert splits[0][0].index.min().hour == 6  # First input period starts at 6am
+        assert splits[0][1].index.min().hour == 22  # First forecast starts at 10pm
+        assert splits[0][1].index.max().hour == 5  # Forecast ends before 6am next day
+        assert (
+            splits[0][1].index.max().minute == 55
+        )  # Forecast ends before 6am next day
 
-        for input_period, forecast_horizon in splits:
-            # Input period should be 8am-2pm
-            assert input_period.index.hour.min() >= 8
-            assert input_period.index.hour.max() < 14
+        for input_period, forecast_horizon in splits[0:1]:
+            # Input period should be 6am-10pm
+            assert input_period.index.hour.min() >= 6
+            assert input_period.index.hour[-1] == 21
 
-            # Forecast horizon should be 2pm-8pm
-            assert forecast_horizon.index.hour.min() >= 14
-            assert forecast_horizon.index.hour.max() < 20
+            # Forecast horizon should be 10pm-6am
+            assert forecast_horizon.index.hour[0] == 22
+            assert forecast_horizon.index.hour[-1] == 5
 
     def test_invalid_datetime_index(self):
         """Test error handling for invalid datetime index."""

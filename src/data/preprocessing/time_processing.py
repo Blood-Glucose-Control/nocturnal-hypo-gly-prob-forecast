@@ -444,17 +444,33 @@ def iter_daily_forecast_periods(
         current_date = pd.to_datetime(date_key)
         # Get current day's input period data
         day_datetime_index = pd.to_datetime(day_data.index)
-        # print(f"day_datetime_index: {day_datetime_index}")
-        if context_end <= 24:
-            # Context period is within the same day
+
+        # Handle context period logic
+        if context_start < context_end and context_end < 24:
+            # Context period is within the same day (e.g., 6-22)
             current_day_mask = (day_datetime_index.hour >= context_start) & (
                 day_datetime_index.hour < context_end
             )
             current_day_data = day_data[current_day_mask]
-        else:
-            # Context period spans to next day (handle case where context_end > 24)
+        elif context_end == 24:
+            # Context period goes to midnight (e.g., 6-24)
             current_day_mask = day_datetime_index.hour >= context_start
             current_day_data = day_data[current_day_mask]
+        else:
+            # Context period spans to next day (e.g., 22-6)
+            # Get current day part (from context_start to end of day)
+            current_day_mask = day_datetime_index.hour >= context_start
+            current_day_part = day_data[current_day_mask]
+
+            # Get next day part (from start of day to context_end)
+            next_date = current_date + pd.Timedelta(days=1)
+            next_day_mask = (datetime_index.date == next_date.date()) & (
+                datetime_index.hour < context_end
+            )
+            next_day_part = patient_data[next_day_mask]
+
+            # Combine both parts
+            current_day_data = pd.concat([current_day_part, next_day_part])
 
         # Get forecast period data
         if forecast_start == 0 and forecast_end <= 24:
@@ -490,7 +506,7 @@ def iter_daily_forecast_periods(
                 current_forecast_data = day_data[current_forecast_mask]
 
                 # Next day part (from start of day to forecast_end)
-                next_day_mask = (datetime_index.date == next_date.date) & (
+                next_day_mask = (datetime_index.date == next_date.date()) & (
                     datetime_index.hour < forecast_end
                 )
                 next_forecast_data = patient_data[next_day_mask]
