@@ -153,16 +153,24 @@ class BrisT1DDataLoader(DatasetBase):
         return list(self.processed_data.keys())
 
     @property
-    def data_shape_summary(self) -> dict[str, tuple[int, int]]:
-        """Get shape summary for each patient's data."""
+    def data_shape_summary(self) -> dict:
+        """Get shape summary for each patient's data.
+        For test data, patient_df may be a nested dictionary, e.g.:
+            {patient_id: {sub_id: DataFrame}}
+        For train/validation data, patient_df is a DataFrame.
+        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
+        """
         if not isinstance(self.processed_data, dict):
             return {}
-
-        return {
-            patient_id: patient_df.shape
-            for patient_id, patient_df in self.processed_data.items()
-            if isinstance(patient_df, pd.DataFrame)
-        }
+        shape_summary = {}
+        for patient_id, patient_df in self.processed_data.items():
+            if isinstance(patient_df, pd.DataFrame):
+                shape_summary[patient_id] = patient_df.shape
+            elif isinstance(patient_df, dict):
+                for sub_id, sub_df in patient_df.items():
+                    if isinstance(sub_df, pd.DataFrame):
+                        shape_summary[(patient_id, sub_id)] = sub_df.shape
+        return shape_summary
 
     def load_data(self):
         """
