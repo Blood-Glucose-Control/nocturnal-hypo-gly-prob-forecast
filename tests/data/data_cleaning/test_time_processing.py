@@ -34,6 +34,9 @@ class TestIterDailyForecastPeriods:
         assert len(splits) == 2
 
         for input_period, forecast_horizon in splits:
+            assert isinstance(input_period.index, pd.DatetimeIndex)
+            assert isinstance(forecast_horizon.index, pd.DatetimeIndex)
+
             # Input period should be 6am-12am (18 hours)
             assert input_period.index.hour.min() >= 6
             assert input_period.index.hour.max() <= 23
@@ -65,6 +68,8 @@ class TestIterDailyForecastPeriods:
         )  # Forecast ends before 6am next day
 
         for input_period, forecast_horizon in splits[0:1]:
+            assert isinstance(input_period.index, pd.DatetimeIndex)
+            assert isinstance(forecast_horizon.index, pd.DatetimeIndex)
             # Input period should be 6am-10pm
             assert input_period.index.hour.min() >= 6
             assert input_period.index.hour[-1] == 21
@@ -160,19 +165,22 @@ class TestIterPatientContextForecastSplits:
         splits = list(
             iter_patient_context_forecast_splits(sample_validation_data, patient_id)
         )
-
+        expected_patient_id = patient_id[0]
         # Should get at least one split
         assert len(splits) >= 1
 
         for patient, input_period, forecast_horizon in splits:
             # Should return correct patient ID
-            assert patient == patient_id[0]
+            assert patient == expected_patient_id
 
             # Both periods should be DataFrames with data
             assert isinstance(input_period, pd.DataFrame)
             assert isinstance(forecast_horizon, pd.DataFrame)
             assert len(input_period) > 0
             assert len(forecast_horizon) > 0
+
+            assert isinstance(input_period.index, pd.DatetimeIndex)
+            assert isinstance(forecast_horizon.index, pd.DatetimeIndex)
 
             # Input period should be 6am-12am
             assert input_period.index.hour.min() >= 6
@@ -185,12 +193,12 @@ class TestIterPatientContextForecastSplits:
     def test_none_validation_data(self):
         """Test error handling when patients_dict is None."""
         with pytest.raises(ValueError, match="patients_dict data is not available"):
-            list(iter_patient_context_forecast_splits(None, ["p001"]))
+            list(iter_patient_context_forecast_splits(None, ["p001"]))  # type: ignore
 
     def test_invalid_patients_dict_type(self):
         """Test error handling when patients_dict is not a dict."""
         with pytest.raises(TypeError, match="Expected dict for patients_dict"):
-            list(iter_patient_context_forecast_splits("invalid_data", ["p001"]))
+            list(iter_patient_context_forecast_splits("invalid_data", ["p001"]))  # type: ignore
 
     def test_patient_not_found(self, sample_validation_data):
         """Test error handling when patient ID is not in patients_dict."""
