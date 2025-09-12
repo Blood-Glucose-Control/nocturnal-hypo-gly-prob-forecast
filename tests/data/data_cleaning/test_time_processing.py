@@ -127,6 +127,7 @@ class TestIterDailyForecastPeriods:
         # Should return empty list when insufficient data
         assert len(splits) == 0
 
+
 class TestIterPatientValidationSplits:
     """Tests for iter_patient_validation_splits function."""
 
