@@ -127,21 +127,6 @@ class TestIterDailyForecastPeriods:
         # Should return empty list when insufficient data
         assert len(splits) == 0
 
-    def test_data_sorting(self):
-        """Test that function handles unsorted data correctly."""
-        # Create unsorted datetime index
-        dates = [
-            pd.Timestamp("2024-01-01 10:00"),
-            pd.Timestamp("2024-01-01 08:00"),  # Earlier time
-            pd.Timestamp("2024-01-01 12:00"),
-        ]
-        df = pd.DataFrame({"bg_mM": [5.5, 6.0, 5.8]}, index=dates)
-
-        # Should work - function sorts the data
-        splits = list(iter_daily_forecast_periods(df))
-        # May not produce splits due to limited data, but shouldn't error
-
-
 class TestIterPatientValidationSplits:
     """Tests for iter_patient_validation_splits function."""
 

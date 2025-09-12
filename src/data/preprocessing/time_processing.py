@@ -444,7 +444,7 @@ def iter_daily_forecast_periods(
         current_date = pd.to_datetime(date_key)
         # Get current day's input period data
         day_datetime_index = pd.to_datetime(day_data.index)
-        #print(f"day_datetime_index: {day_datetime_index}")
+        # print(f"day_datetime_index: {day_datetime_index}")
         if context_end <= 24:
             # Context period is within the same day
             current_day_mask = (day_datetime_index.hour >= context_start) & (
@@ -462,13 +462,15 @@ def iter_daily_forecast_periods(
             next_date = current_date + pd.Timedelta(days=1)
 
             # Create time range for forecast period on next day
-            forecast_start_time = next_date.replace(hour=forecast_start, minute=0, second=0)
+            forecast_start_time = next_date.replace(
+                hour=forecast_start, minute=0, second=0
+            )
             forecast_end_time = next_date.replace(hour=forecast_end, minute=0, second=0)
-            
+
             # Filter data within the time range
             forecast_data = patient_data[
-                (patient_data.index >= forecast_start_time) & 
-                (patient_data.index < forecast_end_time)
+                (patient_data.index >= forecast_start_time)
+                & (patient_data.index < forecast_end_time)
             ]
 
         else:
