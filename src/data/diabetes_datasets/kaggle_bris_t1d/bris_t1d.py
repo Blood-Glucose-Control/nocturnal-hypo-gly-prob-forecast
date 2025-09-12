@@ -124,6 +124,32 @@ class BrisT1DDataLoader(DatasetBase):
     def dataset_name(self):
         return "kaggle_brisT1D"
 
+    @property
+    def num_patients(self) -> int:
+        """Get the number of patients in the dataset."""
+        if self.processed_data is None:
+            return 0
+        return len(self.processed_data)
+
+    @property
+    def patient_ids(self) -> list[str]:
+        """Get list of patient IDs in the dataset."""
+        if self.processed_data is None:
+            return []
+        return list(self.processed_data.keys())
+
+    @property
+    def data_shape_summary(self) -> dict[str, tuple[int, int]]:
+        """Get shape summary for each patient's data."""
+        if not isinstance(self.processed_data, dict):
+            return {}
+
+        return {
+            patient_id: patient_df.shape
+            for patient_id, patient_df in self.processed_data.items()
+            if isinstance(patient_df, pd.DataFrame)
+        }
+
     def load_data(self):
         """
         Load processed data from cache or process raw data and save to cache.
@@ -624,53 +650,3 @@ class BrisT1DDataLoader(DatasetBase):
                 patient_dates = patient_train_df.index.date
                 all_train_dates.update(patient_dates)
             self.num_train_days = len(all_train_dates)
-
-    def _create_datetime_column(
-        self, time_series: pd.Series, patient_start_date: pd.Timestamp
-    ) -> pd.Series:
-        """
-        Create datetime column by inferring day rollovers from time intervals.
-
-        DEPRECATED: This method uses interval-based day rollover detection which can be
-        inaccurate. Use create_datetime_column_standalone() instead for better rollover detection.
-
-        Given a Series of times (format "%H:%M:%S") and a start date,
-        create a datetime column where the date increments based on inferred
-        data collection intervals (assumes regular intervals throughout).
-
-        Args:
-            time_series (pd.Series): Series of times as strings ("%H:%M:%S")
-            patient_start_date (pd.Timestamp): The date to start from (e.g., pd.Timestamp("2024-01-01"))
-
-        Returns:
-            pd.Series: Series of full datetime objects with inferred dates
-
-        Note:
-            This method assumes regular time intervals and may not handle irregular
-            data collection periods correctly.
-        """
-        # Remove whitespace
-        time_series = time_series.str.strip()
-        # Convert to time objects
-        times = pd.to_datetime(time_series, format="%H:%M:%S", errors="coerce").dt.time
-
-        # Infer interval in minutes
-        if len(times) > 1:
-            dummy_dates = [pd.Timestamp.combine(patient_start_date, t) for t in times]
-            diffs = pd.Series(dummy_dates).diff().dropna()
-            interval_minutes = int(diffs.mode()[0].total_seconds() / 60)
-        else:
-            interval_minutes = 15  # Default if only one row
-
-        # Calculate rows per day
-        rows_per_day = int(24 * 60 / interval_minutes)
-        day_offsets = pd.Series(range(len(times))) // rows_per_day
-
-        # Build full datetime for each row
-        datetime_series = [
-            pd.Timestamp.combine(
-                patient_start_date + pd.Timedelta(days=int(day_offset)), t
-            )
-            for day_offset, t in zip(day_offsets, times)
-        ]
-        return pd.Series(datetime_series)
