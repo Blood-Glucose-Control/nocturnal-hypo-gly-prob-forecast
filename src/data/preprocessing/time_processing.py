@@ -348,48 +348,55 @@ def get_train_validation_split(
     return train_data, validation_data, split_info
 
 
-def iter_patient_validation_splits(
-    validation_data: dict, patient_id: str
+def iter_patient_context_forecast_splits(
+    patients_dict: dict,
+    patient_ids: list,
+    context_period: tuple[int, int] = (6, 24),
+    forecast_horizon: tuple[int, int] = (0, 6),
 ) -> Generator[tuple[str, pd.DataFrame, pd.DataFrame], None, None]:
     """
-    Get daily forecast periods for validation data for a single patient.
+    Get context and forecast periods for multi-patient dictionary.
+    This function iterates over a dictionary of patient dataframes and yields context
+    and forecast periods for each patient.
+    Main purpose is to facilitate time-series forecasting tasks where we wish to
+    forecast the same time period every day (e.g. nocturnal hypoglycemia prediction).
 
     Args:
-        validation_data (dict): Dictionary containing validation data for all patients
-        patient_id (str): ID of the patient to get forecast periods for
+        patients_dict (dict): Dictionary containing validation data for all patients
+        patient_ids (list): List of patient IDs to get forecast periods for.
+        context_period (tuple[int, int]): Start and end hours for input period (default: (6, 24))
+        forecast_horizon (tuple[int, int]): Start and end hours for forecast period (default: (0, 6))
 
     Yields:
-        tuple: (patient_id, input_period, forecast_horizon) where:
+        tuple: (patient_id, context_period, forecast_horizon) where:
             - patient_id is the ID of the patient
-            - input_period is the data from 6am to 12am fed into the model
-            - forecast_horizon is the data from 12am to 6am of next day to predict
+            - context_period is the data from context_period[0] to context_period[1] fed into the model
+            - forecast_horizon is the data from forecast_horizon[0] to forecast_horizon[1] of next day to predict
 
     Raises:
-        ValueError: If validation_data is None or patient not found.
+        ValueError: If patients_dict is None or patient not found.
     """
-    if validation_data is None:
-        raise ValueError(
-            "Validation data is not available. This method only works with 'train' dataset_type "
-            "after train/validation splitting has been performed."
-        )
+    if patients_dict is None:
+        raise ValueError("patients_dict data is not available.")
 
-    # validation_data is now a dictionary, get the specific patient's data
-    if not isinstance(validation_data, dict):
-        raise TypeError(
-            f"Expected dict for validation_data, got {type(validation_data)}"
-        )
+    if not isinstance(patients_dict, dict):
+        raise TypeError(f"Expected dict for patients_dict, got {type(patients_dict)}")
+    for patient_id in patient_ids:
+        if patient_id not in patients_dict:
+            raise ValueError(
+                f"Patient {patient_id} not found in patients_dict. Available patients: {list(patients_dict.keys())}"
+            )
 
-    if patient_id not in validation_data:
-        raise ValueError(
-            f"Patient {patient_id} not found in validation data. Available patients: {list(validation_data.keys())}"
-        )
-
-    patient_data = validation_data[patient_id]
-    for y_input_ts_period, y_test_period in iter_daily_forecast_periods(patient_data):
-        yield patient_id, y_input_ts_period, y_test_period
+        patient_data = patients_dict[patient_id]
+        for y_input_ts_period, y_test_period in iter_daily_context_forecast_splits(
+            patient_data,
+            context_period=context_period,
+            forecast_horizon=forecast_horizon,
+        ):
+            yield patient_id, y_input_ts_period, y_test_period
 
 
-def iter_daily_forecast_periods(
+def iter_daily_context_forecast_splits(
     patient_data: pd.DataFrame,
     context_period: tuple[int, int] = (6, 24),
     forecast_horizon: tuple[int, int] = (0, 6),

@@ -2,8 +2,8 @@ import pandas as pd
 import pytest
 
 from src.data.preprocessing.time_processing import (
-    iter_daily_forecast_periods,
-    iter_patient_validation_splits,
+    iter_daily_context_forecast_splits,
+    iter_patient_context_forecast_splits,
 )
 
 
@@ -28,7 +28,7 @@ class TestIterDailyForecastPeriods:
 
     def test_default_periods(self, sample_patient_data):
         """Test with default context_period (6, 24) and forecast_horizon (0, 6)."""
-        splits = list(iter_daily_forecast_periods(sample_patient_data))
+        splits = list(iter_daily_context_forecast_splits(sample_patient_data))
 
         # Should get 2 splits (day1->day2, day2->day3)
         assert len(splits) == 2
@@ -50,11 +50,12 @@ class TestIterDailyForecastPeriods:
         """Test with custom time periods."""
         # Custom: context 8am-2pm, forecast 2pm-8pm same day
         splits = list(
-            iter_daily_forecast_periods(
+            iter_daily_context_forecast_splits(
                 sample_patient_data, context_period=(6, 22), forecast_horizon=(22, 6)
             )
         )
-
+        # Should get 3 splits (day1->day2, day2->day3, day3->day4)
+        # Third split may be incomplete if data ends at day3 23:55
         assert len(splits) == 3
         assert splits[0][0].index.min().hour == 6  # First input period starts at 6am
         assert splits[0][1].index.min().hour == 22  # First forecast starts at 10pm
@@ -78,7 +79,7 @@ class TestIterDailyForecastPeriods:
         df = pd.DataFrame({"bg_mM": [5.5, 6.0, 5.8], "food_g": [0, 30, 0]})
 
         with pytest.raises(ValueError, match="Patient data must have datetime index"):
-            list(iter_daily_forecast_periods(df))
+            list(iter_daily_context_forecast_splits(df))
 
     def test_datetime_column_fallback(self):
         """Test fallback to datetime column when no datetime index."""
@@ -91,7 +92,7 @@ class TestIterDailyForecastPeriods:
         )
 
         # Should work by converting datetime column to index
-        splits = list(iter_daily_forecast_periods(df))
+        splits = list(iter_daily_context_forecast_splits(df))
         assert len(splits) >= 0  # May be 0 if not enough data spans multiple days
 
     def test_invalid_hour_parameters(self, sample_patient_data):
@@ -101,7 +102,7 @@ class TestIterDailyForecastPeriods:
             ValueError, match="context_period hours must be between 0 and 24"
         ):
             list(
-                iter_daily_forecast_periods(
+                iter_daily_context_forecast_splits(
                     sample_patient_data, context_period=(-1, 12)
                 )
             )
@@ -111,7 +112,7 @@ class TestIterDailyForecastPeriods:
             ValueError, match="forecast_horizon hours must be between 0 and 24"
         ):
             list(
-                iter_daily_forecast_periods(
+                iter_daily_context_forecast_splits(
                     sample_patient_data, forecast_horizon=(12, 25)
                 )
             )
@@ -122,13 +123,13 @@ class TestIterDailyForecastPeriods:
         datetime_index = pd.date_range("2024-01-01 08:00", periods=10, freq="30min")
         df = pd.DataFrame({"bg_mM": [5.5] * 10}, index=datetime_index)
 
-        splits = list(iter_daily_forecast_periods(df))
+        splits = list(iter_daily_context_forecast_splits(df))
         # Should return empty list when insufficient data
         assert len(splits) == 0
 
 
-class TestIterPatientValidationSplits:
-    """Tests for iter_patient_validation_splits function."""
+class TestIterPatientContextForecastSplits:
+    """Tests for iter_patient_context_forecast_splits function."""
 
     @pytest.fixture
     def sample_validation_data(self):
@@ -155,9 +156,9 @@ class TestIterPatientValidationSplits:
 
     def test_valid_patient_splits(self, sample_validation_data):
         """Test getting splits for a valid patient."""
-        patient_id = "p001"
+        patient_id = ["p001"]
         splits = list(
-            iter_patient_validation_splits(sample_validation_data, patient_id)
+            iter_patient_context_forecast_splits(sample_validation_data, patient_id)
         )
 
         # Should get at least one split
@@ -165,7 +166,7 @@ class TestIterPatientValidationSplits:
 
         for patient, input_period, forecast_horizon in splits:
             # Should return correct patient ID
-            assert patient == patient_id
+            assert patient == patient_id[0]
 
             # Both periods should be DataFrames with data
             assert isinstance(input_period, pd.DataFrame)
@@ -182,34 +183,30 @@ class TestIterPatientValidationSplits:
             assert forecast_horizon.index.hour.max() < 6
 
     def test_none_validation_data(self):
-        """Test error handling when validation_data is None."""
-        with pytest.raises(ValueError, match="Validation data is not available"):
-            list(iter_patient_validation_splits(None, "p001"))
+        """Test error handling when patients_dict is None."""
+        with pytest.raises(ValueError, match="patients_dict data is not available"):
+            list(iter_patient_context_forecast_splits(None, ["p001"]))
 
-    def test_invalid_validation_data_type(self):
-        """Test error handling when validation_data is not a dict."""
-        with pytest.raises(TypeError, match="Expected dict for validation_data"):
-            list(iter_patient_validation_splits("invalid_data", "p001"))
+    def test_invalid_patients_dict_type(self):
+        """Test error handling when patients_dict is not a dict."""
+        with pytest.raises(TypeError, match="Expected dict for patients_dict"):
+            list(iter_patient_context_forecast_splits("invalid_data", ["p001"]))
 
     def test_patient_not_found(self, sample_validation_data):
-        """Test error handling when patient ID is not in validation data."""
-        with pytest.raises(
-            ValueError, match="Patient p999 not found in validation data"
-        ):
-            list(iter_patient_validation_splits(sample_validation_data, "p999"))
+        """Test error handling when patient ID is not in patients_dict."""
+        with pytest.raises(ValueError, match="Patient p999 not found in patients_dict"):
+            list(iter_patient_context_forecast_splits(sample_validation_data, ["p999"]))
 
     def test_empty_validation_data(self):
         """Test with empty validation data dictionary."""
         empty_data = {}
-        with pytest.raises(
-            ValueError, match="Patient p001 not found in validation data"
-        ):
-            list(iter_patient_validation_splits(empty_data, "p001"))
+        with pytest.raises(ValueError, match="Patient p001 not found in patients_dict"):
+            list(iter_patient_context_forecast_splits(empty_data, ["p001"]))
 
     def test_multiple_patients_available(self, sample_validation_data):
         """Test that error message shows available patients."""
         try:
-            list(iter_patient_validation_splits(sample_validation_data, "p999"))
+            list(iter_patient_context_forecast_splits(sample_validation_data, ["p999"]))
         except ValueError as e:
             # Error message should include available patients
             assert "p001" in str(e)
@@ -224,7 +221,7 @@ class TestIterPatientValidationSplits:
         validation_data = {"p001": patient_data}
 
         # Should not error, but may return empty list
-        splits = list(iter_patient_validation_splits(validation_data, "p001"))
+        splits = list(iter_patient_context_forecast_splits(validation_data, ["p001"]))
         # Length could be 0 if insufficient data for splits
         assert len(splits) >= 0
 
@@ -256,7 +253,9 @@ class TestIntegration:
         validation_data = {"p001": patient_data}
 
         # Get all splits for the patient
-        all_splits = list(iter_patient_validation_splits(validation_data, "p001"))
+        all_splits = list(
+            iter_patient_context_forecast_splits(validation_data, ["p001"])
+        )
 
         # Should get multiple splits (3-4 days worth)
         assert len(all_splits) >= 2
