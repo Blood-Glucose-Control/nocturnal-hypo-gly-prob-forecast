@@ -42,21 +42,35 @@ class BrisT1DDataLoader(DatasetBase):
 
     This class handles loading, processing, and caching of the Bristol T1D dataset.
     It supports both train and test datasets with different processing pipelines
-    for each. The train data is stored as a DataFrame, while test data is organized
-    as a nested dictionary by patient ID and row ID.
+    for each. The train data is stored as a dictionary mapping patient IDs to
+    DataFrames, while test data is organized as a nested dictionary by patient ID
+    and row ID.
+
+    The loader supports intelligent caching at multiple levels:
+    - Raw data caching to avoid re-downloading
+    - Processed data caching to avoid re-processing
+    - Train/validation split caching for consistent splits
 
     Attributes:
         keep_columns (list[str] | None): Specific columns to load from the dataset
         num_validation_days (int): Number of days to use for validation
-        use_cached (bool): Whether to use cached "processed" data if available
+        use_cached (bool): Whether to use cached processed data if available
         dataset_type (str): Type of dataset ('train' or 'test')
-        processed_data (pd.DataFrame | dict): The processed dataset
-        train_data (pd.DataFrame): Training subset (when dataset_type is 'train')
-        validation_data (pd.DataFrame): Validation subset (when dataset_type is 'train')
-        train_dt_col_type (type): Data type of the datetime column in training data
-        val_dt_col_type (type): Data type of the datetime column in validation data
-        num_train_days (int): Number of unique days in the training dataset
+        processed_data (dict[str, pd.DataFrame] | dict[str, dict[str, pd.DataFrame]]):
+            The processed dataset - dict for train, nested dict for test
+        train_data (dict[str, pd.DataFrame] | None): Training subset (when dataset_type is 'train')
+        validation_data (dict[str, pd.DataFrame] | None): Validation subset (when dataset_type is 'train')
+        test_data (dict[str, dict[str, pd.DataFrame]] | None): Test data (when dataset_type is 'test')
+        train_dt_col_type (type): Data type of the datetime index in training data
+        val_dt_col_type (type): Data type of the datetime index in validation data
+        num_train_days (int): Number of unique days across all training data
         raw_data (pd.DataFrame): The original unprocessed dataset loaded from file
+
+    Properties:
+        dataset_name (str): Returns "kaggle_brisT1D"
+        num_patients (int): Number of patients in the dataset
+        patient_ids (list[str]): List of patient IDs
+        data_shape_summary (dict[str, tuple[int, int]]): Shape summary for each patient
     """
 
     def __init__(
@@ -630,7 +644,20 @@ class BrisT1DDataLoader(DatasetBase):
         self.train_data = train_data_dict
         self.validation_data = validation_data_dict
 
-        # TODO: Fixed storage of train_data and validation data using cache manager
+        # Cache the split data for future use
+        for patient_id, patient_train_df in train_data_dict.items():
+            self.cache_manager.save_processed_data(
+                self.dataset_name, "train", patient_id, patient_train_df
+            )
+
+        for patient_id, patient_val_df in validation_data_dict.items():
+            self.cache_manager.save_processed_data(
+                self.dataset_name, "validation", patient_id, patient_val_df
+            )
+
+        logger.info(
+            f"Cached train/validation split data for {len(train_data_dict)} patients"
+        )
 
         # Calculate metadata from the first available patient for compatibility
         if validation_data_dict:
