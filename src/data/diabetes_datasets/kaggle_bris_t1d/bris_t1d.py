@@ -42,21 +42,35 @@ class BrisT1DDataLoader(DatasetBase):
 
     This class handles loading, processing, and caching of the Bristol T1D dataset.
     It supports both train and test datasets with different processing pipelines
-    for each. The train data is stored as a DataFrame, while test data is organized
-    as a nested dictionary by patient ID and row ID.
+    for each. The train data is stored as a dictionary mapping patient IDs to
+    DataFrames, while test data is organized as a nested dictionary by patient ID
+    and row ID.
+
+    The loader supports intelligent caching at multiple levels:
+    - Raw data caching to avoid re-downloading
+    - Processed data caching to avoid re-processing
+    - Train/validation split caching for consistent splits
 
     Attributes:
         keep_columns (list[str] | None): Specific columns to load from the dataset
         num_validation_days (int): Number of days to use for validation
-        use_cached (bool): Whether to use cached "processed" data if available
+        use_cached (bool): Whether to use cached processed data if available
         dataset_type (str): Type of dataset ('train' or 'test')
-        processed_data (pd.DataFrame | dict): The processed dataset
-        train_data (pd.DataFrame): Training subset (when dataset_type is 'train')
-        validation_data (pd.DataFrame): Validation subset (when dataset_type is 'train')
-        train_dt_col_type (type): Data type of the datetime column in training data
-        val_dt_col_type (type): Data type of the datetime column in validation data
-        num_train_days (int): Number of unique days in the training dataset
+        processed_data (dict[str, pd.DataFrame] | dict[str, dict[str, pd.DataFrame]]):
+            The processed dataset - dict for train, nested dict for test
+        train_data (dict[str, pd.DataFrame] | None): Training subset (when dataset_type is 'train')
+        validation_data (dict[str, pd.DataFrame] | None): Validation subset (when dataset_type is 'train')
+        test_data (dict[str, dict[str, pd.DataFrame]] | None): Test data (when dataset_type is 'test')
+        train_dt_col_type (type): Data type of the datetime index in training data
+        val_dt_col_type (type): Data type of the datetime index in validation data
+        num_train_days (int): Number of unique days across all training data
         raw_data (pd.DataFrame): The original unprocessed dataset loaded from file
+
+    Properties:
+        dataset_name (str): Returns "kaggle_brisT1D"
+        num_patients (int): Number of patients in the dataset
+        patient_ids (list[str]): List of patient IDs
+        data_shape_summary (dict[str, tuple[int, int]]): Shape summary for each patient
     """
 
     def __init__(
@@ -123,6 +137,40 @@ class BrisT1DDataLoader(DatasetBase):
     @property
     def dataset_name(self):
         return "kaggle_brisT1D"
+
+    @property
+    def num_patients(self) -> int:
+        """Get the number of patients in the dataset."""
+        if self.processed_data is None:
+            return 0
+        return len(self.processed_data)
+
+    @property
+    def patient_ids(self) -> list[str]:
+        """Get list of patient IDs in the dataset."""
+        if self.processed_data is None:
+            return []
+        return list(self.processed_data.keys())
+
+    @property
+    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
+        """Get shape summary for each patient's data.
+        For test data, patient_df may be a nested dictionary, e.g.:
+            {patient_id: {sub_id: DataFrame}}
+        For train/validation data, patient_df is a DataFrame.
+        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
+        """
+        if not isinstance(self.processed_data, dict):
+            return {}
+        shape_summary = {}
+        for patient_id, patient_df in self.processed_data.items():
+            if isinstance(patient_df, pd.DataFrame):
+                shape_summary[patient_id] = patient_df.shape
+            elif isinstance(patient_df, dict):
+                for sub_id, sub_df in patient_df.items():
+                    if isinstance(sub_df, pd.DataFrame):
+                        shape_summary[(patient_id, sub_id)] = sub_df.shape
+        return shape_summary
 
     def load_data(self):
         """
@@ -604,7 +652,31 @@ class BrisT1DDataLoader(DatasetBase):
         self.train_data = train_data_dict
         self.validation_data = validation_data_dict
 
-        # TODO: Fixed storage of train_data and validation data using cache manager
+        # Cache the split data for future use
+        for patient_id, patient_train_df in train_data_dict.items():
+            try:
+                self.cache_manager.save_processed_data(
+                    self.dataset_name, "train", patient_id, patient_train_df
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to cache train data for patient {patient_id}: {e}",
+                    exc_info=True,
+                )
+        for patient_id, patient_val_df in validation_data_dict.items():
+            try:
+                self.cache_manager.save_processed_data(
+                    self.dataset_name, "validation", patient_id, patient_val_df
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to cache validation data for patient {patient_id}: {e}",
+                    exc_info=True,
+                )
+
+        logger.info(
+            f"Cached train/validation split data for {len(train_data_dict)} patients"
+        )
 
         # Calculate metadata from the first available patient for compatibility
         if validation_data_dict:
@@ -624,53 +696,3 @@ class BrisT1DDataLoader(DatasetBase):
                 patient_dates = patient_train_df.index.date
                 all_train_dates.update(patient_dates)
             self.num_train_days = len(all_train_dates)
-
-    def _create_datetime_column(
-        self, time_series: pd.Series, patient_start_date: pd.Timestamp
-    ) -> pd.Series:
-        """
-        Create datetime column by inferring day rollovers from time intervals.
-
-        DEPRECATED: This method uses interval-based day rollover detection which can be
-        inaccurate. Use create_datetime_column_standalone() instead for better rollover detection.
-
-        Given a Series of times (format "%H:%M:%S") and a start date,
-        create a datetime column where the date increments based on inferred
-        data collection intervals (assumes regular intervals throughout).
-
-        Args:
-            time_series (pd.Series): Series of times as strings ("%H:%M:%S")
-            patient_start_date (pd.Timestamp): The date to start from (e.g., pd.Timestamp("2024-01-01"))
-
-        Returns:
-            pd.Series: Series of full datetime objects with inferred dates
-
-        Note:
-            This method assumes regular time intervals and may not handle irregular
-            data collection periods correctly.
-        """
-        # Remove whitespace
-        time_series = time_series.str.strip()
-        # Convert to time objects
-        times = pd.to_datetime(time_series, format="%H:%M:%S", errors="coerce").dt.time
-
-        # Infer interval in minutes
-        if len(times) > 1:
-            dummy_dates = [pd.Timestamp.combine(patient_start_date, t) for t in times]
-            diffs = pd.Series(dummy_dates).diff().dropna()
-            interval_minutes = int(diffs.mode()[0].total_seconds() / 60)
-        else:
-            interval_minutes = 15  # Default if only one row
-
-        # Calculate rows per day
-        rows_per_day = int(24 * 60 / interval_minutes)
-        day_offsets = pd.Series(range(len(times))) // rows_per_day
-
-        # Build full datetime for each row
-        datetime_series = [
-            pd.Timestamp.combine(
-                patient_start_date + pd.Timedelta(days=int(day_offset)), t
-            )
-            for day_offset, t in zip(day_offsets, times)
-        ]
-        return pd.Series(datetime_series)
