@@ -153,7 +153,7 @@ class BrisT1DDataLoader(DatasetBase):
         return list(self.processed_data.keys())
 
     @property
-    def data_shape_summary(self) -> dict:
+    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
         """Get shape summary for each patient's data.
         For test data, patient_df may be a nested dictionary, e.g.:
             {patient_id: {sub_id: DataFrame}}
