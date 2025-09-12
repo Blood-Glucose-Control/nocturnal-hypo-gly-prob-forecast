@@ -646,14 +646,25 @@ class BrisT1DDataLoader(DatasetBase):
 
         # Cache the split data for future use
         for patient_id, patient_train_df in train_data_dict.items():
-            self.cache_manager.save_processed_data(
-                self.dataset_name, "train", patient_id, patient_train_df
-            )
-
+            try:
+                self.cache_manager.save_processed_data(
+                    self.dataset_name, "train", patient_id, patient_train_df
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to cache train data for patient {patient_id}: {e}",
+                    exc_info=True,
+                )
         for patient_id, patient_val_df in validation_data_dict.items():
-            self.cache_manager.save_processed_data(
-                self.dataset_name, "validation", patient_id, patient_val_df
-            )
+            try:
+                self.cache_manager.save_processed_data(
+                    self.dataset_name, "validation", patient_id, patient_val_df
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to cache validation data for patient {patient_id}: {e}",
+                    exc_info=True,
+                )
 
         logger.info(
             f"Cached train/validation split data for {len(train_data_dict)} patients"
