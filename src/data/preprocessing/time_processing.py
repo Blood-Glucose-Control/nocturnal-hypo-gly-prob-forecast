@@ -350,7 +350,7 @@ def get_train_validation_split(
 
 def iter_patient_context_forecast_splits(
     patients_dict: dict,
-    patient_ids: list,
+    patient_ids: list | None,
     context_period: tuple[int, int] = (6, 24),
     forecast_horizon: tuple[int, int] = (0, 6),
 ) -> Generator[tuple[str, pd.DataFrame, pd.DataFrame], None, None]:
@@ -363,7 +363,7 @@ def iter_patient_context_forecast_splits(
 
     Args:
         patients_dict (dict): Dictionary containing validation data for all patients
-        patient_ids (list): List of patient IDs to get forecast periods for.
+        patient_ids (list | None): List of patient IDs to get forecast periods for.
         context_period (tuple[int, int]): Start and end hours for input period (default: (6, 24))
         forecast_horizon (tuple[int, int]): Start and end hours for forecast period (default: (0, 6))
 
@@ -381,6 +381,10 @@ def iter_patient_context_forecast_splits(
 
     if not isinstance(patients_dict, dict):
         raise TypeError(f"Expected dict for patients_dict, got {type(patients_dict)}")
+
+    if patient_ids is None:
+        patient_ids = list(patients_dict.keys())
+
     for patient_id in patient_ids:
         if patient_id not in patients_dict:
             raise ValueError(
