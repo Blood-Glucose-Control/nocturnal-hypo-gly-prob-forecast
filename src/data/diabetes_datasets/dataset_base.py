@@ -123,15 +123,6 @@ class DatasetBase(ABC):
         """
         raise NotImplementedError("_process_raw_data must be implemented by subclass")
 
-    def _clean_and_format_raw_data(
-        self, raw_data: pd.DataFrame
-    ) -> pd.DataFrame | dict[str, dict[str, pd.DataFrame]]:
-        """
-        Translate the raw data to the correct format for the preprocessing pipeline.
-        Convert column names and units to standardized format.
-        """
-        raise NotImplementedError("_translate_raw_data must be implemented by subclass")
-
     def _validate_data(self, data):
         """Validate the loaded data.
 

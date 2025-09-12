@@ -28,7 +28,7 @@ Functions:
     get_train_validation_split: Create robust train and validation sets for a single patient with DatetimeIndex requirement for optimal performance
 """
 
-from typing import cast
+from typing import Generator, cast
 
 import pandas as pd
 
@@ -346,3 +346,185 @@ def get_train_validation_split(
     )
 
     return train_data, validation_data, split_info
+
+
+def iter_patient_context_forecast_splits(
+    patients_dict: dict,
+    patient_ids: list | None,
+    context_period: tuple[int, int] = (6, 24),
+    forecast_horizon: tuple[int, int] = (0, 6),
+) -> Generator[tuple[str, pd.DataFrame, pd.DataFrame], None, None]:
+    """
+    Get context and forecast periods for multi-patient dictionary.
+    This function iterates over a dictionary of patient dataframes and yields context
+    and forecast periods for each patient.
+    Main purpose is to facilitate time-series forecasting tasks where we wish to
+    forecast the same time period every day (e.g. nocturnal hypoglycemia prediction).
+
+    Args:
+        patients_dict (dict): Dictionary containing validation data for all patients
+        patient_ids (list | None): List of patient IDs to get forecast periods for.
+        context_period (tuple[int, int]): Start and end hours for input period (default: (6, 24))
+        forecast_horizon (tuple[int, int]): Start and end hours for forecast period (default: (0, 6))
+
+    Yields:
+        tuple: (patient_id, context_period, forecast_horizon) where:
+            - patient_id is the ID of the patient
+            - context_period is the data from context_period[0] to context_period[1] fed into the model
+            - forecast_horizon is the data from forecast_horizon[0] to forecast_horizon[1] of next day to predict
+
+    Raises:
+        ValueError: If patients_dict is None or patient not found.
+    """
+    if patients_dict is None:
+        raise ValueError("patients_dict data is not available.")
+
+    if not isinstance(patients_dict, dict):
+        raise TypeError(f"Expected dict for patients_dict, got {type(patients_dict)}")
+
+    if patient_ids is None:
+        patient_ids = list(patients_dict.keys())
+
+    for patient_id in patient_ids:
+        if patient_id not in patients_dict:
+            raise ValueError(
+                f"Patient {patient_id} not found in patients_dict. Available patients: {list(patients_dict.keys())}"
+            )
+
+        patient_data = patients_dict[patient_id]
+        for y_input_ts_period, y_test_period in iter_daily_context_forecast_splits(
+            patient_data,
+            context_period=context_period,
+            forecast_horizon=forecast_horizon,
+        ):
+            yield patient_id, y_input_ts_period, y_test_period
+
+
+def iter_daily_context_forecast_splits(
+    patient_data: pd.DataFrame,
+    context_period: tuple[int, int] = (6, 24),
+    forecast_horizon: tuple[int, int] = (0, 6),
+) -> Generator[tuple[pd.DataFrame, pd.DataFrame], None, None]:
+    """
+    Split each day's data into input period and forecast horizon based on configurable time periods.
+
+    This function splits the data for a single patient by day into:
+    - Input period: Historical context data fed into the model (default: 6am-12am)
+    - Forecast horizon: Target period to predict (default: 12am-6am next day)
+
+    Args:
+        patient_data (pd.DataFrame): Data for a single patient with datetime index
+        context_period (tuple[int, int]): Start and end hours for input period (default: (6, 24))
+        forecast_horizon (tuple[int, int]): Start and end hours for forecast period (default: (0, 6))
+
+    Yields:
+        tuple[pd.DataFrame, pd.DataFrame]: (input_period, forecast_horizon) where:
+            - input_period is the historical data from context_period fed into the model
+            - forecast_horizon is the target data from forecast_horizon to predict
+
+    Note:
+        Only yields splits where both periods have data available.
+        Hours are in 24-hour format (0-23). Use 24 for midnight of next day.
+    """
+    # Ensure data has datetime index
+    if not isinstance(patient_data.index, pd.DatetimeIndex):
+        if "datetime" in patient_data.columns:
+            patient_data = patient_data.set_index("datetime")
+        else:
+            raise ValueError("Patient data must have datetime index or datetime column")
+
+    # Ensure data is sorted by datetime index
+    patient_data = patient_data.sort_index()
+
+    # Get datetime index for date operations
+    datetime_index = pd.to_datetime(patient_data.index)
+
+    # Extract parameters
+    context_start, context_end = context_period
+    forecast_start, forecast_end = forecast_horizon
+
+    # Validate parameters
+    if not (0 <= context_start <= 24 and 0 <= context_end <= 24):
+        raise ValueError("context_period hours must be between 0 and 24")
+    if not (0 <= forecast_start <= 24 and 0 <= forecast_end <= 24):
+        raise ValueError("forecast_horizon hours must be between 0 and 24")
+
+    # Group by date
+    for date_key, day_data in patient_data.groupby(datetime_index.date):
+        # Convert date key to proper date object
+        current_date = pd.to_datetime(date_key)
+        # Get current day's input period data
+        day_datetime_index = pd.to_datetime(day_data.index)
+
+        # Handle context period logic
+        if context_start < context_end and context_end < 24:
+            # Context period is within the same day (e.g., 6-22)
+            current_day_mask = (day_datetime_index.hour >= context_start) & (
+                day_datetime_index.hour < context_end
+            )
+            current_day_data = day_data[current_day_mask]
+        elif context_end == 24:
+            # Context period goes to midnight (e.g., 6-24)
+            current_day_mask = day_datetime_index.hour >= context_start
+            current_day_data = day_data[current_day_mask]
+        else:
+            # Context period spans to next day (e.g., 22-6)
+            # Get current day part (from context_start to end of day)
+            current_day_mask = day_datetime_index.hour >= context_start
+            current_day_part = day_data[current_day_mask]
+
+            # Get next day part (from start of day to context_end)
+            next_date = current_date + pd.Timedelta(days=1)
+            next_day_mask = (datetime_index.date == next_date.date()) & (
+                datetime_index.hour < context_end
+            )
+            next_day_part = patient_data[next_day_mask]
+
+            # Combine both parts
+            current_day_data = pd.concat([current_day_part, next_day_part])
+
+        # Get forecast period data
+        if forecast_start == 0 and forecast_end <= 24:
+            # Forecast period starts at midnight of next day
+            next_date = current_date + pd.Timedelta(days=1)
+
+            # Create time range for forecast period on next day
+            forecast_start_time = next_date.replace(
+                hour=forecast_start, minute=0, second=0
+            )
+            forecast_end_time = next_date.replace(hour=forecast_end, minute=0, second=0)
+
+            # Filter data within the time range
+            forecast_data = patient_data[
+                (patient_data.index >= forecast_start_time)
+                & (patient_data.index < forecast_end_time)
+            ]
+
+        else:
+            # Forecast period is within the same day or custom configuration
+            if forecast_start < forecast_end:
+                # Same day forecast
+                forecast_mask = (day_datetime_index.hour >= forecast_start) & (
+                    day_datetime_index.hour < forecast_end
+                )
+                forecast_data = day_data[forecast_mask]
+            else:
+                # Forecast spans to next day
+                next_date = current_date + pd.Timedelta(days=1)
+
+                # Current day part (from forecast_start to end of day)
+                current_forecast_mask = day_datetime_index.hour >= forecast_start
+                current_forecast_data = day_data[current_forecast_mask]
+
+                # Next day part (from start of day to forecast_end)
+                next_day_mask = (datetime_index.date == next_date.date()) & (
+                    datetime_index.hour < forecast_end
+                )
+                next_forecast_data = patient_data[next_day_mask]
+
+                # Combine both parts
+                forecast_data = pd.concat([current_forecast_data, next_forecast_data])
+
+        # Only yield if both periods have data
+        if len(forecast_data) > 0 and len(current_day_data) > 0:
+            yield current_day_data, forecast_data
