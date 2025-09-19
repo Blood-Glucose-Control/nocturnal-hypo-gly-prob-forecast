@@ -153,21 +153,35 @@ class BrisT1DDataLoader(DatasetBase):
         return list(self.processed_data.keys())
 
     @property
-    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
-        """Get shape summary for each patient's data.
-        For test data, patient_df may be a nested dictionary, e.g.:
-            {patient_id: {sub_id: DataFrame}}
-        For train/validation data, patient_df is a DataFrame.
-        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
+    def train_data_shape_summary(self) -> dict[str, tuple[int, int]]:
         """
-        if not isinstance(self.processed_data, dict):
+        Get shape summary for each patient's train/validation data.
+        Returns a dict mapping patient_id to shape tuple.
+        Returns empty dict if dataset_type is not 'train'.
+        """
+        if self.dataset_type != "train" or not isinstance(self.processed_data, dict):
             return {}
+
         shape_summary = {}
         for patient_id, patient_df in self.processed_data.items():
             if isinstance(patient_df, pd.DataFrame):
                 shape_summary[patient_id] = patient_df.shape
-            elif isinstance(patient_df, dict):
-                for sub_id, sub_df in patient_df.items():
+        return shape_summary
+
+    @property
+    def test_data_shape_summary(self) -> dict[tuple[str, str], tuple[int, int]]:
+        """
+        Get shape summary for each patient's test data (nested by sub_id).
+        Returns a dict mapping (patient_id, sub_id) to shape tuple.
+        Returns empty dict if dataset_type is not 'test'.
+        """
+        if self.dataset_type != "test" or not isinstance(self.processed_data, dict):
+            return {}
+
+        shape_summary = {}
+        for patient_id, patient_data in self.processed_data.items():
+            if isinstance(patient_data, dict):
+                for sub_id, sub_df in patient_data.items():
                     if isinstance(sub_df, pd.DataFrame):
                         shape_summary[(patient_id, sub_id)] = sub_df.shape
         return shape_summary
