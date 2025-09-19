@@ -3,7 +3,7 @@
 PORT=${1:-5555}
 
 # Simple port check using ss instead of netstat
-if ss -tuln | grep -q ":$PORT "; then
+if ss -tuln | grep -q ":$PORT[^0-9]"; then
     echo "Port $PORT is already in use!"
     echo "Try a different port: ./start_mlflow_simple.sh 5556"
     exit 1
