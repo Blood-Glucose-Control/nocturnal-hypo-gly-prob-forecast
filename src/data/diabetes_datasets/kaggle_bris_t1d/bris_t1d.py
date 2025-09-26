@@ -724,7 +724,6 @@ class BrisT1DDataLoader(DatasetBase):
 
             # Calculate total unique training days across all patients
             all_train_dates = set()
-            all_train_dates = set()
             for patient_train_df in train_data_dict.values():
                 # Type cast to DatetimeIndex for clarity
                 datetime_index = pd.DatetimeIndex(patient_train_df.index)
