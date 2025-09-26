@@ -76,18 +76,18 @@ class TestCacheManager:
                 }
             ).set_index("datetime"),
         }
-        
+
         # Save the data
         self.cache_manager.save_full_processed_data("test_dataset", data)
-        
+
         # Load the data back
         loaded_data = self.cache_manager.load_full_processed_data("test_dataset")
-        
+
         assert loaded_data is not None
         assert len(loaded_data) == 2
         assert "patient_001" in loaded_data
         assert "patient_002" in loaded_data
-        
+
         # Check data integrity
         pd.testing.assert_frame_equal(data["patient_001"], loaded_data["patient_001"])
         pd.testing.assert_frame_equal(data["patient_002"], loaded_data["patient_002"])
@@ -110,35 +110,37 @@ class TestCacheManager:
                 }
             ).set_index("datetime")
         }
-        
+
         validation_data = {
             "patient_001": pd.DataFrame(
                 {"glucose": [120], "datetime": pd.to_datetime(["2023-01-01 00:10"])}
             ).set_index("datetime")
         }
-        
-        split_params = {
-            "validation_split": 0.2,
-            "shuffle": True,
-            "random_state": 42
-        }
-        
+
+        split_params = {"validation_split": 0.2, "shuffle": True, "random_state": 42}
+
         # Save the split data
-        self.cache_manager.save_split_data("test_dataset", train_data, validation_data, split_params)
-        
+        self.cache_manager.save_split_data(
+            "test_dataset", train_data, validation_data, split_params
+        )
+
         # Load the split data back
         result = self.cache_manager.load_split_data("test_dataset", split_params)
-        
+
         assert result is not None
         loaded_train, loaded_val = result
         assert loaded_train is not None
         assert loaded_val is not None
         assert len(loaded_train) == 1
         assert len(loaded_val) == 1
-        
+
         # Check data integrity
-        pd.testing.assert_frame_equal(train_data["patient_001"], loaded_train["patient_001"])
-        pd.testing.assert_frame_equal(validation_data["patient_001"], loaded_val["patient_001"])
+        pd.testing.assert_frame_equal(
+            train_data["patient_001"], loaded_train["patient_001"]
+        )
+        pd.testing.assert_frame_equal(
+            validation_data["patient_001"], loaded_val["patient_001"]
+        )
 
     def test_load_split_data_different_params(self):
         """Test loading split data with different parameters returns None."""
@@ -146,13 +148,15 @@ class TestCacheManager:
         train_data = {"patient_001": pd.DataFrame({"glucose": [100]})}
         validation_data = {"patient_001": pd.DataFrame({"glucose": [110]})}
         split_params_1 = {"validation_split": 0.2, "random_state": 42}
-        
-        self.cache_manager.save_split_data("test_dataset", train_data, validation_data, split_params_1)
-        
+
+        self.cache_manager.save_split_data(
+            "test_dataset", train_data, validation_data, split_params_1
+        )
+
         # Try to load with different parameters
         split_params_2 = {"validation_split": 0.3, "random_state": 42}
         result = self.cache_manager.load_split_data("test_dataset", split_params_2)
-        
+
         assert result is None
 
     def test_load_split_data_not_exists(self):
