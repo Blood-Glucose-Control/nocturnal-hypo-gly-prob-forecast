@@ -58,6 +58,7 @@ src/data/diabetes_datasets/**/test.csv
 src/data/diabetes_datasets/**/sample_submission.csv
 src/data/diabetes_datasets/**/processed/*
 scripts/notebooks/**/*.csv
+models/
 
 cache/**/*.csv
 cache/**/*.txt
