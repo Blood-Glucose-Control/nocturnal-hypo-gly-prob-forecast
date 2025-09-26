@@ -485,7 +485,8 @@ class CacheManager:
 
             for csv_file in csv_files:
                 # Extract patient ID from filename: remove _full.csv suffix
-                patient_id = csv_file.stem[:-5]  # Remove "_full" suffix
+                FULL_SUFFIX = "_full"
+                patient_id = csv_file.stem[:-len(FULL_SUFFIX)]  # Remove "_full" suffix
                 # Load the CSV with datetime index (first column is the index)
                 df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
                 result[patient_id] = df
