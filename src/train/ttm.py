@@ -50,7 +50,7 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
     return pd.concat(processed_patients)
 
 
-def get_finetune_trainer(
+def _get_finetune_trainer(
     dataset_name,
     model_path,
     batch_size,
@@ -60,7 +60,6 @@ def get_finetune_trainer(
     fewshot_percent=5,  # If resume from a checkpoint, this will need to be the same as the previous run
     freeze_backbone=True,
     num_epochs=50,
-    save_dir="output",
     loss="mse",
     quantile=0.5,
     use_cpu=False,
@@ -68,10 +67,13 @@ def get_finetune_trainer(
     resolution_min=5,
     data=None,
     split_config=None,
+    save_dir=None,
+    resume_dir=None,
 ):
-    out_dir = os.path.join(save_dir, dataset_name)
-
-    print("-" * 20, f"Running few-shot {fewshot_percent}%", "-" * 20)
+    """
+    Internal function to get the finetune trainer. resume_dir will override save_dir if provided.
+    """
+    print("-" * 20, f"Running few-shot {fewshot_percent}%", "-" * 20, "\n")
 
     tsp = TimeSeriesPreprocessor(
         **column_specifiers,
@@ -129,12 +131,16 @@ def get_finetune_trainer(
             batch_size=batch_size,
         )
         print("OPTIMAL SUGGESTED LEARNING RATE =", learning_rate)
-
     print(f"Using learning rate = {learning_rate}")
+
+    # Whether to start a new training run or resume from a checkpoint
+    out_dir = os.path.join(save_dir, dataset_name)
     output_dir = os.path.join(out_dir, "output")
-    print(f"Output directory: {output_dir}")
+    if resume_dir is not None:
+        output_dir = resume_dir
+
     finetune_forecast_args = TrainingArguments(
-        output_dir=output_dir,
+        output_dir=output_dir,  # If output_dir does exists, it will resume training from the lastest checkpoint with train(resume_from_checkpoint=True)
         overwrite_output_dir=False,
         learning_rate=learning_rate,
         num_train_epochs=num_epochs,
@@ -168,12 +174,6 @@ def get_finetune_trainer(
     # Optimizer and scheduler
     optimizer = AdamW(finetune_forecast_model.parameters(), lr=learning_rate)
     scheduler = ExponentialLR(optimizer, gamma=0.9999)
-    # scheduler = OneCycleLR(
-    #     optimizer,
-    #     max_lr=learning_rate,
-    #     epochs=num_epochs,
-    #     steps_per_epoch=math.ceil(len(dset_train) / (batch_size)),
-    # )
 
     finetune_forecast_trainer = Trainer(
         model=finetune_forecast_model,
@@ -209,7 +209,9 @@ def finetune_ttm(
     batch_size,
     learning_rate,
     num_epochs,
-    save_dir,
+    resume_dir=None,
+    loss="mse",
+    use_cpu=False,
 ):
     """
     Fine-tunes a Time Series Transformer Model (TTM) on patient time series data.
@@ -252,10 +254,10 @@ def finetune_ttm(
             Max learning rate for optimizer.
         num_epochs (int):
             Number of training epochs.
-        save_dir (str):
-            Directory to save model checkpoints and outputs.
-            NOTE: If the save_dir does exist, the model will continue training from the lastest checkpoint.
-            This is useful when you want to resume training from a checkpoint due to some interruptions.
+        resume_dir (str):
+            ./output Directory to resume training from the lastest checkpoint.
+            If not provided, a new training run will be started.
+            Increase epochs to continue training from the lastest checkpoint.
             To resume training, make sure:
                 1. fewshot_percent is the same as the previous run
                 2. resolution_min is the same as the previous run
@@ -270,7 +272,7 @@ def finetune_ttm(
     """
 
     #### Prepare data ####
-    print("Preparing data...")
+    print("-" * 20, "Preparing data...", "-" * 20, "\n")
     loader = get_loader(
         data_source_name=data_source_name,
         # NOTE: The val split here is done via ttm preprocessing so ignore this param
@@ -304,23 +306,18 @@ def finetune_ttm(
     print("Data processing complete")
 
     #### Prepare model ####
-    print("Preparing model...")
+    print("-" * 20, "Preparing model...", "-" * 20, "\n")
     print(f"Model path: {model_path}")
 
     # Where to save the checkpoint
-    # if save_dir exists, Trainer will resume from the lastest checkpoint
-    OUT_DIR = save_dir
-    if save_dir is None:
-        root_dir = get_project_root()
-        model_dir = os.path.join(root_dir, "models", "ttm", data_source_name)
-        # Timestamp the save_dir to differentiate between runs
-        current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
-        OUT_DIR = os.path.join(model_dir, current_time)
-        # ./models/ttm/{data_source_name}/{current_time}
-        print(f"Model will be saved in: {OUT_DIR}. Use this to resume training.")
+    root_dir = get_project_root()
+    model_dir = os.path.join(root_dir, "models", "ttm", data_source_name)
+    # Timestamp the save_dir to differentiate between runs
+    current_time = pd.Timestamp.now().strftime("%Y-%m-%d_%H-%M-%S")
+    new_run_saved_dir = os.path.join(model_dir, current_time)
 
     dataset_name = f"{resolution_min}min_patients"
-    finetune_forecast_trainer, dset_test = get_finetune_trainer(
+    finetune_forecast_trainer, dset_test = _get_finetune_trainer(
         model_path=model_path,
         dataset_name=dataset_name,
         num_epochs=num_epochs,
@@ -329,19 +326,27 @@ def finetune_ttm(
         batch_size=batch_size,
         fewshot_percent=fewshot_percent,
         learning_rate=learning_rate,
-        save_dir=OUT_DIR,
+        loss=loss,
+        use_cpu=use_cpu,
         column_specifiers=column_specifiers,
         resolution_min=resolution_min,
         data=data,
         split_config=split_config,
+        save_dir=new_run_saved_dir,
+        resume_dir=resume_dir,
     )
 
     #### Fine-tune ####
-    print("Fine-tuning...")
-    finetune_forecast_trainer.train()
+    print("-" * 20, "Fine-tuning...", "-" * 20, "\n")
+    if resume_dir is not None:
+        print(f"Resuming training from {resume_dir}")
+        finetune_forecast_trainer.train(resume_from_checkpoint=True)
+    else:
+        print(f"Starting new training run in output directory: {new_run_saved_dir}")
+        finetune_forecast_trainer.train()
 
     #### Evaluate ####
-    print("Evaluating...")
+    print("-" * 20, "Evaluating...", "-" * 20, "\n")
     print("+" * 20, f"Test MSE after few-shot {fewshot_percent}% fine-tuning", "+" * 20)
     finetune_forecast_trainer.model.loss = "mse"  # fixing metric to mse for evaluation
 
@@ -350,12 +355,11 @@ def finetune_ttm(
     print("+" * 60)
 
 
-# TODO: FIGURE OUT THE FOLDER STRUCTURE FOR THE MODELS
 # TODO: Try out Pinball loss too
-# TODO: Make resume training more easy/intuitive (part of the save_dir or new param like resume_dir)
 # TODO: Pull get_datasets out of the function and check the shape of the data
 # TODO: Figure out all the params we need like freeze_backbone, optimizer, scheduler, etc.
 # TODO: Add back early stopping
+# TODO: Add utilities to load from a checkpoint (like the notebook)
 if __name__ == "__main__":
     finetune_ttm(
         model_path="ibm-granite/granite-timeseries-ttm-r2",
@@ -372,6 +376,8 @@ if __name__ == "__main__":
         # Training Configuration
         batch_size=64,
         learning_rate=0.001,
-        num_epochs=3,
-        save_dir=None,  # New training run so let the function create the save_dir
+        num_epochs=5,  # Increase if needed
+        # resume_dir="models/ttm/kaggle_brisT1D/2025-09-30_03-19-14/5min_patients/output",
+        use_cpu=False,
+        loss="mse",
     )
