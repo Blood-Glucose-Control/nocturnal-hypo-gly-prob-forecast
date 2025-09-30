@@ -19,10 +19,11 @@
 #SBATCH --mail-user=t3chan@uwaterloo.ca
 #SBATCH --mail-type=ALL
 
+# Activate the virtual environment
 source \$HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
 
-# Run the model with the provided yaml file
-python \$HOME/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/ttm_finetune.py
+# Start the run
+python \$HOME/nocturnal-hypo-gly-prob-forecast/src/train/ttm.py
 
 
 # Run sbatch ttm_finetune.sh to finetune the model in the terminal
