@@ -1,12 +1,11 @@
-import glob
 import os
-import sys
 
 import pandas as pd
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ExponentialLR
-from transformers import Trainer, TrainerCallback, TrainingArguments
+from transformers import Trainer, TrainingArguments
 from transformers.integrations import INTEGRATION_TO_CALLBACK
+
 from tsfm_public import (
     TimeSeriesPreprocessor,
     TrackingCallback,
@@ -16,215 +15,13 @@ from tsfm_public import (
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
 from tsfm_public.toolkit.time_series_preprocessor import DEFAULT_FREQUENCY_MAPPING
-
-from src.tuning.benchmark import impute_missing_values
+from src.data.diabetes_datasets.data_loader import get_loader
 from src.utils.os_helper import get_project_root
+from src.tuning.benchmark import impute_missing_values
+
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
-
-# Debug configuration - set to False for production runs
-# To enable debug mode, set environment variable: export TTM_DEBUG=true
-DEBUG_MODE = os.getenv("TTM_DEBUG", "false").lower() == "true"
-
-
-def debug_print(*args, **kwargs):
-    """Print debug messages only if DEBUG_MODE is enabled, and to stdout"""
-    if DEBUG_MODE:
-        print(*args, **kwargs, file=sys.stdout)
-
-
-def info_print(*args, **kwargs):
-    """Print informational messages to stdout"""
-    print(*args, **kwargs, file=sys.stdout)
-
-
-class CustomMetricsCallback(TrainerCallback):
-    """Custom callback to log additional metrics to trainer_state.json"""
-
-    def on_log(self, args, state, control, logs=None, **kwargs):
-        """Called when logging occurs"""
-        if logs is not None:
-            # Add custom metrics to logs
-            if "train_loss" in logs:
-                logs["custom_metric_example"] = logs["train_loss"] * 0.5
-
-            # Add timestamp
-            import time
-
-            logs["timestamp"] = time.time()
-
-            # Add custom training info
-            logs["custom_batch_size"] = args.per_device_train_batch_size
-            logs["custom_learning_rate"] = args.learning_rate
-
-        return control  # Must return control, not logs!
-
-
-def compute_custom_metrics(eval_pred):
-    """Custom metrics function for evaluation"""
-    import numpy as np
-    from sklearn.metrics import mean_absolute_error, mean_squared_error
-
-    # Debug: Check the structure of eval_pred
-    debug_print(f"eval_pred type: {type(eval_pred)}")
-    debug_print(
-        f"eval_pred length: {len(eval_pred) if hasattr(eval_pred, '__len__') else 'N/A'}"
-    )
-
-    try:
-        predictions, labels = eval_pred
-        debug_print(
-            f"predictions type: {type(predictions)}, shape: {getattr(predictions, 'shape', 'No shape attr')}"
-        )
-        debug_print(
-            f"labels type: {type(labels)}, shape: {getattr(labels, 'shape', 'No shape attr')}"
-        )
-    except Exception as e:
-        debug_print(f"Error unpacking eval_pred: {e}")
-        return {"custom_error": "Failed to unpack eval_pred"}
-
-    # Handle EvalPrediction object properly
-    if hasattr(eval_pred, "predictions") and hasattr(eval_pred, "label_ids"):
-        predictions = eval_pred.predictions
-        labels = eval_pred.label_ids
-        debug_print("Using .predictions and .label_ids attributes")
-
-    # Handle nested structures (common with TTM)
-    if isinstance(predictions, (tuple, list)):
-        debug_print(f"predictions is tuple/list with length: {len(predictions)}")
-        if len(predictions) > 0:
-            debug_print(f"first prediction element type: {type(predictions[0])}")
-            debug_print(
-                f"first prediction element shape: {getattr(predictions[0], 'shape', 'No shape')}"
-            )
-
-        # For TTM, often the first element contains the actual predictions
-        if len(predictions) > 0 and hasattr(predictions[0], "shape"):
-            predictions = predictions[0]
-        else:
-            debug_print("Cannot extract predictions from tuple/list")
-            return {"custom_error": "Cannot extract predictions from complex structure"}
-
-    if isinstance(labels, (tuple, list)):
-        debug_print(f"labels is tuple/list with length: {len(labels)}")
-        if len(labels) > 0:
-            debug_print(f"first label element type: {type(labels[0])}")
-            debug_print(
-                f"first label element shape: {getattr(labels[0], 'shape', 'No shape')}"
-            )
-
-        # For TTM, often the first element contains the actual labels
-        if len(labels) > 0 and hasattr(labels[0], "shape"):
-            labels = labels[0]
-        else:
-            debug_print("Cannot extract labels from tuple/list")
-            return {"custom_error": "Cannot extract labels from complex structure"}
-
-    # Convert to numpy arrays if needed (with better error handling)
-    try:
-        if not isinstance(predictions, np.ndarray):
-            predictions = np.array(predictions)
-        if not isinstance(labels, np.ndarray):
-            labels = np.array(labels)
-
-        debug_print(f"Final predictions shape: {predictions.shape}")
-        debug_print(f"Final labels shape: {labels.shape}")
-    except Exception as e:
-        debug_print(f"Error converting to numpy arrays: {e}")
-        return {"custom_error": f"Array conversion failed: {str(e)}"}
-
-    # Handle shape mismatches and flatten if needed
-    if predictions.shape != labels.shape:
-        debug_print("Shape mismatch, attempting to flatten or reshape")
-        debug_print(
-            f"predictions shape: {predictions.shape}, labels shape: {labels.shape}"
-        )
-
-        # Try flattening both
-        predictions_flat = predictions.flatten()
-        labels_flat = labels.flatten()
-
-        if len(predictions_flat) == len(labels_flat):
-            predictions = predictions_flat
-            labels = labels_flat
-            debug_print("Successfully flattened both arrays")
-        else:
-            debug_print("Flattening didn't resolve shape mismatch")
-            return {
-                "custom_error": f"Shape mismatch: pred {predictions.shape} vs labels {labels.shape}"
-            }
-
-    try:
-        # Calculate custom metrics
-        mse = mean_squared_error(labels, predictions)
-        mae = mean_absolute_error(labels, predictions)
-        rmse = np.sqrt(mse)
-
-        # Calculate MAPE safely
-        mape = 0
-        if np.any(labels != 0):
-            mape = (
-                np.mean(
-                    np.abs((labels - predictions) / np.where(labels != 0, labels, 1))
-                )
-                * 100
-            )
-
-        return {
-            "custom_mse": float(mse),
-            "custom_mae": float(mae),
-            "custom_rmse": float(rmse),
-            "custom_mape": float(mape),
-        }
-    except Exception as e:
-        debug_print(f"Error computing metrics: {e}")
-        import traceback
-
-        debug_print(f"Full traceback: {traceback.format_exc()}")
-        return {"custom_error": str(e)}
-
-
-def load_processed_data_from_cache(data_source_name):
-    """
-    Load processed CSV files directly from cache directory and concatenate them.
-
-    Args:
-        data_source_name (str): Name of the data source (e.g., "kaggle_brisT1D")
-
-    Returns:
-        dict: Dictionary with patient_id as key and DataFrame as value
-    """
-    # Get the cache directory path
-    root_dir = get_project_root()
-    cache_dir = os.path.join(root_dir, "cache", "data", data_source_name, "processed")
-
-    # Find all CSV files in the processed directory
-    csv_files = glob.glob(os.path.join(cache_dir, "*.csv"))
-
-    if not csv_files:
-        raise FileNotFoundError(f"No processed CSV files found in {cache_dir}")
-
-    info_print(f"Found {len(csv_files)} processed CSV files in {cache_dir}")
-
-    data_dict = {}
-
-    for csv_file in csv_files:
-        # Extract patient ID from filename (assuming format like "patient_123.csv")
-        filename = os.path.basename(csv_file)
-        patient_id = filename.replace(".csv", "")
-
-        # Load the CSV file
-        try:
-            df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
-            data_dict[patient_id] = df
-            info_print(f"Loaded {patient_id}: {len(df)} rows")
-        except Exception as e:
-            info_print(f"Error loading {csv_file}: {e}")
-            continue
-
-    info_print(f"Successfully loaded {len(data_dict)} patients")
-    return data_dict
 
 
 def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_feature):
@@ -240,7 +37,7 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
     for patient_id, df in patients_dict.items():
         # Check if patient has the correct interval
         if (df.index[1] - df.index[0]).components.minutes == resolution_min:
-            info_print(f"Processing patient {patient_id}...")
+            print(f"Processing patient {patient_id}...")
             # Process each patient individually
             p_df = df.iloc[:]
             p_df = p_df[x_features + y_feature]
@@ -276,7 +73,7 @@ def _get_finetune_trainer(
     """
     Internal function to get the finetune trainer. resume_dir will override save_dir if provided.
     """
-    info_print("-" * 20, f"Running few-shot {fewshot_percent}%", "-" * 20, "\n")
+    print("-" * 20, f"Running few-shot {fewshot_percent}%", "-" * 20, "\n")
 
     tsp = TimeSeriesPreprocessor(
         **column_specifiers,
@@ -333,8 +130,8 @@ def _get_finetune_trainer(
             dset_train,
             batch_size=batch_size,
         )
-        info_print("OPTIMAL SUGGESTED LEARNING RATE =", learning_rate)
-    info_print(f"Using learning rate = {learning_rate}")
+        print("OPTIMAL SUGGESTED LEARNING RATE =", learning_rate)
+    print(f"Using learning rate = {learning_rate}")
 
     # Whether to start a new training run or resume from a checkpoint
     out_dir = os.path.join(save_dir, dataset_name)
@@ -348,18 +145,13 @@ def _get_finetune_trainer(
         learning_rate=learning_rate,
         num_train_epochs=num_epochs,
         do_eval=True,
-        eval_strategy="steps",
-        eval_steps=2000,  # Evaluate every 2000 steps (even less frequent)
-        fp16=True,
+        eval_strategy="epoch",
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         dataloader_num_workers=8,
         report_to="none",
-        save_strategy="steps",
-        logging_strategy="steps",
-        logging_steps=100,  # Log every 100 steps
-        logging_first_step=True,  # Log the first step
-        save_steps=5000,  # Save checkpoints every 5000 steps
+        save_strategy="epoch",
+        logging_strategy="epoch",
         save_total_limit=100,
         logging_dir=os.path.join(
             out_dir, "logs"
@@ -368,12 +160,9 @@ def _get_finetune_trainer(
         metric_for_best_model="eval_loss",  # Metric to monitor for early stopping
         greater_is_better=False,  # For loss
         use_cpu=use_cpu,
-        # Additional logging control
-        log_level="info",  # Control log verbosity
-        disable_tqdm=False,  # Keep progress bars
     )
 
-    info_print(f"Training for {num_epochs} epochs")
+    print(f"Training for {num_epochs} epochs")
 
     # Create the early stopping callback
     # early_stopping_callback = EarlyStoppingCallback(
@@ -381,7 +170,6 @@ def _get_finetune_trainer(
     #     early_stopping_threshold=1e-5,  # Minimum improvement required to consider as improvement
     # )
     tracking_callback = TrackingCallback()
-    custom_metrics_callback = CustomMetricsCallback()
 
     # Optimizer and scheduler
     optimizer = AdamW(finetune_forecast_model.parameters(), lr=learning_rate)
@@ -392,12 +180,10 @@ def _get_finetune_trainer(
         args=finetune_forecast_args,
         train_dataset=dset_train,
         eval_dataset=dset_val,
-        # compute_metrics=compute_custom_metrics,  # Disabled during training for speed
         callbacks=[
             # TODO:TONY - Remove early stopping for now
             # early_stopping_callback,
-            tracking_callback,
-            custom_metrics_callback,  # Add custom metrics callback
+            tracking_callback
         ],
         optimizers=(optimizer, scheduler),
     )
@@ -486,22 +272,20 @@ def finetune_ttm(
     """
 
     #### Prepare data ####
-    info_print("-" * 20, "Preparing data...", "-" * 20, "\n")
-    # loader = get_loader(
-    #     data_source_name=data_source_name,
-    #     # NOTE: The val split here is done via ttm preprocessing so ignore this param
-    #     num_validation_days=20,
-    #     use_cached=True,
-    # )
-    # data_dict = loader.processed_data
+    print("-" * 20, "Preparing data...", "-" * 20, "\n")
+    loader = get_loader(
+        data_source_name=data_source_name,
+        # NOTE: The val split here is done via ttm preprocessing so ignore this param
+        num_validation_days=20,
+        use_cached=True,
+    )
+    data_dict = loader.processed_data
     column_specifiers = {
         "timestamp_column": timestamp_column,
         "id_columns": ["id"],
         "target_columns": y_feature,
         "control_columns": x_features,
     }
-
-    data_dict = load_processed_data_from_cache(data_source_name)
 
     all_patients_df = reduce_features_multi_patient(
         data_dict, resolution_min, x_features, y_feature
@@ -510,17 +294,20 @@ def finetune_ttm(
     data = all_patients_df.reset_index()
 
     # Train/val/test split
-    train, test, val = data_split
-    split_config = {"train": train, "test": test, "val": val}
+    train, test = data_split
+    split_config = {
+        "train": train,
+        "test": test,
+    }
     data_length = len(data)
-    info_print(f"Data length: {data_length}")
-    info_print(f"Split config: Train {train * 100}%, Test {test * 100}%")
-    info_print(f"Data ids: {data['id'].unique()}")
-    info_print("Data processing complete")
+    print(f"Data length: {data_length}")
+    print(f"Split config: Train {train * 100}%, Test {test * 100}%")
+    print(f"Data ids: {data['id'].unique()}")
+    print("Data processing complete")
 
     #### Prepare model ####
-    info_print("-" * 20, "Preparing model...", "-" * 20, "\n")
-    info_print(f"Model path: {model_path}")
+    print("-" * 20, "Preparing model...", "-" * 20, "\n")
+    print(f"Model path: {model_path}")
 
     # Where to save the checkpoint
     root_dir = get_project_root()
@@ -550,21 +337,17 @@ def finetune_ttm(
     )
 
     #### Fine-tune ####
-    info_print("-" * 20, "Fine-tuning...", "-" * 20, "\n")
+    print("-" * 20, "Fine-tuning...", "-" * 20, "\n")
     if resume_dir is not None:
-        info_print(f"Resuming training from {resume_dir}")
+        print(f"Resuming training from {resume_dir}")
         finetune_forecast_trainer.train(resume_from_checkpoint=True)
     else:
-        info_print(
-            f"Starting new training run in output directory: {new_run_saved_dir}"
-        )
+        print(f"Starting new training run in output directory: {new_run_saved_dir}")
         finetune_forecast_trainer.train()
 
     #### Evaluate ####
-    info_print("-" * 20, "Evaluating...", "-" * 20, "\n")
-    info_print(
-        "+" * 20, f"Test MSE after few-shot {fewshot_percent}% fine-tuning", "+" * 20
-    )
+    print("-" * 20, "Evaluating...", "-" * 20, "\n")
+    print("+" * 20, f"Test MSE after few-shot {fewshot_percent}% fine-tuning", "+" * 20)
     finetune_forecast_trainer.model.loss = "mse"  # fixing metric to mse for evaluation
 
     fewshot_output = finetune_forecast_trainer.evaluate(dset_test)
@@ -588,10 +371,10 @@ if __name__ == "__main__":
         x_features=["steps", "cob", "carb_availability", "insulin_availability", "iob"],
         timestamp_column="datetime",
         resolution_min=5,
-        data_split=(0.85, 0.1, 0.05),
+        data_split=(0.7, 0.2),
         fewshot_percent=100,
         # Training Configuration
-        batch_size=128,
+        batch_size=64,
         learning_rate=0.001,
         num_epochs=5,  # Increase if needed
         # resume_dir="models/ttm/kaggle_brisT1D/2025-09-30_03-19-14/5min_patients/output",

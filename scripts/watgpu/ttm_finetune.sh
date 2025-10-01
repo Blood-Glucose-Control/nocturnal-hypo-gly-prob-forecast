@@ -16,14 +16,25 @@
 #SBATCH -o JOB%j.out
 #SBATCH -e JOB%j-err.out
 
-#SBATCH --mail-user=t3chan@uwaterloo.ca
+#SBATCH --mail-user=cjrisi@uwaterloo.ca,t3chan@uwaterloo.ca
 #SBATCH --mail-type=ALL
 
 # Activate the virtual environment
-source \$HOME/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/activate
+source $HOME/nocturnal/.noctprob-venv/bin/activate
+
+# Debug: Check environment
+echo "=== Environment Check ==="
+echo "Job started at: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "Job ID: $SLURM_JOB_ID"
+echo "Node: $SLURMD_NODENAME"
+which python
+python --version
+python -c "import sys; print(f'Python path: {sys.executable}')"
+## python -c "import tensorflow as tf; print(f'TensorFlow: {tf.__version__} at {tf.__file__}')"
+echo "=========================="
 
 # Start the run
-python \$HOME/nocturnal-hypo-gly-prob-forecast/src/train/ttm.py
+python $HOME/nocturnal/src/train/ttm.py
 
 
 # Run sbatch ttm_finetune.sh to finetune the model in the terminal

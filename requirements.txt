@@ -19,7 +19,7 @@ matplotlib
 mkdocs
 mkdocs-material
 mlflow
-neuralforecast
+#neuralforecast
 notebook
 numba
 numpy
@@ -30,15 +30,15 @@ pydantic
 pytest
 pytest-mock
 python-dotenv
-pytorch-forecasting
-pytorch-lightning
+#pytorch-forecasting
+#pytorch-lightning
 PyWavelets
 ruff>=0.3.0
 scikit-learn
 seaborn
 skchange
 sktime[all_extras]
-tf-keras
+#tf-keras
 torch
 tqdm
 transformers
