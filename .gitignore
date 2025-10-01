@@ -62,6 +62,8 @@ scripts/notebooks/**/*.csv
 cache/**/*.csv
 cache/**/*.txt
 cache/**/*.json
+cache/data/awesome_cgm/lynch_2022/raw/*
+cache/data/awesome_cgm/lynch_2022/processed/*
 
 # Permissive for the cached data
 !cache/data/kaggle_brisT1D/processed/train/train.csv
