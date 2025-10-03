@@ -6,8 +6,8 @@
 #SBATCH --mem-per-cpu=2GB
 #SBATCH --partition=HI
 #SBATCH --gres=gpu:1
-#SBATCH -o /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_%j_%x.out
-#SBATCH -e /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_%j_%x.err
+#SBATCH -o results/runs/ttm_finetune/slurm-%j.out
+#SBATCH -e results/runs/ttm_finetune/slurm-%j.err
 #SBATCH --mail-user=cjrisi@uwaterloo.ca,t3chan@uwaterloo.ca
 #SBATCH --mail-type=ALL
 
@@ -102,6 +102,17 @@ echo "GPU Name: $(nvidia-smi --query-gpu=gpu_name --format=csv,noheader,nounits)
 echo "GPU Memory: $(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits) MiB"
 echo "==========================="
 
+# Get hardware info before Python call
+CPU_COUNT=$(nproc --all)
+TOTAL_MEMORY_GB=$(free -g | grep Mem: | awk '{print $2}')
+if nvidia-smi &>/dev/null; then
+    GPU_MEMORY_MB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1)
+    GPU_MEMORY_GB=$(echo "scale=1; $GPU_MEMORY_MB / 1024" | bc -l)
+    GPU_NAME=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader,nounits | head -1)
+else
+    GPU_MEMORY_GB="0"
+    GPU_NAME="No GPU available"
+fi
 # Register run start in model registry
 echo "Registering run in model registry..."
 python -c "
@@ -116,7 +127,7 @@ if '$CONFIG_FILE' and '$CONFIG_FILE' != '':
     with open('$CONFIG_FILE', 'r') as f:
         config = yaml.safe_load(f)
 
-# Collect SLURM and hardware info
+# Collect SLURM and hardware info with executed values
 slurm_info = {
     'node_name': '$SLURMD_NODENAME',
     'cpus_per_task': '$SLURM_CPUS_PER_TASK',
@@ -126,10 +137,10 @@ slurm_info = {
 }
 
 hardware_info = {
-    'cpu_count': '$(nproc --all)',
-    'total_memory_gb': '$(free -g | grep Mem: | awk \"{print \$2}\")',
-    'gpu_type': '$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader,nounits)',
-    'gpu_memory_gb': '$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | awk \"{print \$1/1024}\")'
+    'cpu_count': '$CPU_COUNT',
+    'total_memory_gb': '$TOTAL_MEMORY_GB',
+    'gpu_type': '$GPU_NAME',
+    'gpu_memory_gb': '$GPU_MEMORY_GB'
 }
 
 registry = ModelRegistry()
@@ -141,14 +152,26 @@ print(f'Registered run: {run_id}')
 nvidia-smi dmon -s pucvmet -d 10 -o DT > "$RUN_DIR/gpu_monitoring.log" &
 GPU_MONITOR_PID=$!
 
-# Log GPU utilization periodically
+# Start GPU monitoring with headers
+echo "Starting GPU monitoring..."
+GPU_LOG="$RUN_DIR/gpu_utilization.log"
+
+# Add headers to GPU log
+echo "# GPU Utilization Log for Job $SLURM_JOB_ID" > "$GPU_LOG"
+echo "# Format: Timestamp, GPU_Util(%), Memory_Util(%), Temperature(C), Power(W)" >> "$GPU_LOG"
+echo "# =========================================================================" >> "$GPU_LOG"
+echo "Timestamp,GPU_Util_%,Memory_Util_%,Temperature_C,Power_W" >> "$GPU_LOG"
+
+# Start background GPU monitoring with proper CSV format
 (
     while true; do
-        echo "$(date '+%Y-%m-%d %H:%M:%S'): $(nvidia-smi --query-gpu=utilization.gpu,utilization.memory,temperature.gpu,power.draw --format=csv,noheader,nounits)" >> "$RUN_DIR/gpu_utilization.log"
+        TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+        nvidia-smi --query-gpu=utilization.gpu,utilization.memory,temperature.gpu,power.draw --format=csv,noheader,nounits | \
+        sed "s/^/$TIMESTAMP,/"
         sleep 30
     done
-) &
-GPU_UTIL_PID=$!
+) >> "$GPU_LOG" &
+GPU_MON_PID=$!
 
 echo "Started GPU monitoring (PID: $GPU_MONITOR_PID) and utilization logging (PID: $GPU_UTIL_PID)"
 
@@ -232,7 +255,26 @@ print(f'Updated registry for run: {run_id} with status: {status}')
 echo "All run data and logs saved to: $RUN_DIR"
 echo "Configuration and results tracked in model registry"
 
+# At the end, move SLURM output files to run directory (update this section)
+echo "Moving SLURM output files to run directory..."
+
+# SLURM files will be in results/runs/ttm_finetune/ relative to submission directory
+SLURM_OUT_FILE="results/runs/ttm_finetune/slurm-${SLURM_JOB_ID}.out"
+SLURM_ERR_FILE="results/runs/ttm_finetune/slurm-${SLURM_JOB_ID}.err"
+
+if [[ -f "$SLURM_OUT_FILE" ]]; then
+    mv "$SLURM_OUT_FILE" "$RUN_DIR/slurm_${SLURM_JOB_ID}.out"
+    echo "Moved SLURM output file to $RUN_DIR/"
+else
+    echo "Warning: SLURM output file not found: $SLURM_OUT_FILE"
+fi
+
+if [[ -f "$SLURM_ERR_FILE" ]]; then
+    mv "$SLURM_ERR_FILE" "$RUN_DIR/slurm_${SLURM_JOB_ID}.err"
+    echo "Moved SLURM error file to $RUN_DIR/"
+else
+    echo "Warning: SLURM error file not found: $SLURM_ERR_FILE"
+fi
+
 # Exit with the same code as the training script
 exit $TRAIN_EXIT_CODE
-
-# Run sbatch ttm_finetune.sh to finetune the model in the terminal

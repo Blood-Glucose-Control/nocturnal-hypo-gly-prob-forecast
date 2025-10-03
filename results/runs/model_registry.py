@@ -5,6 +5,7 @@ Maintains a CSV database of all training experiments with their configurations a
 """
 
 import csv
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -110,31 +111,81 @@ class ModelRegistry:
         return run_info["run_id"]
 
     def register_run_completion(self, run_id, results=None, status="completed"):
-        """Update registry with completion information"""
+        """Update registry with completion information and extract metrics"""
         df = pd.read_csv(self.registry_path)
 
-        # Find the run to update
         mask = df["run_id"] == run_id
         if not mask.any():
             print(f"Warning: Run ID {run_id} not found in registry")
             return
 
-        # Update completion info
+        # Update basic completion info
         df.loc[mask, "status"] = status
         df.loc[mask, "end_time"] = datetime.now().isoformat()
 
+        # Get run directory and extract GPU metrics
+        run_dir = df.loc[mask, "run_directory"].iloc[0]
+
+        # Extract GPU utilization from monitoring log
+        gpu_log_path = f"{run_dir}/gpu_utilization.log"
+        if os.path.exists(gpu_log_path):
+            try:
+                # Skip header lines and read CSV
+                gpu_df = pd.read_csv(
+                    gpu_log_path, skiprows=3
+                )  # Skip the 3 header lines
+                if not gpu_df.empty and len(gpu_df.columns) >= 3:
+                    df.loc[mask, "peak_gpu_utilization"] = gpu_df.iloc[
+                        :, 1
+                    ].max()  # GPU_Util_%
+                    df.loc[mask, "peak_memory_usage"] = gpu_df.iloc[
+                        :, 2
+                    ].max()  # Memory_Util_%
+            except Exception as e:
+                print(f"Warning: Could not parse GPU utilization log: {e}")
+
+        # Extract training metrics from training log
+        training_log_path = f"{run_dir}/training.log"
+        if os.path.exists(training_log_path):
+            try:
+                with open(training_log_path, "r") as f:
+                    log_content = f.read()
+
+                # Extract final losses (adapt regex to your log format)
+                import re
+
+                final_train_match = re.search(
+                    r"Final train loss:\s*([\d\.]+)", log_content
+                )
+                if final_train_match:
+                    df.loc[mask, "final_train_loss"] = float(final_train_match.group(1))
+
+                final_eval_match = re.search(
+                    r"Final eval loss:\s*([\d\.]+)", log_content
+                )
+                if final_eval_match:
+                    df.loc[mask, "final_eval_loss"] = float(final_eval_match.group(1))
+
+                best_eval_match = re.search(r"Best eval loss:\s*([\d\.]+)", log_content)
+                if best_eval_match:
+                    df.loc[mask, "best_eval_loss"] = float(best_eval_match.group(1))
+
+            except Exception as e:
+                print(f"Warning: Could not parse training log: {e}")
+
+        # Update with any additional results passed in
         if results:
             for key, value in results.items():
                 if key in df.columns:
                     df.loc[mask, key] = value
 
-        # Calculate elapsed time if both start and end times are available
-        start_time = pd.to_datetime(df.loc[mask, "start_time"].iloc[0])
-        end_time = pd.to_datetime(df.loc[mask, "end_time"].iloc[0])
-        elapsed_seconds = (end_time - start_time).total_seconds()
-        df.loc[mask, "elapsed_time_seconds"] = elapsed_seconds
+        # Calculate elapsed time
+        if df.loc[mask, "start_time"].notna().iloc[0]:
+            start_time = pd.to_datetime(df.loc[mask, "start_time"].iloc[0])
+            end_time = pd.to_datetime(df.loc[mask, "end_time"].iloc[0])
+            elapsed_seconds = (end_time - start_time).total_seconds()
+            df.loc[mask, "elapsed_time_seconds"] = elapsed_seconds
 
-        # Save back to CSV
         df.to_csv(self.registry_path, index=False)
 
     def _extract_run_info(
@@ -161,6 +212,9 @@ class ModelRegistry:
             data_config = config.get("data", {})
             training_config = config.get("training", {})
             hardware_config = config.get("hardware", {})
+            output_config = config.get("output", {})
+            optimization_config = config.get("optimization", {})
+            evaluation_config = config.get("evaluation", {})
 
             # Experiment metadata
             run_info["experiment_name"] = exp_config.get("name", "")
@@ -186,11 +240,45 @@ class ModelRegistry:
 
             # Training configuration
             run_info["batch_size"] = training_config.get("batch_size", "")
+            run_info["dataloader_num_workers"] = training_config.get(
+                "dataloader_num_workers", ""
+            )
             run_info["learning_rate"] = training_config.get("learning_rate", "")
             run_info["num_epochs"] = training_config.get("num_epochs", "")
+            run_info["use_cpu"] = training_config.get("use_cpu", None)
             run_info["loss_function"] = training_config.get("loss", "")
-            run_info["resume_dir"] = training_config.get("resume_dir", "")
-            run_info["mixed_precision"] = hardware_config.get("mixed_precision", False)
+            run_info["resume_dir"] = training_config.get("resume_dir", "Not Specified")
+            run_info["mixed_precision"] = training_config.get("mixed_precision", None)
+
+            # Expected Hardware configuration
+            run_info["expected_gpu_type"] = hardware_config.get("expected_gpu_type", "")
+            run_info["expected_memory_gb"] = hardware_config.get(
+                "expected_memory_gb", ""
+            )
+
+            # Output configuration
+            run_info["save_checkpoints"] = output_config.get("save_checkpoints", None)
+            run_info["checkpoint_frequency"] = output_config.get(
+                "checkpoint_frequency", None
+            )
+            run_info["save_best_model"] = output_config.get("save_best_model", None)
+            run_info["log_frequency"] = output_config.get("log_frequency", None)
+            run_info["model_output_dir"] = output_config.get("model_output_dir", "")
+
+            # Optimization configuration
+            run_info["scheduler"] = optimization_config.get("scheduler", "Default")
+            run_info["scheduler_params"] = str(
+                optimization_config.get("scheduler_params", {})
+            )
+            run_info["optimizer"] = optimization_config.get("optimizer", "Default")
+            run_info["optimizer_params"] = str(
+                optimization_config.get("optimizer_params", {})
+            )
+
+            # Evaluation configuration
+            run_info["eval_frequency"] = evaluation_config.get("eval_frequency", None)
+            run_info["eval_batch_size"] = evaluation_config.get("eval_batch_size", None)
+            run_info["metrics"] = evaluation_config.get("metrics", [])
 
         # SLURM information
         if slurm_info:
@@ -223,15 +311,15 @@ class ModelRegistry:
         df = pd.read_csv(self.registry_path)
 
         summary = f"""
-Model Registry Summary
-======================
-Total Runs: {len(df)}
-Completed Runs: {len(df[df["status"] == "completed"])}
-Running Runs: {len(df[df["status"] == "running"])}
-Failed Runs: {len(df[df["status"] == "failed"])}
+        Model Registry Summary
+        ======================
+        Total Runs: {len(df)}
+        Completed Runs: {len(df[df["status"] == "completed"])}
+        Running Runs: {len(df[df["status"] == "running"])}
+        Failed Runs: {len(df[df["status"] == "failed"])}
 
-Recent Runs:
-{df.tail(5)[["run_id", "experiment_name", "status", "start_time"]].to_string(index=False)}
+        Recent Runs:
+        {df.tail(5)[["run_id", "experiment_name", "status", "start_time"]].to_string(index=False)}
         """
 
         return summary
