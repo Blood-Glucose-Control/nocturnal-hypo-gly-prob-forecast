@@ -34,7 +34,7 @@ Using auto half precision backend
   Number of trainable parameters = 40,104
 Loading configuration from: /u6/cjrisi/nocturnal/models/configs/ttm_quick_test_config.yaml
 Configuration saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251002_232048_job1354475/experiment_config.yaml
--------------------- Preparing data... -------------------- 
+-------------------- Preparing data... --------------------
 
 Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
 Loaded p10_full: 25803 rows
@@ -57,16 +57,16 @@ Data length: 155562
 Split config: Train 80.0%, Test 20.0%
 Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
 Data processing complete
--------------------- Preparing model... -------------------- 
+-------------------- Preparing model... --------------------
 
 Model path: ibm-granite/granite-timeseries-ttm-r2
--------------------- Running few-shot 25% -------------------- 
+-------------------- Running few-shot 25% --------------------
 
 Number of params before freezing backbone 496275
 Number of params after freezing the backbone 40104
 Using learning rate = 0.001
 Training for 3 epochs
--------------------- Fine-tuning... -------------------- 
+-------------------- Fine-tuning... --------------------
 
 Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-02_23-21-02
   0%|          | 0/1428 [00:00<?, ?it/s]/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/torch/utils/data/dataloader.py:665: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.

@@ -1,4 +1,4 @@
--------------------- Preparing data... -------------------- 
+-------------------- Preparing data... --------------------
 
 Processing patient p10...
 Processing patient p11...
@@ -10,16 +10,16 @@ Data length: 155562
 Split config: Train 85.0%, Test 10.0%
 Data ids: ['p10' 'p11' 'p12' 'p02' 'p04' 'p03']
 Data processing complete
--------------------- Preparing model... -------------------- 
+-------------------- Preparing model... --------------------
 
 Model path: ibm-granite/granite-timeseries-ttm-r2
--------------------- Running few-shot 100% -------------------- 
+-------------------- Running few-shot 100% --------------------
 
 Number of params before freezing backbone 805280
 Number of params after freezing the backbone 289696
 Using learning rate = 0.001
 Training for 5 epochs
--------------------- Fine-tuning... -------------------- 
+-------------------- Fine-tuning... --------------------
 
 Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-01_01-35-04
 {'loss': 0.8413, 'grad_norm': 0.7656281590461731, 'learning_rate': 0.0006691011119474199, 'epoch': 1.0}

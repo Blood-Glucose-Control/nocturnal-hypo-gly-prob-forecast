@@ -343,12 +343,12 @@ def create_registry_entry_from_run_info(run_info_file):
     registry = ModelRegistry()
 
     # Parse run_info.txt file
-    run_info = {}
+    # run_info = {}
     slurm_info = {}
     hardware_info = {}
 
-    with open(run_info_file, "r") as f:
-        content = f.read()
+    # with open(run_info_file, "r") as f:
+    # content = f.read()
 
     # Extract information using regex or simple parsing
     # This would need to be implemented based on the actual format of run_info.txt

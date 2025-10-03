@@ -6,7 +6,7 @@ Node: watgpu608
 Python 3.11.4
 Python path: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
 ==========================
--------------------- Preparing data... -------------------- 
+-------------------- Preparing data... --------------------
 
 Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
 Loaded p10_full: 25803 rows
@@ -29,16 +29,16 @@ Data length: 155562
 Split config: Train 85.0%, Test 10.0%
 Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
 Data processing complete
--------------------- Preparing model... -------------------- 
+-------------------- Preparing model... --------------------
 
 Model path: ibm-granite/granite-timeseries-ttm-r2
--------------------- Running few-shot 100% -------------------- 
+-------------------- Running few-shot 100% --------------------
 
 Number of params before freezing backbone 805280
 Number of params after freezing the backbone 289696
 Using learning rate = 0.001
 Training for 5 epochs
--------------------- Fine-tuning... -------------------- 
+-------------------- Fine-tuning... --------------------
 
 Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-02_19-01-27
 {'loss': 0.804, 'grad_norm': 0.8206503987312317, 'learning_rate': 0.001, 'epoch': 0.0, 'timestamp': 1759431753.7377203, 'custom_batch_size': 128, 'custom_learning_rate': 0.001}
@@ -99,7 +99,7 @@ Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/k
 {'eval_loss': 1.1665172576904297, 'eval_custom_error': 'Cannot extract labels from complex structure', 'eval_runtime': 59.6055, 'eval_samples_per_second': 121.012, 'eval_steps_per_second': 0.956, 'epoch': 4.98, 'timestamp': 1759432375.4536152, 'custom_batch_size': 128, 'custom_learning_rate': 0.001}
 {'train_runtime': 688.4079, 'train_samples_per_second': 933.916, 'train_steps_per_second': 7.299, 'train_loss': 0.8246618888745854, 'epoch': 5.0, 'custom_metric_example': 0.4123309444372927, 'timestamp': 1759432377.1600237, 'custom_batch_size': 128, 'custom_learning_rate': 0.001}
 [TrackingCallback] Mean Epoch Time = 137.67985038757325 seconds, Total Train Time = 688.4082362651825
--------------------- Evaluating... -------------------- 
+-------------------- Evaluating... --------------------
 
 ++++++++++++++++++++ Test MSE after few-shot 100% fine-tuning ++++++++++++++++++++
 {'eval_loss': 0.8296288251876831, 'eval_custom_error': 'Cannot extract labels from complex structure', 'eval_runtime': 60.7731, 'eval_samples_per_second': 246.557, 'eval_steps_per_second': 1.942, 'epoch': 5.0, 'timestamp': 1759432437.935049, 'custom_batch_size': 128, 'custom_learning_rate': 0.001}

@@ -3,7 +3,7 @@
 Python 3.11.4
 Python path: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
 ==========================
--------------------- Preparing data... -------------------- 
+-------------------- Preparing data... --------------------
 
 Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
 Loaded p10_full: 25803 rows
@@ -26,16 +26,16 @@ Data length: 155562
 Split config: Train 85.0%, Test 10.0%
 Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
 Data processing complete
--------------------- Preparing model... -------------------- 
+-------------------- Preparing model... --------------------
 
 Model path: ibm-granite/granite-timeseries-ttm-r2
--------------------- Running few-shot 100% -------------------- 
+-------------------- Running few-shot 100% --------------------
 
 Number of params before freezing backbone 805280
 Number of params after freezing the backbone 289696
 Using learning rate = 0.001
 Training for 5 epochs
--------------------- Fine-tuning... -------------------- 
+-------------------- Fine-tuning... --------------------
 
 Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-01_17-11-32
 {'loss': 0.804, 'grad_norm': 0.8206503987312317, 'learning_rate': 0.001, 'epoch': 0.0, 'timestamp': 1759338761.8360019, 'custom_batch_size': 128, 'custom_learning_rate': 0.001}
@@ -201,7 +201,7 @@ DEBUG: Cannot extract labels from tuple/list
 {'eval_loss': 1.1665172576904297, 'eval_custom_error': 'Cannot extract labels from complex structure', 'eval_runtime': 60.985, 'eval_samples_per_second': 118.275, 'eval_steps_per_second': 0.935, 'epoch': 4.98, 'timestamp': 1759339714.9043415, 'custom_batch_size': 128, 'custom_learning_rate': 0.001}
 {'train_runtime': 1023.2281, 'train_samples_per_second': 628.32, 'train_steps_per_second': 4.911, 'train_loss': 0.8246618888745854, 'epoch': 5.0, 'custom_metric_example': 0.4123309444372927, 'timestamp': 1759339716.727147, 'custom_batch_size': 128, 'custom_learning_rate': 0.001}
 [TrackingCallback] Mean Epoch Time = 204.643892288208 seconds, Total Train Time = 1023.2284660339355
--------------------- Evaluating... -------------------- 
+-------------------- Evaluating... --------------------
 
 ++++++++++++++++++++ Test MSE after few-shot 100% fine-tuning ++++++++++++++++++++
 DEBUG: eval_pred type: <class 'transformers.trainer_utils.EvalPrediction'>

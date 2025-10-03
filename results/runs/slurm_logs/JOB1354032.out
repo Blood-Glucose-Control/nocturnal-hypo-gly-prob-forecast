@@ -1,4 +1,4 @@
--------------------- Preparing data... -------------------- 
+-------------------- Preparing data... --------------------
 
 Processing patient p10...
 Processing patient p11...
@@ -10,17 +10,17 @@ Data length: 155562
 Split config: Train 70.0%, Test 20.0%
 Data ids: ['p10' 'p11' 'p12' 'p02' 'p04' 'p03']
 Data processing complete
--------------------- Preparing model... -------------------- 
+-------------------- Preparing model... --------------------
 
 Model path: ibm-granite/granite-timeseries-ttm-r2
--------------------- Running few-shot 100% -------------------- 
+-------------------- Running few-shot 100% --------------------
 
 Using CUDA device: NVIDIA L40S
 Number of params before freezing backbone 805280
 Number of params after freezing the backbone 289696
 Using learning rate = 0.001
 Training for 5 epochs
--------------------- Fine-tuning... -------------------- 
+-------------------- Fine-tuning... --------------------
 
 Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-09-30_22-23-50
 {'loss': 0.8399, 'grad_norm': 0.3512837588787079, 'learning_rate': 0.000848310779094306, 'epoch': 1.0}
@@ -35,7 +35,7 @@ Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/k
 {'eval_loss': 0.8757468461990356, 'eval_runtime': 69.5435, 'eval_samples_per_second': 215.563, 'eval_steps_per_second': 3.379, 'epoch': 5.0}
 {'train_runtime': 805.1376, 'train_samples_per_second': 653.615, 'train_steps_per_second': 10.216, 'train_loss': 0.8238423727203648, 'epoch': 5.0}
 [TrackingCallback] Mean Epoch Time = 91.57443108558655 seconds, Total Train Time = 805.1373934745789
--------------------- Evaluating... -------------------- 
+-------------------- Evaluating... --------------------
 
 ++++++++++++++++++++ Test MSE after few-shot 100% fine-tuning ++++++++++++++++++++
 {'eval_loss': 0.9596843123435974, 'eval_runtime': 74.7717, 'eval_samples_per_second': 408.43, 'eval_steps_per_second': 6.393, 'epoch': 5.0}

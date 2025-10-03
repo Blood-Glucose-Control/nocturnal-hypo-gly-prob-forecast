@@ -11,12 +11,14 @@ sys.path.append(str(Path(__file__).parent))
 
 from model_registry import ModelRegistry
 
+
 def main():
     registry = ModelRegistry()
     print(registry.get_summary())
-    
+
     # Show recent runs in detail
     import pandas as pd
+
     if registry.registry_path.exists():
         df = pd.read_csv(registry.registry_path)
         if len(df) > 0:
@@ -31,10 +33,11 @@ def main():
                 print(f"  Learning Rate: {run['learning_rate']}")
                 print(f"  Node: {run['node_name']}")
                 print(f"  Start Time: {run['start_time']}")
-                if pd.notna(run['elapsed_time_seconds']):
-                    elapsed_min = float(run['elapsed_time_seconds']) / 60
+                if pd.notna(run["elapsed_time_seconds"]):
+                    elapsed_min = float(run["elapsed_time_seconds"]) / 60
                     print(f"  Duration: {elapsed_min:.1f} minutes")
                 print()
+
 
 if __name__ == "__main__":
     main()

@@ -131,7 +131,7 @@ if '$CONFIG_FILE' and '$CONFIG_FILE' != '':
 slurm_info = {
     'node_name': '$SLURMD_NODENAME',
     'cpus_per_task': '$SLURM_CPUS_PER_TASK',
-    'mem_per_cpu_gb': '${SLURM_MEM_PER_CPU:-}',  
+    'mem_per_cpu_gb': '${SLURM_MEM_PER_CPU:-}',
     'partition': '$SLURM_JOB_PARTITION',
     'time_limit': '$SLURM_TIMELIMIT'
 }
@@ -148,7 +148,7 @@ run_id = registry.register_run_start('$RUN_DIR', config, slurm_info, hardware_in
 print(f'Registered run: {run_id}')
 " || echo "Warning: Could not register run start"
 
-# Start GPU monitoring in background  
+# Start GPU monitoring in background
 nvidia-smi dmon -s pucvmet -d 10 -o DT > "$RUN_DIR/gpu_monitoring.log" &
 GPU_MONITOR_PID=$!
 

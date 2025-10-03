@@ -3,7 +3,7 @@
 Python 3.11.4
 Python path: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
 ==========================
--------------------- Preparing data... -------------------- 
+-------------------- Preparing data... --------------------
 
 Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
 Loaded p10_full: 25803 rows
@@ -26,16 +26,16 @@ Data length: 155562
 Split config: Train 85.0%, Test 10.0%
 Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
 Data processing complete
--------------------- Preparing model... -------------------- 
+-------------------- Preparing model... --------------------
 
 Model path: ibm-granite/granite-timeseries-ttm-r2
--------------------- Running few-shot 100% -------------------- 
+-------------------- Running few-shot 100% --------------------
 
 Number of params before freezing backbone 805280
 Number of params after freezing the backbone 289696
 Using learning rate = 0.001
 Training for 5 epochs
--------------------- Fine-tuning... -------------------- 
+-------------------- Fine-tuning... --------------------
 
 Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-01_16-35-03
 {'loss': 0.804, 'grad_norm': 0.8206503987312317, 'learning_rate': 0.001, 'epoch': 0.0, 'timestamp': 1759336568.5885406, 'custom_batch_size': 128, 'custom_learning_rate': 0.001}

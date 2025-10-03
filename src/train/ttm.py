@@ -44,25 +44,24 @@ def info_print(*args, **kwargs):
 
 def load_config(config_path):
     """Load YAML configuration file"""
-    with open(config_path, 'r') as file:
+    with open(config_path, "r") as file:
         config = yaml.safe_load(file)
     return config
 
 
 def parse_arguments():
     """Parse command line arguments"""
-    parser = argparse.ArgumentParser(description='TTM Fine-tuning with YAML configuration')
-    parser.add_argument(
-        '--config', 
-        type=str, 
-        required=False,
-        help='Path to YAML configuration file'
+    parser = argparse.ArgumentParser(
+        description="TTM Fine-tuning with YAML configuration"
     )
     parser.add_argument(
-        '--run-dir',
+        "--config", type=str, required=False, help="Path to YAML configuration file"
+    )
+    parser.add_argument(
+        "--run-dir",
         type=str,
         required=False,
-        help='Directory to save run outputs and logs'
+        help="Directory to save run outputs and logs",
     )
     return parser.parse_args()
 
@@ -455,7 +454,7 @@ def finetune_ttm(
     resume_dir=None,
     loss="mse",
     use_cpu=False,
-    dataloader_num_workers=2,   
+    dataloader_num_workers=2,
 ):
     """
     Fine-tunes a Time Series Transformer Model (TTM) on patient time series data.
@@ -610,46 +609,51 @@ def finetune_ttm(
 # TODO: Add utilities to load from a checkpoint (like the notebook)
 if __name__ == "__main__":
     args = parse_arguments()
-    
+
     # Load configuration from YAML file if provided
     if args.config:
         info_print(f"Loading configuration from: {args.config}")
         config = load_config(args.config)
-        
+
         # Save config to run directory if provided
         if args.run_dir:
             run_dir = Path(args.run_dir)
             run_dir.mkdir(parents=True, exist_ok=True)
             config_copy_path = run_dir / "experiment_config.yaml"
-            with open(config_copy_path, 'w') as f:
+            with open(config_copy_path, "w") as f:
                 yaml.dump(config, f, default_flow_style=False, indent=2)
             info_print(f"Configuration saved to: {config_copy_path}")
-        
+
         # Extract parameters from config
-        model_config = config.get('model', {})
-        data_config = config.get('data', {})
-        training_config = config.get('training', {})
-        
+        model_config = config.get("model", {})
+        data_config = config.get("data", {})
+        training_config = config.get("training", {})
+
         finetune_ttm(
-            model_path=model_config.get('path', "ibm-granite/granite-timeseries-ttm-r2"),
-            context_length=model_config.get('context_length', 512),
-            forecast_length=model_config.get('forecast_length', 96),
+            model_path=model_config.get(
+                "path", "ibm-granite/granite-timeseries-ttm-r2"
+            ),
+            context_length=model_config.get("context_length", 512),
+            forecast_length=model_config.get("forecast_length", 96),
             # Data Configuration
-            data_source_name=data_config.get('source_name', "kaggle_brisT1D"),
-            y_feature=data_config.get('y_feature', ["bg_mM"]),
-            x_features=data_config.get('x_features', ["steps", "cob", "carb_availability", "insulin_availability", "iob"]),
-            timestamp_column=data_config.get('timestamp_column', "datetime"),
-            resolution_min=data_config.get('resolution_min', 5),
-            data_split=tuple(data_config.get('data_split', [0.9, 0.1])),
-            fewshot_percent=data_config.get('fewshot_percent', 100),
-            dataloader_num_workers=training_config.get('dataloader_num_workers', 2),
+            data_source_name=data_config.get("source_name", "kaggle_brisT1D"),
+            y_feature=data_config.get("y_feature", ["bg_mM"]),
+            x_features=data_config.get(
+                "x_features",
+                ["steps", "cob", "carb_availability", "insulin_availability", "iob"],
+            ),
+            timestamp_column=data_config.get("timestamp_column", "datetime"),
+            resolution_min=data_config.get("resolution_min", 5),
+            data_split=tuple(data_config.get("data_split", [0.9, 0.1])),
+            fewshot_percent=data_config.get("fewshot_percent", 100),
+            dataloader_num_workers=training_config.get("dataloader_num_workers", 2),
             # Training Configuration
-            batch_size=training_config.get('batch_size', 128),
-            learning_rate=training_config.get('learning_rate', 0.001),
-            num_epochs=training_config.get('num_epochs', 10),
-            resume_dir=training_config.get('resume_dir'),
-            use_cpu=training_config.get('use_cpu', False),
-            loss=training_config.get('loss', "mse"),
+            batch_size=training_config.get("batch_size", 128),
+            learning_rate=training_config.get("learning_rate", 0.001),
+            num_epochs=training_config.get("num_epochs", 10),
+            resume_dir=training_config.get("resume_dir"),
+            use_cpu=training_config.get("use_cpu", False),
+            loss=training_config.get("loss", "mse"),
         )
     else:
         # Fallback to default configuration if no YAML provided
@@ -661,7 +665,13 @@ if __name__ == "__main__":
             # Data Configuration
             data_source_name="kaggle_brisT1D",
             y_feature=["bg_mM"],
-            x_features=["steps", "cob", "carb_availability", "insulin_availability", "iob"],
+            x_features=[
+                "steps",
+                "cob",
+                "carb_availability",
+                "insulin_availability",
+                "iob",
+            ],
             timestamp_column="datetime",
             resolution_min=5,
             data_split=(0.9, 0.1),

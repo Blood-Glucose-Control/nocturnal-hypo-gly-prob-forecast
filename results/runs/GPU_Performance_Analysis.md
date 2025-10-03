@@ -13,7 +13,7 @@ Based on the analysis of your recent training runs, here's what I found about yo
 - **Learning Rate**: 0.001
 
 ### Hardware Configuration
-- **Node**: watgpu608 
+- **Node**: watgpu608
 - **GPU**: L40S (based on your description)
 - **CPUs**: 16 cores
 - **Memory**: 32GB allocated
