@@ -1,0 +1,30 @@
+-------------------- Preparing data... -------------------- 
+
+Processing patient p10...
+Processing patient p11...
+Processing patient p12...
+Processing patient p02...
+Processing patient p04...
+Processing patient p03...
+Data length: 155562
+Split config: Train 85.0%, Test 10.0%
+Data ids: ['p10' 'p11' 'p12' 'p02' 'p04' 'p03']
+Data processing complete
+-------------------- Preparing model... -------------------- 
+
+Model path: ibm-granite/granite-timeseries-ttm-r2
+-------------------- Running few-shot 100% -------------------- 
+
+Number of params before freezing backbone 805280
+Number of params after freezing the backbone 289696
+Using learning rate = 0.001
+Training for 5 epochs
+-------------------- Fine-tuning... -------------------- 
+
+Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-01_01-35-04
+{'loss': 0.8413, 'grad_norm': 0.7656281590461731, 'learning_rate': 0.0006691011119474199, 'epoch': 1.0}
+{'eval_loss': 1.1795730590820312, 'eval_runtime': 78.4134, 'eval_samples_per_second': 91.987, 'eval_steps_per_second': 2.882, 'epoch': 1.0}
+{'loss': 0.8294, 'grad_norm': 0.902148425579071, 'learning_rate': 0.00044765152837947415, 'epoch': 2.0}
+{'eval_loss': 1.170109748840332, 'eval_runtime': 77.8121, 'eval_samples_per_second': 92.698, 'eval_steps_per_second': 2.904, 'epoch': 2.0}
+{'loss': 0.8222, 'grad_norm': 1.0454550981521606, 'learning_rate': 0.0002994941829901282, 'epoch': 3.0}
+{'eval_loss': 1.1667122840881348, 'eval_runtime': 77.7676, 'eval_samples_per_second': 92.751, 'eval_steps_per_second': 2.906, 'epoch': 3.0}

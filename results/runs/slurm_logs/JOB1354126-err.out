@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+AttributeError: module 'tensorflow' has no attribute '__version__'
+INFO:p-3882231:t-124544349336640:get_model.py:get_model:Loading model from: ibm-granite/granite-timeseries-ttm-r2
+INFO:p-3882231:t-124544349336640:get_model.py:get_model:Model loaded successfully from ibm-granite/granite-timeseries-ttm-r2, revision = main.
+INFO:p-3882231:t-124544349336640:get_model.py:get_model:[TTM] context_length = 512, prediction_length = 96
+slurmstepd: error: *** JOB 1354126 ON watgpu608 CANCELLED AT 2025-10-01T03:53:59 ***

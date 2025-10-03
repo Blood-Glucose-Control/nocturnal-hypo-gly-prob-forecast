@@ -1,6 +1,9 @@
+import argparse
 import glob
 import os
 import sys
+import yaml
+from pathlib import Path
 
 import pandas as pd
 from torch.optim import AdamW
@@ -37,6 +40,31 @@ def debug_print(*args, **kwargs):
 def info_print(*args, **kwargs):
     """Print informational messages to stdout"""
     print(*args, **kwargs, file=sys.stdout)
+
+
+def load_config(config_path):
+    """Load YAML configuration file"""
+    with open(config_path, 'r') as file:
+        config = yaml.safe_load(file)
+    return config
+
+
+def parse_arguments():
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='TTM Fine-tuning with YAML configuration')
+    parser.add_argument(
+        '--config', 
+        type=str, 
+        required=False,
+        help='Path to YAML configuration file'
+    )
+    parser.add_argument(
+        '--run-dir',
+        type=str,
+        required=False,
+        help='Directory to save run outputs and logs'
+    )
+    return parser.parse_args()
 
 
 class CustomMetricsCallback(TrainerCallback):
@@ -261,6 +289,7 @@ def _get_finetune_trainer(
     context_length=CONTEXT_LENGTH,
     forecast_length=PREDICTION_LENGTH,
     fewshot_percent=5,  # If resume from a checkpoint, this will need to be the same as the previous run
+    dataloader_num_workers=2,
     freeze_backbone=True,
     num_epochs=50,
     loss="mse",
@@ -349,17 +378,17 @@ def _get_finetune_trainer(
         num_train_epochs=num_epochs,
         do_eval=True,
         eval_strategy="steps",
-        eval_steps=2000,  # Evaluate every 2000 steps (even less frequent)
+        eval_steps=1000,  # Evaluate every 1000 steps (less frequent = faster training)
         fp16=True,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
-        dataloader_num_workers=8,
+        dataloader_num_workers=2,
         report_to="none",
         save_strategy="steps",
         logging_strategy="steps",
         logging_steps=100,  # Log every 100 steps
         logging_first_step=True,  # Log the first step
-        save_steps=5000,  # Save checkpoints every 5000 steps
+        save_steps=2000,  # Save checkpoints every 2000 steps
         save_total_limit=100,
         logging_dir=os.path.join(
             out_dir, "logs"
@@ -385,14 +414,14 @@ def _get_finetune_trainer(
 
     # Optimizer and scheduler
     optimizer = AdamW(finetune_forecast_model.parameters(), lr=learning_rate)
-    scheduler = ExponentialLR(optimizer, gamma=0.9999)
+    scheduler = ExponentialLR(optimizer, gamma=0.9999)  # TODO: Plot the learning rate.
 
     finetune_forecast_trainer = Trainer(
         model=finetune_forecast_model,
         args=finetune_forecast_args,
         train_dataset=dset_train,
         eval_dataset=dset_val,
-        # compute_metrics=compute_custom_metrics,  # Disabled during training for speed
+        compute_metrics=compute_custom_metrics,  # Add custom metrics computation
         callbacks=[
             # TODO:TONY - Remove early stopping for now
             # early_stopping_callback,
@@ -426,6 +455,7 @@ def finetune_ttm(
     resume_dir=None,
     loss="mse",
     use_cpu=False,
+    dataloader_num_workers=2,   
 ):
     """
     Fine-tunes a Time Series Transformer Model (TTM) on patient time series data.
@@ -509,9 +539,9 @@ def finetune_ttm(
     # datetime has to be a column
     data = all_patients_df.reset_index()
 
-    # Train/val/test split
-    train, test, val = data_split
-    split_config = {"train": train, "test": test, "val": val}
+    # Train/val split
+    train, test = data_split
+    split_config = {"train": train, "test": test}
     data_length = len(data)
     info_print(f"Data length: {data_length}")
     info_print(f"Split config: Train {train * 100}%, Test {test * 100}%")
@@ -544,6 +574,7 @@ def finetune_ttm(
         column_specifiers=column_specifiers,
         resolution_min=resolution_min,
         data=data,
+        dataloader_num_workers=dataloader_num_workers,
         split_config=split_config,
         save_dir=new_run_saved_dir,
         resume_dir=resume_dir,
@@ -578,23 +609,67 @@ def finetune_ttm(
 # TODO: Add back early stopping
 # TODO: Add utilities to load from a checkpoint (like the notebook)
 if __name__ == "__main__":
-    finetune_ttm(
-        model_path="ibm-granite/granite-timeseries-ttm-r2",
-        context_length=512,
-        forecast_length=96,
-        # Data Configuration
-        data_source_name="kaggle_brisT1D",
-        y_feature=["bg_mM"],
-        x_features=["steps", "cob", "carb_availability", "insulin_availability", "iob"],
-        timestamp_column="datetime",
-        resolution_min=5,
-        data_split=(0.85, 0.1, 0.05),
-        fewshot_percent=100,
-        # Training Configuration
-        batch_size=128,
-        learning_rate=0.001,
-        num_epochs=5,  # Increase if needed
-        # resume_dir="models/ttm/kaggle_brisT1D/2025-09-30_03-19-14/5min_patients/output",
-        use_cpu=False,
-        loss="mse",
-    )
+    args = parse_arguments()
+    
+    # Load configuration from YAML file if provided
+    if args.config:
+        info_print(f"Loading configuration from: {args.config}")
+        config = load_config(args.config)
+        
+        # Save config to run directory if provided
+        if args.run_dir:
+            run_dir = Path(args.run_dir)
+            run_dir.mkdir(parents=True, exist_ok=True)
+            config_copy_path = run_dir / "experiment_config.yaml"
+            with open(config_copy_path, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False, indent=2)
+            info_print(f"Configuration saved to: {config_copy_path}")
+        
+        # Extract parameters from config
+        model_config = config.get('model', {})
+        data_config = config.get('data', {})
+        training_config = config.get('training', {})
+        
+        finetune_ttm(
+            model_path=model_config.get('path', "ibm-granite/granite-timeseries-ttm-r2"),
+            context_length=model_config.get('context_length', 512),
+            forecast_length=model_config.get('forecast_length', 96),
+            # Data Configuration
+            data_source_name=data_config.get('source_name', "kaggle_brisT1D"),
+            y_feature=data_config.get('y_feature', ["bg_mM"]),
+            x_features=data_config.get('x_features', ["steps", "cob", "carb_availability", "insulin_availability", "iob"]),
+            timestamp_column=data_config.get('timestamp_column', "datetime"),
+            resolution_min=data_config.get('resolution_min', 5),
+            data_split=tuple(data_config.get('data_split', [0.9, 0.1])),
+            fewshot_percent=data_config.get('fewshot_percent', 100),
+            dataloader_num_workers=training_config.get('dataloader_num_workers', 2),
+            # Training Configuration
+            batch_size=training_config.get('batch_size', 128),
+            learning_rate=training_config.get('learning_rate', 0.001),
+            num_epochs=training_config.get('num_epochs', 10),
+            resume_dir=training_config.get('resume_dir'),
+            use_cpu=training_config.get('use_cpu', False),
+            loss=training_config.get('loss', "mse"),
+        )
+    else:
+        # Fallback to default configuration if no YAML provided
+        info_print("No configuration file provided, using default parameters")
+        finetune_ttm(
+            model_path="ibm-granite/granite-timeseries-ttm-r2",
+            context_length=512,
+            forecast_length=96,
+            # Data Configuration
+            data_source_name="kaggle_brisT1D",
+            y_feature=["bg_mM"],
+            x_features=["steps", "cob", "carb_availability", "insulin_availability", "iob"],
+            timestamp_column="datetime",
+            resolution_min=5,
+            data_split=(0.9, 0.1),
+            fewshot_percent=100,
+            # Training Configuration
+            batch_size=128,
+            learning_rate=0.001,
+            num_epochs=10,
+            use_cpu=False,
+            loss="mse",
+        )

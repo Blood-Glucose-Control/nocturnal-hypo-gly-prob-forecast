@@ -1,0 +1,39 @@
+=== Environment Check ===
+Job started at: 2025-10-01 18:52:14 UTC
+Job ID: 1354249
+Node: watgpu608
+/u6/cjrisi/nocturnal/.noctprob-venv/bin/python
+Python 3.11.4
+Python path: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
+==========================
+-------------------- Preparing data... -------------------- 
+
+Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
+Loaded p10_full: 25803 rows
+Loaded p11_full: 25559 rows
+Loaded p01_full: 8711 rows
+Loaded p06_full: 8791 rows
+Loaded p05_full: 8808 rows
+Loaded p12_full: 26371 rows
+Loaded p02_full: 26423 rows
+Loaded p04_full: 24983 rows
+Loaded p03_full: 26423 rows
+Successfully loaded 9 patients
+Processing patient p10_full...
+Processing patient p11_full...
+Processing patient p12_full...
+Processing patient p02_full...
+Processing patient p04_full...
+Processing patient p03_full...
+Data length: 155562
+Split config: Train 85.0%, Test 10.0%
+Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
+Data processing complete
+-------------------- Preparing model... -------------------- 
+
+Model path: ibm-granite/granite-timeseries-ttm-r2
+-------------------- Running few-shot 100% -------------------- 
+
+Number of params before freezing backbone 805280
+Number of params after freezing the backbone 289696
+Using learning rate = 0.001

@@ -1,0 +1,43 @@
+-------------------- Preparing data... -------------------- 
+
+Processing patient p10...
+Processing patient p11...
+Processing patient p12...
+Processing patient p02...
+Processing patient p04...
+Processing patient p03...
+Data length: 155562
+Split config: Train 70.0%, Test 20.0%
+Data ids: ['p10' 'p11' 'p12' 'p02' 'p04' 'p03']
+Data processing complete
+-------------------- Preparing model... -------------------- 
+
+Model path: ibm-granite/granite-timeseries-ttm-r2
+-------------------- Running few-shot 100% -------------------- 
+
+Using CUDA device: NVIDIA L40S
+Number of params before freezing backbone 805280
+Number of params after freezing the backbone 289696
+Using learning rate = 0.001
+Training for 5 epochs
+-------------------- Fine-tuning... -------------------- 
+
+Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-09-30_22-23-50
+{'loss': 0.8399, 'grad_norm': 0.3512837588787079, 'learning_rate': 0.000848310779094306, 'epoch': 1.0}
+{'eval_loss': 0.8804861903190613, 'eval_runtime': 68.9152, 'eval_samples_per_second': 217.528, 'eval_steps_per_second': 3.41, 'epoch': 1.0}
+{'loss': 0.8276, 'grad_norm': 0.3128933906555176, 'learning_rate': 0.0007196311779275895, 'epoch': 2.0}
+{'eval_loss': 0.8772683143615723, 'eval_runtime': 69.9494, 'eval_samples_per_second': 214.312, 'eval_steps_per_second': 3.36, 'epoch': 2.0}
+{'loss': 0.8218, 'grad_norm': 0.39400336146354675, 'learning_rate': 0.0006104708852083069, 'epoch': 3.0}
+{'eval_loss': 0.8769351840019226, 'eval_runtime': 69.3182, 'eval_samples_per_second': 216.263, 'eval_steps_per_second': 3.39, 'epoch': 3.0}
+{'loss': 0.8168, 'grad_norm': 0.30563315749168396, 'learning_rate': 0.000517869032245452, 'epoch': 4.0}
+{'eval_loss': 0.8751221895217896, 'eval_runtime': 69.3069, 'eval_samples_per_second': 216.299, 'eval_steps_per_second': 3.391, 'epoch': 4.0}
+{'loss': 0.8131, 'grad_norm': 0.40967366099357605, 'learning_rate': 0.0004393138822129542, 'epoch': 5.0}
+{'eval_loss': 0.8757468461990356, 'eval_runtime': 69.5435, 'eval_samples_per_second': 215.563, 'eval_steps_per_second': 3.379, 'epoch': 5.0}
+{'train_runtime': 805.1376, 'train_samples_per_second': 653.615, 'train_steps_per_second': 10.216, 'train_loss': 0.8238423727203648, 'epoch': 5.0}
+[TrackingCallback] Mean Epoch Time = 91.57443108558655 seconds, Total Train Time = 805.1373934745789
+-------------------- Evaluating... -------------------- 
+
+++++++++++++++++++++ Test MSE after few-shot 100% fine-tuning ++++++++++++++++++++
+{'eval_loss': 0.9596843123435974, 'eval_runtime': 74.7717, 'eval_samples_per_second': 408.43, 'eval_steps_per_second': 6.393, 'epoch': 5.0}
+{'eval_loss': 0.9596843123435974, 'eval_runtime': 74.7717, 'eval_samples_per_second': 408.43, 'eval_steps_per_second': 6.393, 'epoch': 5.0}
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
