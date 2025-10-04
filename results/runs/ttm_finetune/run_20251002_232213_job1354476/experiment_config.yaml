@@ -1,0 +1,57 @@
+data:
+  data_split:
+  - 0.8
+  - 0.2
+  fewshot_percent: 25
+  resolution_min: 5
+  source_name: kaggle_brisT1D
+  timestamp_column: datetime
+  x_features:
+  - steps
+  - cob
+  - carb_availability
+  - insulin_availability
+  - iob
+  y_feature:
+  - bg_mM
+evaluation:
+  eval_batch_size: 64
+  eval_frequency: 100
+  metrics:
+  - mse
+  - mae
+experiment:
+  description: Quick test run with minimal epochs for rapid iteration
+  name: ttm_quick_test
+  tags:
+  - test
+  - debug
+  - quick
+  version: '1.0'
+hardware:
+  expected_gpu_type: L40S
+  expected_memory_gb: 48
+  mixed_precision: false
+model:
+  context_length: 512
+  forecast_length: 96
+  path: ibm-granite/granite-timeseries-ttm-r2
+optimization:
+  optimizer: adamw
+  optimizer_params:
+    weight_decay: 0.01
+  scheduler: exponential
+  scheduler_params:
+    gamma: 0.9
+output:
+  checkpoint_frequency: 100
+  log_frequency: 20
+  save_best_model: true
+  save_checkpoints: true
+training:
+  batch_size: 64
+  learning_rate: 0.001
+  loss: mse
+  num_epochs: 3
+  resume_dir: null
+  use_cpu: false

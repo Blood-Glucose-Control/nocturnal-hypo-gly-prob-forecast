@@ -1,0 +1,18 @@
+INFO:p-3885333:t-136939072513088:get_model.py:get_model:Loading model from: ibm-granite/granite-timeseries-ttm-r2
+INFO:p-3885333:t-136939072513088:get_model.py:get_model:Model loaded successfully from ibm-granite/granite-timeseries-ttm-r2, revision = main.
+INFO:p-3885333:t-136939072513088:get_model.py:get_model:[TTM] context_length = 512, prediction_length = 96
+Traceback (most recent call last):
+  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 406, in <module>
+    finetune_ttm(
+  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 362, in finetune_ttm
+    finetune_forecast_trainer, dset_test = _get_finetune_trainer(
+                                           ^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 183, in _get_finetune_trainer
+    finetune_forecast_args = TrainingArguments(
+                             ^^^^^^^^^^^^^^^^^^
+  File "<string>", line 134, in __init__
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/training_args.py", line 1678, in __post_init__
+    raise ValueError(
+ValueError: --load_best_model_at_end requires the save and eval strategy to match, but found
+- Evaluation strategy: IntervalStrategy.STEPS
+- Save strategy: SaveStrategy.EPOCH

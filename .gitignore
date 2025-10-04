@@ -63,6 +63,7 @@ models/
 cache/**/*.csv
 cache/**/*.txt
 cache/**/*.json
+cache/**/*.pkl
 
 # Permissive for the cached data
 !cache/data/kaggle_brisT1D/processed/train/train.csv
