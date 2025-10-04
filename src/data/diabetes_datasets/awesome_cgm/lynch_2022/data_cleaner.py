@@ -25,10 +25,11 @@ logger = logging.getLogger(__name__)
 
 _RAW_SAS_FILENAMES = {
     "cgm": "iobp2devicecgm.sas7bdat",
+    "ilet": "iobp2deviceilet.sas7bdat",
     "demo": "iobp2diabscreening.sas7bdat",
-    "roster": "iobp2ptroster.sas7bdat",
 }
 
+# ...existing code...
 
 def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
     """
@@ -46,40 +47,136 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
         raise FileNotFoundError(f"Missing required SAS tables in {base_dir}: {missing}")
 
     # Load SAS files
-    data, _ = pyreadstat.read_sas7bdat(str(base_dir / _RAW_SAS_FILENAMES["cgm"]))
-    demo, _ = pyreadstat.read_sas7bdat(str(base_dir / _RAW_SAS_FILENAMES["demo"]))
-    age, _ = pyreadstat.read_sas7bdat(str(base_dir / _RAW_SAS_FILENAMES["roster"]))
+    cgm_data, _ = pyreadstat.read_sas7bdat(str(base_dir / _RAW_SAS_FILENAMES["cgm"]))
+    ilet_data, _ = pyreadstat.read_sas7bdat(str(base_dir / _RAW_SAS_FILENAMES["ilet"]))
+    demo_data, _ = pyreadstat.read_sas7bdat(str(base_dir / _RAW_SAS_FILENAMES["demo"]))
 
-    # Select and merge
-    data = data[["PtID", "DeviceDtTm", "Value"]]
-    demo = demo[["PtID", "InsModPump", "Sex"]]
-    age = age[["PtID", "AgeAsofEnrollDt"]]
+    logger.info("Loaded CGM data with shape %s", cgm_data.shape)
+    logger.info("Loaded iLet data with shape %s", ilet_data.shape)
+    logger.info("Loaded Demographics data with shape %s", demo_data.shape)
 
-    merged = (
-        data.merge(demo, on="PtID", how="left")
-        .merge(age, on="PtID", how="left")
-        .rename(
-            columns={
-                "PtID": "id",
-                "DeviceDtTm": "time",
-                "Value": "gl",
-                "AgeAsofEnrollDt": "age",
-                "Sex": "sex",
-                "InsModPump": "insulinModality",
-            }
-        )
+    # Extract CGM glucose values from iobp2devicecgm
+    # RecordType helps identify the type of reading
+    cgm_glucose = cgm_data[cgm_data["RecordType"] == "EGV"].copy() if "RecordType" in cgm_data.columns else cgm_data.copy()
+    cgm_glucose = cgm_glucose[["PtID", "DeviceDtTm", "Value"]].rename(
+        columns={"DeviceDtTm": "time", "Value": "gl"}
     )
 
-    # Clean
-    merged["time"] = pd.to_datetime(merged["time"], errors="coerce")
+    # Extract data from iobp2deviceilet
+    # CGMVal: CGM glucose value
+    # MealSize: meal carbohydrate amount
+    # InsComp: insulin compensation (insulin given at this time step)
+    ilet_cols = {
+        "PtID": "PtID",
+        "DeviceDtTm": "time",
+        "CGMVal": "gl_ilet",
+        "MealSize": "food_g",
+        "InsComp": "dose_units",
+        "PtWeight": "weight",
+    }
+    
+    available_cols = [col for col in ilet_cols.keys() if col in ilet_data.columns]
+    ilet_subset = ilet_data[available_cols].rename(columns={k: ilet_cols[k] for k in available_cols})
+
+    # Convert numeric columns to proper types BEFORE merging
+    if "food_g" in ilet_subset.columns:
+        ilet_subset["food_g"] = pd.to_numeric(ilet_subset["food_g"], errors="coerce")
+    if "dose_units" in ilet_subset.columns:
+        ilet_subset["dose_units"] = pd.to_numeric(ilet_subset["dose_units"], errors="coerce")
+    if "gl_ilet" in ilet_subset.columns:
+        ilet_subset["gl_ilet"] = pd.to_numeric(ilet_subset["gl_ilet"], errors="coerce")
+
+    # Extract demographics data
+    # DiagAge: age at diagnosis
+    # Sex: patient sex
+    demo_cols = ["PtID", "DiagAge", "Sex"]
+    available_demo_cols = [col for col in demo_cols if col in demo_data.columns]
+    demo_subset = demo_data[available_demo_cols]
+
+    # Convert time columns to datetime
+    cgm_glucose["time"] = pd.to_datetime(cgm_glucose["time"], errors="coerce")
+    ilet_subset["time"] = pd.to_datetime(ilet_subset["time"], errors="coerce")
+
+    # Convert glucose to numeric
+    cgm_glucose["gl"] = pd.to_numeric(cgm_glucose["gl"], errors="coerce")
+
+    # Merge CGM and iLet data on PtID and time
+    # Use outer merge to capture all timestamps from both sources
+    merged = pd.merge(
+        cgm_glucose,
+        ilet_subset,
+        on=["PtID", "time"],
+        how="outer",
+        suffixes=("_cgm", "_ilet")
+    )
+
+    # Consolidate glucose values: prefer CGM device data, fall back to iLet CGM reading
+    merged["gl"] = merged["gl"].fillna(merged.get("gl_ilet", np.nan))
+    if "gl_ilet" in merged.columns:
+        merged = merged.drop(columns=["gl_ilet"])
+
+    # Merge demographics data on PtID
+    merged = pd.merge(
+        merged,
+        demo_subset,
+        on="PtID",
+        how="left"
+    )
+
+    # Ensure insulin dose exists and handle missing values
+    # Convert to numeric first, then fill NaN with 0.0
+    if "dose_units" not in merged.columns:
+        merged["dose_units"] = 0.0
+    else:
+        merged["dose_units"] = pd.to_numeric(merged["dose_units"], errors="coerce").fillna(0.0)
+
+    # Food is already in grams (MealSize)
+    # Convert to numeric first, then fill NaN with 0.0
+    if "food_g" not in merged.columns:
+        merged["food_g"] = 0.0
+    else:
+        merged["food_g"] = pd.to_numeric(merged["food_g"], errors="coerce").fillna(0.0)
+
+    # Rename columns for consistency
+    rename_dict = {"PtID": "id"}
+    if "DiagAge" in merged.columns:
+        rename_dict["DiagAge"] = "age"
+        # Convert age to numeric
+        merged["DiagAge"] = pd.to_numeric(merged["DiagAge"], errors="coerce")
+    if "Sex" in merged.columns:
+        rename_dict["Sex"] = "sex"
+        # Keep sex as string/categorical
+    merged = merged.rename(columns=rename_dict)
+    
+    # Clean up: remove rows without time or glucose
     merged = merged.dropna(subset=["time", "gl"]).sort_values(["id", "time"]).reset_index(drop=True)
-    merged["type"] = 1
+    
+    # Add metadata columns
+    merged["type"] = 1  # Type 1 diabetes
     merged["device"] = "Dexcom G6"
     merged["dataset"] = "lynch2022"
-    merged["insulinModality"] = merged["insulinModality"].notna().astype(int)
+    
+    # Add placeholder columns for features not available in this dataset
+    if "age" not in merged.columns:
+        merged["age"] = np.nan
+    if "sex" not in merged.columns:
+        merged["sex"] = np.nan
+    merged["insulinModality"] = 1  # Assume pump-based (iLet is automated insulin delivery)
+    merged["hr_bpm"] = np.nan
+    merged["steps"] = np.nan
+    merged["cals"] = np.nan
+    merged["activity"] = np.nan
+
+    # Clean up temporary columns
+    temp_cols = ["weight"]
+    for col in temp_cols:
+        if col in merged.columns:
+            merged = merged.drop(columns=[col])
 
     logger.info("Loaded Lynch 2022 raw dataset with %d rows across %d subjects", len(merged), merged["id"].nunique())
     return merged
+
+# ...existing code...
 
 
 def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
@@ -96,12 +193,24 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
 
     # Patient ID and required columns for downstream pipeline
     df["p_num"] = df["id"].map(lambda pid: f"lynch_{int(pid)}")
-    df["dose_units"] = 0.0
-    df["food_g"] = 0.0
-    df["hr_bpm"] = np.nan
-    df["steps"] = np.nan
-    df["cals"] = np.nan
-    df["activity"] = np.nan
+    
+    # dose_units and food_g are already calculated in load_lynch2022_raw_dataset
+    # Ensure they exist and have proper types
+    if "dose_units" not in df.columns:
+        df["dose_units"] = 0.0
+    else:
+        df["dose_units"] = df["dose_units"].fillna(0.0)
+    
+    if "food_g" not in df.columns:
+        df["food_g"] = 0.0
+    else:
+        df["food_g"] = df["food_g"].fillna(0.0)
+    
+    # Ensure other physiological columns exist
+    for col in ["hr_bpm", "steps", "cals", "activity"]:
+        if col not in df.columns:
+            df[col] = np.nan
+    
     df["msg_type"] = "bg"
 
     cols = [

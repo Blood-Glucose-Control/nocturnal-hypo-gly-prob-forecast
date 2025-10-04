@@ -311,114 +311,65 @@ class Lynch2022DataLoader(DatasetBase):
         self, store_in_between_data=False
     ) -> dict[str, pd.DataFrame]:
         """
-        Process raw training data with full preprocessing pipeline.
-
-        Now:
-        - Clean the entire dataset at once and save a single combined CSV
-        - Iterate across patients from that combined dataset
-        - Save each patient CSV immediately after its processing completes
+        Process raw Lynch 2022 training data through cleaning and preprocessing pipeline.
+        
+        Returns:
+            Dictionary mapping patient IDs to their processed DataFrames
         """
-        if self.raw_data is None:
-            raise ValueError("Raw data not loaded. Call load_raw() first.")
-
-        logger.info(
-            "_process_raw_train_data: Processing train data. This may take a while..."
-        )
+        logger.info("Cleaning Lynch 2022 train data...")
         pre_processed_data = clean_lynch2022_train_data(self.raw_data)
-
-        # Save a single combined cleaned CSV (entire dataset at once)
-        processed_path = self.cache_manager.get_processed_data_path_for_type(
-            self.dataset_name, "train"
+        
+        logger.info("Running preprocessing pipeline on Lynch 2022 train data...")
+        
+        # Split data into per-patient dictionary FIRST (matches Kaggle pattern)
+        multipatient_data_dict = split_multipatient_dataframe(
+            pre_processed_data, "p_num"
         )
-        processed_path.mkdir(parents=True, exist_ok=True)
-        combined_csv = processed_path / "train_combined_clean.csv"
-        try:
-            pre_processed_data.to_csv(combined_csv, index=False)
-            logger.info(f"Saved combined cleaned train CSV: {combined_csv}")
-        except Exception as e:
-            logger.warning(f"Failed to save combined cleaned CSV: {e}")
-
-        # Derive patient groups from the full cleaned DataFrame (parse entire dataset)
-        if not isinstance(pre_processed_data, pd.DataFrame):
-            raise TypeError(
-                f"Expected DataFrame for train data, got {type(pre_processed_data)}"
-            )
-
-        patient_ids = pre_processed_data["p_num"].unique().tolist()
-        logger.info(f"Processing {len(patient_ids)} patients:")
-
-        # Optional debug dump of pre-cleaning data per patient
-        pre_cleaning_dfs_path = self.cache_manager.get_cleaning_step_data_path(
-            self.dataset_name
-        )
-        if store_in_between_data:
-            for p_num in patient_ids:
-                try:
-                    pre_processed_data[pre_processed_data["p_num"] == p_num].to_csv(
-                        pre_cleaning_dfs_path / f"patient_{p_num}_pre_cleaning.csv",
-                        index=False,
-                    )
-                    logger.info(f"\tStored pre-cleaning DataFrame for patient {p_num}")
-                except Exception as e:
-                    logger.warning(f"Failed to store pre-cleaning CSV for {p_num}: {e}")
-
-        processed_results: dict[str, pd.DataFrame] = {}
+        
+        # Create tuples from the dictionary (matches Kaggle pattern exactly)
+        patient_data_tuples = [
+            (p_num, patient_df, self.generic_patient_start_date)
+            for p_num, patient_df in multipatient_data_dict.items()
+        ]
 
         if self.parallel:
-            from concurrent.futures import ProcessPoolExecutor, as_completed
-
+            logger.info(
+                f"Processing {len(patient_data_tuples)} Lynch patients in parallel with {self.max_workers} workers..."
+            )
+            processed_dict = {}
             with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
-                # Prepare tuples directly from the combined cleaned DataFrame
-                patient_data_tuples = [
-                    (p_num, pre_processed_data[pre_processed_data["p_num"] == p_num], self.generic_patient_start_date)
-                    for p_num in patient_ids
-                ]
-                future_to_patient = {
-                    executor.submit(process_single_patient_data, patient_tuple): patient_tuple[0]
+                futures = {
+                    executor.submit(
+                        process_single_patient_data,
+                        patient_tuple,
+                        store_in_between_data,
+                    ): patient_tuple[0]
                     for patient_tuple in patient_data_tuples
                 }
 
-                for future in as_completed(future_to_patient):
-                    p_num = future_to_patient[future]
+                for future in as_completed(futures):
+                    p_num = futures[future]
                     try:
-                        patient_id, result_df = future.result()
-                        processed_results[patient_id] = result_df
-                        logger.info(f"processed_results: Successfully processed patient {patient_id}")
-
-                        # Save this patient's CSV immediately
-                        try:
-                            self.cache_manager.save_processed_data(
-                                self.dataset_name, self.dataset_type, patient_id, result_df
-                            )
-                        except Exception as e:
-                            logger.error(f"Failed to cache train data for patient {patient_id}: {e}", exc_info=True)
-
+                        patient_id, processed_data = future.result()
+                        processed_dict[patient_id] = processed_data
+                        logger.info(f"Completed processing Lynch patient {patient_id}")
                     except Exception as exc:
-                        logger.error(
-                            f"processed_results: Patient {p_num} generated an exception: {exc}"
-                        )
+                        logger.error(f"Lynch patient {p_num} generated an exception: {exc}")
+                        raise exc
         else:
-            for p_num in patient_ids:
-                logger.info(
-                    f"\n\n========================\n Processing patient {p_num} data...\n========================\n "
+            logger.info(
+                f"Processing {len(patient_data_tuples)} Lynch patients sequentially..."
+            )
+            processed_dict = {}
+            for patient_tuple in patient_data_tuples:
+                patient_id, processed_data = process_single_patient_data(
+                    patient_tuple, store_in_between_data
                 )
-                patient_df = pre_processed_data[pre_processed_data["p_num"] == p_num]
-                patient_data_tuple = (p_num, patient_df, self.generic_patient_start_date)
-                p_id, processed_patient_df = process_single_patient_data(patient_data_tuple)
-                processed_results[p_id] = processed_patient_df
+                processed_dict[patient_id] = processed_data
+                logger.info(f"Completed processing Lynch patient {patient_id}")
 
-                # Save this patient's CSV immediately
-                try:
-                    self.cache_manager.save_processed_data(
-                        self.dataset_name, self.dataset_type, p_id, processed_patient_df
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to cache train data for patient {p_id}: {e}", exc_info=True)
-
-        logger.info(
-            f"Successfully processed and cached data for {len(processed_results)} patients"
-        )
-        return processed_results
+        logger.info(f"Processed {len(processed_dict)} Lynch patients successfully")
+        return processed_dict
 
     def _process_raw_test_data(self) -> dict[str, dict[str, pd.DataFrame]]:
         """
