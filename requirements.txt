@@ -38,11 +38,11 @@ scikit-learn
 seaborn
 skchange
 sktime[all_extras]
-#tf-keras
+tf-keras
 torch
 tqdm
 transformers
-#transformers==4.49.0
+# transformers==4.49.0
 
 # Utilities
 typer
