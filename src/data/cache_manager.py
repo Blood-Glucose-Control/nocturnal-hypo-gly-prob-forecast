@@ -465,6 +465,157 @@ class CacheManager:
             f"\tSaved processed {dataset_type} data for {dataset_name} - patient: {patient_id}"
         )
 
+    def save_full_processed_data(
+        self, dataset_name: str, data: dict[str, pd.DataFrame]
+    ):
+        """
+        Save full processed data (before train/validation split) as CSV files.
+
+        Args:
+            dataset_name (str): Name of the dataset
+            data (dict[str, pd.DataFrame]): Dictionary mapping patient_id -> DataFrame
+        """
+        processed_path = self.get_processed_data_path(dataset_name)
+        processed_path.mkdir(parents=True, exist_ok=True)
+
+        for patient_id, patient_df in data.items():
+            csv_path = processed_path / f"{patient_id}_full.csv"
+            patient_df.to_csv(csv_path, index=True)
+
+        logger.info(
+            f"Saved full processed data for {dataset_name} - {len(data)} patients"
+        )
+
+    def load_full_processed_data(
+        self, dataset_name: str
+    ) -> dict[str, pd.DataFrame] | None:
+        """
+        Load full processed data (before train/validation split) from CSV files.
+
+        Args:
+            dataset_name (str): Name of the dataset
+
+        Returns:
+            Dictionary with patient IDs as keys and DataFrames as values, or None if not found
+        """
+        processed_path = self.get_processed_data_path(dataset_name)
+
+        if processed_path.exists():
+            result = {}
+            # Get all CSV files with _full.csv suffix
+            csv_files = [
+                f for f in processed_path.iterdir() if f.name.endswith("_full.csv")
+            ]
+
+            for csv_file in csv_files:
+                # Extract patient ID from filename: remove _full.csv suffix
+                FULL_SUFFIX = "_full"
+                patient_id = csv_file.stem[: -len(FULL_SUFFIX)]  # Remove "_full" suffix
+                # Load the CSV with datetime index (first column is the index)
+                df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+                result[patient_id] = df
+
+            return result if result else None
+
+        return None
+
+    def save_split_data(
+        self,
+        dataset_name: str,
+        train_data: dict[str, pd.DataFrame],
+        validation_data: dict[str, pd.DataFrame],
+        split_params: dict,
+    ):
+        """
+        Save train/validation split data as serialized files.
+
+        Args:
+            dataset_name (str): Name of the dataset
+            train_data (dict[str, pd.DataFrame]): Training data
+            validation_data (dict[str, pd.DataFrame]): Validation data
+            split_params (dict): Parameters used for the split (for reproducibility)
+        """
+        import pickle
+
+        processed_path = self.get_processed_data_path(dataset_name)
+        splits_path = processed_path / "splits"
+        splits_path.mkdir(parents=True, exist_ok=True)
+
+        # Create a unique split identifier based on parameters
+        split_id = self._get_split_id(split_params)
+        split_file = splits_path / f"split_{split_id}.pkl"
+
+        split_data = {
+            "train_data": train_data,
+            "validation_data": validation_data,
+            "split_params": split_params,
+        }
+
+        with open(split_file, "wb") as f:
+            pickle.dump(split_data, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+        logger.info(
+            f"Saved train/validation split for {dataset_name} with split_id: {split_id}"
+        )
+
+    def load_split_data(
+        self, dataset_name: str, split_params: dict
+    ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]] | None:
+        """
+        Load train/validation split data from serialized files.
+
+        Args:
+            dataset_name (str): Name of the dataset
+            split_params (dict): Parameters used for the split
+
+        Returns:
+            Tuple of (train_data, validation_data) or None if not found
+        """
+        import pickle
+
+        processed_path = self.get_processed_data_path(dataset_name)
+        splits_path = processed_path / "splits"
+
+        if not splits_path.exists():
+            return None
+
+        split_id = self._get_split_id(split_params)
+        split_file = splits_path / f"split_{split_id}.pkl"
+
+        if split_file.exists():
+            try:
+                with open(split_file, "rb") as f:
+                    split_data = pickle.load(f)
+
+                # Verify split parameters match
+                if split_data["split_params"] == split_params:
+                    return split_data["train_data"], split_data["validation_data"]
+                else:
+                    logger.warning(
+                        f"Split parameters mismatch for {dataset_name}, split_id: {split_id}"
+                    )
+            except Exception as e:
+                logger.error(f"Error loading split data: {e}")
+
+        return None
+
+    def _get_split_id(self, split_params: dict) -> str:
+        """
+        Generate a unique identifier for split parameters.
+
+        Args:
+            split_params (dict): Parameters used for the split
+
+        Returns:
+            str: Unique identifier for the split
+        """
+        import hashlib
+        import json
+
+        # Sort keys to ensure consistent hashing
+        sorted_params = json.dumps(split_params, sort_keys=True)
+        return hashlib.md5(sorted_params.encode()).hexdigest()[:8]
+
     def load_processed_data(
         self, dataset_name: str, dataset_type: str, file_format: str = "csv"
     ) -> dict[str, pd.DataFrame] | None:

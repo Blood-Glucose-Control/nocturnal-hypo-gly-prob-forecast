@@ -56,6 +56,9 @@ class BrisT1DDataLoader(DatasetBase):
         num_validation_days (int): Number of days to use for validation
         use_cached (bool): Whether to use cached processed data if available
         dataset_type (str): Type of dataset ('train' or 'test')
+        parallel (bool): Whether to use parallel processing
+        generic_patient_start_date (pd.Timestamp): Starting date for all patients
+        max_workers (int): Maximum number of workers for parallel processing
         processed_data (dict[str, pd.DataFrame] | dict[str, dict[str, pd.DataFrame]]):
             The processed dataset - dict for train, nested dict for test
         train_data (dict[str, pd.DataFrame] | None): Training subset (when dataset_type is 'train')
@@ -70,7 +73,8 @@ class BrisT1DDataLoader(DatasetBase):
         dataset_name (str): Returns "kaggle_brisT1D"
         num_patients (int): Number of patients in the dataset
         patient_ids (list[str]): List of patient IDs
-        data_shape_summary (dict[str, tuple[int, int]]): Shape summary for each patient
+        train_data_shape_summary (dict[str, tuple[int, int]]): Shape summary for train data by patient
+        test_data_shape_summary (dict[tuple[str, str], tuple[int, int]]): Shape summary for test data by (patient_id, sub_id)
     """
 
     def __init__(
@@ -153,21 +157,35 @@ class BrisT1DDataLoader(DatasetBase):
         return list(self.processed_data.keys())
 
     @property
-    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
-        """Get shape summary for each patient's data.
-        For test data, patient_df may be a nested dictionary, e.g.:
-            {patient_id: {sub_id: DataFrame}}
-        For train/validation data, patient_df is a DataFrame.
-        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
+    def train_data_shape_summary(self) -> dict[str, tuple[int, int]]:
         """
-        if not isinstance(self.processed_data, dict):
+        Get shape summary for each patient's train/validation data.
+        Returns a dict mapping patient_id to shape tuple.
+        Returns empty dict if dataset_type is not 'train'.
+        """
+        if self.dataset_type != "train" or not isinstance(self.processed_data, dict):
             return {}
+
         shape_summary = {}
         for patient_id, patient_df in self.processed_data.items():
             if isinstance(patient_df, pd.DataFrame):
                 shape_summary[patient_id] = patient_df.shape
-            elif isinstance(patient_df, dict):
-                for sub_id, sub_df in patient_df.items():
+        return shape_summary
+
+    @property
+    def test_data_shape_summary(self) -> dict[tuple[str, str], tuple[int, int]]:
+        """
+        Get shape summary for each patient's test data (nested by sub_id).
+        Returns a dict mapping (patient_id, sub_id) to shape tuple.
+        Returns empty dict if dataset_type is not 'test'.
+        """
+        if self.dataset_type != "test" or not isinstance(self.processed_data, dict):
+            return {}
+
+        shape_summary = {}
+        for patient_id, patient_data in self.processed_data.items():
+            if isinstance(patient_data, dict):
+                for sub_id, sub_df in patient_data.items():
                     if isinstance(sub_df, pd.DataFrame):
                         shape_summary[(patient_id, sub_id)] = sub_df.shape
         return shape_summary
@@ -200,18 +218,29 @@ class BrisT1DDataLoader(DatasetBase):
                     need_to_process_data = False
                     logger.info("Loaded nested test data from compressed cache")
             else:
-                # Regular cache loading for training data
-                cached_data = self.cache_manager.load_processed_data(
-                    self.dataset_name, self.dataset_type
+                # For train data, try to load full processed data first
+                cached_full_data = self.cache_manager.load_full_processed_data(
+                    self.dataset_name
                 )
-                logger.info(
-                    f"cache_manager.load_processed_data() returned dfs for:\n {[list(cached_data.keys())] if cached_data is not None else 'None'}"
-                )
-                # Processed data exists
-                if cached_data is not None:
-                    # This sets the data given the dataset type (train or test)
-                    self._load_from_cache(cached_data)
+                if cached_full_data is not None:
+                    self.processed_data = cached_full_data
+                    logger.info(
+                        f"Loaded full processed data from cache for {len(cached_full_data)} patients"
+                    )
                     need_to_process_data = False
+                else:
+                    # Fallback to old method for backwards compatibility
+                    cached_data = self.cache_manager.load_processed_data(
+                        self.dataset_name, self.dataset_type
+                    )
+                    logger.info(
+                        f"cache_manager.load_processed_data() returned dfs for:\n {[list(cached_data.keys())] if cached_data is not None else 'None'}"
+                    )
+                    # Processed data exists
+                    if cached_data is not None:
+                        # This sets the data given the dataset type (train or test)
+                        self._load_from_cache(cached_data)
+                        need_to_process_data = False
 
         # Either processed data DNE or use_cached is False
         if need_to_process_data:
@@ -480,15 +509,17 @@ class BrisT1DDataLoader(DatasetBase):
                 )
                 processed_results[p_num] = processed_patient_df
 
-        logger.info("Done processing train data. Saving processed data to cache...")
-        # Save processed data to cache
-        for p_num, patient_df in processed_results.items():
-            self.cache_manager.save_processed_data(
-                self.dataset_name, self.dataset_type, p_num, patient_df
-            )
+        logger.info(
+            "Done processing train data. Saving full processed data to cache..."
+        )
+
+        # Save full processed data (before split) to cache
+        self.cache_manager.save_full_processed_data(
+            self.dataset_name, processed_results
+        )
 
         logger.info(
-            f"Successfully processed and cached data for {len(processed_results)} patients"
+            f"Successfully processed and cached full data for {len(processed_results)} patients"
         )
         return processed_results
 
@@ -600,6 +631,7 @@ class BrisT1DDataLoader(DatasetBase):
     def _split_train_validation(self):
         """
         Split processed data into training and validation sets based on num_validation_days.
+        Uses serialized caching to avoid re-splitting data with the same parameters.
         Maintains dictionary structure where each patient's data is split individually.
         Calculates metadata (datetime column types, number of training days) for later use.
 
@@ -610,73 +642,74 @@ class BrisT1DDataLoader(DatasetBase):
             raise TypeError(
                 f"Cannot split train/validation data: processed_data must be a dict[str, pd.DataFrame], but got {type(self.processed_data)}"
             )
-        logger.info(
-            f"Splitting train/validation data with {self.num_validation_days} validation days..."
+
+        # Define split parameters
+        split_params = {
+            "num_validation_days": self.num_validation_days,
+            "split_method": "get_train_validation_split",
+            "dataset_type": self.dataset_type,
+        }
+
+        # Try to load existing split data
+        cached_split_data = self.cache_manager.load_split_data(
+            self.dataset_name, split_params
         )
-        # Split each patient's data individually
-        train_data_dict = {}
-        validation_data_dict = {}
 
-        for patient_id, patient_df in self.processed_data.items():
-            # Ensure patient_df is a DataFrame
-            if not isinstance(patient_df, pd.DataFrame):
-                raise TypeError(
-                    f"Expected DataFrame for patient {patient_id}, got {type(patient_df)}"
-                )
+        if cached_split_data is not None:
+            train_data_dict, validation_data_dict = cached_split_data
+            logger.info(
+                f"Loaded existing train/validation split from cache for {len(train_data_dict)} patients"
+            )
+        else:
+            logger.info(
+                f"No cached split found, splitting train/validation data with {self.num_validation_days} validation days..."
+            )
+            # Split each patient's data individually
+            train_data_dict = {}
+            validation_data_dict = {}
 
-            # Ensure datetime index exists - it should already be the index
-            patient_data = patient_df.copy()
-            if (
-                not isinstance(patient_data.index, pd.DatetimeIndex)
-                and patient_data.index.name != "datetime"
-            ):
-                if "datetime" in patient_data.columns:
-                    # If datetime is a column, set it as index
-                    patient_data = patient_data.set_index("datetime")
-                else:
-                    raise ValueError(
-                        f"No datetime index found for patient {patient_id}"
+            for patient_id, patient_df in self.processed_data.items():
+                # Ensure patient_df is a DataFrame
+                if not isinstance(patient_df, pd.DataFrame):
+                    raise TypeError(
+                        f"Expected DataFrame for patient {patient_id}, got {type(patient_df)}"
                     )
 
-            # Ensure p_num column exists for compatibility with get_train_validation_split
-            if "p_num" not in patient_data.columns:
-                patient_data["p_num"] = patient_id
+                # Ensure datetime index exists - it should already be the index
+                patient_data = patient_df.copy()
+                if (
+                    not isinstance(patient_data.index, pd.DatetimeIndex)
+                    and patient_data.index.name != "datetime"
+                ):
+                    if "datetime" in patient_data.columns:
+                        # If datetime is a column, set it as index
+                        patient_data = patient_data.set_index("datetime")
+                    else:
+                        raise ValueError(
+                            f"No datetime index found for patient {patient_id}"
+                        )
 
-            patient_train, patient_validation, _ = get_train_validation_split(
-                patient_data, num_validation_days=self.num_validation_days
+                # Ensure p_num column exists for compatibility with get_train_validation_split
+                if "p_num" not in patient_data.columns:
+                    patient_data["p_num"] = patient_id
+
+                patient_train, patient_validation, _ = get_train_validation_split(
+                    patient_data, num_validation_days=self.num_validation_days
+                )
+                train_data_dict[patient_id] = patient_train
+                validation_data_dict[patient_id] = patient_validation
+
+            # Save split data to cache using serialized format
+            self.cache_manager.save_split_data(
+                self.dataset_name, train_data_dict, validation_data_dict, split_params
             )
-            train_data_dict[patient_id] = patient_train
-            validation_data_dict[patient_id] = patient_validation
+            logger.info(
+                f"Cached new train/validation split data for {len(train_data_dict)} patients"
+            )
 
         # Store as dictionaries
         self.train_data = train_data_dict
         self.validation_data = validation_data_dict
-
-        # Cache the split data for future use
-        for patient_id, patient_train_df in train_data_dict.items():
-            try:
-                self.cache_manager.save_processed_data(
-                    self.dataset_name, "train", patient_id, patient_train_df
-                )
-            except Exception as e:
-                logger.error(
-                    f"Failed to cache train data for patient {patient_id}: {e}",
-                    exc_info=True,
-                )
-        for patient_id, patient_val_df in validation_data_dict.items():
-            try:
-                self.cache_manager.save_processed_data(
-                    self.dataset_name, "validation", patient_id, patient_val_df
-                )
-            except Exception as e:
-                logger.error(
-                    f"Failed to cache validation data for patient {patient_id}: {e}",
-                    exc_info=True,
-                )
-
-        logger.info(
-            f"Cached train/validation split data for {len(train_data_dict)} patients"
-        )
 
         # Calculate metadata from the first available patient for compatibility
         if validation_data_dict:
@@ -692,7 +725,8 @@ class BrisT1DDataLoader(DatasetBase):
             # Calculate total unique training days across all patients
             all_train_dates = set()
             for patient_train_df in train_data_dict.values():
-                # Use index instead of datetime column
-                patient_dates = patient_train_df.index.date
+                # Type cast to DatetimeIndex for clarity
+                datetime_index = pd.DatetimeIndex(patient_train_df.index)
+                patient_dates = datetime_index.date
                 all_train_dates.update(patient_dates)
             self.num_train_days = len(all_train_dates)

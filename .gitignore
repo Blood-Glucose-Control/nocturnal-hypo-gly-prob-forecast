@@ -58,6 +58,7 @@ src/data/diabetes_datasets/**/test.csv
 src/data/diabetes_datasets/**/sample_submission.csv
 src/data/diabetes_datasets/**/processed/*
 scripts/notebooks/**/*.csv
+models/
 
 cache/**/*.csv
 cache/**/*.txt
@@ -99,6 +100,10 @@ target/
 # IPython
 profile_default/
 ipython_config.py
+
+# MLflow
+mlflow_experiments/artifacts/*
+mlflow_experiments/mlflow.db
 
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
@@ -188,3 +193,4 @@ cython_debug/
 
 scripts/notebooks/mlruns/
 src/models
+mlflow_experiments/README.md
