@@ -125,7 +125,7 @@ class BrisT1DDataLoader(DatasetBase):
 
         # Data
         self.raw_data = None
-        self.processed_data = None
+        self.processed_data = {}
         self.train_data = None
         self.validation_data = None
         self.test_data = None

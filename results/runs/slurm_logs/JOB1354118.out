@@ -1,0 +1,78 @@
+=== Environment Check ===
+/u6/cjrisi/nocturnal/.noctprob-venv/bin/python
+Python 3.11.4
+Python path: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
+TensorFlow: 2.19.1 at /u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/tensorflow/__init__.py
+==========================
+-------------------- Preparing data... --------------------
+
+Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
+Loaded p10_full: 25803 rows
+Loaded p11_full: 25559 rows
+Loaded p01_full: 8711 rows
+Loaded p06_full: 8791 rows
+Loaded p05_full: 8808 rows
+Loaded p12_full: 26371 rows
+Loaded p02_full: 26423 rows
+Loaded p04_full: 24983 rows
+Loaded p03_full: 26423 rows
+Successfully loaded 9 patients
+Processing patient p10_full...
+Processing patient p11_full...
+Processing patient p12_full...
+Processing patient p02_full...
+Processing patient p04_full...
+Processing patient p03_full...
+Data length: 155562
+Split config: Train 85.0%, Test 10.0%
+Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
+Data processing complete
+-------------------- Preparing model... --------------------
+
+Model path: ibm-granite/granite-timeseries-ttm-r2
+-------------------- Running few-shot 100% --------------------
+
+Number of params before freezing backbone 805280
+Number of params after freezing the backbone 289696
+Using learning rate = 0.001
+Training for 500 epochs
+-------------------- Fine-tuning... --------------------
+
+Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-01_02-34-52
+{'loss': 0.8413, 'grad_norm': 0.7656281590461731, 'learning_rate': 0.0006691011119474199, 'epoch': 1.0}
+{'eval_loss': 1.1795730590820312, 'eval_runtime': 77.1761, 'eval_samples_per_second': 93.462, 'eval_steps_per_second': 2.928, 'epoch': 1.0}
+{'loss': 0.8294, 'grad_norm': 0.902148425579071, 'learning_rate': 0.00044765152837947415, 'epoch': 2.0}
+{'eval_loss': 1.170109748840332, 'eval_runtime': 76.5455, 'eval_samples_per_second': 94.232, 'eval_steps_per_second': 2.952, 'epoch': 2.0}
+{'loss': 0.8222, 'grad_norm': 1.0454550981521606, 'learning_rate': 0.0002994941829901282, 'epoch': 3.0}
+{'eval_loss': 1.1667122840881348, 'eval_runtime': 77.0279, 'eval_samples_per_second': 93.641, 'eval_steps_per_second': 2.934, 'epoch': 3.0}
+{'loss': 0.8176, 'grad_norm': 1.2492648363113403, 'learning_rate': 0.00020037185167139345, 'epoch': 4.0}
+{'eval_loss': 1.1622103452682495, 'eval_runtime': 76.5869, 'eval_samples_per_second': 94.181, 'eval_steps_per_second': 2.951, 'epoch': 4.0}
+{'loss': 0.8134, 'grad_norm': 1.2486635446548462, 'learning_rate': 0.0001340556218534163, 'epoch': 5.0}
+{'eval_loss': 1.161868691444397, 'eval_runtime': 76.3051, 'eval_samples_per_second': 94.528, 'eval_steps_per_second': 2.962, 'epoch': 5.0}
+{'loss': 0.8108, 'grad_norm': 0.7293714284896851, 'learning_rate': 8.968779596835963e-05, 'epoch': 6.0}
+{'eval_loss': 1.160170555114746, 'eval_runtime': 76.7948, 'eval_samples_per_second': 93.926, 'eval_steps_per_second': 2.943, 'epoch': 6.0}
+{'loss': 0.8087, 'grad_norm': 0.9189388751983643, 'learning_rate': 6.000420299014145e-05, 'epoch': 7.0}
+{'eval_loss': 1.1581023931503296, 'eval_runtime': 77.5108, 'eval_samples_per_second': 93.058, 'eval_steps_per_second': 2.916, 'epoch': 7.0}
+{'loss': 0.8074, 'grad_norm': 0.7551068663597107, 'learning_rate': 4.014486405432826e-05, 'epoch': 8.0}
+{'eval_loss': 1.1576955318450928, 'eval_runtime': 76.7304, 'eval_samples_per_second': 94.005, 'eval_steps_per_second': 2.945, 'epoch': 8.0}
+{'loss': 0.8065, 'grad_norm': 0.9978001117706299, 'learning_rate': 2.6858287080411217e-05, 'epoch': 9.0}
+{'eval_loss': 1.1557923555374146, 'eval_runtime': 77.4275, 'eval_samples_per_second': 93.158, 'eval_steps_per_second': 2.919, 'epoch': 9.0}
+{'loss': 0.8057, 'grad_norm': 0.9711167812347412, 'learning_rate': 1.796911265953108e-05, 'epoch': 10.0}
+{'eval_loss': 1.1552481651306152, 'eval_runtime': 76.6689, 'eval_samples_per_second': 94.08, 'eval_steps_per_second': 2.948, 'epoch': 10.0}
+{'loss': 0.8054, 'grad_norm': 1.3901677131652832, 'learning_rate': 1.2021950945874576e-05, 'epoch': 11.0}
+{'eval_loss': 1.1545562744140625, 'eval_runtime': 77.0893, 'eval_samples_per_second': 93.567, 'eval_steps_per_second': 2.932, 'epoch': 11.0}
+{'loss': 0.8051, 'grad_norm': 0.7386586666107178, 'learning_rate': 8.043096355587459e-06, 'epoch': 12.0}
+{'eval_loss': 1.1548963785171509, 'eval_runtime': 76.5458, 'eval_samples_per_second': 94.231, 'eval_steps_per_second': 2.952, 'epoch': 12.0}
+{'loss': 0.8047, 'grad_norm': 1.2293651103973389, 'learning_rate': 5.381106550552305e-06, 'epoch': 13.0}
+{'eval_loss': 1.1541444063186646, 'eval_runtime': 77.3238, 'eval_samples_per_second': 93.283, 'eval_steps_per_second': 2.923, 'epoch': 13.0}
+{'loss': 0.8045, 'grad_norm': 0.9038776755332947, 'learning_rate': 3.6001443260444507e-06, 'epoch': 14.0}
+{'eval_loss': 1.1548316478729248, 'eval_runtime': 76.975, 'eval_samples_per_second': 93.706, 'eval_steps_per_second': 2.936, 'epoch': 14.0}
+{'loss': 0.8046, 'grad_norm': 1.0745866298675537, 'learning_rate': 2.408619685670369e-06, 'epoch': 15.0}
+{'eval_loss': 1.154282569885254, 'eval_runtime': 76.4706, 'eval_samples_per_second': 94.324, 'eval_steps_per_second': 2.955, 'epoch': 15.0}
+{'loss': 0.8046, 'grad_norm': 1.1366368532180786, 'learning_rate': 1.611448948929496e-06, 'epoch': 16.0}
+{'eval_loss': 1.154394507408142, 'eval_runtime': 76.8123, 'eval_samples_per_second': 93.904, 'eval_steps_per_second': 2.942, 'epoch': 16.0}
+{'loss': 0.8043, 'grad_norm': 0.7241699695587158, 'learning_rate': 1.0781144613468733e-06, 'epoch': 17.0}
+{'eval_loss': 1.1544650793075562, 'eval_runtime': 77.4384, 'eval_samples_per_second': 93.145, 'eval_steps_per_second': 2.918, 'epoch': 17.0}
+{'loss': 0.8041, 'grad_norm': 0.9903834462165833, 'learning_rate': 7.212954481352997e-07, 'epoch': 18.0}
+{'eval_loss': 1.1544792652130127, 'eval_runtime': 76.7739, 'eval_samples_per_second': 93.951, 'eval_steps_per_second': 2.944, 'epoch': 18.0}
+{'loss': 0.8043, 'grad_norm': 0.783007800579071, 'learning_rate': 4.825713244313009e-07, 'epoch': 19.0}

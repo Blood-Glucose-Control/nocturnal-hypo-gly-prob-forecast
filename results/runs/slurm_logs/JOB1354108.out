@@ -1,0 +1,44 @@
+-------------------- Preparing data... --------------------
+
+Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
+Loaded p10_full: 25803 rows
+Loaded p11_full: 25559 rows
+Loaded p01_full: 8711 rows
+Loaded p06_full: 8791 rows
+Loaded p05_full: 8808 rows
+Loaded p12_full: 26371 rows
+Loaded p02_full: 26423 rows
+Loaded p04_full: 24983 rows
+Loaded p03_full: 26423 rows
+Successfully loaded 9 patients
+Processing patient p10_full...
+Processing patient p11_full...
+Processing patient p12_full...
+Processing patient p02_full...
+Processing patient p04_full...
+Processing patient p03_full...
+Data length: 155562
+Split config: Train 85.0%, Test 10.0%
+Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
+Data processing complete
+-------------------- Preparing model... --------------------
+
+Model path: ibm-granite/granite-timeseries-ttm-r2
+-------------------- Running few-shot 100% --------------------
+
+Number of params before freezing backbone 805280
+Number of params after freezing the backbone 289696
+Using learning rate = 0.001
+Training for 500 epochs
+-------------------- Fine-tuning... --------------------
+
+Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-01_02-18-40
+{'loss': 0.8413, 'grad_norm': 0.7656281590461731, 'learning_rate': 0.0006691011119474199, 'epoch': 1.0}
+{'eval_loss': 1.1795730590820312, 'eval_runtime': 77.7101, 'eval_samples_per_second': 92.819, 'eval_steps_per_second': 2.908, 'epoch': 1.0}
+{'loss': 0.8294, 'grad_norm': 0.902148425579071, 'learning_rate': 0.00044765152837947415, 'epoch': 2.0}
+{'eval_loss': 1.170109748840332, 'eval_runtime': 77.7875, 'eval_samples_per_second': 92.727, 'eval_steps_per_second': 2.905, 'epoch': 2.0}
+{'loss': 0.8222, 'grad_norm': 1.0454550981521606, 'learning_rate': 0.0002994941829901282, 'epoch': 3.0}
+{'eval_loss': 1.1667122840881348, 'eval_runtime': 77.8418, 'eval_samples_per_second': 92.662, 'eval_steps_per_second': 2.903, 'epoch': 3.0}
+{'loss': 0.8176, 'grad_norm': 1.2492648363113403, 'learning_rate': 0.00020037185167139345, 'epoch': 4.0}
+{'eval_loss': 1.1622103452682495, 'eval_runtime': 77.5218, 'eval_samples_per_second': 93.045, 'eval_steps_per_second': 2.915, 'epoch': 4.0}
+{'loss': 0.8134, 'grad_norm': 1.2486635446548462, 'learning_rate': 0.0001340556218534163, 'epoch': 5.0}

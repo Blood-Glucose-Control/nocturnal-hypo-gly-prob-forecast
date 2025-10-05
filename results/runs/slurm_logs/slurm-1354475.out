@@ -1,0 +1,133 @@
+Using configuration file: models/configs/ttm_quick_test_config.yaml
+=== Environment Check ===
+Job started at: 2025-10-02 23:20:48 UTC
+Job ID: 1354475
+Node: watgpu208
+Run Directory: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251002_232048_job1354475
+/u6/cjrisi/nocturnal/.noctprob-venv/bin/python
+Python 3.11.4
+Python path: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
+=== GPU Information ===
+No devices were found
+GPU Driver Version: No devices were found
+GPU Name: No devices were found
+GPU Memory: No devices were found MiB
+===========================
+Started GPU monitoring (PID: 105941) and utilization logging (PID: 105942)
+=== Starting Training ===
+Training started at: 2025-10-02 23:20:49 UTC
+Running command: python /u6/cjrisi/nocturnal/src/train/ttm.py --run-dir "/u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251002_232048_job1354475" --config "/u6/cjrisi/nocturnal/models/configs/ttm_quick_test_config.yaml"
+INFO:p-105948:t-134226538415936:get_model.py:get_model:Loading model from: ibm-granite/granite-timeseries-ttm-r2
+WARNING:p-105948:t-134226538415936:get_model.py:get_model:Requested `prediction_length` (48) is not exactly equal to any of the available TTM prediction lengths. Hence, TTM will forecast using the `prediction_filter_length` argument to provide the requested prediction length. Check the model card to know more about the supported context lengths and forecast/prediction lengths.
+INFO:p-105948:t-134226538415936:get_model.py:get_model:Model loaded successfully from ibm-granite/granite-timeseries-ttm-r2, revision = 180-60-ft-l1-r2.1.
+INFO:p-105948:t-134226538415936:get_model.py:get_model:[TTM] context_length = 180, prediction_length = 60
+Using auto half precision backend
+/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/torch/utils/data/dataloader.py:626: UserWarning: This DataLoader will create 8 worker processes in total. Our suggested max number of worker in current system is 2, which is smaller than what this DataLoader is going to create. Please be aware that excessive worker creation might get DataLoader running slow or even freeze, lower the worker number to avoid potential slowness/freeze if necessary.
+  warnings.warn(
+***** Running training *****
+  Num examples = 30,443
+  Num Epochs = 3
+  Instantaneous batch size per device = 64
+  Total train batch size (w. parallel, distributed & accumulation) = 64
+  Gradient Accumulation steps = 1
+  Total optimization steps = 1,428
+  Number of trainable parameters = 40,104
+Loading configuration from: /u6/cjrisi/nocturnal/models/configs/ttm_quick_test_config.yaml
+Configuration saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251002_232048_job1354475/experiment_config.yaml
+-------------------- Preparing data... --------------------
+
+Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
+Loaded p10_full: 25803 rows
+Loaded p11_full: 25559 rows
+Loaded p01_full: 8711 rows
+Loaded p06_full: 8791 rows
+Loaded p05_full: 8808 rows
+Loaded p12_full: 26371 rows
+Loaded p02_full: 26423 rows
+Loaded p04_full: 24983 rows
+Loaded p03_full: 26423 rows
+Successfully loaded 9 patients
+Processing patient p10_full...
+Processing patient p11_full...
+Processing patient p12_full...
+Processing patient p02_full...
+Processing patient p04_full...
+Processing patient p03_full...
+Data length: 155562
+Split config: Train 80.0%, Test 20.0%
+Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
+Data processing complete
+-------------------- Preparing model... --------------------
+
+Model path: ibm-granite/granite-timeseries-ttm-r2
+-------------------- Running few-shot 25% --------------------
+
+Number of params before freezing backbone 496275
+Number of params after freezing the backbone 40104
+Using learning rate = 0.001
+Training for 3 epochs
+-------------------- Fine-tuning... --------------------
+
+Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-02_23-21-02
+  0%|          | 0/1428 [00:00<?, ?it/s]/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/torch/utils/data/dataloader.py:665: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  warnings.warn(warn_msg)
+The following columns in the Training set don't have a corresponding argument in `TinyTimeMixerForPrediction.forward` and have been ignored: timestamp, id. If timestamp, id are not expected by `TinyTimeMixerForPrediction.forward`,  you can safely ignore this message.
+The following columns in the Training set don't have a corresponding argument in `TinyTimeMixerForPrediction.forward` and have been ignored: timestamp, id. If timestamp, id are not expected by `TinyTimeMixerForPrediction.forward`,  you can safely ignore this message.
+The following columns in the Training set don't have a corresponding argument in `TinyTimeMixerForPrediction.forward` and have been ignored: timestamp, id. If timestamp, id are not expected by `TinyTimeMixerForPrediction.forward`,  you can safely ignore this message.
+The following columns in the Training set don't have a corresponding argument in `TinyTimeMixerForPrediction.forward` and have been ignored: timestamp, id. If timestamp, id are not expected by `TinyTimeMixerForPrediction.forward`,  you can safely ignore this message.
+The following columns in the Training set don't have a corresponding argument in `TinyTimeMixerForPrediction.forward` and have been ignored: timestamp, id. If timestamp, id are not expected by `TinyTimeMixerForPrediction.forward`,  you can safely ignore this message.
+The following columns in the Training set don't have a corresponding argument in `TinyTimeMixerForPrediction.forward` and have been ignored: timestamp, id. If timestamp, id are not expected by `TinyTimeMixerForPrediction.forward`,  you can safely ignore this message.
+The following columns in the Training set don't have a corresponding argument in `TinyTimeMixerForPrediction.forward` and have been ignored: timestamp, id. If timestamp, id are not expected by `TinyTimeMixerForPrediction.forward`,  you can safely ignore this message.
+The following columns in the Training set don't have a corresponding argument in `TinyTimeMixerForPrediction.forward` and have been ignored: timestamp, id. If timestamp, id are not expected by `TinyTimeMixerForPrediction.forward`,  you can safely ignore this message.
+Traceback (most recent call last):
+  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 630, in <module>
+    finetune_ttm(
+  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 589, in finetune_ttm
+    finetune_forecast_trainer.train()
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 2328, in train
+    return inner_training_loop(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 2672, in _inner_training_loop
+    tr_loss_step = self.training_step(model, inputs, num_items_in_batch)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 4009, in training_step
+    loss = self.compute_loss(model, inputs, num_items_in_batch=num_items_in_batch)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 4099, in compute_loss
+    outputs = model(**inputs)
+              ^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/tsfm_public/models/tinytimemixer/modeling_tinytimemixer.py", line 1874, in forward
+    model_output = self.backbone(
+                   ^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/tsfm_public/models/tinytimemixer/modeling_tinytimemixer.py", line 1615, in forward
+    scaled_past_values, loc, scale = self.scaler(past_values, past_observed_mask)
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1751, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1762, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/tsfm_public/models/tinytimemixer/modeling_tinytimemixer.py", line 1327, in forward
+    loc = (data * observed_indicator).sum(self.dim, keepdim=self.keepdim) / denominator
+           ~~~~~^~~~~~~~~~~~~~~~~~~~
+RuntimeError: The size of tensor a (180) must match the size of tensor b (256) at non-singleton dimension 1
+  0%|          | 0/1428 [00:00<?, ?it/s]
+Training finished at: 2025-10-02 23:21:10 UTC
+Training exit code: 0
+Total elapsed time: 0h 0m 22s (22 seconds)
+Run completed. Logs and monitoring data saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251002_232048_job1354475
+All run data and logs saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251002_232048_job1354475
+Configuration and results tracked in model registry

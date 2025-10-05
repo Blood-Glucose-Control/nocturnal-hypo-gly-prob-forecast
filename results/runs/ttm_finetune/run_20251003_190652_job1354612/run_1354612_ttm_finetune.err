@@ -1,0 +1,4 @@
+awk: cmd. line:1: "{print
+awk: cmd. line:1: ^ unterminated string
+awk: cmd. line:1: "{print
+awk: cmd. line:1: ^ unterminated string
