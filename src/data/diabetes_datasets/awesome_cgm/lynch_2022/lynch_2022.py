@@ -648,3 +648,4 @@ class Lynch2022DataLoader(DatasetBase):
                 patient_dates = patient_train_df.index.date
                 all_train_dates.update(patient_dates)
             self.num_train_days = len(all_train_dates)
+            
