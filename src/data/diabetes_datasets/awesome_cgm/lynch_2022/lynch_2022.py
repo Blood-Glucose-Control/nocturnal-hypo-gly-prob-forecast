@@ -9,7 +9,6 @@ and test datasets with caching and preprocessing pipelines.
 import logging
 import functools
 import gzip
-import logging
 import pickle
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -122,7 +121,7 @@ class Lynch2022DataLoader(DatasetBase):
         Then split train/validation data.
         """
         logger.info("============================================================")
-        logger.info("Beginning data loading process with the following parmeters:")
+        logger.info("Beginning data loading process with the following parameters:")
         logger.info(f"\tDataset: {self.dataset_name} - {self.dataset_type}")
         logger.info(f"\tColumns: {self.keep_columns}")
         logger.info(f"\tGeneric patient start date: {self.generic_patient_start_date}")
@@ -648,4 +647,3 @@ class Lynch2022DataLoader(DatasetBase):
                 patient_dates = patient_train_df.index.date
                 all_train_dates.update(patient_dates)
             self.num_train_days = len(all_train_dates)
-            

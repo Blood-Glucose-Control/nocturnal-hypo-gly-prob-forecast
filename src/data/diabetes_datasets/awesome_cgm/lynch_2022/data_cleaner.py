@@ -29,8 +29,6 @@ _RAW_SAS_FILENAMES = {
     "demo": "iobp2diabscreening.sas7bdat",
 }
 
-# ...existing code...
-
 def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
     """
     Load and merge Lynch 2022 SAS tables into a single dataframe.
@@ -175,8 +173,6 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
 
     logger.info("Loaded Lynch 2022 raw dataset with %d rows across %d subjects", len(merged), merged["id"].nunique())
     return merged
-
-# ...existing code...
 
 
 def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
