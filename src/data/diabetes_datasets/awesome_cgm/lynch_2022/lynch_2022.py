@@ -15,6 +15,7 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pandas as pd
+from tqdm import tqdm
 
 from src.data.cache_manager import get_cache_manager
 from src.data.dataset_configs import get_dataset_config
@@ -143,18 +144,29 @@ class Lynch2022DataLoader(DatasetBase):
                     need_to_process_data = False
                     logger.info("Loaded nested test data from compressed cache")
             else:
-                # Regular cache loading for training data
-                cached_data = self.cache_manager.load_processed_data(
-                    self.dataset_name, self.dataset_type
+                # For train data, try to load full processed data first
+                cached_full_data = self.cache_manager.load_full_processed_data(
+                    self.dataset_name
                 )
-                logger.info(
-                    f"cache_manager.load_processed_data() returned dfs for:\n {[list(cached_data.keys())] if cached_data is not None else 'None'}"
-                )
-                # Processed data exists
-                if cached_data is not None:
-                    # This sets the data given the dataset type (train or test)
-                    self._load_from_cache(cached_data)
+                if cached_full_data is not None:
+                    self.processed_data = cached_full_data
+                    logger.info(
+                        f"Loaded full processed data from cache for {len(cached_full_data)} patients"
+                    )
                     need_to_process_data = False
+                else:
+                    # Fallback to old method for backwards compatibility
+                    cached_data = self.cache_manager.load_processed_data(
+                        self.dataset_name, self.dataset_type
+                    )
+                    logger.info(
+                        f"cache_manager.load_processed_data() returned dfs for:\n {[list(cached_data.keys())] if cached_data is not None else 'None'}"
+                    )
+                    # Processed data exists
+                    if cached_data is not None:
+                        # This sets the data given the dataset type (train or test)
+                        self._load_from_cache(cached_data)
+                        need_to_process_data = False
 
         # Either processed data DNE or use_cached is False
         if need_to_process_data:
@@ -347,12 +359,16 @@ class Lynch2022DataLoader(DatasetBase):
                     for patient_tuple in patient_data_tuples
                 }
 
-                for future in as_completed(futures):
+                for future in tqdm(
+                    as_completed(futures),
+                    total=len(futures),
+                    desc="Processing Lynch patients",
+                    unit="patient"
+                ):
                     p_num = futures[future]
                     try:
                         patient_id, processed_data = future.result()
                         processed_dict[patient_id] = processed_data
-                        logger.info(f"Completed processing Lynch patient {patient_id}")
                     except Exception as exc:
                         logger.error(f"Lynch patient {p_num} generated an exception: {exc}")
                         raise exc
@@ -361,14 +377,27 @@ class Lynch2022DataLoader(DatasetBase):
                 f"Processing {len(patient_data_tuples)} Lynch patients sequentially..."
             )
             processed_dict = {}
-            for patient_tuple in patient_data_tuples:
+            for patient_tuple in tqdm(
+                patient_data_tuples,
+                desc="Processing Lynch patients",
+                unit="patient"
+            ):
                 patient_id, processed_data = process_single_patient_data(
                     patient_tuple, store_in_between_data
                 )
                 processed_dict[patient_id] = processed_data
-                logger.info(f"Completed processing Lynch patient {patient_id}")
 
         logger.info(f"Processed {len(processed_dict)} Lynch patients successfully")
+        
+        # Save full processed data (before split) to cache - MATCHES KAGGLE
+        logger.info("Saving full processed data to cache...")
+        self.cache_manager.save_full_processed_data(
+            self.dataset_name, processed_dict
+        )
+        logger.info(
+            f"Successfully processed and cached full data for {len(processed_dict)} patients"
+        )
+        
         return processed_dict
 
     def _process_raw_test_data(self) -> dict[str, dict[str, pd.DataFrame]]:
@@ -416,8 +445,14 @@ class Lynch2022DataLoader(DatasetBase):
                     generic_patient_start_date=self.generic_patient_start_date,
                 )
 
-                # Map function to all patients and collect results
-                results = executor.map(process_patient_fn, data.items())
+                # Map function to all patients and collect results with progress bar
+                data_items = list(data.items())
+                results = list(tqdm(
+                    executor.map(process_patient_fn, data_items),
+                    total=len(data_items),
+                    desc="Processing test patients",
+                    unit="patient"
+                ))
 
                 # Merge results into processed_data
                 for pid, patient_data in results:
@@ -425,8 +460,12 @@ class Lynch2022DataLoader(DatasetBase):
 
         else:
             logger.info("Processing test data sequentially...")
-            # Process each patient sequentially
-            for pid, patient_data in data.items():
+            # Process each patient sequentially with progress bar
+            for pid, patient_data in tqdm(
+                data.items(),
+                desc="Processing test patients",
+                unit="patient"
+            ):
                 pid_result, patient_processed_data = (
                     process_patient_prediction_instances(
                         (pid, patient_data),
@@ -477,75 +516,9 @@ class Lynch2022DataLoader(DatasetBase):
         logger.info(f"Loaded data for {len(self.processed_data)} patients")
 
     def _split_train_validation(self):
-        """Split processed data into training and validation sets."""
-        if not isinstance(self.processed_data, dict):
-            raise TypeError(f"Cannot split train/validation data: processed_data must be dict, got {type(self.processed_data)}")
-            
-        logger.info(f"Splitting train/validation data with {self.num_validation_days} validation days...")
-        
-        train_data_dict = {}
-        validation_data_dict = {}
-
-        for patient_id, patient_df in self.processed_data.items():
-            if not isinstance(patient_df, pd.DataFrame):
-                raise TypeError(f"Expected DataFrame for patient {patient_id}, got {type(patient_df)}")
-
-            # Ensure datetime index
-            patient_data = patient_df.copy()
-            if not isinstance(patient_data.index, pd.DatetimeIndex) and patient_data.index.name != "datetime":
-                if "datetime" in patient_data.columns:
-                    patient_data = patient_data.set_index("datetime")
-                else:
-                    raise ValueError(f"No datetime index found for patient {patient_id}")
-
-            # Ensure p_num column exists
-            if "p_num" not in patient_data.columns:
-                patient_data["p_num"] = patient_id
-
-            patient_train, patient_validation, _ = get_train_validation_split(
-                patient_data, num_validation_days=self.num_validation_days
-            )
-            train_data_dict[patient_id] = patient_train
-            validation_data_dict[patient_id] = patient_validation
-
-        # Store split data
-        self.train_data = train_data_dict
-        self.validation_data = validation_data_dict
-
-        # Cache the split data
-        for patient_id, patient_train_df in train_data_dict.items():
-            try:
-                self.cache_manager.save_processed_data(self.dataset_name, "train", patient_id, patient_train_df)
-            except Exception as e:
-                logger.error(f"Failed to cache train data for patient {patient_id}: {e}", exc_info=True)
-                
-        for patient_id, patient_val_df in validation_data_dict.items():
-            try:
-                self.cache_manager.save_processed_data(self.dataset_name, "validation", patient_id, patient_val_df)
-            except Exception as e:
-                logger.error(f"Failed to cache validation data for patient {patient_id}: {e}", exc_info=True)
-
-        logger.info(f"Cached train/validation split data for {len(train_data_dict)} patients")
-
-        # Calculate metadata
-        if validation_data_dict:
-            first_validation_df = next(iter(validation_data_dict.values()))
-            self.val_dt_col_type = first_validation_df.index.dtype
-
-        if train_data_dict:
-            first_train_df = next(iter(train_data_dict.values()))
-            self.train_dt_col_type = first_train_df.index.dtype
-            
-            # Calculate total unique training days
-            all_train_dates = set()
-            for patient_train_df in train_data_dict.values():
-                patient_dates = patient_train_df.index.date
-                all_train_dates.update(patient_dates)
-            self.num_train_days = len(all_train_dates)
-
-    def _split_train_validation(self):
         """
         Split processed data into training and validation sets based on num_validation_days.
+        Uses serialized caching to avoid re-splitting data with the same parameters.
         Maintains dictionary structure where each patient's data is split individually.
         Calculates metadata (datetime column types, number of training days) for later use.
 
@@ -556,74 +529,107 @@ class Lynch2022DataLoader(DatasetBase):
             raise TypeError(
                 f"Cannot split train/validation data: processed_data must be a dict[str, pd.DataFrame], but got {type(self.processed_data)}"
             )
-        logger.info(
-            f"Splitting train/validation data with {self.num_validation_days} validation days..."
+
+        # Define split parameters - MATCHES KAGGLE
+        split_params = {
+            "num_validation_days": self.num_validation_days,
+            "split_method": "get_train_validation_split",
+            "dataset_type": self.dataset_type,
+        }
+
+        # Try to load existing split data - MATCHES KAGGLE
+        cached_split_data = self.cache_manager.load_split_data(
+            self.dataset_name, split_params
         )
-        # Split each patient's data individually
-        train_data_dict = {}
-        validation_data_dict = {}
 
-        for patient_id, patient_df in self.processed_data.items():
-            # Ensure patient_df is a DataFrame
-            if not isinstance(patient_df, pd.DataFrame):
-                raise TypeError(
-                    f"Expected DataFrame for patient {patient_id}, got {type(patient_df)}"
-                )
+        if cached_split_data is not None:
+            train_data_dict, validation_data_dict = cached_split_data
+            logger.info(
+                f"Loaded existing train/validation split from cache for {len(train_data_dict)} patients"
+            )
+        else:
+            logger.info(
+                f"No cached split found, splitting train/validation data with {self.num_validation_days} validation days..."
+            )
+            # Split each patient's data individually
+            train_data_dict = {}
+            validation_data_dict = {}
+            skipped_patients = []
+            min_required_days = self.num_validation_days + 1  # At least 1 day for training
 
-            # Ensure datetime index exists - it should already be the index
-            patient_data = patient_df.copy()
-            if (
-                not isinstance(patient_data.index, pd.DatetimeIndex)
-                and patient_data.index.name != "datetime"
-            ):
-                if "datetime" in patient_data.columns:
-                    # If datetime is a column, set it as index
-                    patient_data = patient_data.set_index("datetime")
-                else:
-                    raise ValueError(
-                        f"No datetime index found for patient {patient_id}"
+            for patient_id, patient_df in self.processed_data.items():
+                # Ensure patient_df is a DataFrame
+                if not isinstance(patient_df, pd.DataFrame):
+                    raise TypeError(
+                        f"Expected DataFrame for patient {patient_id}, got {type(patient_df)}"
                     )
 
-            # Ensure p_num column exists for compatibility with get_train_validation_split
-            if "p_num" not in patient_data.columns:
-                patient_data["p_num"] = patient_id
+                # Ensure datetime index exists - it should already be the index
+                patient_data = patient_df.copy()
+                if (
+                    not isinstance(patient_data.index, pd.DatetimeIndex)
+                    and patient_data.index.name != "datetime"
+                ):
+                    if "datetime" in patient_data.columns:
+                        # If datetime is a column, set it as index
+                        patient_data = patient_data.set_index("datetime")
+                    else:
+                        raise ValueError(
+                            f"No datetime index found for patient {patient_id}"
+                        )
 
-            patient_train, patient_validation, _ = get_train_validation_split(
-                patient_data, num_validation_days=self.num_validation_days
+                # Calculate number of unique days for this patient
+                unique_days = patient_data.index.normalize().nunique()
+                
+                # Skip patients with insufficient data
+                if unique_days < min_required_days:
+                    logger.warning(
+                        f"Skipping patient {patient_id}: Only {unique_days} unique days "
+                        f"(need at least {min_required_days} days for {self.num_validation_days} validation days)"
+                    )
+                    skipped_patients.append(patient_id)
+                    continue
+
+                # Ensure p_num column exists for compatibility with get_train_validation_split
+                if "p_num" not in patient_data.columns:
+                    patient_data["p_num"] = patient_id
+
+                try:
+                    patient_train, patient_validation, _ = get_train_validation_split(
+                        patient_data, num_validation_days=self.num_validation_days
+                    )
+                    train_data_dict[patient_id] = patient_train
+                    validation_data_dict[patient_id] = patient_validation
+                except ValueError as e:
+                    logger.warning(f"Failed to split patient {patient_id}: {e}")
+                    skipped_patients.append(patient_id)
+                    continue
+
+            # Log summary of skipped patients
+            if skipped_patients:
+                logger.warning(
+                    f"Skipped {len(skipped_patients)} patients with insufficient data: "
+                    f"{skipped_patients[:10]}{'...' if len(skipped_patients) > 10 else ''}"
+                )
+            
+            if not train_data_dict:
+                raise ValueError(
+                    f"No patients have sufficient data for train/validation split. "
+                    f"Required: at least {min_required_days} days per patient."
+                )
+
+            # Save split data to cache using serialized format - MATCHES KAGGLE
+            self.cache_manager.save_split_data(
+                self.dataset_name, train_data_dict, validation_data_dict, split_params
             )
-            train_data_dict[patient_id] = patient_train
-            validation_data_dict[patient_id] = patient_validation
+            logger.info(
+                f"Cached new train/validation split data for {len(train_data_dict)} patients"
+            )
 
         # Store as dictionaries
         self.train_data = train_data_dict
         self.validation_data = validation_data_dict
 
-        # Cache the split data for future use
-        for patient_id, patient_train_df in train_data_dict.items():
-            try:
-                self.cache_manager.save_processed_data(
-                    self.dataset_name, "train", patient_id, patient_train_df
-                )
-            except Exception as e:
-                logger.error(
-                    f"Failed to cache train data for patient {patient_id}: {e}",
-                    exc_info=True,
-                )
-        for patient_id, patient_val_df in validation_data_dict.items():
-            try:
-                self.cache_manager.save_processed_data(
-                    self.dataset_name, "validation", patient_id, patient_val_df
-                )
-            except Exception as e:
-                logger.error(
-                    f"Failed to cache validation data for patient {patient_id}: {e}",
-                    exc_info=True,
-                )
-
-        logger.info(
-            f"Cached train/validation split data for {len(train_data_dict)} patients"
-        )
-
         # Calculate metadata from the first available patient for compatibility
         if validation_data_dict:
             first_validation_df = next(iter(validation_data_dict.values()))
@@ -642,24 +648,3 @@ class Lynch2022DataLoader(DatasetBase):
                 patient_dates = patient_train_df.index.date
                 all_train_dates.update(patient_dates)
             self.num_train_days = len(all_train_dates)
-
-        # Calculate metadata from the first available patient for compatibility
-        if validation_data_dict:
-            first_validation_df = next(iter(validation_data_dict.values()))
-            # For datetime index, get dtype of the index
-            self.val_dt_col_type = first_validation_df.index.dtype
-
-        if train_data_dict:
-            first_train_df = next(iter(train_data_dict.values()))
-            # For datetime index, get dtype of the index
-            self.train_dt_col_type = first_train_df.index.dtype
-
-            # Calculate total unique training days across all patients
-            all_train_dates = set()
-            for patient_train_df in train_data_dict.values():
-                # Use index instead of datetime column
-                patient_dates = patient_train_df.index.date
-                all_train_dates.update(patient_dates)
-            self.num_train_days = len(all_train_dates)
-
-
