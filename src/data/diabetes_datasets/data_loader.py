@@ -19,6 +19,7 @@ from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
 
+
 @overload
 def get_loader(
     data_source_name: Literal["lynch_2022"],
@@ -30,6 +31,7 @@ def get_loader(
     parallel: bool = True,
     max_workers: int = 3,
 ) -> Lynch2022DataLoader: ...
+
 
 @overload
 def get_loader(
@@ -54,7 +56,6 @@ def get_loader(
     config: Optional[Dict[str, Any]] = None,
     parallel: bool = True,
 ) -> GlurooDataLoader: ...
-
 
 
 def get_loader(

@@ -2,7 +2,7 @@
 Lynch 2022 Dataset Loader.
 
 This module provides functionality to load and process the Lynch 2022 dataset,
-mirroring the structure of the Kaggle Bristol T1D loader. It handles both train 
+mirroring the structure of the Kaggle Bristol T1D loader. It handles both train
 and test datasets with caching and preprocessing pipelines.
 """
 
@@ -49,7 +49,7 @@ class Lynch2022DataLoader(DatasetBase):
         # Ensure 'datetime' is included in keep_columns if specified
         if keep_columns is not None and "datetime" not in keep_columns:
             keep_columns = keep_columns + ["datetime"]
-            
+
         self.generic_patient_start_date = generic_patient_start_date
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
@@ -77,7 +77,7 @@ class Lynch2022DataLoader(DatasetBase):
         # Preload data
         self.load_data()
 
-    @property
+    @propertyr
     def dataset_name(self):
         return "lynch_2022"
 
@@ -276,7 +276,9 @@ class Lynch2022DataLoader(DatasetBase):
         sas_base = raw_data_path / "IOBP2 RCT Public Dataset" / "Data Tables in SAS"
 
         if not sas_base.exists():
-            raise FileNotFoundError(f"Expected SAS tables at {sas_base} but directory does not exist.")
+            raise FileNotFoundError(
+                f"Expected SAS tables at {sas_base} but directory does not exist."
+            )
 
         logger.info("Loading Lynch 2022 raw data from %s", sas_base)
         raw_df = load_lynch2022_raw_dataset(sas_base)
@@ -323,20 +325,20 @@ class Lynch2022DataLoader(DatasetBase):
     ) -> dict[str, pd.DataFrame]:
         """
         Process raw Lynch 2022 training data through cleaning and preprocessing pipeline.
-        
+
         Returns:
             Dictionary mapping patient IDs to their processed DataFrames
         """
         logger.info("Cleaning Lynch 2022 train data...")
         pre_processed_data = clean_lynch2022_train_data(self.raw_data)
-        
+
         logger.info("Running preprocessing pipeline on Lynch 2022 train data...")
-        
+
         # Split data into per-patient dictionary FIRST (matches Kaggle pattern)
         multipatient_data_dict = split_multipatient_dataframe(
             pre_processed_data, "p_num"
         )
-        
+
         # Create tuples from the dictionary (matches Kaggle pattern exactly)
         patient_data_tuples = [
             (p_num, patient_df, self.generic_patient_start_date)
@@ -362,14 +364,16 @@ class Lynch2022DataLoader(DatasetBase):
                     as_completed(futures),
                     total=len(futures),
                     desc="Processing Lynch patients",
-                    unit="patient"
+                    unit="patient",
                 ):
                     p_num = futures[future]
                     try:
                         patient_id, processed_data = future.result()
                         processed_dict[patient_id] = processed_data
                     except Exception as exc:
-                        logger.error(f"Lynch patient {p_num} generated an exception: {exc}")
+                        logger.error(
+                            f"Lynch patient {p_num} generated an exception: {exc}"
+                        )
                         raise exc
         else:
             logger.info(
@@ -377,9 +381,7 @@ class Lynch2022DataLoader(DatasetBase):
             )
             processed_dict = {}
             for patient_tuple in tqdm(
-                patient_data_tuples,
-                desc="Processing Lynch patients",
-                unit="patient"
+                patient_data_tuples, desc="Processing Lynch patients", unit="patient"
             ):
                 patient_id, processed_data = process_single_patient_data(
                     patient_tuple, store_in_between_data
@@ -387,16 +389,14 @@ class Lynch2022DataLoader(DatasetBase):
                 processed_dict[patient_id] = processed_data
 
         logger.info(f"Processed {len(processed_dict)} Lynch patients successfully")
-        
+
         # Save full processed data (before split) to cache - MATCHES KAGGLE
         logger.info("Saving full processed data to cache...")
-        self.cache_manager.save_full_processed_data(
-            self.dataset_name, processed_dict
-        )
+        self.cache_manager.save_full_processed_data(self.dataset_name, processed_dict)
         logger.info(
             f"Successfully processed and cached full data for {len(processed_dict)} patients"
         )
-        
+
         return processed_dict
 
     def _process_raw_test_data(self) -> dict[str, dict[str, pd.DataFrame]]:
@@ -421,7 +421,7 @@ class Lynch2022DataLoader(DatasetBase):
         # Ensure raw data is loaded
         if self.raw_data is None:
             raise ValueError("Raw data not loaded. Call load_raw() first.")
-            
+
         logger.info("Processing test data. This may take a while...")
         data = clean_lynch2022_test_data(self.raw_data)
         processed_data = defaultdict(dict)
@@ -446,12 +446,14 @@ class Lynch2022DataLoader(DatasetBase):
 
                 # Map function to all patients and collect results with progress bar
                 data_items = list(data.items())
-                results = list(tqdm(
-                    executor.map(process_patient_fn, data_items),
-                    total=len(data_items),
-                    desc="Processing test patients",
-                    unit="patient"
-                ))
+                results = list(
+                    tqdm(
+                        executor.map(process_patient_fn, data_items),
+                        total=len(data_items),
+                        desc="Processing test patients",
+                        unit="patient",
+                    )
+                )
 
                 # Merge results into processed_data
                 for pid, patient_data in results:
@@ -461,9 +463,7 @@ class Lynch2022DataLoader(DatasetBase):
             logger.info("Processing test data sequentially...")
             # Process each patient sequentially with progress bar
             for pid, patient_data in tqdm(
-                data.items(),
-                desc="Processing test patients",
-                unit="patient"
+                data.items(), desc="Processing test patients", unit="patient"
             ):
                 pid_result, patient_processed_data = (
                     process_patient_prediction_instances(
@@ -554,7 +554,9 @@ class Lynch2022DataLoader(DatasetBase):
             train_data_dict = {}
             validation_data_dict = {}
             skipped_patients = []
-            min_required_days = self.num_validation_days + 1  # At least 1 day for training
+            min_required_days = (
+                self.num_validation_days + 1
+            )  # At least 1 day for training
 
             for patient_id, patient_df in self.processed_data.items():
                 # Ensure patient_df is a DataFrame
@@ -579,7 +581,7 @@ class Lynch2022DataLoader(DatasetBase):
 
                 # Calculate number of unique days for this patient
                 unique_days = patient_data.index.normalize().nunique()
-                
+
                 # Skip patients with insufficient data
                 if unique_days < min_required_days:
                     logger.warning(
@@ -610,7 +612,7 @@ class Lynch2022DataLoader(DatasetBase):
                     f"Skipped {len(skipped_patients)} patients with insufficient data: "
                     f"{skipped_patients[:10]}{'...' if len(skipped_patients) > 10 else ''}"
                 )
-            
+
             if not train_data_dict:
                 raise ValueError(
                     f"No patients have sufficient data for train/validation split. "

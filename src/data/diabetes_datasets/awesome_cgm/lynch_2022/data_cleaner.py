@@ -16,8 +16,12 @@ import pandas as pd
 import pyreadstat
 
 from src.data.cache_manager import get_cache_manager
-from src.data.physiological.carb_model.carb_model import create_cob_and_carb_availability_cols
-from src.data.physiological.insulin_model.insulin_model import create_iob_and_ins_availability_cols
+from src.data.physiological.carb_model.carb_model import (
+    create_cob_and_carb_availability_cols,
+)
+from src.data.physiological.insulin_model.insulin_model import (
+    create_iob_and_ins_availability_cols,
+)
 from src.data.preprocessing.pipeline import preprocessing_pipeline
 from src.data.preprocessing.sampling import ensure_regular_time_intervals
 
@@ -28,6 +32,7 @@ _RAW_SAS_FILENAMES = {
     "ilet": "iobp2deviceilet.sas7bdat",
     "demo": "iobp2diabscreening.sas7bdat",
 }
+
 
 def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
     """
@@ -40,7 +45,11 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
         DataFrame with columns needed for cleaning.
     """
     base_dir = Path(base_dir)
-    missing = [fname for fname in _RAW_SAS_FILENAMES.values() if not (base_dir / fname).exists()]
+    missing = [
+        fname
+        for fname in _RAW_SAS_FILENAMES.values()
+        if not (base_dir / fname).exists()
+    ]
     if missing:
         raise FileNotFoundError(f"Missing required SAS tables in {base_dir}: {missing}")
 
@@ -55,7 +64,11 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
 
     # Extract CGM glucose values from iobp2devicecgm
     # RecordType helps identify the type of reading
-    cgm_glucose = cgm_data[cgm_data["RecordType"] == "EGV"].copy() if "RecordType" in cgm_data.columns else cgm_data.copy()
+    cgm_glucose = (
+        cgm_data[cgm_data["RecordType"] == "EGV"].copy()
+        if "RecordType" in cgm_data.columns
+        else cgm_data.copy()
+    )
     cgm_glucose = cgm_glucose[["PtID", "DeviceDtTm", "Value"]].rename(
         columns={"DeviceDtTm": "time", "Value": "gl"}
     )
@@ -72,15 +85,19 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
         "InsComp": "dose_units",
         "PtWeight": "weight",
     }
-    
+
     available_cols = [col for col in ilet_cols.keys() if col in ilet_data.columns]
-    ilet_subset = ilet_data[available_cols].rename(columns={k: ilet_cols[k] for k in available_cols})
+    ilet_subset = ilet_data[available_cols].rename(
+        columns={k: ilet_cols[k] for k in available_cols}
+    )
 
     # Convert numeric columns to proper types BEFORE merging
     if "food_g" in ilet_subset.columns:
         ilet_subset["food_g"] = pd.to_numeric(ilet_subset["food_g"], errors="coerce")
     if "dose_units" in ilet_subset.columns:
-        ilet_subset["dose_units"] = pd.to_numeric(ilet_subset["dose_units"], errors="coerce")
+        ilet_subset["dose_units"] = pd.to_numeric(
+            ilet_subset["dose_units"], errors="coerce"
+        )
     if "gl_ilet" in ilet_subset.columns:
         ilet_subset["gl_ilet"] = pd.to_numeric(ilet_subset["gl_ilet"], errors="coerce")
 
@@ -105,7 +122,7 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
         ilet_subset,
         on=["PtID", "time"],
         how="outer",
-        suffixes=("_cgm", "_ilet")
+        suffixes=("_cgm", "_ilet"),
     )
 
     # Consolidate glucose values: prefer CGM device data, fall back to iLet CGM reading
@@ -114,19 +131,16 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
         merged = merged.drop(columns=["gl_ilet"])
 
     # Merge demographics data on PtID
-    merged = pd.merge(
-        merged,
-        demo_subset,
-        on="PtID",
-        how="left"
-    )
+    merged = pd.merge(merged, demo_subset, on="PtID", how="left")
 
     # Ensure insulin dose exists and handle missing values
     # Convert to numeric first, then fill NaN with 0.0
     if "dose_units" not in merged.columns:
         merged["dose_units"] = 0.0
     else:
-        merged["dose_units"] = pd.to_numeric(merged["dose_units"], errors="coerce").fillna(0.0)
+        merged["dose_units"] = pd.to_numeric(
+            merged["dose_units"], errors="coerce"
+        ).fillna(0.0)
 
     # Food is already in grams (MealSize)
     # Convert to numeric first, then fill NaN with 0.0
@@ -145,21 +159,27 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
         rename_dict["Sex"] = "sex"
         # Keep sex as string/categorical
     merged = merged.rename(columns=rename_dict)
-    
+
     # Clean up: remove rows without time or glucose
-    merged = merged.dropna(subset=["time", "gl"]).sort_values(["id", "time"]).reset_index(drop=True)
-    
+    merged = (
+        merged.dropna(subset=["time", "gl"])
+        .sort_values(["id", "time"])
+        .reset_index(drop=True)
+    )
+
     # Add metadata columns
     merged["type"] = 1  # Type 1 diabetes
     merged["device"] = "Dexcom G6"
     merged["dataset"] = "lynch2022"
-    
+
     # Add placeholder columns for features not available in this dataset
     if "age" not in merged.columns:
         merged["age"] = np.nan
     if "sex" not in merged.columns:
         merged["sex"] = np.nan
-    merged["insulinModality"] = 1  # Assume pump-based (iLet is automated insulin delivery)
+    merged["insulinModality"] = (
+        1  # Assume pump-based (iLet is automated insulin delivery)
+    )
     merged["hr_bpm"] = np.nan
     merged["steps"] = np.nan
     merged["cals"] = np.nan
@@ -171,7 +191,11 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
         if col in merged.columns:
             merged = merged.drop(columns=[col])
 
-    logger.info("Loaded Lynch 2022 raw dataset with %d rows across %d subjects", len(merged), merged["id"].nunique())
+    logger.info(
+        "Loaded Lynch 2022 raw dataset with %d rows across %d subjects",
+        len(merged),
+        merged["id"].nunique(),
+    )
     return merged
 
 
@@ -189,24 +213,24 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
 
     # Patient ID and required columns for downstream pipeline
     df["p_num"] = df["id"].map(lambda pid: f"lynch_{int(pid)}")
-    
+
     # dose_units and food_g are already calculated in load_lynch2022_raw_dataset
     # Ensure they exist and have proper types
     if "dose_units" not in df.columns:
         df["dose_units"] = 0.0
     else:
         df["dose_units"] = df["dose_units"].fillna(0.0)
-    
+
     if "food_g" not in df.columns:
         df["food_g"] = 0.0
     else:
         df["food_g"] = df["food_g"].fillna(0.0)
-    
+
     # Ensure other physiological columns exist
     for col in ["hr_bpm", "steps", "cals", "activity"]:
         if col not in df.columns:
             df[col] = np.nan
-    
+
     df["msg_type"] = "bg"
 
     cols = [
@@ -239,7 +263,9 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def clean_lynch2022_test_data(raw_data: pd.DataFrame) -> dict[str, dict[str, pd.DataFrame]]:
+def clean_lynch2022_test_data(
+    raw_data: pd.DataFrame,
+) -> dict[str, dict[str, pd.DataFrame]]:
     """
     Create a simple test-style nested structure: one instance per patient.
     """
@@ -252,7 +278,9 @@ def clean_lynch2022_test_data(raw_data: pd.DataFrame) -> dict[str, dict[str, pd.
     return patient_groups
 
 
-def process_single_patient_data(patient_data_tuple: tuple, store_in_between_data: bool = False) -> tuple[str, pd.DataFrame]:
+def process_single_patient_data(
+    patient_data_tuple: tuple, store_in_between_data: bool = False
+) -> tuple[str, pd.DataFrame]:
     """
     Run preprocessing pipeline for a single patient's training data.
     Args:
@@ -262,7 +290,11 @@ def process_single_patient_data(patient_data_tuple: tuple, store_in_between_data
     logger.info(f"Processing Lynch patient {p_num} (train)")
     data_copy = data.copy()
     data_copy["datetime"] = pd.to_datetime(data_copy["datetime"], errors="coerce")
-    data_copy = data_copy.dropna(subset=["datetime"]).set_index("datetime", drop=True).sort_index()
+    data_copy = (
+        data_copy.dropna(subset=["datetime"])
+        .set_index("datetime", drop=True)
+        .sort_index()
+    )
 
     if store_in_between_data:
         cache_manager = get_cache_manager()
@@ -294,13 +326,19 @@ def process_patient_prediction_instances(
     for instance_id, instance_df in patient_data.items():
         logger.info(f"Processing Lynch patient {pid}, instance {instance_id}")
         instance_copy = instance_df.copy()
-        instance_copy["datetime"] = pd.to_datetime(instance_copy["datetime"], errors="coerce")
-        instance_copy = instance_copy.dropna(subset=["datetime"]).set_index("datetime", drop=True).sort_index()
+        instance_copy["datetime"] = pd.to_datetime(
+            instance_copy["datetime"], errors="coerce"
+        )
+        instance_copy = (
+            instance_copy.dropna(subset=["datetime"])
+            .set_index("datetime", drop=True)
+            .sort_index()
+        )
 
         instance_copy, freq = ensure_regular_time_intervals(instance_copy)
-        instance_copy = instance_copy.pipe(create_cob_and_carb_availability_cols, freq).pipe(
-            create_iob_and_ins_availability_cols, freq
-        )
+        instance_copy = instance_copy.pipe(
+            create_cob_and_carb_availability_cols, freq
+        ).pipe(create_iob_and_ins_availability_cols, freq)
 
         if patient_cache_dir is not None:
             instance_copy.to_csv(patient_cache_dir / f"{instance_id}.csv")
@@ -308,4 +346,3 @@ def process_patient_prediction_instances(
         processed_rows[instance_id] = instance_copy
 
     return pid, processed_rows
-    
