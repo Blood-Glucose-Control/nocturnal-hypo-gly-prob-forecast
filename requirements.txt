@@ -27,10 +27,10 @@ orjson
 pandas
 pre-commit
 pydantic
+pyreadstat
 pytest
 pytest-mock
 python-dotenv
-pyreadstat
 #pytorch-forecasting
 #pytorch-lightning
 PyWavelets
