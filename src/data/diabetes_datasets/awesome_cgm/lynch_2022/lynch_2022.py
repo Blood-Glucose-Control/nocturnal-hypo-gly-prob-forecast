@@ -77,7 +77,7 @@ class Lynch2022DataLoader(DatasetBase):
         # Preload data
         self.load_data()
 
-    @propertyr
+    @property
     def dataset_name(self):
         return "lynch_2022"
 
