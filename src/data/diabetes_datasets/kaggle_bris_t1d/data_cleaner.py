@@ -10,6 +10,7 @@ import logging
 from collections import defaultdict
 from pathlib import Path
 
+import os
 import pandas as pd
 
 from src.data.cache_manager import get_cache_manager
@@ -192,9 +193,13 @@ def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
     # TODO:TONY - Remove this
     cache_manager = get_cache_manager()
     cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
-    data.to_csv(
+    dir_path = (
         cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
-        / "data_clean/data_after_cleaning.csv",
+        / "data_clean/data_after_cleaning.csv"
+    )
+    os.makedirs(dir_path.parent, exist_ok=True)
+    data.to_csv(
+        dir_path,
         index=False,
     )
     return data
@@ -299,9 +304,13 @@ def process_single_patient_data(
     if store_in_between_data:
         cache_manager = get_cache_manager()
         cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
-        data_copy.to_csv(
+        dir_path = (
             cache_manager.get_cleaning_step_data_path("kaggle_brisT1D")
-            / f"datetime_index/{p_num}.csv",
+            / "datetime_index"
+        )
+        os.makedirs(dir_path, exist_ok=True)
+        data_copy.to_csv(
+            dir_path / f"{p_num}.csv",
             index=True,
         )
     # Run preprocessing pipeline
