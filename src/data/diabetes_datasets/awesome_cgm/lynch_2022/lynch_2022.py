@@ -690,31 +690,8 @@ class Lynch2022DataLoader(DatasetBase):
                 f"Cached new train/validation split data for {len(train_data_dict)} patients"
             )
 
-        def _concat_patient_dict(d: dict[str, pd.DataFrame]) -> pd.DataFrame:
-            parts = []
-            for pid, df in d.items():
-                tmp = df.copy()
-                # if datetime is the index, make it a column
-                if (
-                    isinstance(tmp.index, pd.DatetimeIndex)
-                    or tmp.index.name == "datetime"
-                ):
-                    tmp = tmp.reset_index()
-                if "p_num" not in tmp.columns:
-                    tmp["p_num"] = pid
-                parts.append(tmp)
-            if not parts:
-                return pd.DataFrame()
-            out = pd.concat(parts, ignore_index=True)
-            # make (p_num, datetime) multiindex when possible
-            if "datetime" in out.columns:
-                out = out.set_index(["p_num", "datetime"])
-            else:
-                out = out.set_index("p_num")
-            return out
-
-        self.train_data = _concat_patient_dict(train_data_dict)
-        self.validation_data = _concat_patient_dict(validation_data_dict)
+        self.train_data = train_data_dict
+        self.validation_data = validation_data_dict
 
         # Store as dictionaries
         # self.train_data = train_data_dict
