@@ -115,6 +115,63 @@ class Lynch2022DataLoader(DatasetBase):
                         shape_summary[(patient_id, sub_id)] = sub_df.shape
         return shape_summary
 
+    def to_dataframe(self) -> pd.DataFrame:
+        """
+        Flatten processed_data into a single DataFrame.
+
+        - For train-like data (patient_id -> DataFrame) returns rows with p_num and datetime.
+        - For nested test-like data (patient_id -> {sub_id -> DataFrame}) returns rows with p_num, sub_id and datetime.
+
+        The resulting DataFrame will have a multi-index:
+          - train: (p_num, datetime)
+          - test: (p_num, sub_id, datetime)
+
+        Returns an empty DataFrame if processed_data is None or empty.
+        """
+
+        if not self.processed_data:
+            return pd.DataFrame()
+
+        parts = []
+
+        # Case 1: processed_data is patient_id -> DataFrame
+        if all(isinstance(v, pd.DataFrame) for v in self.processed_data.values()):
+            for pid, df in self.processed_data.items():
+                tmp = df.copy()
+                # move datetime index into column if present as index
+                if isinstance(tmp.index, pd.DatetimeIndex) or tmp.index.name == "datetime":
+                    tmp = tmp.reset_index()
+                if "p_num" not in tmp.columns:
+                    tmp["p_num"] = pid
+                parts.append(tmp)
+            if not parts:
+                return pd.DataFrame()
+            out = pd.concat(parts, ignore_index=True)
+            if "datetime" in out.columns:
+                out = out.set_index(["p_num", "datetime"])
+            else:
+                out = out.set_index("p_num")
+            return out
+
+        # Case 2: processed_data is nested dict patient_id -> {sub_id -> DataFrame}
+        for pid, inner in self.processed_data.items():
+            if isinstance(inner, dict):
+                for sub_id, df in inner.items():
+                    tmp = df.copy()
+                    if isinstance(tmp.index, pd.DatetimeIndex) or tmp.index.name == "datetime":
+                        tmp = tmp.reset_index()
+                    tmp["p_num"] = pid
+                    tmp["sub_id"] = sub_id
+                    parts.append(tmp)
+        if not parts:
+            return pd.DataFrame()
+        out = pd.concat(parts, ignore_index=True)
+        if "datetime" in out.columns:
+            out = out.set_index(["p_num", "sub_id", "datetime"])
+        else:
+            out = out.set_index(["p_num", "sub_id"])
+        return out
+
     def load_data(self):
         """
         Load processed data from cache or process raw data and save to cache.
@@ -627,9 +684,32 @@ class Lynch2022DataLoader(DatasetBase):
                 f"Cached new train/validation split data for {len(train_data_dict)} patients"
             )
 
+        def _concat_patient_dict(d: dict[str, pd.DataFrame]) -> pd.DataFrame:
+            parts = []
+            for pid, df in d.items():
+                tmp = df.copy()
+                # if datetime is the index, make it a column
+                if isinstance(tmp.index, pd.DatetimeIndex) or tmp.index.name == "datetime":
+                    tmp = tmp.reset_index()
+                if "p_num" not in tmp.columns:
+                    tmp["p_num"] = pid
+                parts.append(tmp)
+            if not parts:
+                return pd.DataFrame()
+            out = pd.concat(parts, ignore_index=True)
+            # make (p_num, datetime) multiindex when possible
+            if "datetime" in out.columns:
+                out = out.set_index(["p_num", "datetime"])
+            else:
+                out = out.set_index("p_num")
+            return out
+        
+        self.train_data = _concat_patient_dict(train_data_dict)
+        self.validation_data = _concat_patient_dict(validation_data_dict)
+
         # Store as dictionaries
-        self.train_data = train_data_dict
-        self.validation_data = validation_data_dict
+        # self.train_data = train_data_dict
+        # self.validation_data = validation_data_dict
 
         # Calculate metadata from the first available patient for compatibility
         if validation_data_dict:
