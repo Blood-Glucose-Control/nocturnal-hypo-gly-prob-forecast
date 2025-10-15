@@ -139,7 +139,10 @@ class Lynch2022DataLoader(DatasetBase):
             for pid, df in self.processed_data.items():
                 tmp = df.copy()
                 # move datetime index into column if present as index
-                if isinstance(tmp.index, pd.DatetimeIndex) or tmp.index.name == "datetime":
+                if (
+                    isinstance(tmp.index, pd.DatetimeIndex)
+                    or tmp.index.name == "datetime"
+                ):
                     tmp = tmp.reset_index()
                 if "p_num" not in tmp.columns:
                     tmp["p_num"] = pid
@@ -158,7 +161,10 @@ class Lynch2022DataLoader(DatasetBase):
             if isinstance(inner, dict):
                 for sub_id, df in inner.items():
                     tmp = df.copy()
-                    if isinstance(tmp.index, pd.DatetimeIndex) or tmp.index.name == "datetime":
+                    if (
+                        isinstance(tmp.index, pd.DatetimeIndex)
+                        or tmp.index.name == "datetime"
+                    ):
                         tmp = tmp.reset_index()
                     tmp["p_num"] = pid
                     tmp["sub_id"] = sub_id
@@ -689,7 +695,10 @@ class Lynch2022DataLoader(DatasetBase):
             for pid, df in d.items():
                 tmp = df.copy()
                 # if datetime is the index, make it a column
-                if isinstance(tmp.index, pd.DatetimeIndex) or tmp.index.name == "datetime":
+                if (
+                    isinstance(tmp.index, pd.DatetimeIndex)
+                    or tmp.index.name == "datetime"
+                ):
                     tmp = tmp.reset_index()
                 if "p_num" not in tmp.columns:
                     tmp["p_num"] = pid
@@ -703,7 +712,7 @@ class Lynch2022DataLoader(DatasetBase):
             else:
                 out = out.set_index("p_num")
             return out
-        
+
         self.train_data = _concat_patient_dict(train_data_dict)
         self.validation_data = _concat_patient_dict(validation_data_dict)
 
