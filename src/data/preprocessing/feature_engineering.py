@@ -104,8 +104,17 @@ def rollover_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
         if pd.notna(df[ColumnNames.RATE.value].iloc[i]):
             rate = df[ColumnNames.RATE.value].iloc[i]
             dose_per_row = rate / rows_per_hour
-            end_idx = min(i + rows_per_hour + 1, len(df))
-            df.iloc[i + 1 : end_idx][ColumnNames.DOSE_UNITS.value] += dose_per_row
+
+            # Find where this rate stops (next rate change or end of data)
+            end_idx = min(i + rows_per_hour, len(df))
+
+            # Check if there's another rate change within this range
+            for j in range(i + 1, end_idx):
+                if pd.notna(df[ColumnNames.RATE.value].iloc[j]):
+                    end_idx = j  # Stop before the next rate change
+                    break
+
+            df.iloc[i:end_idx][ColumnNames.DOSE_UNITS.value] += dose_per_row
 
     return df
 

@@ -90,8 +90,6 @@ def preprocessing_pipeline(
         ValueError: If required columns are missing from the input DataFrame
     """
     # TODO: Create an option for both serial and parallel processing of the multipatient files.
-    # TODO: Reason why we process so fast is because this doesn't include basal rate feature yet.
-    # TODO: We need to ensure_time_intervals -> rollover basal rate -> create_physiological_features
     logger.info("==============================")
     logger.info(f"Preprocessing patient {p_num}")
     logger.info("==============================")

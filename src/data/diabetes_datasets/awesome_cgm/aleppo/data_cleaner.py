@@ -86,12 +86,15 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
 
 
 def keep_overlapping_data(patient_df: pd.DataFrame) -> pd.DataFrame:
-    # TODO: Figure out how much data there is left for each patient after this step.
     """
     Args:
         patient_df: A dataframe that has been through data_translation (datetime is the index)
+
     Keep data that has overlapping time windows for all table types.
     Note that not all patients have data for all table types so we only consider the table types that are present.
+
+    Don't think we are losing too much data here. Most patients still have at least 6 months worth of data after this step except for some patients.
+    - p216, p019, p081, p289, p138 (check 3.18 notebook for more details)
     """
     table_types = patient_df[ColumnNames.MSG_TYPE.value].unique()
     start_datetime = None  # This should be the max of all the min datetimes
@@ -105,8 +108,11 @@ def keep_overlapping_data(patient_df: pd.DataFrame) -> pd.DataFrame:
         min_datetime = table_data.index.min()
         max_datetime = table_data.index.max()
 
+        # Find the latest start time of all table types
         if start_datetime is None or min_datetime > start_datetime:
             start_datetime = min_datetime
+
+        # Find the earliest end time of all table types
         if end_datetime is None or max_datetime < end_datetime:
             end_datetime = max_datetime
 
@@ -115,6 +121,10 @@ def keep_overlapping_data(patient_df: pd.DataFrame) -> pd.DataFrame:
 
     has_overlap = start_datetime < end_datetime
     if not has_overlap:
+        # This shouldn't happen
+        logger.warning(
+            f"Patient {patient_df[ColumnNames.P_NUM.value].iloc[0]} has no overlapping data"
+        )
         return None
 
     # Filter using the index (datetime)
@@ -130,10 +140,10 @@ def process_one_patient(
     # TODO: Maybe need to drop days that don't have enough cgm readings
     """
     Process the raw data for one patient:
-    1. Translate the data (columns and units)
-    2. Keep overlapping data (for bolus, wizard, cgm and basal)
-    3. Rollover basal rate to the next few rows if the rate is not null
-    4. preprocessing_pipeline (This include resampling and deriving cob and iob)
+        1. Translate the data (columns and units)
+        2. Keep overlapping data (for bolus, wizard, cgm and basal)
+        3. Rollover basal rate to the next few rows if the rate is not null
+        4. preprocessing_pipeline (This include resampling and deriving cob and iob)
     """
     df = df_raw.copy()
 
