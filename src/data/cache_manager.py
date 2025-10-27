@@ -21,6 +21,7 @@ from typing import Any, Dict, Optional
 
 import pandas as pd
 
+from src.data.dataset_configs import DatasetSourceType, get_dataset_config
 from src.utils.os_helper import get_project_root
 
 logger = logging.getLogger(__name__)
@@ -48,73 +49,48 @@ class CacheManager:
         self.cache_root.mkdir(parents=True, exist_ok=True)
 
     def get_dataset_cache_path(self, dataset_name: str) -> Path:
-        """
-        Get the cache path for a specific dataset.
-
-        Args:
-            dataset_name (str): Name of the dataset
-
-        Returns:
-            Path: Path to the dataset's cache directory
-        """
+        """Get the absolute cache path for a specific dataset."""
         return self.cache_root / dataset_name
 
     def get_raw_data_path(self, dataset_name: str) -> Path:
-        """
-        Get the raw data path for a specific dataset.
-
-        Args:
-            dataset_name (str): Name of the dataset
-
-        Returns:
-            Path: Path to the raw data directory
-        """
-        return self.get_dataset_cache_path(dataset_name) / "raw"
+        """Get the raw data path for a specific dataset."""
+        config = get_dataset_config(dataset_name)
+        relative_cache_path = config.get("cache_path")
+        return self.get_dataset_cache_path(relative_cache_path) / "raw"
 
     def get_cleaning_step_data_path(self, dataset_name: str) -> Path:
-        """
-        Get the cleaning step data path for a specific dataset.
-
-        Args:
-            dataset_name (str): Name of the dataset
-
-        Returns:
-            Path: Path to the cleaning step data directory
-        """
-        return self.get_dataset_cache_path(dataset_name) / "cleaning_step"
+        """Get the cleaning step data path for a specific dataset."""
+        config = get_dataset_config(dataset_name)
+        relative_cache_path = config.get("cache_path")
+        return self.get_dataset_cache_path(relative_cache_path) / "cleaning_step"
 
     def get_processed_data_path(self, dataset_name: str) -> Path:
-        """
-        Get the processed data path for a specific dataset.
-
-        Args:
-            dataset_name (str): Name of the dataset
-
-        Returns:
-            Path: Path to the processed data directory
-        """
+        """Get the processed data path for a specific dataset."""
         logger.info(
             f"Processed data path for {dataset_name}: {self.get_dataset_cache_path(dataset_name) / 'processed'}"
         )
-        return self.get_dataset_cache_path(dataset_name) / "processed"
+        config = get_dataset_config(dataset_name)
+        relative_cache_path = config.get("cache_path")
+        return self.get_dataset_cache_path(relative_cache_path) / "processed"
 
     def ensure_raw_data(
         self, dataset_name: str, dataset_config: Dict[str, Any]
     ) -> Path:
         """
-        Ensure raw data is available, fetching it if necessary.
+        Ensure raw data is available given a dataset configuration, fetching it if necessary.
 
         Args:
             dataset_name (str): Name of the dataset
             dataset_config (Dict[str, Any]): Configuration for the dataset
 
         Returns:
-            Path: Path to the raw data directory
+            Path: Path to the raw data directory where we guarantee the raw data exist
 
         Raises:
             ValueError: If dataset source is not supported
             RuntimeError: If data fetching fails
         """
+        # Absolute raw data path thtat should contain the raw data
         raw_path = self.get_raw_data_path(dataset_name)
 
         # Check if raw data already exists
@@ -126,12 +102,14 @@ class CacheManager:
         logger.info(
             f"Raw data for {dataset_name} not found in cache: {raw_path} \n fetching from source"
         )
-        source = dataset_config.get("source", "unknown")
-        if source == "kaggle":
+        source = dataset_config.get("source")
+        if source == DatasetSourceType.KAGGLE:
             self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
-        elif source == "huggingface":
+        elif source == DatasetSourceType.HUGGING_FACE:
             self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
-        elif source == "local":
+        elif source == DatasetSourceType.AWESOME_CGM:
+            self._fetch_awesome_cgm_data(dataset_name, raw_path, dataset_config)
+        elif source == DatasetSourceType.LOCAL:
             self._copy_local_data(dataset_name, raw_path, dataset_config)
         else:
             raise ValueError(f"Unsupported data source: {source}")
@@ -140,7 +118,7 @@ class CacheManager:
 
     def _raw_data_exists(self, raw_path: Path, dataset_config: Dict[str, Any]) -> bool:
         """
-        Check if raw data exists and is valid.
+        Check if raw data exists and is valid for a given dataset configuration.
 
         Args:
             raw_path (Path): Path to raw data directory
@@ -152,12 +130,11 @@ class CacheManager:
         if not raw_path.exists():
             return False
 
-        # Check for required files based on dataset type
+        # Check for required files based on dataset configuration
         required_files = dataset_config.get("required_files", [])
         if required_files:
             return all((raw_path / file).exists() for file in required_files)
 
-        # If no specific files required, check if directory has any files
         return any(raw_path.iterdir())
 
     def _fetch_kaggle_data(
@@ -228,6 +205,7 @@ class CacheManager:
                 f"Unexpected error fetching Kaggle data for {dataset_name}: {str(e)}"
             )
 
+    # TODO: Test this function once we do have a HuggingFace dataset to test with
     def _fetch_huggingface_data(
         self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
     ):
@@ -326,6 +304,24 @@ class CacheManager:
             raise RuntimeError(
                 f"Failed to fetch HuggingFace data for {dataset_name}: {str(e)}"
             )
+
+    def _fetch_awesome_cgm_data(
+        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+    ):
+        """
+        Load data from the cache directory. The data has to be manually downloaded from the source and placed in the correct cache directory.
+        Reason is that the data is guarded by the source.
+        See the README.md in the cache/data/awesome_cgm/aleppo directory for more details.
+        """
+        # TODO: Complete this
+        raw_data_exists = self._raw_data_exists(raw_path, dataset_config)
+        # There is not way to load raw data programmatically from the source.
+        # The only way is to manually download the data and place it in the correct cache directory.
+        if raw_data_exists:
+            return raw_path
+        else:
+            # TODO: Test this. Also need to give instructions to the user on how to download the data and place it in the correct cache directory
+            raise RuntimeError(f"Raw data for {dataset_name} does not exist in cache")
 
     def _copy_local_data(
         self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]

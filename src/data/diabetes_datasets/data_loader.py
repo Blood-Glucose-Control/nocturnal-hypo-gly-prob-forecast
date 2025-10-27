@@ -17,6 +17,7 @@ This ensures that type checking and autocompletion work correctly in IDEs.
 from typing import Union, Optional, Dict, Any, overload, Literal
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
+from src.data.diabetes_datasets.awesome_cgm.aleppo.aleppo import AleppoDataLoader
 
 
 @overload
@@ -42,6 +43,17 @@ def get_loader(
     config: Optional[Dict[str, Any]] = None,
     parallel: bool = True,
 ) -> GlurooDataLoader: ...
+
+
+@overload
+def get_loader(
+    data_source_name: Literal["aleppo"],
+    dataset_type: str = "train",
+    keep_columns: Optional[list[str]] = None,
+    use_cached: bool = False,
+    num_validation_days: int = 20,
+    config: Optional[Dict[str, Any]] = None,
+) -> AleppoDataLoader: ...
 
 
 def get_loader(
@@ -95,6 +107,12 @@ def get_loader(
             num_validation_days=num_validation_days,
             config=config,
             parallel=parallel,
+        )
+    elif data_source_name == "aleppo":
+        return AleppoDataLoader(
+            keep_columns=keep_columns,
+            num_validation_days=num_validation_days,
+            config=config,
         )
     else:
         raise ValueError(f"Invalid dataset_name: {data_source_name}.")

@@ -46,24 +46,74 @@ import logging
 
 import pandas as pd
 
+from src.data.models import ColumnNames
 from src.data.physiological.carb_model.carb_model import (
     create_cob_and_carb_availability_cols,
 )
 from src.data.physiological.insulin_model.insulin_model import (
     create_iob_and_ins_availability_cols,
 )
-from src.data.preprocessing.sampling import ensure_regular_time_intervals
+from src.data.preprocessing.sampling import (
+    ensure_regular_time_intervals,
+    ensure_regular_time_intervals_with_aggregation,
+)
+from src.data.preprocessing.time_processing import get_most_common_time_interval
 
 logger = logging.getLogger(__name__)
 
 required_columns = [
-    "datetime",
-    "food_g",  # Carbs in grams
-    "dose_units",  # Insulin units
+    ColumnNames.DATETIME.value,  # Datetime of the data (not the index)
+    ColumnNames.FOOD_G.value,  # Carbs in grams
+    ColumnNames.DOSE_UNITS.value,  # Insulin units
 ]
 
 
-def create_physiological_features(df: pd.DataFrame) -> pd.DataFrame:
+def rollover_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Roll over the basal rate to the next few rows if the rate is not null.
+    For example, if a row has a basal rate of 1 unit/hr and the interval is 5 minutes,
+    then the next 12 rows (one hour) will have a dose of 1/12 units.
+
+    Args:
+        df (pd.DataFrame): Input DataFrame with datetime index and constant interval (e.g. 5 minutes)
+                          ColumnNames.RATE.value (basal rate units/hr)
+
+    Returns:
+        pd.DataFrame: Enhanced DataFrame with basal rate added to dose_units
+    """
+    if ColumnNames.RATE.value not in df.columns:
+        logger.warning(
+            f"No {ColumnNames.RATE.value} column found. Returning original dataframe."
+        )
+        return df
+
+    if ColumnNames.DOSE_UNITS.value not in df.columns:
+        logger.warning(
+            f"No {ColumnNames.DOSE_UNITS.value} column found. Returning original dataframe."
+        )
+        raise ValueError(
+            f"ROLLOVER_BASAL_RATE function: DataFrame must contain {ColumnNames.DOSE_UNITS.value} column"
+        )
+
+    df = df.copy()
+    freq = get_most_common_time_interval(df)
+
+    # Calculate rows per hour (e.g., 12 rows for 5-minute intervals)
+    rows_per_hour = 60 // freq
+    for i in range(len(df)):
+        if pd.notna(df[ColumnNames.RATE.value].iloc[i]):
+            rate = df[ColumnNames.RATE.value].iloc[i]
+            dose_per_row = rate / rows_per_hour
+            end_idx = min(i + rows_per_hour + 1, len(df))
+            df.iloc[i + 1 : end_idx][ColumnNames.DOSE_UNITS.value] += dose_per_row
+
+    return df
+
+
+def create_physiological_features(
+    df: pd.DataFrame,
+    use_aggregation: bool = False,
+) -> pd.DataFrame:
     """
     Derives physiological features from patient glucose monitoring data.
 
@@ -76,7 +126,9 @@ def create_physiological_features(df: pd.DataFrame) -> pd.DataFrame:
     Args:
         df (pd.DataFrame): Input DataFrame with datetime index containing at minimum
                           'food_g' (carbs in grams) and 'dose_units' (insulin units)
-
+        use_aggregation (bool, optional): Whether to use aggregation to ensure regular time intervals.
+                                          If True, will consider all rows within the same regular time interval.
+                                          If False, will only consider the first row within the regular time interval.
 
     Returns:
         pd.DataFrame: Enhanced DataFrame with original data plus derived physiological
@@ -89,7 +141,13 @@ def create_physiological_features(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("DataFrame must have a datetime index")
 
     logger.info("create_physiological_features(): Deriving features...")
-    df, freq = ensure_regular_time_intervals(df)
+    if use_aggregation:
+        df, freq = ensure_regular_time_intervals_with_aggregation(df)
+    else:
+        df, freq = ensure_regular_time_intervals(df)
+
+    logger.info("\tRollover basal rate...")
+    df = rollover_basal_rate(df)
 
     logger.info(
         "\tCreating COB/IOB and availability columns. This may take a while depending on the size of the data."
