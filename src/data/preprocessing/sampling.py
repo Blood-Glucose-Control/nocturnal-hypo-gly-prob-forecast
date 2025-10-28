@@ -103,7 +103,7 @@ def ensure_regular_time_intervals(
     return mapped_data, freq
 
 
-# TODO: Test this
+# TODO: Write UnitTest for this
 def ensure_regular_time_intervals_with_aggregation(
     df: pd.DataFrame,
 ) -> Tuple[pd.DataFrame, int]:
@@ -143,7 +143,8 @@ def ensure_regular_time_intervals_with_aggregation(
     freq = get_most_common_time_interval(df)
     logger.info(f"\tMost common time interval: {freq} minutes")
 
-    tolerance = pd.Timedelta(minutes=freq * (2 / 3))
+    # TODO: switch back to 2/3 or do we consider all data
+    # tolerance = pd.Timedelta(minutes=freq * (3 / 3))
 
     # Create complete regular time range
     full_time_range = pd.date_range(
@@ -154,24 +155,35 @@ def ensure_regular_time_intervals_with_aggregation(
 
     # Identify numerical vs non-numerical columns
     numerical_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    numerical_cols.remove(ColumnNames.P_NUM.value)
+    numerical_cols.remove("isf")
+    numerical_cols.remove("cr")
+    numerical_cols.remove("iob")
 
     # Prepare aggregation dict
     agg_dict = {}
     for col in df.columns:
         if col in numerical_cols:
-            if col == ColumnNames.BG.value:
-                agg_dict[col] = "mean"  # Average blood glucose
+            if col == ColumnNames.BG.value or col == ColumnNames.RATE.value:
+                # Average blood glucose or basal rate
+                agg_dict[col] = "mean"
             else:
-                agg_dict[col] = "sum"  # Sum all other numerical values
+                # Sum all other numerical values
+                agg_dict[col] = "sum"
         else:
-            agg_dict[col] = "first"  # Take first non-numerical value
+            # Take first non-numerical value (categorical columns)
+            # TODO: First value can be Nan so might need to take the first non-Nan value?
+            agg_dict[col] = lambda x: x.iloc[0] if len(x) > 0 else None
 
     logger.info(f"\tAggregation strategy: {agg_dict}")
 
     aggregated_rows = []
     for regular_time in full_time_range:
         time_diffs = df.index - regular_time
-        mask = (time_diffs >= pd.Timedelta(0)) & (time_diffs <= tolerance)
+
+        # TODO: or should we use tolerance/2?
+        # Take +- half of the interval around the regular time
+        mask = abs(time_diffs) <= pd.Timedelta(minutes=freq // 2)
 
         candidates = df[mask]
 

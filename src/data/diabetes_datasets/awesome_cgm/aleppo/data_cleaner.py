@@ -9,7 +9,9 @@ import pandas as pd
 from datetime import timedelta
 from pydantic import BaseModel
 from src.data.models import ColumnNames
+from src.data.preprocessing.generic_cleaning import erase_consecutive_nan_values
 from src.data.preprocessing.pipeline import preprocessing_pipeline
+from src.data.preprocessing.time_processing import get_most_common_time_interval
 from src.utils.unit import mg_dl_to_mmol_l
 import os
 import logging
@@ -134,10 +136,8 @@ def keep_overlapping_data(patient_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def process_one_patient(
-    df_raw: pd.DataFrame,
-    to_csv: bool = False,
+    df_raw: pd.DataFrame, debug: bool = False, verbose: bool = False
 ) -> pd.DataFrame:
-    # TODO: Maybe need to drop days that don't have enough cgm readings
     """
     Process the raw data for one patient:
         1. Translate the data (columns and units)
@@ -145,6 +145,7 @@ def process_one_patient(
         3. Rollover basal rate to the next few rows if the rate is not null
         4. preprocessing_pipeline (This include resampling and deriving cob and iob)
     """
+    HOURS_OF_CONSECUTIVE_NAN_VALUES = 6
     df = df_raw.copy()
 
     # Translate the data
@@ -152,29 +153,37 @@ def process_one_patient(
     pid = df[ColumnNames.P_NUM.value].iloc[0]
 
     # Keep overlapping data
+    logger.info(f"Keeping overlapping data for patient {pid}")
     df = keep_overlapping_data(df)
     if df is None:
         return None
 
     # Print data meta: span of datetime index and number of rows
-    start_dt = df.index.min()
-    end_dt = df.index.max()
-    print(
-        f"Patient {pid} processed data spans from {start_dt} to {end_dt} ({(end_dt - start_dt)})"
-    )
+    if verbose:
+        start_dt = df.index.min()
+        end_dt = df.index.max()
+        food_g = df[df[ColumnNames.FOOD_G.value].notna()]
+        bolus = df[df[ColumnNames.DOSE_UNITS.value].notna()]
+        logger.info(
+            f"Patient {pid} processed data spans from {start_dt} to {end_dt} ({(end_dt - start_dt)})"
+        )
+        logger.info(f"Number of rows with food intake: {len(food_g)}")
+        logger.info(f"Number of rows with bolus: {len(bolus)}")
 
-    food_g = df[df[ColumnNames.FOOD_G.value].notna()]
-    print(f"Number of rows with food intake: {len(food_g)}")
-
-    bolus = df[df[ColumnNames.DOSE_UNITS.value].notna()]
-    print(f"Number of rows with bolus: {len(bolus)}")
-
-    # Let the pipeline handle the rest
-    # This derives iob and cob which we is information we already have
+    # Resampling to constant interval, rollover basal rate and derive cob and iob
     df = preprocessing_pipeline(pid, df, use_aggregation=True)
 
+    # Drop days with more than 6 hours of consecutive NaN values
+    freq_mins = get_most_common_time_interval(df)
+    max_consecutive_nan_values_per_day = (
+        HOURS_OF_CONSECUTIVE_NAN_VALUES * 60
+    ) // freq_mins
+    df = erase_consecutive_nan_values(
+        df, max_consecutive_nan_values_per_day=max_consecutive_nan_values_per_day
+    )
+
     # Debug only
-    if to_csv:
+    if debug:
         debug_dir = (
             get_project_root() / "cache" / "data" / "awesome_cgm" / "aleppo" / "debug"
         )
