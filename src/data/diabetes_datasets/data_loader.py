@@ -17,6 +17,20 @@ This ensures that type checking and autocompletion work correctly in IDEs.
 from typing import Union, Optional, Dict, Any, overload, Literal
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
+from src.data.diabetes_datasets import Lynch2022DataLoader
+
+
+@overload
+def get_loader(
+    data_source_name: Literal["lynch_2022"],
+    dataset_type: str = "train",
+    keep_columns: Optional[list[str]] = None,
+    use_cached: bool = False,
+    num_validation_days: int = 20,
+    config: Optional[Dict[str, Any]] = None,
+    parallel: bool = True,
+    max_workers: int = 3,
+) -> Lynch2022DataLoader: ...
 
 
 @overload
@@ -53,7 +67,7 @@ def get_loader(
     config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
-) -> Union[BrisT1DDataLoader, GlurooDataLoader]:
+) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader]:
     """
     Factory function to create and return the appropriate data loader instance.
 
@@ -95,6 +109,15 @@ def get_loader(
             num_validation_days=num_validation_days,
             config=config,
             parallel=parallel,
+        )
+    elif data_source_name == "lynch_2022":
+        return Lynch2022DataLoader(
+            keep_columns=keep_columns,
+            num_validation_days=num_validation_days,
+            use_cached=use_cached,
+            dataset_type=dataset_type,
+            parallel=parallel,
+            max_workers=max_workers,
         )
     else:
         raise ValueError(f"Invalid dataset_name: {data_source_name}.")

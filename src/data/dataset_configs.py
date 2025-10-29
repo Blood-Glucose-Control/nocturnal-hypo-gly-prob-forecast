@@ -35,11 +35,21 @@ SIMGLUCOSE_CONFIG = {
     "citation": "SimGlucose Dataset",
 }
 
+# Configuration for the Lynch 2022 dataset
+LYNCH_2022_CONFIG = {
+    "source": "local",
+    "source_path": "src/data/diabetes_datasets/awesome_cgm/lynch_2022",
+    "description": "Lynch 2022 IOBP2 RCT dataset",
+    "citation": "Lynch et al. 2022",
+    "required_files": ["IOBP2 RCT Public Dataset"],
+}
+
 # Mapping of dataset names to their configurations
 DATASET_CONFIGS = {
     "kaggle_brisT1D": KAGGLE_BRIST1D_CONFIG,
     "gluroo": GLUROO_CONFIG,
     "simglucose": SIMGLUCOSE_CONFIG,
+    "lynch_2022": LYNCH_2022_CONFIG,
 }
 
 
