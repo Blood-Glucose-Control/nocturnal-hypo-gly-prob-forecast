@@ -71,11 +71,13 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
             # "isf": ColumnNames.ISF.value,
             "recordType": ColumnNames.RECORD_TYPE.value,
             "bgMgdl": ColumnNames.BG.value,
-            "rate": ColumnNames.RATE.value,
+            # "rate": ColumnNames.RATE.value,
+            "basalDurationMins": ColumnNames.BASAL_DURATION_MINS.value,
             "suprBasalType": ColumnNames.SUPR_BASAL_TYPE.value,
             "suprRate": ColumnNames.SUPR_RATE.value,
         }
     )
+    # Drop the expected columns for now
     df.drop(columns=["expectedNormalBolus", "expectedExtendedBolus"], inplace=True)
     df.set_index(ColumnNames.DATETIME.value, inplace=True)
     df.sort_index(inplace=True)
@@ -178,6 +180,7 @@ def process_one_patient(
     max_consecutive_nan_values_per_day = (
         HOURS_OF_CONSECUTIVE_NAN_VALUES * 60
     ) // freq_mins
+    # Note that it is possible that we have bolus from the deleted days. becase we rollover first then delete.
     df = erase_consecutive_nan_values(
         df, max_consecutive_nan_values_per_day=max_consecutive_nan_values_per_day
     )
@@ -210,13 +213,24 @@ def clean_all_patients(
     Clean all patients' data in the interim path and save the processed data to the processed path.
     """
     processed_data = {}
-    for pid in os.listdir(interim_path):
-        df = pd.read_csv(interim_path / pid)
+    total_patients = len(os.listdir(interim_path))
+    for index, filename in enumerate(os.listdir(interim_path)):
+        # filename is like p{pid}_full.csv
+        progress = f"({index+1}/{total_patients})"
+        df = pd.read_csv(interim_path / filename)
         p_num = df[ColumnNames.P_NUM.value].iloc[0]
+
+        save_path = processed_path / filename
+        # Don't process the patient if the processed data already exists
+        if save_path.exists():
+            print(
+                f"Skipping pid {p_num} because {save_path} already exists {progress}."
+            )
+            continue
 
         df = process_one_patient(df)
         processed_data[p_num] = df
 
-        df.to_csv(processed_path / pid, index=False)
-        logger.info(f"{'-'*10} Done processing pid {pid} {'-'*10}")
+        df.to_csv(save_path, index=True)
+        print(f"{"-"*10}Done processing pid {filename} {progress} {"-"*10}")
     return processed_data

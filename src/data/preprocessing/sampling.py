@@ -177,6 +177,7 @@ def ensure_regular_time_intervals_with_aggregation(
 
     logger.info(f"\tAggregation strategy: {agg_dict}")
 
+    # TODO: This is super slow. Need to optimize.
     aggregated_rows = []
     for regular_time in full_time_range:
         time_diffs = df.index - regular_time

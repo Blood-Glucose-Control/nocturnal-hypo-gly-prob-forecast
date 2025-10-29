@@ -28,6 +28,7 @@ class ColumnNames(str, Enum):
         "record_type"  # Extra info for the record type (CGM, CALIBRATION, etc.)
     )
     RATE = "rate"  # Basal rate units/hr
+    BASAL_DURATION_MINS = "basal_duration_mins"  # Basal duration in minutes
     SUPR_BASAL_TYPE = "supr_basal_type"  # Supr basal type
     SUPR_RATE = "supr_rate"  # Supr basal rate
 

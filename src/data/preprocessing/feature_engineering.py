@@ -71,19 +71,23 @@ required_columns = [
 def rollover_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
     """
     Roll over the basal rate to the next few rows if the rate is not null.
-    For example, if a row has a basal rate of 1 unit/hr and the interval is 5 minutes,
+    The rollover is based on the duration of the basal rate in minutes.
+    For example, if a row has a basal rate of 1 unit/hr and the interval is 5 minutes for a basal duration of one hour,
     then the next 12 rows (one hour) will have a dose of 1/12 units.
 
     Args:
         df (pd.DataFrame): Input DataFrame with datetime index and constant interval (e.g. 5 minutes)
                           ColumnNames.RATE.value (basal rate units/hr)
-
+                          ColumnNames.BASAL_DURATION_MINS.value (basal duration in minutes)
     Returns:
         pd.DataFrame: Enhanced DataFrame with basal rate added to dose_units
     """
-    if ColumnNames.RATE.value not in df.columns:
+    if (
+        ColumnNames.RATE.value not in df.columns
+        or ColumnNames.BASAL_DURATION_MINS.value not in df.columns
+    ):
         logger.warning(
-            f"No {ColumnNames.RATE.value} column found. Returning original dataframe."
+            f"No {ColumnNames.RATE.value} or {ColumnNames.BASAL_DURATION_MINS.value} column found. Returning original dataframe."
         )
         return df
 
@@ -103,12 +107,15 @@ def rollover_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
     for i in range(len(df)):
         if pd.notna(df[ColumnNames.RATE.value].iloc[i]):
             rate = df[ColumnNames.RATE.value].iloc[i]
+            duration_mins = df[ColumnNames.BASAL_DURATION_MINS.value].iloc[i]
             dose_per_row = rate / rows_per_hour
+            rows_to_rollover = int(duration_mins / freq)
 
-            # Find where this rate stops (next rate change or end of data)
-            end_idx = min(i + rows_per_hour, len(df))
+            # Find where this rate stops (end of data or end of duration)
+            end_idx = min(i + rows_to_rollover, len(df))
 
             # Check if there's another rate change within this range
+            # The next rate change should override the current rate.
             for j in range(i + 1, end_idx):
                 if pd.notna(df[ColumnNames.RATE.value].iloc[j]):
                     end_idx = j  # Stop before the next rate change
@@ -153,7 +160,7 @@ def create_physiological_features(
     if use_aggregation:
         logger.info("\tEnsuring regular time intervals with aggregation...")
         df, freq = ensure_regular_time_intervals_with_aggregation(df)
-        # df.to_csv("resampled_with_aggregation.csv") # TODO: Remove this. Debugging only
+        df.to_csv("resampled_with_aggregation.csv")  # TODO: Remove this. Debugging only
     else:
         logger.info("\tEnsuring regular time intervals...")
         df, freq = ensure_regular_time_intervals(df)
