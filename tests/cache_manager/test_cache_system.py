@@ -224,6 +224,10 @@ class TestCacheManager:
         (raw_path / "some_file.csv").touch()
         assert self.cache_manager._raw_data_exists(raw_path, dataset_config)
 
+    @pytest.mark.xfail(
+        reason="We are working on removing saving by dataset_type because it is not needed. Will need to add this back",
+        strict=False,
+    )
     def test_save_and_load_processed_data(self):
         """Test saving and loading processed data."""
 

@@ -395,6 +395,7 @@ class CacheManager:
                 f"Failed to copy local data for {dataset_name}: {str(e)}"
             )
 
+    # TODO: Remove this
     def get_processed_data_path_for_type(
         self, dataset_name: str, dataset_type: str
     ) -> Path:
@@ -411,6 +412,7 @@ class CacheManager:
         processed_path = self.get_processed_data_path(dataset_name)
         return processed_path / dataset_type
 
+    # TODO: We shouldn't save by dataset type. It should just be processed data (we split at the code level)
     def save_processed_data(
         self,
         dataset_name: str,
