@@ -84,7 +84,7 @@ class AleppoDataLoader(DatasetBase):
             pd.DataFrame: The loaded data as a pandas DataFrame.
         """
         self._make_processed_data()
-        # TODO:The correctness of the validation is not important for now because the splitting is done my ttm's data processor.
+        ## Every patient has different time span so number of days won't make sense here. Maybe just 10%
         self.train_data, self.validation_data = get_train_validation_split(
             self.processed_data, num_validation_days=self.num_validation_days
         )

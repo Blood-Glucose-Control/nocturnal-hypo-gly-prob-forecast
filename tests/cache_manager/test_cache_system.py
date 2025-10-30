@@ -27,6 +27,7 @@ class TestCacheManager:
         """Set up test fixtures."""
         self.temp_dir = tempfile.mkdtemp()
         self.cache_manager = CacheManager(cache_root=self.temp_dir)
+        self.test_dataset = "kaggle_brisT1D"
 
     def teardown_method(self):
         """Clean up test fixtures."""
@@ -39,20 +40,20 @@ class TestCacheManager:
 
     def test_get_dataset_cache_path(self):
         """Test getting dataset cache path."""
-        path = self.cache_manager.get_dataset_cache_path("test_dataset")
-        expected = Path(self.temp_dir) / "test_dataset"
+        path = self.cache_manager.get_dataset_cache_path(self.test_dataset)
+        expected = Path(self.temp_dir) / self.test_dataset
         assert path == expected
 
     def test_get_raw_data_path(self):
         """Test getting raw data path."""
-        path = self.cache_manager.get_raw_data_path("test_dataset")
-        expected = Path(self.temp_dir) / "test_dataset" / "raw"
+        path = self.cache_manager.get_raw_data_path(self.test_dataset)
+        expected = Path(self.temp_dir) / self.test_dataset / "raw"
         assert path == expected
 
     def test_get_processed_data_path(self):
         """Test getting processed data path."""
-        path = self.cache_manager.get_processed_data_path("test_dataset")
-        expected = Path(self.temp_dir) / "test_dataset" / "processed"
+        path = self.cache_manager.get_processed_data_path(self.test_dataset)
+        expected = Path(self.temp_dir) / self.test_dataset / "processed"
         assert path == expected
 
     def test_save_and_load_full_processed_data(self):
