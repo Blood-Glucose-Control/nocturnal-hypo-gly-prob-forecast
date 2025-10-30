@@ -345,15 +345,16 @@ class CacheManager:
         Reason is that the data is guarded by the source.
         See the README.md in the cache/data/awesome_cgm/aleppo directory for more details.
         """
-        # TODO: Complete this
         raw_data_exists = self._raw_data_exists(raw_path, dataset_config)
         # There is not way to load raw data programmatically from the source.
         # The only way is to manually download the data and place it in the correct cache directory.
         if raw_data_exists:
             return raw_path
         else:
-            # TODO: Test this. Also need to give instructions to the user on how to download the data and place it in the correct cache directory
-            raise RuntimeError(f"Raw data for {dataset_name} does not exist in cache")
+            # TODO: Need to give instructions to the user on how to download the data and place it in the correct cache directory
+            raise RuntimeError(
+                f"Raw data for {dataset_name} does not exist in cache. Please download the data and place it in cache/data/awesome_cgm/{dataset_name}/raw."
+            )
 
     def _copy_local_data(
         self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
@@ -614,12 +615,12 @@ class CacheManager:
             Note: For test data with nested structure, returns None to trigger custom loading
         """
         # Special handling for test data with nested structure - return None to trigger custom loading
+        # TODO: kaggle-brisT1D should be a enum value instead of a string.
         if dataset_type == "test" and dataset_name == "kaggle_brisT1D":
             return None
 
-        processed_path = self.get_processed_data_path_for_type(
-            dataset_name, dataset_type
-        )
+        # We do the split at the code level not the cache level so we no longer need dataset_type here.
+        processed_path = self.get_processed_data_path(dataset_name)
 
         if file_format == "csv":
             if processed_path.exists():
@@ -630,7 +631,7 @@ class CacheManager:
                 for csv_file in csv_files:
                     # Extract patient ID from filename: remove _{dataset_type}.csv suffix
                     filename = csv_file.stem  # filename without extension
-                    suffix_to_remove = f"_{dataset_type}"
+                    suffix_to_remove = "_full"
 
                     if filename.endswith(suffix_to_remove):
                         patient_id = filename[: -len(suffix_to_remove)]

@@ -52,11 +52,10 @@ ALEPPO_CONFIG: DatasetConfig = {
     "source": DatasetSourceType.AWESOME_CGM,
     "cache_path": str(Path(AWESOME_CGM_CONFIG["cache_path"]) / "aleppo"),
     "description": "Aleppo dataset",
-    "required_files": ["CRFs", "Data Tables"],
+    "required_files": ["Data Tables"],
     "url": "https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Aleppo-(2017)",
     "citation": "Aleppo Dataset",
 }
-
 
 # Configuration for the Lynch 2022 dataset
 # TODO: This will need to be modified to use the new cache system.

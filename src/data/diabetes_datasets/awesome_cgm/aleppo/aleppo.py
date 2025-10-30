@@ -5,7 +5,6 @@ from src.data.cache_manager import get_cache_manager
 # from src.data.data_models import Dataset
 from src.data.dataset_configs import get_dataset_config
 from .data_cleaner import PreprocessConfig, clean_all_patients, default_config
-from src.data.preprocessing.time_processing import get_train_validation_split
 import pandas as pd
 import logging
 
@@ -13,6 +12,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+# TODO: ISF/CR is not dropped in the dataset. We could use this to calculate slope of the glucose curve.
+# to give models some hints about trend of the glucose curve.
 class AleppoDataLoader(DatasetBase):
     def __init__(
         self,
@@ -49,32 +50,6 @@ class AleppoDataLoader(DatasetBase):
                 The total sample size was 225 participants. The Dexcom G4 was used to continuously monitor glucose levels for a span of 6 months.
            """
 
-    def load_raw(self):
-        # This should guarantee the raw data exist or throw the error if it does not
-        self.raw_data_path = self.cache_manager.ensure_raw_data(
-            self.dataset_name, self.dataset_config
-        )
-        logger.info("Raw data is not in csv format, please load processed data instead")
-
-        need_to_process_data = True
-        if self.use_cached:
-            cached_data = self.cache_manager.load_processed_data(
-                self.dataset_name, "train", file_format="csv"
-            )
-            if cached_data is not None:
-                self.processed_data = cached_data
-                need_to_process_data = False
-
-        if need_to_process_data:
-            # we should have a path here that guarantees the raw data exist to be processed
-            self._process_and_cache_data()
-
-        return None
-
-    def _make_processed_data(self):
-        self.raw_data = self.load_raw()
-        self.processed_data = self._process_raw_data()
-
     def load_data(self):
         """
         The function will load the raw data, process data and split it into train and validation.
@@ -83,18 +58,42 @@ class AleppoDataLoader(DatasetBase):
         Returns:
             pd.DataFrame: The loaded data as a pandas DataFrame.
         """
-        self._make_processed_data()
-        ## Every patient has different time span so number of days won't make sense here. Maybe just 10%
-        self.train_data, self.validation_data = get_train_validation_split(
-            self.processed_data, num_validation_days=self.num_validation_days
-        )
-        self.train_data = self.train_data.sort_values(by=["p_num", "datetime"])
-        self.validation_data = self.validation_data.sort_values(
-            by=["p_num", "datetime"]
+        need_to_process_data = True
+        if self.use_cached:
+            cached_data = self.cache_manager.load_processed_data(
+                self.dataset_name, "train", file_format="csv"
+            )
+            if cached_data is not None:
+                self.processed_data = cached_data
+                need_to_process_data = False
+        if need_to_process_data:
+            self._process_and_cache_data()
+
+        ## TODO: Every patient has different time span so number of days won't make sense here. Maybe just 10%
+        self.train_data = self.processed_data
+        # self.train_data, self.validation_data = get_train_validation_split(
+        #     self.processed_data, num_validation_days=self.num_validation_days
+        # )
+        # self.train_data = self.train_data.sort_values(by=["p_num", "datetime"])
+        # self.validation_data = self.validation_data.sort_values(
+        #     by=["p_num", "datetime"]
+        # )
+
+    def load_raw(self):
+        """
+        Raw data of this dataset is not loadable (not in csv format). So we only check if the raw data exists.
+        If not we throw an error and give instructions to the user on how to download the data and place it in the correct cache directory.
+        """
+        self.raw_data_path = self.cache_manager.ensure_raw_data(
+            self.dataset_name, self.dataset_config
         )
 
     def _process_and_cache_data(self):
-        """Process the raw data and save it to the cache."""
+        """
+        We don't have the processed data cached so we need to load raw data then process it and save it to the cache.
+        """
+        # This will guarantee the raw data exists or throw an error if it does not.
+        self.load_raw()
         self.processed_data = self._process_raw_data()
         self.cache_manager.save_processed_data(
             self.dataset_name, "train", self.processed_data
@@ -105,8 +104,6 @@ class AleppoDataLoader(DatasetBase):
         1.Transform the raw data from text to csv by patients (saved to interim folder)
         2.Do the processing on the csv files.
         """
-        if self.raw_data_path is None:
-            raise ValueError("Raw data path not loaded! Please call load_raw() first.")
 
         processed_path = self.cache_manager.get_processed_data_path(self.dataset_name)
         processed_path.parent.mkdir(
