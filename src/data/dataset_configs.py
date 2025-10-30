@@ -58,12 +58,26 @@ ALEPPO_CONFIG: DatasetConfig = {
 }
 
 
+# Configuration for the Lynch 2022 dataset
+# TODO: This will need to be modified to use the new cache system.
+# It should use cached path instead of source path.
+# Not sure about the namesapced approach or just a simple path like this.
+LYNCH_2022_CONFIG: DatasetConfig = {
+    "source": "local",
+    "source_path": "src/data/diabetes_datasets/awesome_cgm/lynch_2022",
+    "description": "Lynch 2022 IOBP2 RCT dataset",
+    "citation": "Lynch et al. 2022",
+    "required_files": ["IOBP2 RCT Public Dataset"],
+}
+
+
 # Mapping of dataset names to their configurations
 DATASET_CONFIGS = {
     "kaggle_brisT1D": KAGGLE_BRIST1D_CONFIG,
     "gluroo": GLUROO_CONFIG,
     "simglucose": SIMGLUCOSE_CONFIG,
     "aleppo": ALEPPO_CONFIG,
+    "lynch_2022": LYNCH_2022_CONFIG,
 }
 
 

@@ -27,6 +27,7 @@ orjson
 pandas
 pre-commit
 pydantic
+pyreadstat
 pytest
 pytest-mock
 python-dotenv

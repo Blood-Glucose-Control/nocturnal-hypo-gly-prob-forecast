@@ -26,6 +26,12 @@ from src.utils.os_helper import get_project_root
 
 logger = logging.getLogger(__name__)
 
+# Map dataset keys to subdirectory paths relative to cache root
+# This keeps backward compatibility while allowing namespacing like "awesome_cgm/lynch_2022".
+_DATASET_PATH_OVERRIDES: dict[str, Path] = {
+    "lynch_2022": Path("awesome_cgm") / "lynch_2022",
+}
+
 
 class CacheManager:
     """
@@ -36,21 +42,47 @@ class CacheManager:
     consistent directory structure.
     """
 
-    def __init__(self, cache_root: str = "cache/data"):
+    def __init__(
+        self,
+        cache_root: str = "cache/data",
+        dataset_path_overrides: Optional[Dict[str, Path]] = None,
+    ):
         """
         Initialize the cache manager.
 
         Args:
             cache_root (str): Root directory for cache storage (relative to project root)
+            dataset_path_overrides (Optional[Dict[str, Path]]): Optional mapping from dataset_name
+                to a custom subdirectory path (relative to cache_root). If None, defaults to module overrides.
         """
         # Make cache root relative to project root, not current working directory
         project_root = get_project_root()
         self.cache_root = project_root / cache_root
         self.cache_root.mkdir(parents=True, exist_ok=True)
+        # Use provided overrides or defaults
+        self.dataset_path_overrides: Dict[str, Path] = (
+            dataset_path_overrides or _DATASET_PATH_OVERRIDES
+        )
 
     def get_dataset_cache_path(self, dataset_name: str) -> Path:
-        """Get the absolute cache path for a specific dataset."""
-        return self.cache_root / dataset_name
+        """
+        Get the cache path for a specific dataset.
+
+        Args:
+            dataset_name (str): Name of the dataset (can be namespaced like "group/dataset")
+
+        Returns:
+            Path: Path to the dataset's cache directory
+        """
+        # Respect explicit override
+        if dataset_name in self.dataset_path_overrides:
+            subpath = self.dataset_path_overrides[dataset_name]
+        else:
+            # If dataset_name includes a path (e.g., "awesome_cgm/lynch_2022"), treat it as a subdir
+            p = Path(dataset_name)
+            subpath = p if len(p.parts) > 1 else Path(dataset_name)
+
+        return self.cache_root / subpath
 
     def get_raw_data_path(self, dataset_name: str) -> Path:
         """Get the raw data path for a specific dataset."""
