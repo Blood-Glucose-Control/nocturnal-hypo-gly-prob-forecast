@@ -118,3 +118,11 @@ def get_dataset_info(dataset_name: str) -> Dict[str, str]:
         "citation": config.get("citation", "No citation available"),
         "url": config.get("url", "No URL available"),
     }
+
+
+def register_dataset(dataset_name: str, dataset_config: DatasetConfig):
+    """
+    This is used to inject test datasset for testing purposes in real time.
+    irl, we should use the normal way to register a new dataset.
+    """
+    DATASET_CONFIGS[dataset_name] = dataset_config

@@ -17,7 +17,9 @@ from src.data.dataset_configs import (
     get_dataset_config,
     get_dataset_info,
     list_available_datasets,
+    register_dataset,
 )
+from src.data.models import DatasetSourceType
 
 
 class TestCacheManager:
@@ -27,7 +29,18 @@ class TestCacheManager:
         """Set up test fixtures."""
         self.temp_dir = tempfile.mkdtemp()
         self.cache_manager = CacheManager(cache_root=self.temp_dir)
-        self.test_dataset = "kaggle_brisT1D"
+        self.test_dataset = "test_dataset"
+        register_dataset(
+            self.test_dataset,
+            {
+                "source": DatasetSourceType.LOCAL,
+                "required_files": ["test_data.csv"],
+                "description": "Test dataset",
+                "citation": "Test dataset",
+                "cache_path": "test_dataset",
+                "url": "https://test.com",
+            },
+        )
 
     def teardown_method(self):
         """Clean up test fixtures."""
@@ -95,8 +108,8 @@ class TestCacheManager:
 
     def test_load_full_processed_data_not_exists(self):
         """Test loading full processed data when it doesn't exist."""
-        result = self.cache_manager.load_full_processed_data("nonexistent_dataset")
-        assert result is None
+        with pytest.raises(ValueError, match="Configuration not found"):
+            self.cache_manager.load_full_processed_data("nonexistent_dataset")
 
     def test_save_and_load_split_data(self):
         """Test saving and loading train/validation split data."""
@@ -163,8 +176,10 @@ class TestCacheManager:
     def test_load_split_data_not_exists(self):
         """Test loading split data when it doesn't exist."""
         split_params = {"validation_split": 0.2, "random_state": 42}
-        result = self.cache_manager.load_split_data("nonexistent_dataset", split_params)
-        assert result is None
+        import pytest  # already imported at top; safe if duplicated in scope
+
+        with pytest.raises(ValueError, match="Configuration not found"):
+            self.cache_manager.load_split_data("nonexistent_dataset", split_params)
 
     def test_get_processed_data_path_for_type(self):
         """Test getting processed data path for specific type."""
