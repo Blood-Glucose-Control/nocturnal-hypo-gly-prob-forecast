@@ -61,7 +61,7 @@ class AleppoDataLoader(DatasetBase):
         need_to_process_data = True
         if self.use_cached:
             cached_data = self.cache_manager.load_processed_data(
-                self.dataset_name, "train", file_format="csv"
+                self.dataset_name, file_format="csv"
             )
             if cached_data is not None:
                 self.processed_data = cached_data
@@ -95,10 +95,11 @@ class AleppoDataLoader(DatasetBase):
         # This will guarantee the raw data exists or throw an error if it does not.
         self.load_raw()
         self.processed_data = self._process_raw_data()
-        self.cache_manager.save_processed_data(
-            self.dataset_name, "train", self.processed_data
+        self.cache_manager.save_full_processed_data(
+            self.dataset_name, self.processed_data
         )
 
+    # TODO: Maybe we don't need interim folder. Just process from the query to processed data directly?
     def _process_raw_data(self) -> dict[str, pd.DataFrame]:
         """
         1.Transform the raw data from text to csv by patients (saved to interim folder)

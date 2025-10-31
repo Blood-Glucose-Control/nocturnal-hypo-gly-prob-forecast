@@ -286,8 +286,8 @@ class TestDatasetConfigs:
 
     def test_get_dataset_config(self):
         """Test getting dataset configuration."""
-        config = get_dataset_config("kaggle_brisT1D")
-        assert config["source"] == "kaggle"
+        config = get_dataset_config(DatasetSourceType.KAGGLE_BRIS_T1D.value)
+        assert config["source"] == DatasetSourceType.KAGGLE_BRIS_T1D
         assert config["competition_name"] == "brist1d"
 
     def test_get_dataset_config_invalid(self):
@@ -298,13 +298,13 @@ class TestDatasetConfigs:
     def test_list_available_datasets(self):
         """Test listing available datasets."""
         datasets = list_available_datasets()
-        assert "kaggle_brisT1D" in datasets
-        assert "gluroo" in datasets
-        assert "simglucose" in datasets
+        assert DatasetSourceType.KAGGLE_BRIS_T1D.value in datasets
+        assert DatasetSourceType.GLUROO.value in datasets
+        assert DatasetSourceType.SIMGLUCOSE.value in datasets
 
     def test_get_dataset_info(self):
         """Test getting dataset information."""
-        info = get_dataset_info("kaggle_brisT1D")
+        info = get_dataset_info(DatasetSourceType.KAGGLE_BRIS_T1D.value)
         assert "description" in info
         assert "citation" in info
         assert "url" in info
@@ -330,7 +330,7 @@ class TestCacheIntegration:
         # This should work with the new cache system
         try:
             loader = get_loader(
-                data_source_name="kaggle_brisT1D",
+                data_source_name=DatasetSourceType.KAGGLE_BRIS_T1D.value,
                 dataset_type="train",
                 use_cached=True,
             )

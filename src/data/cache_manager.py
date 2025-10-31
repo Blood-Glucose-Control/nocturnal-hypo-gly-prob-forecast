@@ -18,6 +18,7 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
+from typing_extensions import deprecated
 
 import pandas as pd
 
@@ -135,7 +136,7 @@ class CacheManager:
             f"Raw data for {dataset_name} not found in cache: {raw_path} \n fetching from source"
         )
         source = dataset_config.get("source")
-        if source == DatasetSourceType.KAGGLE:
+        if source == DatasetSourceType.KAGGLE_BRIS_T1D:
             self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.HUGGING_FACE:
             self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
@@ -395,7 +396,9 @@ class CacheManager:
                 f"Failed to copy local data for {dataset_name}: {str(e)}"
             )
 
-    # TODO: Remove this
+    @deprecated(
+        "Deprecated because we no longer want to save by dataset type. It should just be processed data (we split at the code level)"
+    )
     def get_processed_data_path_for_type(
         self, dataset_name: str, dataset_type: str
     ) -> Path:
@@ -412,7 +415,9 @@ class CacheManager:
         processed_path = self.get_processed_data_path(dataset_name)
         return processed_path / dataset_type
 
-    # TODO: We shouldn't save by dataset type. It should just be processed data (we split at the code level)
+    @deprecated(
+        "Deprecated because we no longer want to save by dataset type. It should just be processed data (we split at the code level). Use save_full_processed_data instead"
+    )
     def save_processed_data(
         self,
         dataset_name: str,
@@ -455,6 +460,7 @@ class CacheManager:
     ):
         """
         Save full processed data (before train/validation split) as CSV files.
+        We split the data at the code level not the cache level because that gives us more flexibility and control.
 
         Args:
             dataset_name (str): Name of the dataset
@@ -602,23 +608,28 @@ class CacheManager:
         return hashlib.md5(sorted_params.encode()).hexdigest()[:8]
 
     def load_processed_data(
-        self, dataset_name: str, dataset_type: str, file_format: str = "csv"
+        self,
+        dataset_name: str,
+        file_format: str = "csv",
+        dataset_type: str = None,
     ) -> dict[str, pd.DataFrame] | None:
         """
         Load processed data with datetime index from cache.
 
         Args:
             dataset_name (str): Name of the dataset
-            dataset_type (str): Type of dataset (train, test, etc.)
             file_format (str): Format of the saved data
+            dataset_type (str): Type of dataset (train, test, etc.) - Only used for kaggle_brisT1D for now because its test data is not in csv format
 
         Returns:
             Dictionary with patient IDs as keys and DataFrames as values, or None if not found
             Note: For test data with nested structure, returns None to trigger custom loading
         """
         # Special handling for test data with nested structure - return None to trigger custom loading
-        # TODO: kaggle-brisT1D should be a enum value instead of a string.
-        if dataset_type == "test" and dataset_name == "kaggle_brisT1D":
+        if (
+            dataset_type == "test"
+            and dataset_name == DatasetSourceType.KAGGLE_BRIS_T1D.value
+        ):
             return None
 
         # We do the split at the code level not the cache level so we no longer need dataset_type here.

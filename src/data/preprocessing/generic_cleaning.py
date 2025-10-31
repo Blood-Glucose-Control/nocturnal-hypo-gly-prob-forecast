@@ -1,3 +1,18 @@
+"""
+Generic Data Cleaning Module
+
+This module provides functions for processing and cleaning generic diabetes data.
+It handles tasks such as standardizing timestamps, handling missing values,
+processing meal data, and transforming data into a consistent format.
+
+Key functionality includes:
+- Converting timestamps to regular intervals
+- Identifying and filtering days with excessive missing data
+- Processing meal announcements and handling overlaps
+- Selecting top carbohydrate meals per day
+- Standardizing column names and formats
+"""
+
 import pandas as pd
 from src.data.models import ColumnNames
 
@@ -49,3 +64,24 @@ def erase_consecutive_nan_values(
     result_df.drop("day", axis=1, inplace=True)
 
     return result_df
+
+
+def reduce_fp_precision(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Reduce the precision of the floating point columns to 2 decimal places to save space.
+    """
+    columns_to_reduce_precision = [
+        ColumnNames.BG.value,
+        ColumnNames.FOOD_G.value,
+        ColumnNames.DOSE_UNITS.value,
+        ColumnNames.IOB.value,
+        ColumnNames.COB.value,
+        ColumnNames.CARB_AVAILABILITY.value,
+        ColumnNames.IOB.value,
+        ColumnNames.INSULIN_AVAILABILITY.value,
+    ]
+    df = df.copy()
+    for col in columns_to_reduce_precision:
+        if col in df.columns:
+            df[col] = df[col].round(2)
+    return df

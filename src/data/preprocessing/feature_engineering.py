@@ -53,6 +53,7 @@ from src.data.physiological.carb_model.carb_model import (
 from src.data.physiological.insulin_model.insulin_model import (
     create_iob_and_ins_availability_cols,
 )
+from src.data.preprocessing.generic_cleaning import reduce_fp_precision
 from src.data.preprocessing.sampling import (
     ensure_regular_time_intervals,
     ensure_regular_time_intervals_with_aggregation,
@@ -177,6 +178,9 @@ def create_physiological_features(
 
     logger.info("\tCreating IOB and insulin availability columns...")
     df = create_iob_and_ins_availability_cols(df, freq)
+
+    logger.info("\tReducing floating point precision...")
+    df = reduce_fp_precision(df)
 
     logger.info("\tDone deriving features.\n")
     return df
