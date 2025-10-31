@@ -68,6 +68,7 @@ required_columns = [
 ]
 
 
+# TODO: We should't really be adding dose_units because each insulin has different activation curves.
 def rollover_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
     """
     Roll over the basal rate to the next few rows if the rate is not null.
@@ -160,7 +161,7 @@ def create_physiological_features(
     if use_aggregation:
         logger.info("\tEnsuring regular time intervals with aggregation...")
         df, freq = ensure_regular_time_intervals_with_aggregation(df)
-        df.to_csv("resampled_with_aggregation.csv")  # TODO: Remove this. Debugging only
+        # df.to_csv("resampled_with_aggregation.csv")  # TODO: Remove this. Debugging only
     else:
         logger.info("\tEnsuring regular time intervals...")
         df, freq = ensure_regular_time_intervals(df)

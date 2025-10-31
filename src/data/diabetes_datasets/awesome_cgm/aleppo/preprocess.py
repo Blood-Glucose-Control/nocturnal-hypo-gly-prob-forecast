@@ -99,7 +99,7 @@ FROM (
         NULL as extendedBolus,
         NULL as expectedExtendedBolus,
         HDeviceWizard.BgInput as bgInput,
-        HDeviceWizard.CarbInput / 1000 as foodG,
+        HDeviceWizard.CarbInput as foodG, --  Readme says this is in mg but I think it is in grams
         HDeviceWizard.InsulinOnBoard as iob,
         HDeviceWizard.InsulinCarbRatio as cr,
         HDeviceWizard.InsulinSensitivity as isf,

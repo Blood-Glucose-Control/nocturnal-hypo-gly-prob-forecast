@@ -161,6 +161,7 @@ def ensure_regular_time_intervals_with_aggregation(
     numerical_cols.remove("iob")
 
     # Prepare aggregation dict
+    # TODO: We should't really be adding dose_units because each insulin has different activation curves.
     agg_dict = {}
     for col in df.columns:
         if col in numerical_cols:
