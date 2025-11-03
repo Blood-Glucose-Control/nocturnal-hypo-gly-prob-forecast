@@ -7,7 +7,7 @@ from src.data.dataset_configs import get_dataset_config
 from src.data.preprocessing.time_processing import (
     get_train_validation_split_by_percentage,
 )
-from .data_cleaner import PreprocessConfig, clean_all_patients, default_config
+from .data_cleaner import clean_all_patients
 import pandas as pd
 import logging
 
@@ -22,7 +22,6 @@ class AleppoDataLoader(DatasetBase):
         self,
         keep_columns: list = None,
         num_validation_days: int = 20,
-        config: PreprocessConfig = default_config,
         use_cached: bool = True,
         train_percentage: float = 0.9,
     ):
@@ -31,13 +30,11 @@ class AleppoDataLoader(DatasetBase):
             keep_columns (list): List of columns to keep from the raw data.
             train_percentage (float): Percentage of the data to use for training.
             use_cached (bool): Whether to use cached data. WARNING: Processing data takes a VERY LONG TIME.
-            config (dict): Configuration dictionary for data cleaning. passed to your cleaning function
         """
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
         self.train_percentage = train_percentage
         self.cache_manager = get_cache_manager()
-        self.config = config
         self.dataset_config = get_dataset_config(self.dataset_name)
         self.raw_data_path = None
         self.use_cached = use_cached
@@ -117,7 +114,7 @@ class AleppoDataLoader(DatasetBase):
         create_aleppo_csv(self.raw_data_path)
 
         # interim -> processed ({pid}_full.csv)
-        return clean_all_patients(interim_path, processed_path, self.config)
+        return clean_all_patients(interim_path, processed_path)
 
     def _split_train_validation(
         self,
