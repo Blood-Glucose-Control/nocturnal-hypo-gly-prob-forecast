@@ -31,6 +31,7 @@ class AleppoDataLoader(DatasetBase):
             train_percentage (float): Percentage of the data to use for training.
             use_cached (bool): Whether to use cached data. WARNING: Processing data takes a VERY LONG TIME.
         """
+        super().__init__()
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
         self.train_percentage = train_percentage
