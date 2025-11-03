@@ -77,7 +77,6 @@ def reduce_fp_precision(df: pd.DataFrame) -> pd.DataFrame:
         ColumnNames.IOB.value,
         ColumnNames.COB.value,
         ColumnNames.CARB_AVAILABILITY.value,
-        ColumnNames.IOB.value,
         ColumnNames.INSULIN_AVAILABILITY.value,
     ]
     df = df.copy()

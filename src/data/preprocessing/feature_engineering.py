@@ -121,7 +121,7 @@ def rollover_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
                     end_idx = j  # Stop before the next rate change
                     break
 
-            df.iloc[i:end_idx][ColumnNames.DOSE_UNITS.value] += dose_per_row
+            df.loc[df.index[i:end_idx], ColumnNames.DOSE_UNITS.value] += dose_per_row
 
     return df
 
