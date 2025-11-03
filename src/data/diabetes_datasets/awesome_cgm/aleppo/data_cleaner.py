@@ -180,7 +180,7 @@ def process_one_patient(
     max_consecutive_nan_values_per_day = (
         HOURS_OF_CONSECUTIVE_NAN_VALUES * 60
     ) // freq_mins
-    # Note that it is possible that we have bolus from the deleted days. becase we rollover first then delete.
+    # Note that it is possible that we have bolus from the deleted days. because we rollover first then delete.
     df = erase_consecutive_nan_values(
         df, max_consecutive_nan_values_per_day=max_consecutive_nan_values_per_day
     )
@@ -192,15 +192,6 @@ def process_one_patient(
         )
         os.makedirs(debug_dir, exist_ok=True)
         df.to_csv(debug_dir / f"p{pid}.csv", index=True)
-    return df
-
-
-def convert_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Rollover the basal rate to the next few rows if the rate is not null
-    """
-    df = df.copy()
-    df[ColumnNames.RATE.value] = df[ColumnNames.RATE.value].astype(float)
     return df
 
 
