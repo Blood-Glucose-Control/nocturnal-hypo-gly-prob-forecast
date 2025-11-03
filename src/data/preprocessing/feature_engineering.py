@@ -94,9 +94,7 @@ def rollover_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     if ColumnNames.DOSE_UNITS.value not in df.columns:
-        logger.warning(
-            f"No {ColumnNames.DOSE_UNITS.value} column found. Returning original dataframe."
-        )
+        # We should always have dose_units column.
         raise ValueError(
             f"ROLLOVER_BASAL_RATE function: DataFrame must contain {ColumnNames.DOSE_UNITS.value} column"
         )
