@@ -614,7 +614,7 @@ class CacheManager:
         dataset_type: str = None,
     ) -> dict[str, pd.DataFrame] | None:
         """
-        Load processed data with datetime index from cache.
+        Load processed data with datetime index from cache. processed data has a naming convention of {patient_id}_full.csv
 
         Args:
             dataset_name (str): Name of the dataset
@@ -650,7 +650,10 @@ class CacheManager:
                         patient_id = filename[: -len(suffix_to_remove)]
                         # Load the CSV with datetime index
                         df = pd.read_csv(
-                            csv_file, index_col="datetime", parse_dates=True
+                            csv_file,
+                            index_col="datetime",
+                            parse_dates=True,
+                            low_memory=False,  # This solved the mixed types warning but not sure it is gonna cause some memory issues.
                         )
                         result[patient_id] = df
 
