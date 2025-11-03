@@ -66,7 +66,9 @@ required_columns = [
 ]
 
 
-def preprocessing_pipeline(p_num: str, df: pd.DataFrame) -> pd.DataFrame:
+def preprocessing_pipeline(
+    p_num: str, df: pd.DataFrame, use_aggregation: bool = False
+) -> pd.DataFrame:
     """
     Preprocesses patient data through feature engineering pipeline.
 
@@ -78,7 +80,9 @@ def preprocessing_pipeline(p_num: str, df: pd.DataFrame) -> pd.DataFrame:
         p_num (str): Patient identifier for logging purposes
         df (pd.DataFrame): Raw patient data containing datetime, blood glucose,
                           meal announcements, carb intake, and insulin doses
-
+        use_aggregation (bool, optional): Whether to use aggregation to ensure regular time intervals.
+                                          If True, will consider all rows within the same regular time interval.
+                                          If False, will only consider the first row within the regular time interval.
     Returns:
         pd.DataFrame: Processed DataFrame with original data plus derived features
 
@@ -92,5 +96,7 @@ def preprocessing_pipeline(p_num: str, df: pd.DataFrame) -> pd.DataFrame:
 
     validate_required_columns(df, required_columns)
     patient_df = df.copy(deep=True)
-    processed_df = create_physiological_features(patient_df)
+    processed_df = create_physiological_features(
+        patient_df, use_aggregation=use_aggregation
+    )
     return processed_df
