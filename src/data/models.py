@@ -13,6 +13,7 @@ class DatasetSourceType(str, Enum):
     SIMGLUCOSE = "simglucose"
 
 
+# TODO: Add to the mean_cols list in sampling.py / ensure_regular_time_intervals_with_aggregation if the column is describing rate of change.
 class ColumnNames(str, Enum):
     BG = "bg_mM"
     DATETIME = "datetime"

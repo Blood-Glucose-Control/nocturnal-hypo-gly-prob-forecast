@@ -103,7 +103,6 @@ def ensure_regular_time_intervals(
     return mapped_data, freq
 
 
-# TODO: Write UnitTest for this
 def ensure_regular_time_intervals_with_aggregation(
     df: pd.DataFrame,
 ) -> Tuple[pd.DataFrame, int]:
@@ -143,9 +142,7 @@ def ensure_regular_time_intervals_with_aggregation(
     freq = get_most_common_time_interval(df)
     logger.info(f"\tMost common time interval: {freq} minutes")
 
-    # TODO: switch back to 2/3 or do we consider all data
-    # tolerance = pd.Timedelta(minutes=freq * (3 / 3))
-
+    datetime_col = ColumnNames.DATETIME.value
     # Create complete regular time range
     full_time_range = pd.date_range(
         start=df.index.min(),
@@ -155,53 +152,43 @@ def ensure_regular_time_intervals_with_aggregation(
 
     # Identify numerical vs non-numerical columns
     numerical_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    numerical_cols.remove(ColumnNames.P_NUM.value)
-    numerical_cols.remove("isf")
-    numerical_cols.remove("cr")
-    numerical_cols.remove("iob")
+
+    # Remove columns that are not needed for aggregation
+    for col in [ColumnNames.P_NUM.value, "isf", "cr", "iob"]:
+        if col in numerical_cols:
+            numerical_cols.remove(col)
+
+    # Rate of change columns we use mean aggregation.
+    mean_cols = [ColumnNames.BG.value, ColumnNames.RATE.value, ColumnNames.HR_BPM.value]
 
     # Prepare aggregation dict
-    # TODO: We should't really be adding dose_units because each insulin has different activation curves.
     agg_dict = {}
     for col in df.columns:
         if col in numerical_cols:
-            if col == ColumnNames.BG.value or col == ColumnNames.RATE.value:
-                # Average blood glucose or basal rate
+            if col in mean_cols:
                 agg_dict[col] = "mean"
             else:
-                # Sum all other numerical values
                 agg_dict[col] = "sum"
         else:
-            # Take first non-numerical value (categorical columns)
-            # TODO: First value can be Nan so might need to take the first non-Nan value?
-            agg_dict[col] = lambda x: x.iloc[0] if len(x) > 0 else None
+            agg_dict[col] = "first"
 
     logger.info(f"\tAggregation strategy: {agg_dict}")
 
-    # TODO: This is super slow. Need to optimize.
-    aggregated_rows = []
-    for regular_time in full_time_range:
-        time_diffs = df.index - regular_time
+    # Vectorized binning: round timestamps to nearest interval (≈ ± freq/2 window)
+    tmp = df.copy()
+    tmp["_bin"] = tmp.index.round(f"{freq}min")
 
-        # TODO: or should we use tolerance/2?
-        # Take +- half of the interval around the regular time
-        mask = abs(time_diffs) <= pd.Timedelta(minutes=freq // 2)
+    # Aggregate in one pass
+    grouped = tmp.groupby("_bin", sort=True).agg(agg_dict)
+    grouped.index.name = datetime_col
 
-        candidates = df[mask]
-
-        if len(candidates) > 0:
-            # Aggregate the candidates
-            aggregated_row = candidates.agg(agg_dict)
-            aggregated_row.name = regular_time
-            aggregated_rows.append(aggregated_row)
-        else:
-            # No data in this window, create NaN row
-            nan_row = pd.Series(index=df.columns, name=regular_time, dtype=float)
-            nan_row["p_num"] = df["p_num"].iloc[0]  # Keep p_num from original data
-            aggregated_rows.append(nan_row)
-
-    result_df = pd.DataFrame(aggregated_rows)
-    result_df.index.name = "datetime"
+    # Reindex to full grid; ensure p_num retained for empty bins
+    result_df = grouped.reindex(full_time_range)
+    result_df.index.name = datetime_col
+    if ColumnNames.P_NUM.value in result_df.columns:
+        result_df[ColumnNames.P_NUM.value] = result_df[ColumnNames.P_NUM.value].fillna(
+            df[ColumnNames.P_NUM.value].iloc[0]
+        )
 
     logger.info(
         f"Post-ensure_regular_time_intervals_with_aggregation(): \n\t\t\t"
