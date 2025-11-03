@@ -21,6 +21,7 @@ from src.data.diabetes_datasets import Lynch2022DataLoader
 from src.data.diabetes_datasets.awesome_cgm.aleppo.aleppo import AleppoDataLoader
 
 
+# TODO: Add train_percentage parameter
 @overload
 def get_loader(
     data_source_name: Literal["lynch_2022"],
@@ -62,11 +63,10 @@ def get_loader(
 @overload
 def get_loader(
     data_source_name: Literal["aleppo"],
-    dataset_type: str = "train",
     keep_columns: Optional[list[str]] = None,
     use_cached: bool = False,
-    num_validation_days: int = 20,
-    config: Optional[Dict[str, Any]] = None,
+    # config: Optional[Dict[str, Any]] = None,
+    train_percentage: float = 0.9,
 ) -> AleppoDataLoader: ...
 
 
@@ -76,10 +76,11 @@ def get_loader(
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
+    train_percentage: float = 0.9,
     config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
-) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader]:
+) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader, AleppoDataLoader]:
     """
     Factory function to create and return the appropriate data loader instance.
 
@@ -97,6 +98,7 @@ def get_loader(
                                        If None, all columns are loaded. Default: None
         use_cached (bool): Whether to use cached data if available. Default: False
         num_validation_days (int): Number of days to use for validation. Default: 20
+        train_percentage (float): Percentage of the data to use for training. Default: 0.9
         config (dict | None): Additional configuration parameters for the data loader.
                             Default: None
 
@@ -125,8 +127,8 @@ def get_loader(
     elif data_source_name == "aleppo":
         return AleppoDataLoader(
             keep_columns=keep_columns,
-            num_validation_days=num_validation_days,
-            config=config,
+            use_cached=use_cached,
+            train_percentage=train_percentage,
         )
     elif data_source_name == "lynch_2022":
         return Lynch2022DataLoader(

@@ -4,6 +4,9 @@ from src.data.cache_manager import get_cache_manager
 
 # from src.data.data_models import Dataset
 from src.data.dataset_configs import get_dataset_config
+from src.data.preprocessing.time_processing import (
+    get_train_validation_split_by_percentage,
+)
 from .data_cleaner import PreprocessConfig, clean_all_patients, default_config
 import pandas as pd
 import logging
@@ -21,16 +24,18 @@ class AleppoDataLoader(DatasetBase):
         num_validation_days: int = 20,
         config: PreprocessConfig = default_config,
         use_cached: bool = True,
+        train_percentage: float = 0.9,
     ):
         """
         Args:
             keep_columns (list): List of columns to keep from the raw data.
-            num_validation_days (int): Number of days to use for validation.
-            csv_file_path (str): Path to the CSV file containing the raw data.
+            train_percentage (float): Percentage of the data to use for training.
+            use_cached (bool): Whether to use cached data. WARNING: Processing data takes a VERY LONG TIME.
             config (dict): Configuration dictionary for data cleaning. passed to your cleaning function
         """
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
+        self.train_percentage = train_percentage
         self.cache_manager = get_cache_manager()
         self.config = config
         self.dataset_config = get_dataset_config(self.dataset_name)
@@ -69,15 +74,7 @@ class AleppoDataLoader(DatasetBase):
         if need_to_process_data:
             self._process_and_cache_data()
 
-        ## TODO: Every patient has different time span so number of days won't make sense here. Maybe just 10%
-        self.train_data = self.processed_data
-        # self.train_data, self.validation_data = get_train_validation_split(
-        #     self.processed_data, num_validation_days=self.num_validation_days
-        # )
-        # self.train_data = self.train_data.sort_values(by=["p_num", "datetime"])
-        # self.validation_data = self.validation_data.sort_values(
-        #     by=["p_num", "datetime"]
-        # )
+        self.train_data, self.validation_data = self._split_train_validation()
 
     def load_raw(self):
         """
@@ -121,3 +118,62 @@ class AleppoDataLoader(DatasetBase):
 
         # interim -> processed ({pid}_full.csv)
         return clean_all_patients(interim_path, processed_path, self.config)
+
+    def _split_train_validation(
+        self,
+    ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
+        """
+        Split the processed data into train and validation dicts per patient using train_percentage.
+        If a patient has less than 2 days of data, it will be skipped.
+        """
+        train_dict: dict[str, pd.DataFrame] = {}
+        val_dict: dict[str, pd.DataFrame] = {}
+
+        for patient_id, df in self.processed_data.items():
+            try:
+                patient_df = df.copy()
+
+                # Ensure DatetimeIndex as required by the splitter
+                if isinstance(patient_df.index, pd.DatetimeIndex):
+                    patient_df = patient_df.sort_index()
+                else:
+                    if "datetime" in patient_df.columns:
+                        patient_df = patient_df.sort_values("datetime").set_index(
+                            "datetime"
+                        )
+                    else:
+                        logger.warning(
+                            f"Patient {patient_id} skipped: missing 'datetime' column; records={len(patient_df)}"
+                        )
+                        continue
+
+                # Basic span/records info for logging
+                records = len(patient_df)
+                span_days = max(
+                    0, (patient_df.index.max() - patient_df.index.min()).days
+                )
+
+                # Attempt split
+                train_df, val_df, _ = get_train_validation_split_by_percentage(
+                    patient_df, train_percentage=self.train_percentage
+                )
+
+                # Keep datetime as a column if needed downstream
+                train_dict[patient_id] = train_df.reset_index()
+                val_dict[patient_id] = val_df.reset_index()
+
+            except (ValueError, TypeError) as e:
+                # p81 should be the only patient with insufficient data.
+                logger.warning(
+                    f"Patient {patient_id} skipped due to insufficient/invalid data: "
+                    f"{e}; records={records}, span_days={span_days}"
+                )
+                continue
+            except Exception as e:
+                logger.warning(
+                    f"Patient {patient_id} skipped due to unexpected error: {e}; "
+                    f"records={records if 'records' in locals() else 'unknown'}"
+                )
+                continue
+
+        return train_dict, val_dict

@@ -228,6 +228,7 @@ def clean_all_patients(
             )
             continue
 
+        # TODO: parallel processing this
         df = process_one_patient(df)
         processed_data[p_num] = df
 

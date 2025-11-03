@@ -29,8 +29,10 @@ Functions:
 """
 
 from typing import Generator, cast
-
+from typing_extensions import deprecated
 import pandas as pd
+
+from src.data.models import ColumnNames
 
 
 def create_datetime_index(
@@ -175,6 +177,10 @@ def split_patient_data_by_day(patients_dfs: pd.DataFrame, patient_id: str) -> di
     return daily_dfs
 
 
+@deprecated(
+    "Use get_train_validation_split_by_percentage instead. Datasets will have different spans so it no longer makes sense to use a fixed number of days. This function will only be used internally.",
+    category=DeprecationWarning,
+)
 def get_train_validation_split(
     df: pd.DataFrame,
     num_validation_days: int = 20,
@@ -346,6 +352,74 @@ def get_train_validation_split(
     )
 
     return train_data, validation_data, split_info
+
+
+def get_train_validation_split_by_percentage(
+    df: pd.DataFrame,
+    train_percentage: float = 0.8,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    """
+    Split a single patient's data into train and validation sets based on a percentage of the total days.
+
+    This function separates a single patient's data into training and validation sets,
+    where the validation set contains the specified percentage of the total days.
+
+    IMPORTANT: This function requires the input DataFrame to have a DatetimeIndex for
+    optimal performance and semantic correctness of time-series operations.
+
+    Args:
+        df (pd.DataFrame): Input dataframe for a SINGLE patient with DatetimeIndex (REQUIRED)
+        train_percentage (float): Percentage of the total days to use for training
+
+    Returns:
+        tuple[pd.DataFrame, pd.DataFrame, dict]:
+            (train_data, validation_data, split_info)
+            where train_data and validation_data are DataFrames for the single patient
+
+    Raises:
+        ValueError: If DatetimeIndex is not found or insufficient data for requested validation period
+        TypeError: If the DataFrame index is not a DatetimeIndex
+    """
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError("Input must be a pandas DataFrame")
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise TypeError(
+            "DataFrame must have a DatetimeIndex. "
+            "Set your datetime column as index: df.set_index('datetime', inplace=True)"
+        )
+    if not (0 < train_percentage < 1):
+        raise ValueError("train_percentage must be between 0 and 1 (exclusive)")
+
+    total_days = (df.index.max() - df.index.min()).days
+    if total_days < 2:
+        raise ValueError(
+            f"Insufficient data span for percentage split: {total_days} day(s) for pid {df[ColumnNames.P_NUM.value].iloc[0]}"
+        )
+
+    train_days = int(total_days * train_percentage)
+    # Ensure at least 1 day for both train and validation
+    train_days = max(1, min(train_days, total_days - 1))
+    num_validation_days = total_days - train_days
+
+    # get get_train_validation_split is only for internal use
+    train_df, val_df, info = get_train_validation_split(
+        df,
+        num_validation_days=num_validation_days,
+        day_start_hour=6,
+        min_data_days=1,
+        include_partial_days=False,
+    )
+
+    info.update(
+        {
+            "split_method": "percentage",
+            "train_percentage": train_percentage,
+            "total_days_estimated": total_days,
+            "train_days_estimated": train_days,
+            "validation_days_requested": num_validation_days,
+        }
+    )
+    return train_df, val_df, info
 
 
 def iter_patient_context_forecast_splits(
