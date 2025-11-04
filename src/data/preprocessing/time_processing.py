@@ -28,6 +28,8 @@ Functions:
     get_train_validation_split: Create robust train and validation sets for a single patient with DatetimeIndex requirement for optimal performance
 """
 
+from __future__ import annotations
+
 from typing import Generator, cast
 
 import pandas as pd

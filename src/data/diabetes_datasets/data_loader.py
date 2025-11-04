@@ -18,6 +18,7 @@ from typing import Union, Optional, Dict, Any, overload, Literal
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
+from src.data.diabetes_datasets import Tamborlane2008DataLoader
 
 
 @overload
@@ -57,6 +58,18 @@ def get_loader(
     parallel: bool = True,
 ) -> GlurooDataLoader: ...
 
+@overload
+def get_loader(
+    data_source_name: Literal["tamborlane_2008"],
+    dataset_type: str = "train",
+    keep_columns: Optional[list[str]] = None,
+    use_cached: bool = False,
+    num_validation_days: int = 7,
+    config: Optional[Dict[str, Any]] = None,
+    parallel: bool = True,
+    max_workers: int = 3,
+    extract_features: bool = True,
+) -> Tamborlane2008DataLoader: ...
 
 def get_loader(
     data_source_name: str = "kaggle_brisT1D",
@@ -67,7 +80,10 @@ def get_loader(
     config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
-) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader]:
+) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader, Tamborlane2008DataLoader]:
+    
+
+
     """
     Factory function to create and return the appropriate data loader instance.
 
@@ -118,6 +134,16 @@ def get_loader(
             dataset_type=dataset_type,
             parallel=parallel,
             max_workers=max_workers,
+        )
+    elif data_source_name == "tamborlane_2008":
+        return Tamborlane2008DataLoader(
+            keep_columns=keep_columns,
+            num_validation_days=num_validation_days,
+            use_cached=use_cached,
+            dataset_type=dataset_type,
+            parallel=parallel,
+            max_workers=max_workers,
+            extract_features=config.get('extract_features', True) if config else True,
         )
     else:
         raise ValueError(f"Invalid dataset_name: {data_source_name}.")

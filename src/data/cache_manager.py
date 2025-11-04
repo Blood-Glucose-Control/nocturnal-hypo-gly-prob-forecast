@@ -466,7 +466,7 @@ class CacheManager:
 
     def load_full_processed_data(
         self, dataset_name: str
-    ) -> dict[str, pd.DataFrame] | None:
+    ) -> Optional[Dict[str, pd.DataFrame]]:
         """
         Load full processed data (before train/validation split) from CSV files.
 

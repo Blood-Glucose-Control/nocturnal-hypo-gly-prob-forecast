@@ -4,8 +4,9 @@ from src.data.diabetes_datasets.gluroo.gluroo import GlurooDataLoader
 from src.data.diabetes_datasets.awesome_cgm.lynch_2022.lynch_2022 import (
     Lynch2022DataLoader,
 )
+from src.data.diabetes_datasets.awesome_cgm.tamborlane_2008 import Tamborlane2008DataLoader
 
 # Add your new dataset import
 
 # Export anything needed at package level (if applicable)
-__all__ = ["BrisT1DDataLoader", "GlurooDataLoader", "Lynch2022DataLoader"]
+__all__ = ["BrisT1DDataLoader", "GlurooDataLoader", "Lynch2022DataLoader", "Tamborlane2008DataLoader"]

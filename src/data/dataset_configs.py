@@ -44,12 +44,21 @@ LYNCH_2022_CONFIG = {
     "required_files": ["IOBP2 RCT Public Dataset"],
 }
 
+# Configuration for the Tamborlane 2008 dataset
+TAMBOLANE_2008_CONFIG = {
+    "source": "local",
+    "source_path": "/Users/kirby/BCG-WatAI/nocturnal-hypo-gly-prob-forecast/cache/data/diabetes_datasets/awesome_cgm/tamborlane_2008/raw",
+    "description": "Tamborlane 2008 dataset",
+    "citation": "Tamborlane et al. 2008",
+}
+
 # Mapping of dataset names to their configurations
 DATASET_CONFIGS = {
     "kaggle_brisT1D": KAGGLE_BRIST1D_CONFIG,
     "gluroo": GLUROO_CONFIG,
     "simglucose": SIMGLUCOSE_CONFIG,
     "lynch_2022": LYNCH_2022_CONFIG,
+    "tamborlane_2008": TAMBOLANE_2008_CONFIG
 }
 
 
