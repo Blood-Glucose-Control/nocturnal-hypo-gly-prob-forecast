@@ -110,3 +110,158 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
         df.index.name = "datetime"
         with pytest.raises(ValueError, match="more than 1 row"):
             ensure_regular_time_intervals_with_aggregation(df)
+
+    def test_unaligned_timestamps_date_range_alignment(self):
+        """
+        Test that handles timestamps not aligned to the standard grid.
+
+        This tests the bug fix where timestamps that round to a standard grid
+        (e.g., 00:02:30 -> 00:00 for 5min freq) need the date_range to also
+        be aligned to the rounded grid, otherwise reindexing produces all NaNs.
+        """
+        # Timestamps offset from standard 5-min grid
+        # Intentionally not create middle timestamp like 02:30 which is between 00:00 and 00:05
+        # Harder to debug due to rounding to the nearest and likely to happen irl anyway
+        dt = pd.to_datetime(
+            [
+                "2024-01-01 00:02:25",  # -> rounds to 00:00
+                "2024-01-01 00:07:25",  # -> rounds to 00:05
+                "2024-01-01 00:08:00",  # -> rounds to 00:10
+                "2024-01-01 00:13:00",  # -> rounds to 00:15
+                "2024-01-01 00:17:25",  # -> rounds to 00:15
+            ]
+        )
+
+        df = pd.DataFrame(
+            {
+                "p_num": [
+                    "patient_02",
+                    "patient_02",
+                    "patient_02",
+                    "patient_02",
+                    "patient_02",
+                ],
+                "bg_mM": [5.0, 6.0, 4.0, 7.0, 8.0],
+                "rate": [0.8, 0.6, 0.4, 1.0, 1.2],
+                "hr_bpm": [70, 72, 74, 69, 71],
+                "food_g": [5, 10, 2, 0, 3],
+                "msg_type": ["A", "B", "C", "D", "E"],
+            },
+            index=dt,
+        )
+        df.index.name = "datetime"
+
+        result, freq = ensure_regular_time_intervals_with_aggregation(df)
+
+        # Frequency detected should be 5 minutes
+        assert freq == 5
+
+        # Verify we don't get all NaNs (the bug that was fixed)
+        # At least some rows should have valid data
+        assert (
+            not result["bg_mM"].isna().all()
+        ), "All bg_mM values are NaN - date range alignment bug!"
+
+        # Index should be regular from rounded min to rounded max at 5-min intervals
+        # Original min: 00:02:30 -> rounds to 00:00:00
+        # Original max: 00:17:30 -> rounds to 00:15:00
+        expected_index = pd.date_range(
+            "2024-01-01 00:00:00", "2024-01-01 00:15:00", freq="5min"
+        )
+        assert list(result.index) == list(expected_index)
+
+        # Verify data at rounded bins
+        # 00:00:00 bin should have data from 00:02:30
+        assert np.isclose(result.loc["2024-01-01 00:00:00", "bg_mM"], 5.0)
+        assert result.loc["2024-01-01 00:00:00", "p_num"] == "patient_02"
+
+        # 00:05:00 bin should have data from 00:07:25 only
+        assert np.isclose(result.loc["2024-01-01 00:05:00", "bg_mM"], 6.0)
+        assert result.loc["2024-01-01 00:05:00", "p_num"] == "patient_02"
+
+        # 00:10:00 bin should have data from 00:08:00
+        assert np.isclose(result.loc["2024-01-01 00:10:00", "bg_mM"], 4.0)
+        assert result.loc["2024-01-01 00:10:00", "p_num"] == "patient_02"
+
+        # 00:15:00 bin should have data aggreated from 00:13:00 and 00:17:25
+        bg_mean_15 = np.mean([7.0, 8.0])
+        rate_mean_15 = np.mean([1.0, 1.2])
+        assert np.isclose(result.loc["2024-01-01 00:15:00", "bg_mM"], bg_mean_15)
+        assert np.isclose(result.loc["2024-01-01 00:15:00", "rate"], rate_mean_15)
+        assert result.loc["2024-01-01 00:15:00", "p_num"] == "patient_02"
+
+    def test_edge_case_large_time_offset(self):
+        """
+        Test edge case with very large offset from standard grid.
+        """
+        # Timestamps with significant offset that will round to different grid points
+        # This tests various edge cases: near boundaries, large gaps, multiple aggregations
+        dt = pd.to_datetime(
+            [
+                "2024-01-01 00:03:59",  # -> floors to 04 (just under 4min)
+                "2024-01-01 00:04:30",  # -> floors to 04 (aggregation target)
+                "2024-01-01 00:07:15",  # -> floors to 08
+                "2024-01-01 00:08:45",  # -> floors to 08 (aggregation target)
+                "2024-01-01 00:09:30",  # -> floors to 10
+                "2024-01-01 00:12:30",  # -> floors to 12
+                "2024-01-01 00:14:01",  # -> floors to 14
+                "2024-01-01 00:17:45",  # -> floors to 18
+                "2024-01-01 00:19:30",  # -> floors to 20
+                "2024-01-01 00:22:15",  # -> floors to 22
+            ]
+        )
+
+        df = pd.DataFrame(
+            {
+                "p_num": ["patient_03"] * 10,
+                "bg_mM": [5.0, 5.5, 6.0, 6.5, 4.0, 7.0, 7.5, 8.0, 8.5, 9.0],
+                "rate": [0.8, 0.9, 0.6, 0.7, 0.4, 1.0, 1.1, 1.2, 1.3, 1.4],
+                "hr_bpm": [70, 71, 72, 73, 74, 69, 70, 71, 72, 73],
+                "food_g": [5, 2, 10, 3, 2, 0, 5, 3, 4, 2],
+                "msg_type": ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"],
+            },
+            index=dt,
+        )
+        df.index.name = "datetime"
+
+        result, freq = ensure_regular_time_intervals_with_aggregation(df)
+
+        assert freq == 2
+
+        # Verify no all-NaN issue
+        assert not result["bg_mM"].isna().all()
+
+        # Index should span from rounded min (00:00) to rounded max (00:22)
+        # Min: 00:03:59 -> rounds to 00:04:00
+        # Max: 00:22:15 -> rounds to 00:22:00
+        expected_index = pd.date_range(
+            "2024-01-01 00:04:00", "2024-01-01 00:22:00", freq="2min"
+        )
+        assert list(result.index) == list(expected_index)
+
+        # Verify data is correctly placed
+        # 00:04:00 bin should have aggregated data from 00:03:59 and 00:04:30
+        bg_mean_04 = np.mean([5.0, 5.5])
+        assert np.isclose(result.loc["2024-01-01 00:04:00", "bg_mM"], bg_mean_04)
+
+        # 00:08:00 bin should have aggregated data from 00:07:15 and 00:08:45
+        bg_mean_08 = np.mean([6.0, 6.5])
+        assert np.isclose(result.loc["2024-01-01 00:08:00", "bg_mM"], bg_mean_08)
+
+        # 00:10:00 bin should have data from 00:09:30
+        assert np.isclose(result.loc["2024-01-01 00:10:00", "bg_mM"], 4.0)
+
+        # 00:12:00 bin should have data from 00:12:30
+        assert np.isclose(result.loc["2024-01-01 00:12:00", "bg_mM"], 7.0)
+
+        # 00:14:00 bin should have data from 00:14:01
+        assert np.isclose(result.loc["2024-01-01 00:14:00", "bg_mM"], 7.5)
+
+        # 00:18:00 bin should have data from 00:17:45
+        assert np.isclose(result.loc["2024-01-01 00:18:00", "bg_mM"], 8.0)
+
+        # 00:20:00 bin should have data from 00:19:30
+        assert np.isclose(result.loc["2024-01-01 00:20:00", "bg_mM"], 8.5)
+
+        # 00:22:00 bin should have data from 00:22:15
+        assert np.isclose(result.loc["2024-01-01 00:22:00", "bg_mM"], 9.0)

@@ -108,11 +108,13 @@ def ensure_regular_time_intervals_with_aggregation(
 ) -> Tuple[pd.DataFrame, int]:
     """
     Ensures regular time intervals by aggregating all data points within each interval.
+    We first round each row's timestamp to the nearest interval as "_bin" (round to the nearest even number).
+    This function also resamples the DataFrame to multiples of the detected frequency.
 
     Unlike ensure_regular_time_intervals which only takes one row, this function
-    aggregates multiple rows that fall within the same regular interval window.
+    aggregates multiple rows that fall within the same "_bin" (regular interval window).
 
-    - Blood glucose (ColumnNames.BG.value) is averaged
+    - Blood glucose (ColumnNames.BG.value) and other "rate of changes" columns (ColumnNames.RATE.value, ColumnNames.HR_BPM.value) are averaged
     - All other numerical columns are summed
     - Categorical columns take the first value
 
@@ -143,18 +145,13 @@ def ensure_regular_time_intervals_with_aggregation(
     logger.info(f"\tMost common time interval: {freq} minutes")
 
     datetime_col = ColumnNames.DATETIME.value
-    # Create complete regular time range
-    full_time_range = pd.date_range(
-        start=df.index.min(),
-        end=df.index.max(),
-        freq=f"{freq}min",
-    )
 
     # Identify numerical vs non-numerical columns
     numerical_cols = df.select_dtypes(include=[np.number]).columns.tolist()
 
     # Remove columns that are not needed for aggregation
-    for col in [ColumnNames.P_NUM.value, "isf", "cr", "iob"]:
+    # bgInput is the finger prick. Not used for now.
+    for col in [ColumnNames.P_NUM.value, "isf", "cr", "iob", "bgInput"]:
         if col in numerical_cols:
             numerical_cols.remove(col)
 
@@ -176,11 +173,22 @@ def ensure_regular_time_intervals_with_aggregation(
 
     # Vectorized binning: round timestamps to nearest interval (≈ ± freq/2 window)
     tmp = df.copy()
+    # Round to the nearest even number: https://numpy.org/doc/2.1/reference/generated/numpy.round.html
+    # Honestly in real life we rarely have equal distance between bins
     tmp["_bin"] = tmp.index.round(f"{freq}min")
 
     # Aggregate in one pass
     grouped = tmp.groupby("_bin", sort=True).agg(agg_dict)
     grouped.index.name = datetime_col
+
+    # Round start and end to match the same grid as the rounded bins
+    start_rounded = df.index.min().round(f"{freq}min")
+    end_rounded = df.index.max().round(f"{freq}min")
+    full_time_range = pd.date_range(
+        start=start_rounded,
+        end=end_rounded,
+        freq=f"{freq}min",
+    )
 
     # Reindex to full grid; ensure p_num retained for empty bins
     result_df = grouped.reindex(full_time_range)

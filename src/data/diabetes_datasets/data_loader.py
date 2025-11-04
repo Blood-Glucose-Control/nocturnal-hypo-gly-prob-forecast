@@ -67,6 +67,8 @@ def get_loader(
     use_cached: bool = False,
     # config: Optional[Dict[str, Any]] = None,
     train_percentage: float = 0.9,
+    parallel: bool = True,
+    max_workers: int = 3,
 ) -> AleppoDataLoader: ...
 
 
@@ -129,6 +131,8 @@ def get_loader(
             keep_columns=keep_columns,
             use_cached=use_cached,
             train_percentage=train_percentage,
+            parallel=parallel,
+            max_workers=max_workers,
         )
     elif data_source_name == "lynch_2022":
         return Lynch2022DataLoader(

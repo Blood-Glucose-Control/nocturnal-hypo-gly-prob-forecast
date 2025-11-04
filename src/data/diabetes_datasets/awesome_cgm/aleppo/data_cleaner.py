@@ -1,3 +1,4 @@
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 import pandas as pd
 
@@ -195,34 +196,139 @@ def process_one_patient(
     return df
 
 
+def process_single_patient_file(patient_file_tuple: tuple) -> tuple:
+    """
+    Process a single patient file for parallel execution.
+
+    Note: Standalone function created to support multiprocessing, as corruption issues
+    occur when using class methods with ProcessPoolExecutor.
+
+    Args:
+        patient_file_tuple (tuple): Tuple containing (filename, interim_path, processed_path)
+            where filename is the CSV filename, interim_path is the source directory,
+            and processed_path is the destination directory.
+
+    Returns:
+        tuple: Tuple containing (p_num, df) where p_num is the patient ID
+            and df is the processed DataFrame.
+    """
+    filename, interim_path, processed_path = patient_file_tuple
+
+    df = pd.read_csv(interim_path / filename)
+    save_path = processed_path / filename
+
+    # Don't process if already exists
+    if save_path.exists():
+        # Read the existing file and return it
+        df = pd.read_csv(save_path, index_col=0)
+        p_num = df[ColumnNames.P_NUM.value].iloc[0]
+        logger.info(f"Skipping pid {filename} because {save_path} already exists.")
+        return (p_num, df)
+
+    # Process the patient
+    df = process_one_patient(df)
+
+    if df is None or df.empty:
+        raise ValueError(f"Processed data is None or empty for patient {filename}")
+
+    p_num = df[ColumnNames.P_NUM.value].iloc[0]
+
+    # Save the processed data
+    df.to_csv(save_path, index=True)
+    logger.info(f"Done processing pid {filename}")
+
+    return (p_num, df)
+
+
 # We can parallelize this by using multiprocessing because each patient is independent of each other.
 def clean_all_patients(
     interim_path: Path,
     processed_path: Path,
+    parallel: bool = True,
+    max_workers: int = None,
 ) -> dict[str, pd.DataFrame]:
     """
     Clean all patients' data in the interim path and save the processed data to the processed path.
+
+    Args:
+        interim_path: Path to directory containing interim patient data files
+        processed_path: Path to directory where processed data will be saved
+        parallel: Whether to use parallel processing (default: True)
+        max_workers: Maximum number of worker processes (None = use default)
+
+    Returns:
+        Dictionary mapping patient IDs to processed DataFrames
     """
     processed_data = {}
-    total_patients = len(os.listdir(interim_path))
-    for index, filename in enumerate(os.listdir(interim_path)):
-        # filename is like p{pid}_full.csv
-        progress = f"({index+1}/{total_patients})"
-        df = pd.read_csv(interim_path / filename)
-        p_num = df[ColumnNames.P_NUM.value].iloc[0]
+    os.makedirs(processed_path, exist_ok=True)
 
-        save_path = processed_path / filename
-        # Don't process the patient if the processed data already exists
-        if save_path.exists():
-            print(
-                f"Skipping pid {p_num} because {save_path} already exists {progress}."
-            )
-            continue
+    # Get all filenames
+    filenames = list(os.listdir(interim_path))
+    total_patients = len(filenames)
 
-        # TODO: parallel processing this
-        df = process_one_patient(df)
-        processed_data[p_num] = df
+    if parallel:
+        logger.info(
+            f"Processing {total_patients} patients in parallel with {max_workers} workers"
+        )
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            # Prepare data tuples for parallel processing
+            patient_file_tuples = [
+                (filename, interim_path, processed_path) for filename in filenames
+            ]
 
-        df.to_csv(save_path, index=True)
-        print(f"{"-"*10}Done processing pid {filename} {progress} {"-"*10}")
+            # Submit all tasks
+            future_to_filename = {
+                executor.submit(
+                    process_single_patient_file, patient_tuple
+                ): patient_tuple[0]
+                for patient_tuple in patient_file_tuples
+            }
+
+            # Collect results
+            for index, future in enumerate(as_completed(future_to_filename), 1):
+                filename = future_to_filename[future]
+                progress = f"({index}/{total_patients})"
+                try:
+                    p_num, df = future.result()
+                    processed_data[p_num] = df
+                    logger.info(
+                        f"Successfully processed patient {p_num} from {filename} {progress}"
+                    )
+                    logger.info(
+                        f"{'-'*10}Done processing pid {filename} {progress} {'-'*10}"
+                    )
+                except Exception as exc:
+                    logger.error(f"Patient {filename} generated an exception: {exc}")
+                    logger.error(f"Error processing {filename} {progress}: {exc}")
+    else:
+        # Sequential processing (original code)
+        for index, filename in enumerate(filenames, 1):
+            progress = f"({index}/{total_patients})"
+            df = pd.read_csv(interim_path / filename)
+
+            save_path = processed_path / filename
+            # Don't process the patient if the processed data already exists
+            if save_path.exists():
+                logger.info(
+                    f"Skipping pid {filename} because {save_path} already exists {progress}."
+                )
+                df = pd.read_csv(save_path, index_col=0)
+                p_num = df[ColumnNames.P_NUM.value].iloc[0]
+                processed_data[p_num] = df
+                continue
+
+            # Process the patient
+            df = process_one_patient(df)
+
+            if df is None or df.empty:
+                raise ValueError(
+                    f"Processed data is None or empty for patient {filename}"
+                )
+
+            p_num = str(df[ColumnNames.P_NUM.value].iloc[0]).split(".")[0]
+            processed_data[p_num] = df
+
+            df.to_csv(save_path, index=True)
+            logger.info(f"{'-'*10}Done processing pid {filename} {progress} {'-'*10}")
+
     return processed_data

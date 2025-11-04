@@ -13,6 +13,9 @@ import logging
 
 
 logger = logging.getLogger(__name__)
+# There are 226 unique ids in the database but the study mentioned 225 participants only.
+# Maybe 81 is not counted as it doesn't have enough data
+PATIENT_COUNT = 226
 
 
 # TODO: ISF/CR is not dropped in the dataset. We could use this to calculate slope of the glucose curve.
@@ -24,6 +27,8 @@ class AleppoDataLoader(DatasetBase):
         num_validation_days: int = 20,
         use_cached: bool = True,
         train_percentage: float = 0.9,
+        parallel: bool = True,
+        max_workers: int = 10,
     ):
         """
         Args:
@@ -38,6 +43,8 @@ class AleppoDataLoader(DatasetBase):
         self.dataset_config = get_dataset_config(self.dataset_name)
         self.raw_data_path = None
         self.use_cached = use_cached
+        self.parallel = parallel
+        self.max_workers = max_workers
         self.load_data()
 
     @property
@@ -105,16 +112,30 @@ class AleppoDataLoader(DatasetBase):
             parents=True, exist_ok=True
         )  # Create parent directory
 
-        interim_path = (
-            self.cache_manager.get_dataset_cache_path(self.dataset_name) / "interim"
+        interim_path = self.cache_manager.get_absolute_path_by_type(
+            self.dataset_name, "interim"
         )
 
         # Raw -> interim ({pid}_full.csv)
-        # TODO: Maybe we can even skip this if interim folder already exists
-        create_aleppo_csv(self.raw_data_path)
+        interim_csvs = list(interim_path.glob("*.csv"))
+        if len(interim_csvs) != PATIENT_COUNT:
+            logger.warning(
+                f"Interim folder contains {len(interim_csvs)} CSV files, expected {PATIENT_COUNT}. Recreating interim folder."
+            )
+            interim_csvs = []
+        if not interim_csvs:
+            create_aleppo_csv(self.raw_data_path)
 
         # interim -> processed ({pid}_full.csv)
-        return clean_all_patients(interim_path, processed_path)
+        logger.info(
+            f"Cleaning all patients from {interim_path} to {processed_path} with parallel={self.parallel} and max_workers={self.max_workers}"
+        )
+        return clean_all_patients(
+            interim_path,
+            processed_path,
+            parallel=self.parallel,
+            max_workers=self.max_workers,
+        )
 
     def _split_train_validation(
         self,
