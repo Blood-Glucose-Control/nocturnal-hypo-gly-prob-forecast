@@ -251,7 +251,7 @@ class Tamborlane2008DataLoader(DatasetBase):
 
     def load_raw(self):
         """
-        Load raw data from CSV or Excel files.
+        Load raw data from CSV files.
         Searches in subdirectories if no files found in root.
         """
         raw_data_path = Path("/Users/kirby/BCG-WatAI/nocturnal-hypo-gly-prob-forecast/cache/data/awesome_cgm/tamborlane_2008/raw")
