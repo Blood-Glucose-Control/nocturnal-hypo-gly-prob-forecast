@@ -163,6 +163,8 @@ def ensure_regular_time_intervals_with_aggregation(
     for col in df.columns:
         if col in numerical_cols:
             if col in mean_cols:
+                # Convert numerical zeros to NaN to avoid skewing the aggregation.
+                df[col] = df[col].replace(0, np.nan)
                 agg_dict[col] = "mean"
             else:
                 agg_dict[col] = "sum"
