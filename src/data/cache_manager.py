@@ -17,7 +17,7 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 from typing_extensions import deprecated
 
 import pandas as pd
@@ -85,26 +85,32 @@ class CacheManager:
 
         return self.cache_root / subpath
 
+    def get_absolute_path_by_type(
+        self,
+        dataset_name: str,
+        data_type: Literal["interim", "raw", "processed", "cleaning_step"],
+    ) -> Path:
+        """
+        Get the absolute cache path for a specific dataset and data type.
+        """
+        config = get_dataset_config(dataset_name)
+        relative_cache_path = config.get("cache_path")
+        return self.get_dataset_cache_path(relative_cache_path) / data_type
+
+    @deprecated("No longer used, use get_absolute_path_by_type directly instead")
     def get_raw_data_path(self, dataset_name: str) -> Path:
         """Get the raw data path for a specific dataset."""
-        config = get_dataset_config(dataset_name)
-        relative_cache_path = config.get("cache_path")
-        return self.get_dataset_cache_path(relative_cache_path) / "raw"
+        return self.get_absolute_path_by_type(dataset_name, "raw")
 
+    @deprecated("No longer used, use get_absolute_path_by_type directly instead")
     def get_cleaning_step_data_path(self, dataset_name: str) -> Path:
         """Get the cleaning step data path for a specific dataset."""
-        config = get_dataset_config(dataset_name)
-        relative_cache_path = config.get("cache_path")
-        return self.get_dataset_cache_path(relative_cache_path) / "cleaning_step"
+        return self.get_absolute_path_by_type(dataset_name, "cleaning_step")
 
+    @deprecated("No longer used, use get_absolute_path_by_type directly instead")
     def get_processed_data_path(self, dataset_name: str) -> Path:
         """Get the processed data path for a specific dataset."""
-        logger.info(
-            f"Processed data path for {dataset_name}: {self.get_dataset_cache_path(dataset_name) / 'processed'}"
-        )
-        config = get_dataset_config(dataset_name)
-        relative_cache_path = config.get("cache_path")
-        return self.get_dataset_cache_path(relative_cache_path) / "processed"
+        return self.get_absolute_path_by_type(dataset_name, "processed")
 
     def ensure_raw_data(
         self, dataset_name: str, dataset_config: Dict[str, Any]
