@@ -183,7 +183,7 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
         assert np.isclose(result.loc["2024-01-01 00:10:00", "bg_mM"], 4.0)
         assert result.loc["2024-01-01 00:10:00", "p_num"] == "patient_02"
 
-        # 00:15:00 bin should have data aggreated from 00:13:00 and 00:17:25
+        # 00:15:00 bin should have data aggregated from 00:13:00 and 00:17:25
         bg_mean_15 = np.mean([7.0, 8.0])
         rate_mean_15 = np.mean([1.0, 1.2])
         assert np.isclose(result.loc["2024-01-01 00:15:00", "bg_mM"], bg_mean_15)

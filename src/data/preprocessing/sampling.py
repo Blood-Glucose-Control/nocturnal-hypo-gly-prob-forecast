@@ -108,7 +108,7 @@ def ensure_regular_time_intervals_with_aggregation(
 ) -> Tuple[pd.DataFrame, int]:
     """
     Ensures regular time intervals by aggregating all data points within each interval.
-    We first round each row's timestamp to the nearest interval as "_bin" (round to the nearest even number).
+    We first round each row's timestamp to the nearest interval as "_bin" (round to the nearest multiple of the detected interval).
     This function also resamples the DataFrame to multiples of the detected frequency.
 
     Unlike ensure_regular_time_intervals which only takes one row, this function
@@ -173,7 +173,7 @@ def ensure_regular_time_intervals_with_aggregation(
 
     # Vectorized binning: round timestamps to nearest interval (≈ ± freq/2 window)
     tmp = df.copy()
-    # Round to the nearest even number: https://numpy.org/doc/2.1/reference/generated/numpy.round.html
+    # See: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DatetimeIndex.round.html
     # Honestly in real life we rarely have equal distance between bins
     tmp["_bin"] = tmp.index.round(f"{freq}min")
 

@@ -299,7 +299,9 @@ def clean_all_patients(
                     )
                 except Exception as exc:
                     logger.error(f"Patient {filename} generated an exception: {exc}")
-                    logger.error(f"Error processing {filename} {progress}: {exc}")
+                    logger.error(
+                        f"Error processing patient {filename} {progress}: {exc}"
+                    )
     else:
         # Sequential processing (original code)
         for index, filename in enumerate(filenames, 1):

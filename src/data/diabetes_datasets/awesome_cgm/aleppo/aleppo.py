@@ -15,6 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 # There are 226 unique ids in the database but the study mentioned 225 participants only.
 # Maybe 81 is not counted as it doesn't have enough data
+# This is for the interim folder
 PATIENT_COUNT = 226
 
 
