@@ -144,9 +144,27 @@ class ModelRegistry:
             except Exception as e:
                 print(f"Warning: Could not parse GPU utilization log: {e}")
 
-        # Extract training metrics from training log
+        # Extract training metrics from training_metrics.json (preferred method)
+        metrics_json_path = f"{run_dir}/training_metrics.json"
+        if os.path.exists(metrics_json_path):
+            try:
+                import json
+                with open(metrics_json_path, "r") as f:
+                    metrics = json.load(f)
+                
+                # Update dataframe with metrics
+                for key, value in metrics.items():
+                    if key in df.columns and value is not None:
+                        df.loc[mask, key] = value
+                
+                print(f"Successfully loaded metrics from {metrics_json_path}")
+                        
+            except Exception as e:
+                print(f"Warning: Could not parse training metrics JSON: {e}")
+        
+        # Fallback: Extract training metrics from training log
         training_log_path = f"{run_dir}/training.log"
-        if os.path.exists(training_log_path):
+        if os.path.exists(training_log_path) and not os.path.exists(metrics_json_path):
             try:
                 with open(training_log_path, "r") as f:
                     log_content = f.read()
@@ -169,6 +187,8 @@ class ModelRegistry:
                 best_eval_match = re.search(r"Best eval loss:\s*([\d\.]+)", log_content)
                 if best_eval_match:
                     df.loc[mask, "best_eval_loss"] = float(best_eval_match.group(1))
+
+                print("Extracted metrics from training log (fallback method)")
 
             except Exception as e:
                 print(f"Warning: Could not parse training log: {e}")

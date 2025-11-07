@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --job-name="ttm_finetune"
+#SBATCH --job-name="ttm_finetune_kaggle_batchsize_search"
 #SBATCH --time=10:00:00
-#SBATCH --cpus-per-task=16
-#SBATCH --mem-per-cpu=2GB
+#SBATCH --cpus-per-task=8
+#SBATCH --mem-per-cpu=4GB
 #SBATCH --partition=HI
 #SBATCH --gres=gpu:1
 #SBATCH -o results/runs/ttm_finetune/slurm-%j.out
@@ -51,6 +51,7 @@ echo "Node: $SLURMD_NODENAME" >> "$RUN_DIR/run_info.txt"
 echo "Start Time: $RUN_START_TIMESTAMP" >> "$RUN_DIR/run_info.txt"
 echo "Start Time (Unix): $RUN_START_TIME" >> "$RUN_DIR/run_info.txt"
 echo "Run Directory: $RUN_DIR" >> "$RUN_DIR/run_info.txt"
+echo "=====================================" >> "$RUN_DIR/run_info.txt"
 echo "" >> "$RUN_DIR/run_info.txt"
 
 # SLURM Resource Configuration
@@ -68,7 +69,7 @@ echo "GPU Type: $SLURM_JOB_GPUS" >> "$RUN_DIR/run_info.txt"
 echo "Account: $SLURM_JOB_ACCOUNT" >> "$RUN_DIR/run_info.txt"
 echo "Working Directory: $SLURM_SUBMIT_DIR" >> "$RUN_DIR/run_info.txt"
 echo "Config File: ${CONFIG_FILE:-none}" >> "$RUN_DIR/run_info.txt"
-echo "========================" >> "$RUN_DIR/run_info.txt"
+echo "=====================================" >> "$RUN_DIR/run_info.txt"
 echo "" >> "$RUN_DIR/run_info.txt"
 
 # Capture actual node resources
@@ -85,22 +86,24 @@ echo "=====================================" >> "$RUN_DIR/run_info.txt"
 echo "" >> "$RUN_DIR/run_info.txt"
 
 # Debug: Check environment
+echo ""
 echo "=== Environment Check ==="
 echo "Job started at: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $SLURMD_NODENAME"
 echo "Run Directory: $RUN_DIR"
-which python
-python --version
-python -c "import sys; print(f'Python path: {sys.executable}')"
+echo "Virtual Environment source python path: $(which python)"
+echo "Python Version: $(python --version)"
+python -c "import sys; print(f'Python internal path check: {sys.executable}')"
 
 # GPU Information
+echo ""
 echo "=== GPU Information ==="
 nvidia-smi
 echo "GPU Driver Version: $(nvidia-smi --query-gpu=driver_version --format=csv,noheader,nounits)"
 echo "GPU Name: $(nvidia-smi --query-gpu=gpu_name --format=csv,noheader,nounits)"
 echo "GPU Memory: $(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits) MiB"
-echo "==========================="
+echo "====================================="
 
 # Get hardware info before Python call
 CPU_COUNT=$(nproc --all)
@@ -113,7 +116,10 @@ else
     GPU_MEMORY_GB="0"
     GPU_NAME="No GPU available"
 fi
+
 # Register run start in model registry
+echo ""
+echo "=== Model Registry Initialization ==="
 echo "Registering run in model registry..."
 python -c "
 import sys
@@ -153,6 +159,8 @@ nvidia-smi dmon -s pucvmet -d 10 -o DT > "$RUN_DIR/gpu_monitoring.log" &
 GPU_MONITOR_PID=$!
 
 # Start GPU monitoring with headers
+echo ""
+echo "=== GPU Monitoring Log Setup ==="
 echo "Starting GPU monitoring..."
 GPU_LOG="$RUN_DIR/gpu_utilization.log"
 
@@ -168,24 +176,33 @@ echo "Timestamp,GPU_Util_%,Memory_Util_%,Temperature_C,Power_W" >> "$GPU_LOG"
         TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
         nvidia-smi --query-gpu=utilization.gpu,utilization.memory,temperature.gpu,power.draw --format=csv,noheader,nounits | \
         sed "s/^/$TIMESTAMP,/"
-        sleep 30
+        sleep 10
     done
-) >> "$GPU_LOG" &
-GPU_MON_PID=$!
+) >> "$GPU_LOG" & GPU_UTIL_PID=$!
 
 echo "Started GPU monitoring (PID: $GPU_MONITOR_PID) and utilization logging (PID: $GPU_UTIL_PID)"
 
 # Start the training run
+echo ""
 echo "=== Starting Training ==="
 echo "Training started at: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 
-# Build python command with optional config file
-PYTHON_CMD="python $HOME/nocturnal/src/train/ttm.py --run-dir \"$RUN_DIR\""
+# Build python command with optional config file using the new runner
+PYTHON_CMD="python $HOME/nocturnal/src/train/ttm_runner.py"
+PYTHON_CMD="$PYTHON_CMD --run-dir \"$RUN_DIR\""
 if [[ -n "$CONFIG_FILE" ]]; then
     PYTHON_CMD="$PYTHON_CMD --config \"$CONFIG_FILE\""
 fi
 
-echo "Running command: $PYTHON_CMD"
+# Display command with each argument on a new line for better readability
+echo "Running command:"
+echo "  python $HOME/nocturnal/src/train/ttm_runner.py \\"
+echo "    --run-dir \"$RUN_DIR\""
+if [[ -n "$CONFIG_FILE" ]]; then
+    echo "    --config \"$CONFIG_FILE\""
+fi
+echo ""
+# Capture both stdout and stderr, and also save metrics if they're output
 eval $PYTHON_CMD 2>&1 | tee "$RUN_DIR/training.log"
 
 TRAIN_EXIT_CODE=$?
@@ -212,6 +229,7 @@ echo "End Time (Unix): $RUN_END_TIME" >> "$RUN_DIR/run_info.txt"
 echo "Total Elapsed Time: ${ELAPSED_HOURS}h ${ELAPSED_MINUTES}m ${ELAPSED_SECONDS}s" >> "$RUN_DIR/run_info.txt"
 echo "Total Elapsed Seconds: $ELAPSED_TIME" >> "$RUN_DIR/run_info.txt"
 echo "Training Exit Code: $TRAIN_EXIT_CODE" >> "$RUN_DIR/run_info.txt"
+echo "=====================================" >> "$RUN_DIR/run_info.txt"
 echo "" >> "$RUN_DIR/run_info.txt"
 
 # Final GPU state
@@ -221,7 +239,7 @@ nvidia-smi >> "$RUN_DIR/run_info.txt"
 echo "Run completed. Logs and monitoring data saved to: $RUN_DIR"
 
 # Create run summary for registry
-echo "=== Run Summary ===" >> "$RUN_DIR/run_info.txt"
+echo -e "\n=== Run Summary ===" >> "$RUN_DIR/run_info.txt"
 echo "Exit Code: $TRAIN_EXIT_CODE" >> "$RUN_DIR/run_info.txt"
 echo "Status: $([ $TRAIN_EXIT_CODE -eq 0 ] && echo 'completed' || echo 'failed')" >> "$RUN_DIR/run_info.txt"
 echo "=====================================" >> "$RUN_DIR/run_info.txt"
@@ -237,15 +255,19 @@ registry = ModelRegistry()
 run_id = '$(basename $RUN_DIR)'
 status = 'completed' if $TRAIN_EXIT_CODE == 0 else 'failed'
 
-# Try to extract results from training log if available
+# Try to load metrics from JSON file (preferred) or parse training log
 results = {}
 try:
-    with open('$RUN_DIR/training.log', 'r') as f:
-        log_content = f.read()
-    # Extract final loss values if available
-    # This would need custom parsing based on your log format
-    pass
-except:
+    import json
+    metrics_file = '$RUN_DIR/training_metrics.json'
+    if os.path.exists(metrics_file):
+        with open(metrics_file, 'r') as f:
+            results = json.load(f)
+        print(f'Loaded metrics from {metrics_file}')
+    else:
+        print('No metrics JSON file found, using empty results')
+except Exception as e:
+    print(f'Warning: Could not load metrics: {e}')
     pass
 
 registry.register_run_completion(run_id, results, status)

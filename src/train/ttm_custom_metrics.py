@@ -418,7 +418,7 @@ def finetune_ttm(
 
     # Train/val/test split
     train, test, val = data_split
-    split_config = {"train": train, "test": test, "val": val}
+    split_config = {"train": train, "test": test}
     data_length = len(data)
     print(f"Data length: {data_length}")
     print(f"Split config: Train {train * 100}%, Test {test * 100}%")
