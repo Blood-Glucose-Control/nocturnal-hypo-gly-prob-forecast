@@ -64,9 +64,14 @@ cache/**/*.csv
 cache/**/*.txt
 cache/**/*.json
 cache/**/*.pkl
+cache/data/awesome_cgm/lynch_2022/raw/*
+cache/data/awesome_cgm/lynch_2022/processed/*
+cache/data/awesome_cgm/aleppo
+cache/data/awesome_cgm/aleppo/*
 
 # Permissive for the cached data
 !cache/data/kaggle_brisT1D/processed/train/train.csv
+
 
 
 # Translations
