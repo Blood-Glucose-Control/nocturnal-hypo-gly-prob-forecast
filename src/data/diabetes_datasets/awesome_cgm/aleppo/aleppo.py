@@ -176,9 +176,8 @@ class AleppoDataLoader(DatasetBase):
                     patient_df, train_percentage=self.train_percentage
                 )
 
-                # Keep datetime as a column if needed downstream
-                train_dict[patient_id] = train_df.reset_index()
-                val_dict[patient_id] = val_df.reset_index()
+                train_dict[patient_id] = train_df
+                val_dict[patient_id] = val_df
 
             except (ValueError, TypeError) as e:
                 # p81 should be the only patient with insufficient data.

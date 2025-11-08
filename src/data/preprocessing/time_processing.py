@@ -369,7 +369,7 @@ def get_train_validation_split_by_percentage(
 
     Args:
         df (pd.DataFrame): Input dataframe for a SINGLE patient with DatetimeIndex (REQUIRED)
-        train_percentage (float): Percentage of the total days to use for training
+        train_percentage (float): Percentage of the total days to use for training. If 1, return the entire dataframe as train and None as validation.
 
     Returns:
         tuple[pd.DataFrame, pd.DataFrame, dict]:
@@ -387,7 +387,7 @@ def get_train_validation_split_by_percentage(
             "DataFrame must have a DatetimeIndex. "
             "Set your datetime column as index: df.set_index('datetime', inplace=True)"
         )
-    if not (0 < train_percentage < 1):
+    if not (0 < train_percentage <= 1):
         raise ValueError("train_percentage must be between 0 and 1 (exclusive)")
 
     total_days = (df.index.max() - df.index.min()).days
@@ -401,14 +401,19 @@ def get_train_validation_split_by_percentage(
     train_days = max(1, min(train_days, total_days - 1))
     num_validation_days = total_days - train_days
 
-    # get get_train_validation_split is only for internal use
-    train_df, val_df, info = get_train_validation_split(
-        df,
-        num_validation_days=num_validation_days,
-        day_start_hour=6,
-        min_data_days=1,
-        include_partial_days=False,
-    )
+    if train_percentage == 1:
+        train_df = df
+        val_df = None
+        info = {}
+    else:
+        # get get_train_validation_split is only for internal use
+        train_df, val_df, info = get_train_validation_split(
+            df,
+            num_validation_days=num_validation_days,
+            day_start_hour=6,
+            min_data_days=1,
+            include_partial_days=False,
+        )
 
     info.update(
         {
