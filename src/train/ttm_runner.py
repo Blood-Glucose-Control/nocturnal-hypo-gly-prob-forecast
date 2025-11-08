@@ -1,8 +1,8 @@
+#!/usr/bin/env python3
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
 # For commercial licensing, contact: [Add your contact information]
 
-#!/usr/bin/env python3
 """
 Enhanced TTM Training Runner
 Handles metrics collection and saves to a JSON file for model registry integration.
