@@ -1,7 +1,0 @@
-/var/spool/slurm/d/job1361684/slurm_script: line 15: /u4/t3chan/nocturnal/.noctprob-venv/bin/activate: No such file or directory
-2025-11-04T17:59:39 - Note: detected 128 virtual cores but NumExpr set to maximum of 64, check "NUMEXPR_MAX_THREADS" environment variable.
-2025-11-04T17:59:39 - Note: NumExpr detected 128 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
-2025-11-04T17:59:39 - NumExpr defaulting to 8 threads.
-Traceback (most recent call last):
-  File "<string>", line 3, in <module>
-TypeError: get_loader() got an unexpected keyword argument 'train_percentage'
