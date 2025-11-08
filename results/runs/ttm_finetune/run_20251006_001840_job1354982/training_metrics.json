@@ -1,0 +1,7 @@
+{
+  "final_train_loss": 0.8322513293694047,
+  "final_eval_loss": 0.821969211101532,
+  "best_eval_loss": 0.821969211101532,
+  "best_checkpoint": "checkpoint-680",
+  "training_samples_per_second": 5995.585
+}
