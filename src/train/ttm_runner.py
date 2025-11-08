@@ -13,6 +13,7 @@ import functools
 import inspect
 import json
 import sys
+import threading
 from pathlib import Path
 
 import yaml
@@ -21,40 +22,55 @@ import yaml
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.train.ttm import finetune_ttm, load_config
+# Import our thread-safe info_print (defined above) instead of the one from ttm
 
+
+# Thread-local storage for function context
+_function_context = threading.local()
 
 def function_logger(func):
-    """Decorator that prepends function name to all info_print calls within the function"""
+    """Decorator that prepends function name to all info_print calls within the function
+    
+    This is thread-safe and doesn't modify global state.
+    """
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        # Store the original info_print function
-        from src.train.ttm import info_print as original_info_print
-
-        # Create a new info_print that includes function name
-        def enhanced_info_print(*print_args, **print_kwargs):
-            func_name = func.__name__
-            # Prepend function name to the first argument
-            if print_args:
-                new_args = (f"[{func_name}]", *print_args)
-            else:
-                new_args = (f"[{func_name}]",)
-            return original_info_print(*new_args, **print_kwargs)
-
-        # Temporarily replace info_print in the ttm module
-        import src.train.ttm
-
-        original_module_info_print = src.train.ttm.info_print
-        src.train.ttm.info_print = enhanced_info_print
+        # Set the current function name in thread-local storage
+        old_function_name = getattr(_function_context, 'function_name', None)
+        _function_context.function_name = func.__name__
 
         try:
             result = func(*args, **kwargs)
             return result
         finally:
-            # Restore original info_print
-            src.train.ttm.info_print = original_module_info_print
+            # Restore previous function name (if any)
+            if old_function_name is not None:
+                _function_context.function_name = old_function_name
+            else:
+                if hasattr(_function_context, 'function_name'):
+                    delattr(_function_context, 'function_name')
 
     return wrapper
+
+
+def info_print(*args, **kwargs):
+    """Thread-safe info_print that includes function name from thread-local context"""
+    from src.train.ttm import info_print as original_info_print
+    
+    # Get function name from thread-local storage
+    function_name = getattr(_function_context, 'function_name', None)
+    
+    if function_name:
+        # Prepend function name to the first argument
+        if args:
+            new_args = (f"[{function_name}]", *args)
+        else:
+            new_args = (f"[{function_name}]",)
+        return original_info_print(*new_args, **kwargs)
+    else:
+        # No function context, call original
+        return original_info_print(*args, **kwargs)
 
 @function_logger
 def main():
