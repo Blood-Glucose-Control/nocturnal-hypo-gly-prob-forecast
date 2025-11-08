@@ -3,11 +3,7 @@
 Test script to demonstrate function name logging
 """
 
-import sys
-
-sys.path.append("/u6/cjrisi/nocturnal/src/train")
-
-from ttm import info_print
+from src.train.ttm import info_print
 
 
 def test_function_1():
