@@ -5,12 +5,12 @@
 ### 1. Fixed Duplicate Loss Logging Issue
 **Problem**: Loss was being printed 5 times due to multiple callbacks logging similar information.
 
-**Solution**: 
+**Solution**:
 - Enhanced `CustomMetricsCallback` to track metrics without adding excessive custom entries to logs
 - Removed redundant `custom_metric_example` logging that was cluttering output
 - Added proper progress tracking and completion summary
 
-### 2. Fixed stderr Redirection Issue  
+### 2. Fixed stderr Redirection Issue
 **Problem**: INFO statements were not appearing in SLURM error output file.
 
 **Solution**:
@@ -25,7 +25,7 @@
 **Solution**:
 - Created enhanced `CustomMetricsCallback` that tracks all important metrics during training:
   - `final_train_loss`: Last recorded training loss
-  - `final_eval_loss`: Last recorded evaluation loss  
+  - `final_eval_loss`: Last recorded evaluation loss
   - `best_eval_loss`: Best evaluation loss achieved during training
   - `best_checkpoint`: Name of checkpoint with best performance
   - `training_samples_per_second`: Training throughput metric
@@ -79,7 +79,7 @@
 ### 3. Complete Metrics Tracking
 - All registry fields should now be populated:
   - `final_train_loss`
-  - `final_eval_loss` 
+  - `final_eval_loss`
   - `best_eval_loss`
   - `best_checkpoint`
   - `training_samples_per_second`
@@ -96,7 +96,7 @@
 ```bash
 cd /u6/cjrisi/nocturnal
 python -m py_compile src/train/ttm.py
-python -m py_compile src/train/ttm_runner.py  
+python -m py_compile src/train/ttm_runner.py
 python -m py_compile results/runs/model_registry.py
 ```
 
@@ -149,7 +149,7 @@ Consider tracking additional metrics in the callback:
 
 These changes should resolve all three main issues you identified:
 1. ✅ Fixed duplicate logging and formatting issues
-2. ✅ Resolved stderr redirection for INFO statements  
+2. ✅ Resolved stderr redirection for INFO statements
 3. ✅ Implemented proper metrics collection for model registry
 4. ✅ General cleanup and organization improvements
 

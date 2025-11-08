@@ -10,7 +10,6 @@ Handles metrics collection and saves to a JSON file for model registry integrati
 
 import argparse
 import functools
-import inspect
 import json
 import sys
 import threading
@@ -28,16 +27,17 @@ from src.train.ttm import finetune_ttm, load_config
 # Thread-local storage for function context
 _function_context = threading.local()
 
+
 def function_logger(func):
     """Decorator that prepends function name to all info_print calls within the function
-    
+
     This is thread-safe and doesn't modify global state.
     """
 
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         # Set the current function name in thread-local storage
-        old_function_name = getattr(_function_context, 'function_name', None)
+        old_function_name = getattr(_function_context, "function_name", None)
         _function_context.function_name = func.__name__
 
         try:
@@ -48,8 +48,8 @@ def function_logger(func):
             if old_function_name is not None:
                 _function_context.function_name = old_function_name
             else:
-                if hasattr(_function_context, 'function_name'):
-                    delattr(_function_context, 'function_name')
+                if hasattr(_function_context, "function_name"):
+                    delattr(_function_context, "function_name")
 
     return wrapper
 
@@ -57,10 +57,10 @@ def function_logger(func):
 def info_print(*args, **kwargs):
     """Thread-safe info_print that includes function name from thread-local context"""
     from src.train.ttm import info_print as original_info_print
-    
+
     # Get function name from thread-local storage
-    function_name = getattr(_function_context, 'function_name', None)
-    
+    function_name = getattr(_function_context, "function_name", None)
+
     if function_name:
         # Prepend function name to the first argument
         if args:
@@ -71,6 +71,7 @@ def info_print(*args, **kwargs):
     else:
         # No function context, call original
         return original_info_print(*args, **kwargs)
+
 
 @function_logger
 def main():

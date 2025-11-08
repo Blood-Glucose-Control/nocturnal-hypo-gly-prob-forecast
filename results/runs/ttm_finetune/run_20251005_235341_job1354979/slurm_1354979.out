@@ -10,7 +10,7 @@ Python Version: Python 3.11.4
 Python internal path check: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
 
 === GPU Information ===
-Sun Oct  5 23:53:46 2025       
+Sun Oct  5 23:53:46 2025
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 575.57.08              Driver Version: 575.57.08      CUDA Version: 12.9     |
 |-----------------------------------------+------------------------+----------------------+
@@ -22,7 +22,7 @@ Sun Oct  5 23:53:46 2025
 | N/A   32C    P8             32W /  350W |       0MiB /  46068MiB |      0%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
-                                                                                         
+
 +-----------------------------------------------------------------------------------------+
 | Processes:                                                                              |
 |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
@@ -56,7 +56,7 @@ INFO: [main] Loading configuration from: /u6/cjrisi/nocturnal/models/configs/kag
 INFO: [main] Configuration saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251005_235341_job1354979/experiment_config.yaml
 INFO: [main] =====================================
 INFO: [main] === Calling finetune_ttm() ===
-INFO: [enhanced_info_print] [main] -------------------- Preparing data... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Preparing data... --------------------
 
 INFO: [enhanced_info_print] [main] Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
 INFO: [enhanced_info_print] [main] Loaded p10_full: 25803 rows
@@ -79,10 +79,10 @@ INFO: [enhanced_info_print] [main] Data length: 155562
 INFO: [enhanced_info_print] [main] Split config: Train 90.0%, Test 10.0%
 INFO: [enhanced_info_print] [main] Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
 INFO: [enhanced_info_print] [main] Data processing complete
-INFO: [enhanced_info_print] [main] -------------------- Preparing model... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Preparing model... --------------------
 
 INFO: [enhanced_info_print] [main] Model path: ibm-granite/granite-timeseries-ttm-r2
-INFO: [enhanced_info_print] [main] -------------------- Running few-shot 100% -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Running few-shot 100% --------------------
 
 2025-10-05T23:53:58 - Loading model from: ibm-granite/granite-timeseries-ttm-r2
 2025-10-05T23:53:58 - Model loaded successfully from ibm-granite/granite-timeseries-ttm-r2, revision = main.
@@ -90,7 +90,7 @@ INFO: [enhanced_info_print] [main] -------------------- Running few-shot 100% --
 INFO: [enhanced_info_print] [main] Using learning rate = 0.01
 INFO: [enhanced_info_print] [main] Training for 20 epochs
 Using auto half precision backend
-INFO: [enhanced_info_print] [main] -------------------- Fine-tuning... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Fine-tuning... --------------------
 
 INFO: [enhanced_info_print] [main] Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-05_23-53-58
 ***** Running training *****
@@ -119,7 +119,7 @@ Number of params after freezing the backbone 289696
   Batch size = 2048
 {'loss': 0.8263, 'grad_norm': 0.13147073984146118, 'learning_rate': 0.009049233858971462, 'epoch': 14.93, 'timestamp': 1759708774.1634529, 'custom_batch_size': 2048, 'custom_learning_rate': 0.01}
 
-  0%|          | 0/1 [00:00<?, ?it/s][A                                                   
+  0%|          | 0/1 [00:00<?, ?it/s][A
                                      [A 75%|███████▍  | 1000/1340 [05:49<00:24, 13.96it/s]
 100%|██████████| 1/1 [00:00<00:00, 620.28it/s][A
                                               [A 75%|███████▍  | 1002/1340 [05:49<13:19,  2.37s/it] 75%|███████▌  | 1005/1340 [05:51<09:01,  1.62s/it]{'eval_loss': 1.2909830808639526, 'eval_custom_error': 'Cannot extract labels from complex structure', 'eval_runtime': 15.3329, 'eval_samples_per_second': 0.391, 'eval_steps_per_second': 0.065, 'epoch': 14.93, 'timestamp': 1759708789.496924, 'custom_batch_size': 2048, 'custom_learning_rate': 0.01}
@@ -155,7 +155,7 @@ Best checkpoint: checkpoint-1000
 Training samples/second: 5890.04
 ============================================================
 100%|██████████| 1340/1340 [07:43<00:00,  2.89it/s]
-INFO: [enhanced_info_print] [main] -------------------- Evaluating... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Evaluating... --------------------
 
 INFO: [enhanced_info_print] [main] ++++++++++++++++++++ Test MSE after few-shot 100% fine-tuning ++++++++++++++++++++
 

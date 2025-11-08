@@ -12,11 +12,11 @@ CPUs per Task: 16
 Memory per Node:  MB
 Memory per CPU: 2048 MB
 Partition: HI
-Time Limit: 
+Time Limit:
 QOS: normal
 Number of Nodes: 1
-Number of Tasks: 
-GPUs per Node: 
+Number of Tasks:
+GPUs per Node:
 GPU Type: 5
 Account: hi_group
 Working Directory: /u6/cjrisi/nocturnal

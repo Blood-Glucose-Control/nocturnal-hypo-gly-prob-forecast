@@ -37,6 +37,7 @@ _DATASET_PATH_OVERRIDES: dict[str, Path] = {
     "lynch_2022": Path("awesome_cgm") / "lynch_2022",
 }
 
+
 class CacheManager:
     """
     Centralized cache manager for dataset storage and retrieval.

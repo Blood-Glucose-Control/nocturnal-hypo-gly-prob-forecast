@@ -10,7 +10,7 @@ Python Version: Python 3.11.4
 Python internal path check: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
 
 === GPU Information ===
-Sat Oct  4 19:21:49 2025       
+Sat Oct  4 19:21:49 2025
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 575.57.08              Driver Version: 575.57.08      CUDA Version: 12.9     |
 |-----------------------------------------+------------------------+----------------------+
@@ -22,7 +22,7 @@ Sat Oct  4 19:21:49 2025
 | N/A   25C    P8             31W /  350W |       0MiB /  46068MiB |      0%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
-                                                                                         
+
 +-----------------------------------------------------------------------------------------+
 | Processes:                                                                              |
 |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
@@ -56,7 +56,7 @@ INFO: [main] Loading configuration from: /u6/cjrisi/nocturnal/models/configs/ttm
 INFO: [main] Configuration saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251004_192143_job1354752/experiment_config.yaml
 INFO: [main] =====================================
 INFO: [main] === Calling finetune_ttm() ===
-INFO: [enhanced_info_print] [main] -------------------- Preparing data... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Preparing data... --------------------
 
 INFO: [enhanced_info_print] [main] Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
 INFO: [enhanced_info_print] [main] Loaded p10_full: 25803 rows
@@ -79,10 +79,10 @@ INFO: [enhanced_info_print] [main] Data length: 155562
 INFO: [enhanced_info_print] [main] Split config: Train 80.0%, Test 20.0%
 INFO: [enhanced_info_print] [main] Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
 INFO: [enhanced_info_print] [main] Data processing complete
-INFO: [enhanced_info_print] [main] -------------------- Preparing model... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Preparing model... --------------------
 
 INFO: [enhanced_info_print] [main] Model path: ibm-granite/granite-timeseries-ttm-r2
-INFO: [enhanced_info_print] [main] -------------------- Running few-shot 25% -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Running few-shot 25% --------------------
 
 2025-10-04T19:22:02 - Loading model from: ibm-granite/granite-timeseries-ttm-r2
 2025-10-04T19:22:02 - Model loaded successfully from ibm-granite/granite-timeseries-ttm-r2, revision = main.
@@ -90,7 +90,7 @@ INFO: [enhanced_info_print] [main] -------------------- Running few-shot 25% ---
 INFO: [enhanced_info_print] [main] Using learning rate = 0.001
 INFO: [enhanced_info_print] [main] Training for 3 epochs
 Using auto half precision backend
-INFO: [enhanced_info_print] [main] -------------------- Fine-tuning... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Fine-tuning... --------------------
 
 INFO: [enhanced_info_print] [main] Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-04_19-22-02
 ***** Running training *****
@@ -119,7 +119,7 @@ Number of params after freezing the backbone 289696
   Batch size = 64
 {'loss': 0.96, 'grad_norm': 0.5206726789474487, 'learning_rate': 0.0009049233858971455, 'epoch': 2.15, 'timestamp': 1759605788.8860803, 'custom_batch_size': 64, 'custom_learning_rate': 0.001}
  72%|███████▏  | 1000/1398 [01:20<00:28, 13.80it/s]
-  0%|          | 0/1 [00:00<?, ?it/s][A                                                   
+  0%|          | 0/1 [00:00<?, ?it/s][A
                                      [A 72%|███████▏  | 1000/1398 [01:20<00:28, 13.80it/s]
 100%|██████████| 1/1 [00:00<00:00, 1073.26it/s][A
                                                [A 72%|███████▏  | 1001/1398 [01:20<03:34,  1.85it/s] 72%|███████▏  | 1013/1398 [01:20<02:15,  2.84it/s] 73%|███████▎  | 1025/1398 [01:20<01:28,  4.22it/s] 74%|███████▍  | 1037/1398 [01:20<00:58,  6.14it/s] 75%|███████▌  | 1049/1398 [01:20<00:39,  8.76it/s] 76%|███████▌  | 1061/1398 [01:20<00:27, 12.30it/s] 77%|███████▋  | 1073/1398 [01:20<00:19, 16.96it/s] 78%|███████▊  | 1085/1398 [01:20<00:13, 22.93it/s] 78%|███████▊  | 1097/1398 [01:21<00:10, 30.09it/s]                                                    79%|███████▊  | 1100/1398 [01:21<00:09, 30.09it/s] 79%|███████▉  | 1109/1398 [01:21<00:07, 38.41it/s] 80%|████████  | 1120/1398 [01:21<00:05, 46.84it/s] 81%|████████  | 1131/1398 [01:21<00:04, 55.93it/s] 82%|████████▏ | 1142/1398 [01:21<00:03, 64.72it/s] 82%|████████▏ | 1153/1398 [01:21<00:03, 73.23it/s] 83%|████████▎ | 1164/1398 [01:21<00:02, 80.38it/s] 84%|████████▍ | 1175/1398 [01:21<00:02, 86.66it/s] 85%|████████▍ | 1186/1398 [01:21<00:02, 91.38it/s] 86%|████████▌ | 1197/1398 [01:22<00:02, 95.46it/s]                                                    86%|████████▌ | 1200/1398 [01:22<00:02, 95.46it/s] 86%|████████▋ | 1208/1398 [01:22<00:01, 98.17it/s] 87%|████████▋ | 1219/1398 [01:22<00:01, 100.46it/s] 88%|████████▊ | 1230/1398 [01:22<00:01, 101.71it/s] 89%|████████▉ | 1241/1398 [01:22<00:01, 103.25it/s] 90%|████████▉ | 1252/1398 [01:22<00:01, 103.57it/s] 90%|█████████ | 1263/1398 [01:22<00:01, 104.39it/s] 91%|█████████ | 1274/1398 [01:22<00:01, 104.77it/s] 92%|█████████▏| 1285/1398 [01:22<00:01, 105.07it/s] 93%|█████████▎| 1296/1398 [01:22<00:00, 105.11it/s]                                                     93%|█████████▎| 1300/1398 [01:23<00:00, 105.11it/s] 93%|█████████▎| 1307/1398 [01:23<00:00, 105.38it/s] 94%|█████████▍| 1318/1398 [01:23<00:00, 105.11it/s] 95%|█████████▌| 1329/1398 [01:23<00:00, 105.55it/s] 96%|█████████▌| 1340/1398 [01:23<00:00, 105.87it/s] 97%|█████████▋| 1352/1398 [01:23<00:00, 107.03it/s] 97%|█████████▋| 1363/1398 [01:23<00:00, 107.74it/s] 98%|█████████▊| 1374/1398 [01:23<00:00, 108.02it/s] 99%|█████████▉| 1386/1398 [01:23<00:00, 108.96it/s]100%|██████████| 1398/1398 [01:24<00:00, 27.58it/s] Saving model checkpoint to /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-04_19-22-02/5min_patients/output/checkpoint-1398
@@ -155,7 +155,7 @@ Best checkpoint: checkpoint-1000
 Training samples/second: 1050.422
 ============================================================
 100%|██████████| 1398/1398 [01:25<00:00, 16.44it/s]
-INFO: [enhanced_info_print] [main] -------------------- Evaluating... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Evaluating... --------------------
 
 INFO: [enhanced_info_print] [main] ++++++++++++++++++++ Test MSE after few-shot 25% fine-tuning ++++++++++++++++++++
 

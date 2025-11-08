@@ -10,7 +10,7 @@ Python Version: Python 3.11.4
 Python internal path check: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
 
 === GPU Information ===
-Sun Oct  5 18:41:34 2025       
+Sun Oct  5 18:41:34 2025
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 575.57.08              Driver Version: 575.57.08      CUDA Version: 12.9     |
 |-----------------------------------------+------------------------+----------------------+
@@ -22,7 +22,7 @@ Sun Oct  5 18:41:34 2025
 | N/A   33C    P8             33W /  350W |       0MiB /  46068MiB |      0%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
-                                                                                         
+
 +-----------------------------------------------------------------------------------------+
 | Processes:                                                                              |
 |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
@@ -56,7 +56,7 @@ INFO: [main] Loading configuration from: /u6/cjrisi/nocturnal/models/configs/ttm
 INFO: [main] Configuration saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251005_184129_job1354917/experiment_config.yaml
 INFO: [main] =====================================
 INFO: [main] === Calling finetune_ttm() ===
-INFO: [enhanced_info_print] [main] -------------------- Preparing data... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Preparing data... --------------------
 
 INFO: [enhanced_info_print] [main] Found 9 processed CSV files in /u6/cjrisi/nocturnal/cache/data/kaggle_brisT1D/processed
 INFO: [enhanced_info_print] [main] Loaded p10_full: 25803 rows
@@ -79,10 +79,10 @@ INFO: [enhanced_info_print] [main] Data length: 155562
 INFO: [enhanced_info_print] [main] Split config: Train 90.0%, Test 10.0%
 INFO: [enhanced_info_print] [main] Data ids: ['p10_full' 'p11_full' 'p12_full' 'p02_full' 'p04_full' 'p03_full']
 INFO: [enhanced_info_print] [main] Data processing complete
-INFO: [enhanced_info_print] [main] -------------------- Preparing model... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Preparing model... --------------------
 
 INFO: [enhanced_info_print] [main] Model path: ibm-granite/granite-timeseries-ttm-r2
-INFO: [enhanced_info_print] [main] -------------------- Running few-shot 100% -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Running few-shot 100% --------------------
 
 2025-10-05T18:41:45 - Loading model from: ibm-granite/granite-timeseries-ttm-r2
 2025-10-05T18:41:45 - Model loaded successfully from ibm-granite/granite-timeseries-ttm-r2, revision = main.
@@ -90,7 +90,7 @@ INFO: [enhanced_info_print] [main] -------------------- Running few-shot 100% --
 INFO: [enhanced_info_print] [main] Using learning rate = 0.002
 INFO: [enhanced_info_print] [main] Training for 10 epochs
 Using auto half precision backend
-INFO: [enhanced_info_print] [main] -------------------- Fine-tuning... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Fine-tuning... --------------------
 
 INFO: [enhanced_info_print] [main] Starting new training run in output directory: /u6/cjrisi/nocturnal/models/ttm/kaggle_brisT1D/2025-10-05_18-41-45
 ***** Running training *****
@@ -136,7 +136,7 @@ Best checkpoint: None
 Training samples/second: 6051.14
 ============================================================
 100%|██████████| 340/340 [03:45<00:00,  1.51it/s]
-INFO: [enhanced_info_print] [main] -------------------- Evaluating... -------------------- 
+INFO: [enhanced_info_print] [main] -------------------- Evaluating... --------------------
 
 INFO: [enhanced_info_print] [main] ++++++++++++++++++++ Test MSE after few-shot 100% fine-tuning ++++++++++++++++++++
 

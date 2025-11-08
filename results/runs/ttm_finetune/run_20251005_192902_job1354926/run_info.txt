@@ -12,11 +12,11 @@ CPUs per Task: 16
 Memory per Node:  MB
 Memory per CPU: 2048 MB
 Partition: HI
-Time Limit: 
+Time Limit:
 QOS: normal
 Number of Nodes: 1
-Number of Tasks: 
-GPUs per Node: 
+Number of Tasks:
+GPUs per Node:
 GPU Type: 5
 Account: hi_group
 Working Directory: /u6/cjrisi/nocturnal
@@ -43,7 +43,7 @@ Training Exit Code: 0
 =====================================
 
 === Final GPU State ===
-Sun Oct  5 19:33:37 2025       
+Sun Oct  5 19:33:37 2025
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 575.57.08              Driver Version: 575.57.08      CUDA Version: 12.9     |
 |-----------------------------------------+------------------------+----------------------+
@@ -55,7 +55,7 @@ Sun Oct  5 19:33:37 2025
 | N/A   34C    P0             85W /  350W |       0MiB /  46068MiB |      1%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
-                                                                                         
+
 +-----------------------------------------------------------------------------------------+
 | Processes:                                                                              |
 |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
