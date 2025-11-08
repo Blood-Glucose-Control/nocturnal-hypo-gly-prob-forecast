@@ -56,32 +56,6 @@ def function_logger(func):
 
     return wrapper
 
-
-def info_print(*args, **kwargs):
-    """Enhanced info_print that shows which function called it"""
-    # Get the calling function name
-    frame = inspect.currentframe()
-    try:
-        caller_frame = frame.f_back
-        if caller_frame:
-            caller_name = caller_frame.f_code.co_name
-            if caller_name != "<module>":  # Don't show <module> for top-level calls
-                print(
-                    "INFO:",
-                    f"[{caller_name}]",
-                    *args,
-                    **kwargs,
-                    file=sys.stderr,
-                    flush=True,
-                )
-            else:
-                print("INFO:", *args, **kwargs, file=sys.stderr, flush=True)
-        else:
-            print("INFO:", *args, **kwargs, file=sys.stderr, flush=True)
-    finally:
-        del frame
-
-
 @function_logger
 def main():
     parser = argparse.ArgumentParser(
