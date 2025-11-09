@@ -137,12 +137,21 @@ class DatasetBase(ABC):
         if data.empty:
             raise ValueError("Dataset is empty")
         return True
+    
+    ## Everything concerning the validation table is below ---------------------------------------
 
     def create_validation_table(self):
         """Create a validation table for the dataset.
 
         This method extracts comprehensive statistics for each patient in the dataset,
         including temporal information, demographics, and physiological measurements.
+
+        Date type detection:
+        - Inspects each patient's datetime index to determine if dates are 'artificial' or 'real'
+        - If patient's start date matches generic_patient_start_date exactly, marks as 'artificial'
+        - If all timestamps fall within the same year as generic_patient_start_date, marks as 'artificial'
+        - Otherwise marks as 'real'
+        - If datetime cannot be determined, marks as 'unknown'
 
         Returns:
             pd.DataFrame: A DataFrame containing validation results with columns:
@@ -153,7 +162,7 @@ class DatasetBase(ABC):
                 - num_validation_data_points: Number of data points in validation set (if split)
                 - start_date: First timestamp in patient data
                 - end_date: Last timestamp in patient data
-                - date_type: 'artificial' or 'real' based on generic_patient_start_date
+                - date_type: 'artificial', 'real', or 'unknown' based on datetime inspection
                 - age: Patient age (if available)
                 - sex: Patient sex (if available)
                 - avg_bg_mM: Average blood glucose in mmol/L
@@ -170,11 +179,6 @@ class DatasetBase(ABC):
             raise ValueError("Processed data is not loaded. Call load_data() first.")
 
         validation_rows = []
-        
-        # Determine if dates are artificial
-        # Check if the loader has generic_patient_start_date attribute
-        generic_date = getattr(self, 'generic_patient_start_date', None)
-        date_type = 'artificial' if generic_date is not None else 'real'
 
         # Get train/validation data dictionaries if available
         train_data_dict = getattr(self, 'train_data', None)
@@ -188,16 +192,14 @@ class DatasetBase(ABC):
                     for sub_id, patient_df in patient_data.items():
                         if isinstance(patient_df, pd.DataFrame) and not patient_df.empty:
                             combined_id = f"{patient_id}_{sub_id}"
-                            row = self._extract_patient_stats(
-                                combined_id, patient_df, date_type
-                            )
+                            row = self._extract_patient_stats(combined_id, patient_df)
                             # For test data, train/validation splits don't apply
                             row['num_train_data_points'] = None
                             row['num_validation_data_points'] = None
                             validation_rows.append(row)
                 elif isinstance(patient_data, pd.DataFrame) and not patient_data.empty:
                     # Simple structure (train data) - one DataFrame per patient
-                    row = self._extract_patient_stats(patient_id, patient_data, date_type)
+                    row = self._extract_patient_stats(patient_id, patient_data)
                     
                     # Add train/validation split counts if available
                     if train_data_dict is not None and patient_id in train_data_dict:
@@ -214,13 +216,74 @@ class DatasetBase(ABC):
 
         return pd.DataFrame(validation_rows)
 
-    def _extract_patient_stats(self, patient_id: str, patient_df: pd.DataFrame, date_type: str) -> dict:
+    def _determine_date_type(self, patient_df: pd.DataFrame) -> str:
+        """
+        Determine whether patient datetimes are 'artificial' or 'real' through heuristic analysis.
+
+        This method inspects the datetime index to determine authenticity by:
+        1. Checking if the loader has a generic_patient_start_date attribute
+        2. Comparing patient's earliest date with the generic start date
+        3. Analyzing whether all dates fall within a single year matching the generic year
+
+        Args:
+            patient_df: Patient's DataFrame (should have datetime index or datetime column)
+
+        Returns:
+            str: One of 'artificial', 'real', or 'unknown'
+                - 'artificial': Dates were synthetically generated from time-only data
+                - 'real': Dates appear to be actual calendar dates from the dataset
+                - 'unknown': Cannot determine (missing or invalid datetime information)
+
+        Rules:
+            - If no datetime information available -> 'unknown'
+            - If loader has no generic_patient_start_date -> 'real'
+            - If patient's start date exactly matches generic_patient_start_date -> 'artificial'
+            - If all timestamps fall in same year as generic_patient_start_date -> 'artificial'
+            - Otherwise -> 'real'
+        """
+        # Ensure datetime index or column
+        if not isinstance(patient_df.index, pd.DatetimeIndex):
+            if 'datetime' in patient_df.columns:
+                try:
+                    idx = pd.DatetimeIndex(pd.to_datetime(patient_df['datetime'], errors='coerce'))
+                except Exception:
+                    return 'unknown'
+            else:
+                return 'unknown'
+        else:
+            idx = pd.DatetimeIndex(patient_df.index)
+
+        if idx.empty or idx.isna().all():
+            return 'unknown'
+
+        generic_date = getattr(self, 'generic_patient_start_date', None)
+        if generic_date is None:
+            return 'real'
+
+        # Normalize for comparison
+        try:
+            idx_min = idx.min().normalize()
+            gen_norm = pd.Timestamp(generic_date).normalize()
+        except Exception:
+            return 'unknown'
+
+        # Exact match to generic start date
+        if idx_min == gen_norm:
+            return 'artificial'
+
+        # If all timestamps fall in the same year and match generic year, consider artificial
+        years = pd.Index(idx.year).dropna().unique()
+        if len(years) == 1 and int(years[0]) == pd.Timestamp(generic_date).year:
+            return 'artificial'
+
+        return 'real'
+
+    def _extract_patient_stats(self, patient_id: str, patient_df: pd.DataFrame) -> dict:
         """Extract statistics for a single patient.
 
         Args:
             patient_id: Patient identifier
             patient_df: Patient's DataFrame with datetime index
-            date_type: 'artificial' or 'real'
 
         Returns:
             dict: Dictionary containing patient statistics
@@ -228,7 +291,13 @@ class DatasetBase(ABC):
         # Ensure datetime index
         if not isinstance(patient_df.index, pd.DatetimeIndex):
             if 'datetime' in patient_df.columns:
-                patient_df = patient_df.set_index('datetime')
+                try:
+                    patient_df = patient_df.set_index('datetime')
+                except Exception:
+                    return {
+                        'patient_id': patient_id,
+                        'error': 'No datetime index available'
+                    }
             else:
                 # Cannot process without datetime
                 return {
@@ -237,10 +306,14 @@ class DatasetBase(ABC):
                 }
 
         # Calculate temporal statistics
-        num_days = patient_df.index.normalize().nunique()
+        idx = pd.DatetimeIndex(patient_df.index)
+        num_days = idx.normalize().nunique()
         num_data_points = len(patient_df)
-        start_date = patient_df.index.min()
-        end_date = patient_df.index.max()
+        start_date = idx.min()
+        end_date = idx.max()
+
+        # Determine date_type per patient using robust heuristic
+        date_type = self._determine_date_type(patient_df)
 
         # Initialize stats dictionary
         stats = {
