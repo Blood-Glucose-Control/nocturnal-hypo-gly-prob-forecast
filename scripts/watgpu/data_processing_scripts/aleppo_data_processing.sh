@@ -28,3 +28,6 @@ loader = get_loader(
 )
 "
 echo "Aleppo data processing completed"
+
+
+## Run sbatch sbatch aleppo_data_processing.sh

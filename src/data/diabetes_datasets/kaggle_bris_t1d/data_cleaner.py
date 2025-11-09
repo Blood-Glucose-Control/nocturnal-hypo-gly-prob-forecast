@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Blood-Glucose-Control
+# Licensed under Custom Research License (see LICENSE file)
+# For commercial licensing, contact: [Add your contact information]
+
 """
 Data cleaning utilities for the Kaggle Bristol Type 1 Diabetes dataset.
 
