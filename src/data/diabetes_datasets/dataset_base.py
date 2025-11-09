@@ -148,6 +148,9 @@ class DatasetBase(ABC):
             pd.DataFrame: A DataFrame containing validation results with columns:
                 - patient_id: Patient identifier
                 - num_days: Number of unique days in patient data
+                - num_data_points: Total number of data points (timestamps) for patient
+                - num_train_data_points: Number of data points in training set (if split)
+                - num_validation_data_points: Number of data points in validation set (if split)
                 - start_date: First timestamp in patient data
                 - end_date: Last timestamp in patient data
                 - date_type: 'artificial' or 'real' based on generic_patient_start_date
@@ -173,6 +176,10 @@ class DatasetBase(ABC):
         generic_date = getattr(self, 'generic_patient_start_date', None)
         date_type = 'artificial' if generic_date is not None else 'real'
 
+        # Get train/validation data dictionaries if available
+        train_data_dict = getattr(self, 'train_data', None)
+        validation_data_dict = getattr(self, 'validation_data', None)
+
         # Handle nested test data structure (patient_id -> {sub_id -> DataFrame})
         if isinstance(self.processed_data, dict):
             for patient_id, patient_data in self.processed_data.items():
@@ -180,13 +187,29 @@ class DatasetBase(ABC):
                     # Nested structure (test data) - process each sub_id separately
                     for sub_id, patient_df in patient_data.items():
                         if isinstance(patient_df, pd.DataFrame) and not patient_df.empty:
+                            combined_id = f"{patient_id}_{sub_id}"
                             row = self._extract_patient_stats(
-                                f"{patient_id}_{sub_id}", patient_df, date_type
+                                combined_id, patient_df, date_type
                             )
+                            # For test data, train/validation splits don't apply
+                            row['num_train_data_points'] = None
+                            row['num_validation_data_points'] = None
                             validation_rows.append(row)
                 elif isinstance(patient_data, pd.DataFrame) and not patient_data.empty:
                     # Simple structure (train data) - one DataFrame per patient
                     row = self._extract_patient_stats(patient_id, patient_data, date_type)
+                    
+                    # Add train/validation split counts if available
+                    if train_data_dict is not None and patient_id in train_data_dict:
+                        row['num_train_data_points'] = len(train_data_dict[patient_id])
+                    else:
+                        row['num_train_data_points'] = None
+                    
+                    if validation_data_dict is not None and patient_id in validation_data_dict:
+                        row['num_validation_data_points'] = len(validation_data_dict[patient_id])
+                    else:
+                        row['num_validation_data_points'] = None
+                    
                     validation_rows.append(row)
 
         return pd.DataFrame(validation_rows)
@@ -215,6 +238,7 @@ class DatasetBase(ABC):
 
         # Calculate temporal statistics
         num_days = patient_df.index.normalize().nunique()
+        num_data_points = len(patient_df)
         start_date = patient_df.index.min()
         end_date = patient_df.index.max()
 
@@ -222,6 +246,7 @@ class DatasetBase(ABC):
         stats = {
             'patient_id': patient_id,
             'num_days': num_days,
+            'num_data_points': num_data_points,
             'start_date': start_date,
             'end_date': end_date,
             'date_type': date_type,
