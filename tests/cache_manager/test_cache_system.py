@@ -19,7 +19,7 @@ from src.data.dataset_configs import (
     list_available_datasets,
     register_dataset,
 )
-from src.data.models import DatasetSourceType
+from src.data.models import DatasetConfig, DatasetSourceType
 
 
 class TestCacheManager:
@@ -32,14 +32,14 @@ class TestCacheManager:
         self.test_dataset = "test_dataset"
         register_dataset(
             self.test_dataset,
-            {
-                "source": DatasetSourceType.LOCAL,
-                "required_files": ["test_data.csv"],
-                "description": "Test dataset",
-                "citation": "Test dataset",
-                "cache_path": "test_dataset",
-                "url": "https://test.com",
-            },
+            DatasetConfig(
+                source=DatasetSourceType.LOCAL,
+                required_files=["test_data.csv"],
+                description="Test dataset",
+                citation="Test dataset",
+                cache_path="test_dataset",
+                url="https://test.com",
+            ),
         )
 
     def teardown_method(self):
@@ -191,7 +191,13 @@ class TestCacheManager:
 
     def test_raw_data_exists_with_files(self):
         """Test raw data existence check with required files."""
-        dataset_config = {"required_files": ["file1.csv", "file2.csv"]}
+        dataset_config = DatasetConfig(
+            source=DatasetSourceType.LOCAL,
+            required_files=["file1.csv", "file2.csv"],
+            description="Test",
+            citation="Test",
+            url="https://test.com",
+        )
 
         # Should return False when directory doesn't exist
         assert not self.cache_manager._raw_data_exists(
@@ -210,7 +216,13 @@ class TestCacheManager:
 
     def test_raw_data_exists_without_files(self):
         """Test raw data existence check without required files."""
-        dataset_config = {}
+        dataset_config = DatasetConfig(
+            source=DatasetSourceType.LOCAL,
+            required_files=[],
+            description="Test",
+            citation="Test",
+            url="https://test.com",
+        )
         raw_path = self.cache_manager.get_raw_data_path("test_dataset")
 
         # Should return False when directory doesn't exist
@@ -287,8 +299,8 @@ class TestDatasetConfigs:
     def test_get_dataset_config(self):
         """Test getting dataset configuration."""
         config = get_dataset_config(DatasetSourceType.KAGGLE_BRIS_T1D.value)
-        assert config["source"] == DatasetSourceType.KAGGLE_BRIS_T1D
-        assert config["competition_name"] == "brist1d"
+        assert config.source == DatasetSourceType.KAGGLE_BRIS_T1D
+        assert config.competition_name == "brist1d"
 
     def test_get_dataset_config_invalid(self):
         """Test getting invalid dataset configuration."""
