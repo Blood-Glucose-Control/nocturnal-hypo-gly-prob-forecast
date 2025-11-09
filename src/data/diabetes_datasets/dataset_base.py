@@ -137,7 +137,7 @@ class DatasetBase(ABC):
         if data.empty:
             raise ValueError("Dataset is empty")
         return True
-    
+
     ## Everything concerning the validation table is below ---------------------------------------
 
     def create_validation_table(self):
@@ -181,8 +181,8 @@ class DatasetBase(ABC):
         validation_rows = []
 
         # Get train/validation data dictionaries if available
-        train_data_dict = getattr(self, 'train_data', None)
-        validation_data_dict = getattr(self, 'validation_data', None)
+        train_data_dict = getattr(self, "train_data", None)
+        validation_data_dict = getattr(self, "validation_data", None)
 
         # Handle nested test data structure (patient_id -> {sub_id -> DataFrame})
         if isinstance(self.processed_data, dict):
@@ -190,28 +190,36 @@ class DatasetBase(ABC):
                 if isinstance(patient_data, dict):
                     # Nested structure (test data) - process each sub_id separately
                     for sub_id, patient_df in patient_data.items():
-                        if isinstance(patient_df, pd.DataFrame) and not patient_df.empty:
+                        if (
+                            isinstance(patient_df, pd.DataFrame)
+                            and not patient_df.empty
+                        ):
                             combined_id = f"{patient_id}_{sub_id}"
                             row = self._extract_patient_stats(combined_id, patient_df)
                             # For test data, train/validation splits don't apply
-                            row['num_train_data_points'] = None
-                            row['num_validation_data_points'] = None
+                            row["num_train_data_points"] = None
+                            row["num_validation_data_points"] = None
                             validation_rows.append(row)
                 elif isinstance(patient_data, pd.DataFrame) and not patient_data.empty:
                     # Simple structure (train data) - one DataFrame per patient
                     row = self._extract_patient_stats(patient_id, patient_data)
-                    
+
                     # Add train/validation split counts if available
                     if train_data_dict is not None and patient_id in train_data_dict:
-                        row['num_train_data_points'] = len(train_data_dict[patient_id])
+                        row["num_train_data_points"] = len(train_data_dict[patient_id])
                     else:
-                        row['num_train_data_points'] = None
-                    
-                    if validation_data_dict is not None and patient_id in validation_data_dict:
-                        row['num_validation_data_points'] = len(validation_data_dict[patient_id])
+                        row["num_train_data_points"] = None
+
+                    if (
+                        validation_data_dict is not None
+                        and patient_id in validation_data_dict
+                    ):
+                        row["num_validation_data_points"] = len(
+                            validation_data_dict[patient_id]
+                        )
                     else:
-                        row['num_validation_data_points'] = None
-                    
+                        row["num_validation_data_points"] = None
+
                     validation_rows.append(row)
 
         return pd.DataFrame(validation_rows)
@@ -243,40 +251,42 @@ class DatasetBase(ABC):
         """
         # Ensure datetime index or column
         if not isinstance(patient_df.index, pd.DatetimeIndex):
-            if 'datetime' in patient_df.columns:
+            if "datetime" in patient_df.columns:
                 try:
-                    idx = pd.DatetimeIndex(pd.to_datetime(patient_df['datetime'], errors='coerce'))
+                    idx = pd.DatetimeIndex(
+                        pd.to_datetime(patient_df["datetime"], errors="coerce")
+                    )
                 except Exception:
-                    return 'unknown'
+                    return "unknown"
             else:
-                return 'unknown'
+                return "unknown"
         else:
             idx = pd.DatetimeIndex(patient_df.index)
 
         if idx.empty or idx.isna().all():
-            return 'unknown'
+            return "unknown"
 
-        generic_date = getattr(self, 'generic_patient_start_date', None)
+        generic_date = getattr(self, "generic_patient_start_date", None)
         if generic_date is None:
-            return 'real'
+            return "real"
 
         # Normalize for comparison
         try:
             idx_min = idx.min().normalize()
             gen_norm = pd.Timestamp(generic_date).normalize()
         except Exception:
-            return 'unknown'
+            return "unknown"
 
         # Exact match to generic start date
         if idx_min == gen_norm:
-            return 'artificial'
+            return "artificial"
 
         # If all timestamps fall in the same year and match generic year, consider artificial
         years = pd.Index(idx.year).dropna().unique()
         if len(years) == 1 and int(years[0]) == pd.Timestamp(generic_date).year:
-            return 'artificial'
+            return "artificial"
 
-        return 'real'
+        return "real"
 
     def _extract_patient_stats(self, patient_id: str, patient_df: pd.DataFrame) -> dict:
         """Extract statistics for a single patient.
@@ -290,19 +300,19 @@ class DatasetBase(ABC):
         """
         # Ensure datetime index
         if not isinstance(patient_df.index, pd.DatetimeIndex):
-            if 'datetime' in patient_df.columns:
+            if "datetime" in patient_df.columns:
                 try:
-                    patient_df = patient_df.set_index('datetime')
+                    patient_df = patient_df.set_index("datetime")
                 except Exception:
                     return {
-                        'patient_id': patient_id,
-                        'error': 'No datetime index available'
+                        "patient_id": patient_id,
+                        "error": "No datetime index available",
                     }
             else:
                 # Cannot process without datetime
                 return {
-                    'patient_id': patient_id,
-                    'error': 'No datetime index available'
+                    "patient_id": patient_id,
+                    "error": "No datetime index available",
                 }
 
         # Calculate temporal statistics
@@ -317,76 +327,82 @@ class DatasetBase(ABC):
 
         # Initialize stats dictionary
         stats = {
-            'patient_id': patient_id,
-            'num_days': num_days,
-            'num_data_points': num_data_points,
-            'start_date': start_date,
-            'end_date': end_date,
-            'date_type': date_type,
+            "patient_id": patient_id,
+            "num_days": num_days,
+            "num_data_points": num_data_points,
+            "start_date": start_date,
+            "end_date": end_date,
+            "date_type": date_type,
         }
 
         # Extract demographics (if available in DataFrame)
-        for demo_col in ['age', 'sex']:
+        for demo_col in ["age", "sex"]:
             if demo_col in patient_df.columns:
                 # Get the most common value (mode) for this patient
                 values = patient_df[demo_col].dropna()
                 if len(values) > 0:
-                    stats[demo_col] = values.mode()[0] if len(values.mode()) > 0 else values.iloc[0]
+                    stats[demo_col] = (
+                        values.mode()[0] if len(values.mode()) > 0 else values.iloc[0]
+                    )
                 else:
                     stats[demo_col] = None
             else:
                 stats[demo_col] = None
 
         # Extract blood glucose statistics (bg_mM column)
-        if 'bg_mM' in patient_df.columns:
-            bg_data = patient_df['bg_mM'].dropna()
+        if "bg_mM" in patient_df.columns:
+            bg_data = patient_df["bg_mM"].dropna()
             if len(bg_data) > 0:
-                stats['avg_bg_mM'] = bg_data.mean()
-                stats['min_bg_mM'] = bg_data.min()
-                stats['max_bg_mM'] = bg_data.max()
+                stats["avg_bg_mM"] = bg_data.mean()
+                stats["min_bg_mM"] = bg_data.min()
+                stats["max_bg_mM"] = bg_data.max()
             else:
-                stats['avg_bg_mM'] = None
-                stats['min_bg_mM'] = None
-                stats['max_bg_mM'] = None
+                stats["avg_bg_mM"] = None
+                stats["min_bg_mM"] = None
+                stats["max_bg_mM"] = None
         else:
-            stats['avg_bg_mM'] = None
-            stats['min_bg_mM'] = None
-            stats['max_bg_mM'] = None
+            stats["avg_bg_mM"] = None
+            stats["min_bg_mM"] = None
+            stats["max_bg_mM"] = None
 
         # Extract carbohydrate statistics (food_g column)
-        if 'food_g' in patient_df.columns:
-            carbs_data = patient_df['food_g'].dropna()
+        if "food_g" in patient_df.columns:
+            carbs_data = patient_df["food_g"].dropna()
             # Filter out zeros for min calculation to get actual carb intake events
             carbs_nonzero = carbs_data[carbs_data > 0]
             if len(carbs_data) > 0:
-                stats['avg_carbs_g'] = carbs_data.mean()
-                stats['min_carbs_g'] = carbs_nonzero.min() if len(carbs_nonzero) > 0 else 0.0
-                stats['max_carbs_g'] = carbs_data.max()
+                stats["avg_carbs_g"] = carbs_data.mean()
+                stats["min_carbs_g"] = (
+                    carbs_nonzero.min() if len(carbs_nonzero) > 0 else 0.0
+                )
+                stats["max_carbs_g"] = carbs_data.max()
             else:
-                stats['avg_carbs_g'] = None
-                stats['min_carbs_g'] = None
-                stats['max_carbs_g'] = None
+                stats["avg_carbs_g"] = None
+                stats["min_carbs_g"] = None
+                stats["max_carbs_g"] = None
         else:
-            stats['avg_carbs_g'] = None
-            stats['min_carbs_g'] = None
-            stats['max_carbs_g'] = None
+            stats["avg_carbs_g"] = None
+            stats["min_carbs_g"] = None
+            stats["max_carbs_g"] = None
 
         # Extract insulin statistics (dose_units column)
-        if 'dose_units' in patient_df.columns:
-            insulin_data = patient_df['dose_units'].dropna()
+        if "dose_units" in patient_df.columns:
+            insulin_data = patient_df["dose_units"].dropna()
             # Filter out zeros for min calculation to get actual insulin doses
             insulin_nonzero = insulin_data[insulin_data > 0]
             if len(insulin_data) > 0:
-                stats['avg_insulin_units'] = insulin_data.mean()
-                stats['min_insulin_units'] = insulin_nonzero.min() if len(insulin_nonzero) > 0 else 0.0
-                stats['max_insulin_units'] = insulin_data.max()
+                stats["avg_insulin_units"] = insulin_data.mean()
+                stats["min_insulin_units"] = (
+                    insulin_nonzero.min() if len(insulin_nonzero) > 0 else 0.0
+                )
+                stats["max_insulin_units"] = insulin_data.max()
             else:
-                stats['avg_insulin_units'] = None
-                stats['min_insulin_units'] = None
-                stats['max_insulin_units'] = None
+                stats["avg_insulin_units"] = None
+                stats["min_insulin_units"] = None
+                stats["max_insulin_units"] = None
         else:
-            stats['avg_insulin_units'] = None
-            stats['min_insulin_units'] = None
-            stats['max_insulin_units'] = None
+            stats["avg_insulin_units"] = None
+            stats["min_insulin_units"] = None
+            stats["max_insulin_units"] = None
 
         return stats
