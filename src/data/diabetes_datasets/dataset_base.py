@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Blood-Glucose-Control
+# Licensed under Custom Research License (see LICENSE file)
+# For commercial licensing, contact: [Add your contact information]
+
 """Dataset handling base module for the nocturnal project.
 
 This module provides the foundation for all dataset-related functionality through

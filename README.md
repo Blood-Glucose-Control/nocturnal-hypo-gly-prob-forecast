@@ -28,3 +28,17 @@ For instructions on getting started with our project and the commmit/PR procedur
 #### Kaggle
 
 See script: [BrisT1D](scripts/data_downloads/README_data_download.md)
+
+## License
+
+This project is licensed under a custom research license based on CC BY-NC 4.0. The software is freely available for academic institutions and non-profit research organizations, but commercial use requires a separate commercial license.
+
+See [LICENSE](LICENSE) for full details.
+
+**For commercial licensing inquiries, please contact:** christopher@gluroo.com
+
+### License Summary
+- ✅ **Free for research** - Academic institutions and non-profit research organizations
+- ✅ **Attribution required** - Please cite Blood-Glucose-Control in your work
+- ❌ **Commercial use restricted** - Requires separate commercial license
+- 📧 **Commercial licensing** - Contact us for business use

@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Blood-Glucose-Control
+# Licensed under Custom Research License (see LICENSE file)
+# For commercial licensing, contact: [Add your contact information]
+
 """
 Time series sampling and resampling utilities for continuous glucose monitoring data.
 
@@ -20,8 +24,10 @@ Functions:
 
 import pandas as pd
 from typing import Literal, Tuple
+from src.data.models import ColumnNames
 from src.data.preprocessing.time_processing import get_most_common_time_interval
 import logging
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -80,8 +86,8 @@ def ensure_regular_time_intervals(
 
     # Use merge_asof with tolerance to map shifted timestamps to regular intervals
     mapped_data = pd.merge_asof(
-        regular_times,
-        original_data,
+        regular_times,  # left
+        original_data,  # right
         on="datetime",
         tolerance=tolerance,
         direction=direction,
@@ -99,3 +105,110 @@ def ensure_regular_time_intervals(
     )
 
     return mapped_data, freq
+
+
+def ensure_regular_time_intervals_with_aggregation(
+    df: pd.DataFrame,
+) -> Tuple[pd.DataFrame, int]:
+    """
+    Ensures regular time intervals by aggregating all data points within each interval.
+    We first round each row's timestamp to the nearest interval as "_bin" (round to the nearest multiple of the detected interval).
+    This function also resamples the DataFrame to multiples of the detected frequency.
+
+    Unlike ensure_regular_time_intervals which only takes one row, this function
+    aggregates multiple rows that fall within the same "_bin" (regular interval window).
+
+    - Blood glucose (ColumnNames.BG.value) and other "rate of changes" columns (ColumnNames.RATE.value, ColumnNames.HR_BPM.value) are averaged
+    - All other numerical columns are summed
+    - Categorical columns take the first value
+
+    Args:
+        df: Input dataframe with datetime index
+
+    Returns:
+        Tuple[pd.DataFrame, int]: (DataFrame with regular intervals, frequency in minutes)
+    """
+    logger.info(
+        "ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation..."
+    )
+
+    # Validate inputs
+    if df.empty:
+        return df.copy(), 0
+
+    if df.shape[0] <= 1:
+        raise ValueError("DataFrame must contain more than 1 row")
+
+    if "p_num" not in df.columns:
+        raise ValueError("DataFrame must contain 'p_num' column")
+
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame must have datetime index")
+
+    freq = get_most_common_time_interval(df)
+    logger.info(f"\tMost common time interval: {freq} minutes")
+
+    datetime_col = ColumnNames.DATETIME.value
+
+    # Identify numerical vs non-numerical columns
+    numerical_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+    # Remove columns that are not needed for aggregation
+    # bgInput is the finger prick. Not used for now.
+    for col in [ColumnNames.P_NUM.value, "isf", "cr", "iob", "bgInput"]:
+        if col in numerical_cols:
+            numerical_cols.remove(col)
+
+    # Rate of change columns we use mean aggregation.
+    mean_cols = [ColumnNames.BG.value, ColumnNames.RATE.value, ColumnNames.HR_BPM.value]
+
+    # Prepare aggregation dict
+    agg_dict = {}
+    for col in df.columns:
+        if col in numerical_cols:
+            if col in mean_cols:
+                # Convert numerical zeros to NaN to avoid skewing the aggregation.
+                df[col] = df[col].replace(0, np.nan)
+                agg_dict[col] = "mean"
+            else:
+                agg_dict[col] = "sum"
+        else:
+            agg_dict[col] = "first"
+
+    logger.info(f"\tAggregation strategy: {agg_dict}")
+
+    # Vectorized binning: round timestamps to nearest interval (≈ ± freq/2 window)
+    tmp = df.copy()
+    # See: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DatetimeIndex.round.html
+    # Honestly in real life we rarely have equal distance between bins
+    tmp["_bin"] = tmp.index.round(f"{freq}min")
+
+    # Aggregate in one pass
+    grouped = tmp.groupby("_bin", sort=True).agg(agg_dict)
+    grouped.index.name = datetime_col
+
+    # Round start and end to match the same grid as the rounded bins
+    start_rounded = df.index.min().round(f"{freq}min")
+    end_rounded = df.index.max().round(f"{freq}min")
+    full_time_range = pd.date_range(
+        start=start_rounded,
+        end=end_rounded,
+        freq=f"{freq}min",
+    )
+
+    # Reindex to full grid; ensure p_num retained for empty bins
+    result_df = grouped.reindex(full_time_range)
+    result_df.index.name = datetime_col
+    if ColumnNames.P_NUM.value in result_df.columns:
+        result_df[ColumnNames.P_NUM.value] = result_df[ColumnNames.P_NUM.value].fillna(
+            df[ColumnNames.P_NUM.value].iloc[0]
+        )
+
+    logger.info(
+        f"Post-ensure_regular_time_intervals_with_aggregation(): \n\t\t\t"
+        f"Patient {df['p_num'].iloc[0]} \n\t\t\t "
+        f"- old index length: {len(df.index)}, \n\t\t\t "
+        f"- new index length: {len(result_df.index)}"
+    )
+
+    return result_df, freq

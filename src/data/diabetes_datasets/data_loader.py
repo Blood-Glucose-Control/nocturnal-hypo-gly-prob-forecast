@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Blood-Glucose-Control
+# Licensed under Custom Research License (see LICENSE file)
+# For commercial licensing, contact: [Add your contact information]
+
 """
 Data loading module for accessing and processing various diabetes datasets.
 
@@ -18,8 +22,10 @@ from typing import Union, Optional, Dict, Any, overload, Literal
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
+from src.data.diabetes_datasets.awesome_cgm.aleppo.aleppo import AleppoDataLoader
 
 
+# TODO: Add train_percentage parameter
 @overload
 def get_loader(
     data_source_name: Literal["lynch_2022"],
@@ -58,16 +64,29 @@ def get_loader(
 ) -> GlurooDataLoader: ...
 
 
+@overload
+def get_loader(
+    data_source_name: Literal["aleppo"],
+    keep_columns: Optional[list[str]] = None,
+    use_cached: bool = False,
+    # config: Optional[Dict[str, Any]] = None,
+    train_percentage: float = 0.9,
+    parallel: bool = True,
+    max_workers: int = 3,
+) -> AleppoDataLoader: ...
+
+
 def get_loader(
     data_source_name: str = "kaggle_brisT1D",
     dataset_type: str = "train",
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
+    train_percentage: float = 0.9,
     config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
-) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader]:
+) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader, AleppoDataLoader]:
     """
     Factory function to create and return the appropriate data loader instance.
 
@@ -85,6 +104,7 @@ def get_loader(
                                        If None, all columns are loaded. Default: None
         use_cached (bool): Whether to use cached data if available. Default: False
         num_validation_days (int): Number of days to use for validation. Default: 20
+        train_percentage (float): Percentage of the data to use for training. Default: 0.9
         config (dict | None): Additional configuration parameters for the data loader.
                             Default: None
 
@@ -109,6 +129,14 @@ def get_loader(
             num_validation_days=num_validation_days,
             config=config,
             parallel=parallel,
+        )
+    elif data_source_name == "aleppo":
+        return AleppoDataLoader(
+            keep_columns=keep_columns,
+            use_cached=use_cached,
+            train_percentage=train_percentage,
+            parallel=parallel,
+            max_workers=max_workers,
         )
     elif data_source_name == "lynch_2022":
         return Lynch2022DataLoader(
