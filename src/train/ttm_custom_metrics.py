@@ -9,13 +9,14 @@ import pandas as pd
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ExponentialLR
 from transformers import Trainer, TrainerCallback, TrainingArguments
-from transformers.integrations import INTEGRATION_TO_CALLBACK
+from transformers.integrations.integration_utils import INTEGRATION_TO_CALLBACK
 from tsfm_public import (
     TimeSeriesPreprocessor,
     TrackingCallback,
     count_parameters,
     get_datasets,
 )
+from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
 from tsfm_public.toolkit.time_series_preprocessor import DEFAULT_FREQUENCY_MAPPING
@@ -191,7 +192,7 @@ def _get_finetune_trainer(
         prediction_length=forecast_length,
         scaling=True,
         encode_categorical=False,
-        scaler_type="standard",
+        scaler_type=ScalerType.STANDARD,
     )
 
     finetune_forecast_model = get_model(
