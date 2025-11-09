@@ -66,3 +66,5 @@ class DatasetConfig(BaseModel):
     competition_name: str | None = (
         None  # Competition name of the dataset (for Kaggle datasets)
     )
+
+    hf_dataset_id: str | None = None
