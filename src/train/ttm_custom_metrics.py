@@ -1,27 +1,30 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher@gluroo.com/cjrisi@uwaterloo.ca
 
 import glob
 import os
+from typing import Dict, List, Union
 
 import pandas as pd
+from datasets import Dataset
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ExponentialLR
 from transformers import Trainer, TrainerCallback, TrainingArguments
-from transformers.integrations import INTEGRATION_TO_CALLBACK
+from transformers.integrations.integration_utils import INTEGRATION_TO_CALLBACK
 from tsfm_public import (
     TimeSeriesPreprocessor,
     TrackingCallback,
     count_parameters,
     get_datasets,
 )
+from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
-from tsfm_public.toolkit.time_series_preprocessor import DEFAULT_FREQUENCY_MAPPING
 
 from src.tuning.benchmark import impute_missing_values
 from src.utils.os_helper import get_project_root
+from src.utils.time_series_helper import get_interval_minutes
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
@@ -146,7 +149,7 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
 
     for patient_id, df in patients_dict.items():
         # Check if patient has the correct interval
-        if (df.index[1] - df.index[0]).components.minutes == resolution_min:
+        if get_interval_minutes(df) == resolution_min:
             print(f"Processing patient {patient_id}...")
             # Process each patient individually
             p_df = df.iloc[:]
@@ -164,7 +167,8 @@ def _get_finetune_trainer(
     dataset_name,
     model_path,
     batch_size,
-    learning_rate=None,
+    data: Union[Dataset, pd.DataFrame],
+    learning_rate=0.001,
     context_length=CONTEXT_LENGTH,
     forecast_length=PREDICTION_LENGTH,
     fewshot_percent=5,  # If resume from a checkpoint, this will need to be the same as the previous run
@@ -175,13 +179,78 @@ def _get_finetune_trainer(
     use_cpu=False,
     column_specifiers={},
     resolution_min=5,
-    data=None,
-    split_config=None,
+    split_config: Dict[str, Union[List[Union[int, float]], float]] = {"train": 1},
     save_dir=None,
     resume_dir=None,
 ):
     """
-    Internal function to get the finetune trainer. resume_dir will override save_dir if provided.
+    Create and configure a HuggingFace Trainer for fine-tuning a Time Series Transformer Model (TTM).
+
+    This function sets up the complete training pipeline including data preprocessing, model configuration,
+    dataset splitting, optimizer/scheduler setup, and trainer initialization with custom callbacks and metrics.
+
+    Args:
+        dataset_name (str): Name identifier for the dataset, used in output directory naming.
+        model_path (str): Path or HuggingFace model identifier for the pre-trained TTM model.
+        batch_size (int): Training and evaluation batch size.
+        data (Union[Dataset, pd.DataFrame]): The time series dataset to train on.
+        learning_rate (float, optional): Learning rate for the optimizer. If None, will use automatic
+            learning rate finder to determine optimal value. Defaults to None.
+        context_length (int): Length of the input context window (number of time steps).
+            Defaults to CONTEXT_LENGTH (512).
+        forecast_length (int): Length of the prediction horizon (number of time steps to forecast).
+            Defaults to PREDICTION_LENGTH (96).
+        fewshot_percent (int): Percentage of training data to use for few-shot learning (1-100).
+            Must remain consistent when resuming from checkpoint. Defaults to 5.
+        freeze_backbone (bool): Whether to freeze the backbone model parameters during training.
+            If True, only the head layers will be fine-tuned. Defaults to True.
+        num_epochs (int): Number of training epochs. Defaults to 50.
+        loss (str): Loss function to use ("mse", "mae", "huber", etc.). Defaults to "mse".
+        quantile (float): Quantile for quantile loss functions. Only used with quantile losses.
+            Defaults to 0.5.
+        use_cpu (bool): Whether to force CPU usage instead of GPU. Defaults to False.
+        column_specifiers (dict): Dictionary specifying data columns with keys like 'timestamp_column',
+            'id_columns', 'target_columns', 'control_columns'. Defaults to {}.
+        resolution_min (int): Time resolution of the data in minutes (e.g., 5, 15, 30).
+            Used for frequency token generation. Defaults to 5.
+        split_config (dict): Configuration for train/validation/test splitting. Can be either:
+            - Fraction format: {"train": 0.7, "test": 0.2} (validation auto-calculated)
+            - Index format: {"train": [0, 70], "valid": [70, 85], "test": [85, 100]}
+            Defaults to {'train': 1}.
+        save_dir (str, optional): Base directory for saving model checkpoints and logs.
+            If None, no automatic saving. Defaults to None.
+        resume_dir (str, optional): Directory to resume training from existing checkpoint.
+            If provided, overrides save_dir. Defaults to None.
+
+    Returns:
+        tuple: A tuple containing:
+            - finetune_forecast_trainer (Trainer): Configured HuggingFace Trainer ready for training
+            - dset_test (Dataset): Test dataset for final evaluation
+
+    Raises:
+        ValueError: If datasets cannot be created or have unexpected shapes/sizes.
+        RuntimeError: If model loading or configuration fails.
+
+    Notes:
+        - Automatically applies StandardScaler normalization to input features
+        - Uses AdamW optimizer with ExponentialLR scheduler (gamma=0.9999)
+        - Includes custom metrics computation and logging callbacks
+        - Supports automatic learning rate finding if learning_rate=None
+        - Evaluation occurs every 500 steps with checkpoint saving
+        - When resuming from checkpoint, ensure fewshot_percent, resolution_min,
+          context_length, forecast_length, and batch_size match the original run
+
+    Example:
+        >>> trainer, test_data = _get_finetune_trainer(
+        ...     dataset_name="patient_data_5min",
+        ...     model_path="ibm-granite/granite-timeseries-ttm-r2",
+        ...     batch_size=64,
+        ...     learning_rate=0.001,
+        ...     fewshot_percent=10,
+        ...     freeze_backbone=True,
+        ...     data=patient_df,
+        ...     split_config={"train": 0.8, "test": 0.2}
+        ... )
     """
     print("-" * 20, f"Running few-shot {fewshot_percent}%", "-" * 20, "\n")
 
@@ -191,7 +260,7 @@ def _get_finetune_trainer(
         prediction_length=forecast_length,
         scaling=True,
         encode_categorical=False,
-        scaler_type="standard",
+        scaler_type=ScalerType.STANDARD,
     )
 
     finetune_forecast_model = get_model(
@@ -199,22 +268,35 @@ def _get_finetune_trainer(
         context_length=context_length,
         prediction_length=forecast_length,
         freq_prefix_tuning=False,
-        freq=DEFAULT_FREQUENCY_MAPPING[f"{resolution_min}min"],
+        freq=f"{resolution_min}min",
         prefer_l1_loss=False,
         prefer_longer_context=True,
         # Can also provide TTM Config args. A param?
         loss=loss,
         quantile=quantile,
+        return_model_key=False,
     )
 
-    dset_train, dset_val, dset_test = get_datasets(
-        tsp,
-        data,
-        split_config,
+    # Type assertion since return_model_key=False guarantees a model is returned
+    from transformers import PreTrainedModel
+
+    assert isinstance(
+        finetune_forecast_model, PreTrainedModel
+    ), "Expected PreTrainedModel when return_model_key=False"
+
+    temp_datasets = get_datasets(
+        ts_preprocessor=tsp,
+        dataset=data,
+        split_config=split_config,
         fewshot_fraction=fewshot_percent / 100,
         fewshot_location="last",  # Take the last x percent of the training data
         use_frequency_token=finetune_forecast_model.config.resolution_prefix_tuning,
     )
+
+    if len(temp_datasets) != 3:
+        raise ValueError("Expected 3 datasets (train, val, test)")
+
+    dset_train, dset_val, dset_test = temp_datasets  # type: ignore[misc]
 
     if freeze_backbone:
         print(

@@ -11,67 +11,65 @@ for each dataset type.
 """
 
 from typing import Dict
-from pathlib import Path
 
 from src.data.models import DatasetConfig, DatasetSourceType
 
 
 # Configuration for the Kaggle Bristol T1D dataset
-KAGGLE_BRIST1D_CONFIG: DatasetConfig = {
-    "source": DatasetSourceType.KAGGLE_BRIS_T1D,
-    "competition_name": "brist1d",
-    "required_files": ["train.csv", "test.csv", "sample_submission.csv"],
-    "description": "Bristol Type 1 Diabetes dataset from Kaggle",
-    "cache_path": "kaggle_brisT1D",
-    "citation": "Bristol Type 1 Diabetes Dataset, Kaggle Competition",
-    "url": "https://www.kaggle.com/competitions/brist1d",
-}
+KAGGLE_BRIST1D_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.KAGGLE_BRIS_T1D,
+    competition_name="brist1d",
+    required_files=["train.csv", "test.csv", "sample_submission.csv"],
+    description="Bristol Type 1 Diabetes dataset from Kaggle",
+    cache_path="kaggle_brisT1D",
+    citation="Bristol Type 1 Diabetes Dataset, Kaggle Competition",
+    url="https://www.kaggle.com/competitions/brist1d",
+)
 
 # Configuration for the Gluroo dataset
-GLUROO_CONFIG: DatasetConfig = {
-    "source": DatasetSourceType.LOCAL,
-    "required_files": ["gluroo_cached.csv"],
-    "description": "Gluroo diabetes dataset",
-    "citation": "Gluroo Dataset",
-    "cache_path": "gluroo",
-}
+GLUROO_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.LOCAL,
+    required_files=["gluroo_cached.csv"],
+    description="Gluroo diabetes dataset",
+    citation="Gluroo Dataset",
+    cache_path="gluroo",
+    url="https://gluroo.com",  # Placeholder URL for local dataset
+)
 
 # Configuration for the SimGlucose dataset
-SIMGLUCOSE_CONFIG: DatasetConfig = {
-    "source": DatasetSourceType.LOCAL,
-    "description": "SimGlucose synthetic diabetes dataset",
-    "citation": "SimGlucose Dataset",
-    "cache_path": "simglucose",
-}
+# TODO: To complete
+SIMGLUCOSE_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.LOCAL,
+    description="SimGlucose synthetic diabetes dataset",
+    citation="SimGlucose Dataset",
+    cache_path="simglucose",
+    required_files=[],
+    url="https://github.com/jxx123/simglucose",
+)
 
 
 #### Awesome CGM datasets
-AWESOME_CGM_CONFIG = {
-    "source": DatasetSourceType.AWESOME_CGM,
-    "cache_path": "awesome_cgm",
-    "description": "Awesome CGM dataset",
-}
-
-ALEPPO_CONFIG: DatasetConfig = {
-    "source": DatasetSourceType.ALEPPO,
-    "cache_path": str(Path(AWESOME_CGM_CONFIG["cache_path"]) / "aleppo"),
-    "description": "Aleppo dataset",
-    "required_files": ["Data Tables"],
-    "url": "https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Aleppo-(2017)",
-    "citation": "Aleppo Dataset",
-}
+ALEPPO_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.ALEPPO,
+    cache_path="awesome_cgm/aleppo",
+    description="Aleppo dataset",
+    required_files=["Data Tables"],
+    url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Aleppo-(2017)",
+    citation="Aleppo Dataset",
+)
 
 # Configuration for the Lynch 2022 dataset
 # TODO: This will need to be modified to use the new cache system.
 # It should use cached path instead of source path.
 # Not sure about the namesapced approach or just a simple path like this.
-LYNCH_2022_CONFIG: DatasetConfig = {
-    "source": DatasetSourceType.LYNCH_2022,
-    "source_path": "src/data/diabetes_datasets/awesome_cgm/lynch_2022",
-    "description": "Lynch 2022 IOBP2 RCT dataset",
-    "citation": "Lynch et al. 2022",
-    "required_files": ["IOBP2 RCT Public Dataset"],
-}
+LYNCH_2022_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.LYNCH_2022,
+    description="Lynch 2022 IOBP2 RCT dataset",
+    citation="Lynch et al. 2022",
+    required_files=["IOBP2 RCT Public Dataset"],
+    url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Lynch-2022",
+    cache_path="awesome_cgm/lynch_2022",
+)
 
 
 # Mapping of dataset names to their configurations
@@ -131,9 +129,9 @@ def get_dataset_info(dataset_name: str) -> Dict[str, str]:
     """
     config = get_dataset_config(dataset_name)
     return {
-        "description": config.get("description", "No description available"),
-        "citation": config.get("citation", "No citation available"),
-        "url": config.get("url", "No URL available"),
+        "description": config.description,
+        "citation": config.citation,
+        "url": config.url,
     }
 
 

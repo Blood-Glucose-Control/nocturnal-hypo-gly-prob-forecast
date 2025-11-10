@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: cjrisi/christopher AT uwaterloo/gluroo DOT ca/com
 
 """
 Time-based preprocessing utilities for continuous glucose monitoring data.
@@ -32,7 +32,7 @@ Functions:
     get_train_validation_split: Create robust train and validation sets for a single patient with DatetimeIndex requirement for optimal performance
 """
 
-from typing import Generator, cast
+from typing import Generator, cast, Any
 from typing_extensions import deprecated
 import pandas as pd
 
@@ -244,7 +244,7 @@ def get_train_validation_split(
     df = df.copy()
 
     # Initialize split info dictionary
-    split_info = {
+    split_info: dict[str, Any] = {
         "data_start": df.index.min().strftime("%Y-%m-%d %H:%M:%S"),
         "data_end": df.index.max().strftime("%Y-%m-%d %H:%M:%S"),
         "total_records": len(df),
@@ -291,17 +291,14 @@ def get_train_validation_split(
         original_end = df.index.max()
         if original_end > last_boundary:
             dropped_partial_data = df.loc[last_boundary:].iloc[1:]
-            split_info.update(
-                {
-                    "dropped_partial_day_records": len(dropped_partial_data),
-                    "dropped_partial_day_start": last_boundary.strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    ),
-                    "dropped_partial_day_end": original_end.strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    ),
-                }
-            )
+            update_dict: dict[str, Any] = {
+                "dropped_partial_day_records": len(dropped_partial_data),
+                "dropped_partial_day_start": last_boundary.strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+                "dropped_partial_day_end": original_end.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+            split_info.update(update_dict)
 
     # Calculate the start of validation period
     validation_start = last_boundary - pd.Timedelta(days=num_validation_days)
@@ -338,22 +335,21 @@ def get_train_validation_split(
     ).days
 
     # Update split info with results
-    split_info.update(
-        {
-            "validation_days_actual": actual_validation_days,
-            "train_records": len(train_data),
-            "validation_records": len(validation_data),
-            "split_ratio": len(validation_data) / len(df),
-            "train_data_start": train_data.index.min().strftime("%Y-%m-%d %H:%M:%S"),
-            "train_data_end": train_data.index.max().strftime("%Y-%m-%d %H:%M:%S"),
-            "validation_data_start": validation_data.index.min().strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
-            "validation_data_end": validation_data.index.max().strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
-        }
-    )
+    final_update_dict: dict[str, Any] = {
+        "validation_days_actual": actual_validation_days,
+        "train_records": len(train_data),
+        "validation_records": len(validation_data),
+        "split_ratio": len(validation_data) / len(df),
+        "train_data_start": train_data.index.min().strftime("%Y-%m-%d %H:%M:%S"),
+        "train_data_end": train_data.index.max().strftime("%Y-%m-%d %H:%M:%S"),
+        "validation_data_start": validation_data.index.min().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        ),
+        "validation_data_end": validation_data.index.max().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        ),
+    }
+    split_info.update(final_update_dict)
 
     return train_data, validation_data, split_info
 
@@ -373,12 +369,12 @@ def get_train_validation_split_by_percentage(
 
     Args:
         df (pd.DataFrame): Input dataframe for a SINGLE patient with DatetimeIndex (REQUIRED)
-        train_percentage (float): Percentage of the total days to use for training
+        train_percentage (float): Percentage of the total days to use for training. If 1, return the entire dataframe as train and empty dataframe as validation.
 
     Returns:
         tuple[pd.DataFrame, pd.DataFrame, dict]:
             (train_data, validation_data, split_info)
-            where train_data and validation_data are DataFrames for the single patient
+            where train_data is a DataFrame and validation_data is a DataFrame
 
     Raises:
         ValueError: If DatetimeIndex is not found or insufficient data for requested validation period
@@ -391,8 +387,10 @@ def get_train_validation_split_by_percentage(
             "DataFrame must have a DatetimeIndex. "
             "Set your datetime column as index: df.set_index('datetime', inplace=True)"
         )
-    if not (0 < train_percentage < 1):
-        raise ValueError("train_percentage must be between 0 and 1 (exclusive)")
+    if not (0 < train_percentage <= 1):
+        raise ValueError(
+            "train_percentage must be between 0 (exclusive) and 1 (inclusive)"
+        )
 
     total_days = (df.index.max() - df.index.min()).days
     if total_days < 2:
@@ -405,24 +403,31 @@ def get_train_validation_split_by_percentage(
     train_days = max(1, min(train_days, total_days - 1))
     num_validation_days = total_days - train_days
 
-    # get get_train_validation_split is only for internal use
-    train_df, val_df, info = get_train_validation_split(
-        df,
-        num_validation_days=num_validation_days,
-        day_start_hour=6,
-        min_data_days=1,
-        include_partial_days=False,
-    )
-
-    info.update(
-        {
-            "split_method": "percentage",
-            "train_percentage": train_percentage,
-            "total_days_estimated": total_days,
-            "train_days_estimated": train_days,
-            "validation_days_requested": num_validation_days,
+    if train_percentage == 1:
+        train_df = df
+        val_df = pd.DataFrame(columns=df.columns)
+        info: dict[str, Any] = {
+            "train_days_actual": total_days,
+            "validation_days_actual": 0,
         }
-    )
+    else:
+        # get_train_validation_split is only for internal use
+        train_df, val_df, info = get_train_validation_split(
+            df,
+            num_validation_days=num_validation_days,
+            day_start_hour=6,
+            min_data_days=1,
+            include_partial_days=False,
+        )
+        # Ensure info is properly typed
+        info = cast(dict[str, Any], info)
+
+    # Add percentage split specific information
+    info["split_method"] = "percentage"
+    info["train_percentage"] = train_percentage
+    info["total_days_estimated"] = total_days
+    info["train_days_estimated"] = train_days
+    info["validation_days_requested"] = num_validation_days
     return train_df, val_df, info
 
 

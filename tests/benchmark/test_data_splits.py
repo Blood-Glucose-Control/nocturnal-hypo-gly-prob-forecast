@@ -274,10 +274,13 @@ def test_get_train_validation_split_by_percentage_half(dataset):
     assert info.get("validation_days_requested") == 15
 
 
-@pytest.mark.parametrize("pct", [0.0, 1.0, -0.1, 1.1])
+@pytest.mark.parametrize("pct", [0.0, -0.1, 1.1])
 def test_get_train_validation_split_by_percentage_invalid_percentage(dataset, pct):
     """Invalid train_percentage should raise ValueError."""
-    with pytest.raises(ValueError, match="train_percentage must be between 0 and 1"):
+    with pytest.raises(
+        ValueError,
+        match=r"train_percentage must be between 0 \(exclusive\) and 1 \(inclusive\)",
+    ):
         get_train_validation_split_by_percentage(dataset, train_percentage=pct)
 
 
