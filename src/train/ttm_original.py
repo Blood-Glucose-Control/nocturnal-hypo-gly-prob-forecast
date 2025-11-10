@@ -8,7 +8,7 @@ import pandas as pd
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ExponentialLR
 from transformers import Trainer, TrainingArguments
-from transformers.integrations import INTEGRATION_TO_CALLBACK
+from transformers.integrations.integration_utils import INTEGRATION_TO_CALLBACK
 
 from tsfm_public import (
     TimeSeriesPreprocessor,
@@ -19,7 +19,6 @@ from tsfm_public import (
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
 from tsfm_public.toolkit.time_series_preprocessor import (
-    DEFAULT_FREQUENCY_MAPPING,
     ScalerType,
 )
 from src.data.diabetes_datasets.data_loader import get_loader
@@ -139,7 +138,7 @@ def _get_finetune_trainer(
         context_length=context_length,
         prediction_length=forecast_length,
         freq_prefix_tuning=False,
-        freq=DEFAULT_FREQUENCY_MAPPING[str(resolution_min) + "min"],
+        freq=str(resolution_min) + "min",
         prefer_l1_loss=False,
         prefer_longer_context=True,
         # Can also provide TTM Config args. A param?
