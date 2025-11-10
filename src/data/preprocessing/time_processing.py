@@ -392,7 +392,9 @@ def get_train_validation_split_by_percentage(
             "Set your datetime column as index: df.set_index('datetime', inplace=True)"
         )
     if not (0 < train_percentage <= 1):
-        raise ValueError("train_percentage must be between 0 and 1 (exclusive)")
+        raise ValueError(
+            "train_percentage must be between 0 (exclusive) and 1 (inclusive)"
+        )
 
     total_days = (df.index.max() - df.index.min()).days
     if total_days < 2:
@@ -408,9 +410,12 @@ def get_train_validation_split_by_percentage(
     if train_percentage == 1:
         train_df = df
         val_df = None
-        info = {}
+        info = {
+            "train_days_actual": total_days,
+            "validation_days_actual": 0,
+        }
     else:
-        # get get_train_validation_split is only for internal use
+        # get_train_validation_split is only for internal use
         train_df, val_df, info = get_train_validation_split(
             df,
             num_validation_days=num_validation_days,

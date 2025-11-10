@@ -4,7 +4,7 @@
 
 import glob
 import os
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
+from typing import Dict, List, Union
 
 import pandas as pd
 from datasets import Dataset
@@ -21,10 +21,10 @@ from tsfm_public import (
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
-from tsfm_public.toolkit.time_series_preprocessor import DEFAULT_FREQUENCY_MAPPING
 
 from src.tuning.benchmark import impute_missing_values
 from src.utils.os_helper import get_project_root
+from src.utils.time_series_helper import get_interval_minutes
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
@@ -149,7 +149,7 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
 
     for patient_id, df in patients_dict.items():
         # Check if patient has the correct interval
-        if (df.index[1] - df.index[0]).components.minutes == resolution_min:
+        if get_interval_minutes(df) == resolution_min:
             print(f"Processing patient {patient_id}...")
             # Process each patient individually
             p_df = df.iloc[:]
@@ -179,16 +179,16 @@ def _get_finetune_trainer(
     use_cpu=False,
     column_specifiers={},
     resolution_min=5,
-    split_config: Dict[str, Union[List[Union[int, float]], float]]={'train': 1},
+    split_config: Dict[str, Union[List[Union[int, float]], float]] = {"train": 1},
     save_dir=None,
     resume_dir=None,
 ):
     """
     Create and configure a HuggingFace Trainer for fine-tuning a Time Series Transformer Model (TTM).
-    
+
     This function sets up the complete training pipeline including data preprocessing, model configuration,
     dataset splitting, optimizer/scheduler setup, and trainer initialization with custom callbacks and metrics.
-    
+
     Args:
         dataset_name (str): Name identifier for the dataset, used in output directory naming.
         model_path (str): Path or HuggingFace model identifier for the pre-trained TTM model.
@@ -221,16 +221,16 @@ def _get_finetune_trainer(
             If None, no automatic saving. Defaults to None.
         resume_dir (str, optional): Directory to resume training from existing checkpoint.
             If provided, overrides save_dir. Defaults to None.
-    
+
     Returns:
         tuple: A tuple containing:
             - finetune_forecast_trainer (Trainer): Configured HuggingFace Trainer ready for training
             - dset_test (Dataset): Test dataset for final evaluation
-    
+
     Raises:
         ValueError: If datasets cannot be created or have unexpected shapes/sizes.
         RuntimeError: If model loading or configuration fails.
-    
+
     Notes:
         - Automatically applies StandardScaler normalization to input features
         - Uses AdamW optimizer with ExponentialLR scheduler (gamma=0.9999)
@@ -239,7 +239,7 @@ def _get_finetune_trainer(
         - Evaluation occurs every 500 steps with checkpoint saving
         - When resuming from checkpoint, ensure fewshot_percent, resolution_min,
           context_length, forecast_length, and batch_size match the original run
-    
+
     Example:
         >>> trainer, test_data = _get_finetune_trainer(
         ...     dataset_name="patient_data_5min",
@@ -274,12 +274,15 @@ def _get_finetune_trainer(
         # Can also provide TTM Config args. A param?
         loss=loss,
         quantile=quantile,
-        return_model_key=False 
+        return_model_key=False,
     )
-    
+
     # Type assertion since return_model_key=False guarantees a model is returned
     from transformers import PreTrainedModel
-    assert isinstance(finetune_forecast_model, PreTrainedModel), "Expected PreTrainedModel when return_model_key=False"
+
+    assert isinstance(
+        finetune_forecast_model, PreTrainedModel
+    ), "Expected PreTrainedModel when return_model_key=False"
 
     temp_datasets = get_datasets(
         ts_preprocessor=tsp,
@@ -294,7 +297,7 @@ def _get_finetune_trainer(
         raise ValueError("Expected 3 datasets (train, val, test)")
 
     dset_train, dset_val, dset_test = temp_datasets  # type: ignore[misc]
-    
+
     if freeze_backbone:
         print(
             "Number of params before freezing backbone",

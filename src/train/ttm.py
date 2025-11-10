@@ -27,6 +27,7 @@ from tsfm_public.toolkit.time_series_preprocessor import DEFAULT_FREQUENCY_MAPPI
 
 from src.tuning.benchmark import impute_missing_values
 from src.utils.os_helper import get_project_root
+from src.utils.time_series_helper import get_interval_minutes
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
@@ -339,7 +340,7 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
 
     for patient_id, df in patients_dict.items():
         # Check if patient has the correct interval
-        if (df.index[1] - df.index[0]).components.minutes == resolution_min:
+        if get_interval_minutes(df) == resolution_min:
             info_print(f"Processing patient {patient_id}...")
             # Process each patient individually
             p_df = df.iloc[:]

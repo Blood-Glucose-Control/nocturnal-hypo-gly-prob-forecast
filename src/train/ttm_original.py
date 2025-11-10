@@ -18,20 +18,24 @@ from tsfm_public import (
 )
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
-from tsfm_public.toolkit.time_series_preprocessor import DEFAULT_FREQUENCY_MAPPING
+from tsfm_public.toolkit.time_series_preprocessor import (
+    DEFAULT_FREQUENCY_MAPPING,
+    ScalerType,
+)
 from src.data.diabetes_datasets.data_loader import get_loader
 from src.data.models import ColumnNames
 from src.utils.os_helper import get_project_root
 
 # TODO: Maybe we should move this out of the benchmark module to a utils module
 from src.tuning.benchmark import impute_missing_values
+from src.utils.time_series_helper import get_interval_minutes
 
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
 
 
-# TODO: Move this to its own
+# TODO: Move this to its own module
 def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_feature):
     """
     1. Select patients with the correct resolution
@@ -44,7 +48,7 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
 
     for patient_id, df in patients_dict.items():
         # Check if patient has the correct interval
-        if (df.index[1] - df.index[0]).components.minutes == resolution_min:
+        if get_interval_minutes(df) == resolution_min:
             print(f"Processing patient {patient_id}...")
             # Process each patient individually
             p_df = df.iloc[:]
@@ -68,6 +72,12 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
                     f"  Error: Patient {patient_id} has none of the requested features. Skipping."
                 )
                 continue
+
+            dropped_features = [
+                col for col in x_features if col not in available_features
+            ]
+            if dropped_features:
+                print(f"Warning: Dropping unavailable x_features: {dropped_features}")
 
             p_df = p_df[available_features]
 
@@ -121,7 +131,7 @@ def _get_finetune_trainer(
         prediction_length=forecast_length,
         scaling=True,
         encode_categorical=False,
-        scaler_type="standard",
+        scaler_type=ScalerType.STANDARD,
     )
 
     finetune_forecast_model = get_model(
@@ -129,7 +139,7 @@ def _get_finetune_trainer(
         context_length=context_length,
         prediction_length=forecast_length,
         freq_prefix_tuning=False,
-        freq=DEFAULT_FREQUENCY_MAPPING[f"{resolution_min}min"],
+        freq=DEFAULT_FREQUENCY_MAPPING[str(resolution_min) + "min"],
         prefer_l1_loss=False,
         prefer_longer_context=True,
         # Can also provide TTM Config args. A param?

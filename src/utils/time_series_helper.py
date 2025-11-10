@@ -13,4 +13,4 @@ def get_interval_minutes(processed_df: pd.DataFrame) -> int:
         raise ValueError("DataFrame must have datetime index")
     if processed_df.shape[0] <= 1:
         raise ValueError("DataFrame must contain more than 1 row")
-    return int((processed_df.index[1] - processed_df.index[0]).components.minutes)
+    return int((processed_df.index[1] - processed_df.index[0]).total_seconds() / 60)
