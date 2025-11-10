@@ -34,7 +34,7 @@ CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
 
 
-# TODO: Move this to its own module
+# TODO: Move this to its own utility module
 def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_feature):
     """
     1. Select patients with the correct resolution

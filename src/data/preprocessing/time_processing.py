@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: cjrisi/christopher AT uwaterloo/gluroo DOT ca/com
 
 """
 Time-based preprocessing utilities for continuous glucose monitoring data.
@@ -373,12 +373,12 @@ def get_train_validation_split_by_percentage(
 
     Args:
         df (pd.DataFrame): Input dataframe for a SINGLE patient with DatetimeIndex (REQUIRED)
-        train_percentage (float): Percentage of the total days to use for training. If 1, return the entire dataframe as train and None as validation.
+        train_percentage (float): Percentage of the total days to use for training. If 1, return the entire dataframe as train and empty dataframe as validation.
 
     Returns:
         tuple[pd.DataFrame, pd.DataFrame, dict]:
             (train_data, validation_data, split_info)
-            where train_data and validation_data are DataFrames for the single patient
+            where train_data is a DataFrame and validation_data is a DataFrame
 
     Raises:
         ValueError: If DatetimeIndex is not found or insufficient data for requested validation period
@@ -409,7 +409,7 @@ def get_train_validation_split_by_percentage(
 
     if train_percentage == 1:
         train_df = df
-        val_df = None
+        val_df = pd.DataFrame(columns=df.columns)
         info = {
             "train_days_actual": total_days,
             "validation_days_actual": 0,
