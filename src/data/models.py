@@ -54,8 +54,8 @@ class DatasetConfig(BaseModel):
         None  # Cache path relative to the cache root (should include raw and processed directories)
     )
     required_files: list[str] = Field(
-        min_length=1
-    )  # Required raw data files of the dataset
+        default_factory=list
+    )  # Optional raw data files of the dataset (empty list if no files required)
 
     # Metadata of the dataset
     url: str = Field(pattern=r"^https?://")
@@ -66,3 +66,5 @@ class DatasetConfig(BaseModel):
     competition_name: str | None = (
         None  # Competition name of the dataset (for Kaggle datasets)
     )
+
+    hf_dataset_id: str | None = None

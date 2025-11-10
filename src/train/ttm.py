@@ -23,10 +23,10 @@ from tsfm_public import (
 )
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
-from tsfm_public.toolkit.time_series_preprocessor import DEFAULT_FREQUENCY_MAPPING
 
 from src.tuning.benchmark import impute_missing_values
 from src.utils.os_helper import get_project_root
+from src.utils.time_series_helper import get_interval_minutes
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
@@ -339,7 +339,7 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
 
     for patient_id, df in patients_dict.items():
         # Check if patient has the correct interval
-        if (df.index[1] - df.index[0]).components.minutes == resolution_min:
+        if get_interval_minutes(df) == resolution_min:
             info_print(f"Processing patient {patient_id}...")
             # Process each patient individually
             p_df = df.iloc[:]
@@ -393,7 +393,7 @@ def _get_finetune_trainer(
         context_length=context_length,
         prediction_length=forecast_length,
         freq_prefix_tuning=False,
-        freq=DEFAULT_FREQUENCY_MAPPING[f"{resolution_min}min"],
+        freq=f"{resolution_min}min",
         prefer_l1_loss=False,
         prefer_longer_context=True,
         # Can also provide TTM Config args. A param?

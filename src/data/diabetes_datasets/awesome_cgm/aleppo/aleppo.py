@@ -7,7 +7,7 @@ from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.cache_manager import get_cache_manager
 
 # from src.data.data_models import Dataset
-from src.data.dataset_configs import get_dataset_config
+from src.data.dataset_configs import DatasetConfig, get_dataset_config
 from src.data.preprocessing.time_processing import (
     get_train_validation_split_by_percentage,
 )
@@ -28,7 +28,7 @@ PATIENT_COUNT = 226
 class AleppoDataLoader(DatasetBase):
     def __init__(
         self,
-        keep_columns: list = None,
+        keep_columns: list[str] | None = None,
         num_validation_days: int = 20,
         use_cached: bool = True,
         train_percentage: float = 0.9,
@@ -45,7 +45,7 @@ class AleppoDataLoader(DatasetBase):
         self.num_validation_days = num_validation_days
         self.train_percentage = train_percentage
         self.cache_manager = get_cache_manager()
-        self.dataset_config = get_dataset_config(self.dataset_name)
+        self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
         self.raw_data_path = None
         self.use_cached = use_cached
         self.parallel = parallel
@@ -127,6 +127,10 @@ class AleppoDataLoader(DatasetBase):
             )
             interim_csvs = []
         if not interim_csvs:
+            if self.raw_data_path is None:
+                raise ValueError(
+                    "Raw data path is not set. Please call load_raw() first."
+                )
             create_aleppo_csv(self.raw_data_path)
 
         # interim -> processed ({pid}_full.csv)
@@ -152,6 +156,8 @@ class AleppoDataLoader(DatasetBase):
         val_dict: dict[str, pd.DataFrame] = {}
 
         for patient_id, df in self.processed_data.items():
+            records = 0
+            span_days = 0
             try:
                 patient_df = df.copy()
 
@@ -180,9 +186,8 @@ class AleppoDataLoader(DatasetBase):
                     patient_df, train_percentage=self.train_percentage
                 )
 
-                # Keep datetime as a column if needed downstream
-                train_dict[patient_id] = train_df.reset_index()
-                val_dict[patient_id] = val_df.reset_index()
+                train_dict[patient_id] = train_df
+                val_dict[patient_id] = val_df
 
             except (ValueError, TypeError) as e:
                 # p81 should be the only patient with insufficient data.

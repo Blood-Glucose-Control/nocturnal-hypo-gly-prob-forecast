@@ -21,12 +21,16 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Literal, Optional
+from typing import Dict, Literal, Optional
 from typing_extensions import deprecated
 
 import pandas as pd
 
-from src.data.dataset_configs import DatasetSourceType, get_dataset_config
+from src.data.dataset_configs import (
+    DatasetConfig,
+    DatasetSourceType,
+    get_dataset_config,
+)
 from src.utils.os_helper import get_project_root
 
 logger = logging.getLogger(__name__)
@@ -98,7 +102,9 @@ class CacheManager:
         Get the absolute cache path for a specific dataset and data type.
         """
         config = get_dataset_config(dataset_name)
-        relative_cache_path = config.get("cache_path")
+        relative_cache_path = config.cache_path
+        if relative_cache_path is None:
+            raise ValueError(f"Cache path not specified for dataset {dataset_name}")
         return self.get_dataset_cache_path(relative_cache_path) / data_type
 
     @deprecated("No longer used, use get_absolute_path_by_type directly instead")
@@ -116,9 +122,7 @@ class CacheManager:
         """Get the processed data path for a specific dataset."""
         return self.get_absolute_path_by_type(dataset_name, "processed")
 
-    def ensure_raw_data(
-        self, dataset_name: str, dataset_config: Dict[str, Any]
-    ) -> Path:
+    def ensure_raw_data(self, dataset_name: str, dataset_config: DatasetConfig) -> Path:
         """
         Ensure raw data is available given a dataset configuration, fetching it if necessary.
 
@@ -145,13 +149,14 @@ class CacheManager:
         logger.info(
             f"Raw data for {dataset_name} not found in cache: {raw_path} \n fetching from source"
         )
-        source = dataset_config.get("source")
+        source = dataset_config.source
         if source == DatasetSourceType.KAGGLE_BRIS_T1D:
             self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.HUGGING_FACE:
             self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.AWESOME_CGM:
             self._fetch_awesome_cgm_data(dataset_name, raw_path, dataset_config)
+        # TODO: Not sure if this is needed anymore
         elif source == DatasetSourceType.LOCAL:
             self._copy_local_data(dataset_name, raw_path, dataset_config)
         else:
@@ -159,7 +164,7 @@ class CacheManager:
 
         return raw_path
 
-    def _raw_data_exists(self, raw_path: Path, dataset_config: Dict[str, Any]) -> bool:
+    def _raw_data_exists(self, raw_path: Path, dataset_config: DatasetConfig) -> bool:
         """
         Check if raw data exists and is valid for a given dataset configuration.
 
@@ -174,14 +179,14 @@ class CacheManager:
             return False
 
         # Check for required files based on dataset configuration
-        required_files = dataset_config.get("required_files", [])
+        required_files = dataset_config.required_files
         if required_files:
             return all((raw_path / file).exists() for file in required_files)
 
         return any(raw_path.iterdir())
 
     def _fetch_kaggle_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
         Fetch data from Kaggle. Note that Kaggle datasets already have their own caching mechanism.
@@ -196,7 +201,7 @@ class CacheManager:
         """
         raw_path.mkdir(parents=True, exist_ok=True)
 
-        competition_name = dataset_config.get("competition_name")
+        competition_name = dataset_config.competition_name
         if not competition_name:
             raise ValueError(
                 f"Kaggle competition name not specified for dataset {dataset_name}"
@@ -250,7 +255,7 @@ class CacheManager:
 
     # TODO: Test this function once we do have a HuggingFace dataset to test with
     def _fetch_huggingface_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
         Fetch data from HuggingFace.
@@ -267,7 +272,7 @@ class CacheManager:
 
         raw_path.mkdir(parents=True, exist_ok=True)
 
-        dataset_id = dataset_config.get("dataset_id")
+        dataset_id = dataset_config.hf_dataset_id
         if not dataset_id:
             raise ValueError(
                 f"HuggingFace dataset ID not specified for dataset {dataset_name}"
@@ -349,7 +354,7 @@ class CacheManager:
             )
 
     def _fetch_awesome_cgm_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
         Load data from the cache directory. The data has to be manually downloaded from the source and placed in the correct cache directory.
@@ -368,7 +373,7 @@ class CacheManager:
             )
 
     def _copy_local_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: Dict[str, Any]
+        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
         Copy data from local source.
@@ -381,7 +386,7 @@ class CacheManager:
         Raises:
             RuntimeError: If local data copying fails
         """
-        source_path = dataset_config.get("source_path")
+        source_path = dataset_config.cache_path
         if not source_path:
             raise ValueError(
                 f"Local source path not specified for dataset {dataset_name}"
@@ -621,7 +626,7 @@ class CacheManager:
         self,
         dataset_name: str,
         file_format: str = "csv",
-        dataset_type: str = None,
+        dataset_type: str | None = None,
     ) -> dict[str, pd.DataFrame] | None:
         """
         Load processed data with datetime index from cache. processed data has a naming convention of {patient_id}_full.csv

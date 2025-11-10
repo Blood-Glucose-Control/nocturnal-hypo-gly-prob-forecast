@@ -7,6 +7,7 @@ import os
 import logging
 from src.utils.os_helper import get_project_root
 import sqlite3
+from pathlib import Path
 
 """
 Note from the readme:
@@ -165,10 +166,10 @@ ORDER BY pid, date ASC;
 """
 
 
-def _raw_to_db(raw_folder_path: str):
+def _raw_to_db(raw_folder_path: Path):
     """
     Args:
-        raw_folder_path (str): Path to the `raw` folder for the dataset. This should be the `Data Tables` folder.
+        raw_folder_path (Path): Path to the `raw` folder for the dataset. This should be the `Data Tables` folder.
         output_csv_path (str): Path to the CSV file for the processed data.
         Create a database from the raw data.
     """
@@ -211,7 +212,7 @@ def _raw_to_db(raw_folder_path: str):
 
 
 # This can probbaly be in a utils file
-def query_db(query: str, db_path: str = DB_PATH):
+def query_db(query: str, db_path: Path = DB_PATH):
     # Open the connection first
     con = sqlite3.connect(db_path)
     # cur = con.cursor()
@@ -233,10 +234,10 @@ def convert_to_csv(df):
         logger.info(f"Done processing pid {pid}")
 
 
-def create_aleppo_csv(raw_folder_path: str):
+def create_aleppo_csv(raw_folder_path: Path):
     """
     Args:
-        raw_folder_path (str): Path to the `raw` folder for the dataset. This should be the `Data Tables` folder.
+        raw_folder_path (Path): Path to the `raw` folder for the dataset. This should be the `Data Tables` folder.
     """
 
     # Import the raw data to a database.
