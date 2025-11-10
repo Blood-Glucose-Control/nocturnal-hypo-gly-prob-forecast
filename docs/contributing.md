@@ -55,7 +55,7 @@ This project is committed to providing a welcoming and inclusive environment for
    python -m venv .noctprob-venv
    source .noctprob-venv/bin/activate  # Linux/Mac
    # .noctprob-venv\Scripts\activate  # Windows
-   
+
    # Alternative: Using conda (if you prefer)
    conda create -n nocturnal python=3.12
    conda activate nocturnal
@@ -210,11 +210,11 @@ nocturnal-hypo-gly-prob-forecast/
    ```bash
    # Run all tests
    pytest tests/
-   
+
    # Run specific test categories
    pytest tests/data/
    pytest tests/train/
-   
+
    # Run with coverage
    pytest tests/ --cov=src --cov-report=html
    ```
@@ -392,27 +392,27 @@ The project uses a **two-file configuration** for Pylance:
 ```python
 # Good
 def process_patient_data(
-    patient_id: str, 
+    patient_id: str,
     data: pd.DataFrame,
     config: ProcessingConfig
 ) -> ProcessedData:
     """Process patient time series data for model training.
-    
+
     Args:
         patient_id: Unique identifier for patient
         data: Raw patient time series data
         config: Processing configuration parameters
-        
+
     Returns:
         ProcessedData object ready for model training
-        
+
     Raises:
         ValueError: If patient_id is invalid
         DataProcessingError: If data processing fails
     """
     if not patient_id:
         raise ValueError("Patient ID cannot be empty")
-    
+
     try:
         processed = apply_preprocessing(data, config)
         return ProcessedData(patient_id, processed)
@@ -483,26 +483,26 @@ def fine_tune_model(
     training_config: TrainingConfig
 ) -> Dict[str, float]:
     """Fine-tune a foundation model on patient data.
-    
+
     This function implements the complete fine-tuning pipeline including
     data loading, model setup, training, and evaluation.
-    
+
     Args:
         model_path: Path to pre-trained model or HuggingFace identifier
         data_config: Configuration for data loading and preprocessing
         training_config: Configuration for training hyperparameters
-        
+
     Returns:
         Dictionary containing final training metrics including:
         - eval_loss: Final validation loss
         - eval_accuracy: Final validation accuracy
         - training_time: Total training time in seconds
-        
+
     Raises:
         ModelNotFoundError: If model_path is invalid
         DataLoadingError: If data loading fails
         TrainingError: If training process fails
-        
+
     Example:
         >>> data_config = DataConfig(source="kaggle_brisT1D")
         >>> train_config = TrainingConfig(epochs=10, batch_size=64)
@@ -607,7 +607,7 @@ Use **Conventional Commits**:
 
 **Types:**
 - `feat`: New feature
-- `fix`: Bug fix  
+- `fix`: Bug fix
 - `docs`: Documentation changes
 - `style`: Formatting changes
 - `refactor`: Code restructuring
@@ -662,11 +662,11 @@ When contributing new models, follow the [Foundation Model Template](./foundatio
    model:
      type: "your_model"
      path: "path/to/pretrained/model"
-   
+
    data:
      source_name: "kaggle_brisT1D"
      batch_size: 64
-   
+
    training:
      num_epochs: 10
      learning_rate: 1e-4
@@ -734,7 +734,7 @@ When contributing new models, follow the [Foundation Model Template](./foundatio
 
 **Problem**: Error message `'python.analysis.diagnosticSeverityOverrides' cannot be set when a pyrightconfig.json or pyproject.toml is being used.`
 
-**Solution**: 
+**Solution**:
 1. Remove any `python.analysis.diagnosticSeverityOverrides` from `.vscode/settings.json`
 2. Configure diagnostic settings in `pyrightconfig.json` instead
 3. Reload VS Code window: `Ctrl+Shift+P` → "Developer: Reload Window"

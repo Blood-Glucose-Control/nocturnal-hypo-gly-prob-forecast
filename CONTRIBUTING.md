@@ -22,7 +22,7 @@ This project focuses on blood glucose control and forecasting research using fou
 - Add new evaluation metrics
 - Optimize model performance
 
-### 📊 **Data Science** 
+### 📊 **Data Science**
 - Add support for new diabetes datasets
 - Improve data preprocessing
 - Enhance feature engineering
@@ -60,7 +60,7 @@ This project focuses on blood glucose control and forecasting research using fou
 ## Issue Reporting
 
 - **Bugs**: Use the bug report template
-- **Features**: Use the feature request template  
+- **Features**: Use the feature request template
 - **Questions**: Use GitHub Discussions
 
 ## Recognition

@@ -26,7 +26,7 @@
   "reportOptionalSubscript": "warning",
   "reportPrivateImportUsage": "warning",
   "reportUnknownArgumentType": "none",
-  "reportUnknownLambdaType": "none", 
+  "reportUnknownLambdaType": "none",
   "reportUnknownMemberType": "none",
   "reportUnknownParameterType": "none",
   "reportUnknownVariableType": "none",

@@ -54,7 +54,7 @@ This document outlines a comprehensive reorganization plan for the Time Series T
 def finetune_ttm(model_path, data_source, ...):
     # 200+ lines mixing:
     # - Data loading
-    # - Model setup  
+    # - Model setup
     # - Training logic
     # - Evaluation
     # - Checkpointing
@@ -75,7 +75,7 @@ def finetune_ttm(model_path, data_source, ...):
    class MyModel(LightningModule):
        def training_step(self, batch, batch_idx):
            return loss
-   
+
    # Training script is minimal
    trainer = Trainer()
    trainer.fit(model, datamodule)
@@ -127,22 +127,22 @@ src/train/ttm/
 
 ```
 # Migration path for existing functionality
-ttm.py → 
+ttm.py →
 ├── core/trainer.py (main training logic)
 ├── data/loaders.py (cache loading)
 ├── data/preprocessing.py (feature reduction)
 ├── evaluation/metrics.py (custom metrics)
 └── utils/logging.py (debug/info print)
 
-ttm_custom_metrics.py → 
+ttm_custom_metrics.py →
 ├── evaluation/metrics.py (metrics and callbacks)
 └── core/trainer.py (training logic)
 
-ttm_original.py → 
+ttm_original.py →
 ├── data/loaders.py (legacy loader support)
 └── core/trainer.py (training logic)
 
-ttm_runner.py → 
+ttm_runner.py →
 └── cli/runner.py (CLI interface)
 ```
 
@@ -164,18 +164,18 @@ touch src/train/ttm/{__init__.py,core/__init__.py,data/__init__.py,evaluation/__
 - **`config/defaults.py`**: Define default configurations
 
 #### 1.3 Data Layer
-- **`data/loaders.py`**: 
+- **`data/loaders.py`**:
   ```python
   class CacheDataLoader:
       def load_processed_data_from_cache(self, data_source_name): ...
-  
+
   class LegacyDataLoader:
       def load_via_get_loader(self, data_source_name): ...
   ```
 - **`data/preprocessing.py`**: Move `reduce_features_multi_patient()`
 
 #### 1.4 Evaluation Layer
-- **`evaluation/metrics.py`**: 
+- **`evaluation/metrics.py`**:
   ```python
   class CustomMetricsCallback(TrainerCallback): ...
   def compute_custom_metrics(eval_pred): ...
@@ -204,16 +204,16 @@ touch src/train/ttm/{__init__.py,core/__init__.py,data/__init__.py,evaluation/__
           self.data_loader = self._create_data_loader()
           self.model_factory = TTMModelFactory()
           self.evaluator = TTMEvaluator()
-      
+
       def train(self):
           # Orchestrate training pipeline
           data = self.data_loader.load(self.config.data_source_name)
           model = self.model_factory.create_model(self.config)
           trainer = self._create_hf_trainer(model, data)
-          
+
           # Training
           trainer.train()
-          
+
           # Evaluation
           metrics = self.evaluator.evaluate(trainer, data)
           return metrics

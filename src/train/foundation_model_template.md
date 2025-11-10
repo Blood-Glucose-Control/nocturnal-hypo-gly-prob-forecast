@@ -66,80 +66,80 @@ from transformers import Trainer, TrainingArguments
 
 class BaseFoundationTrainer(ABC):
     """Base class for all foundation model trainers."""
-    
+
     def __init__(self, config: 'ModelConfig'):
         self.config = config
         self.data_loader = self._create_data_loader()
         self.model_factory = self._create_model_factory()
         self.evaluator = self._create_evaluator()
         self.logger = self._create_logger()
-        
+
     @abstractmethod
     def _create_data_loader(self):
         """Create appropriate data loader for this model type."""
         pass
-    
+
     @abstractmethod
     def _create_model_factory(self):
         """Create model factory for this architecture."""
         pass
-    
+
     @abstractmethod
     def _create_evaluator(self):
         """Create evaluator for this model type."""
         pass
-    
+
     def _create_logger(self):
         """Create logger (can be overridden for custom logging)."""
         from ..utils.logging import create_logger
         return create_logger(self.config.logging)
-    
+
     def train(self) -> Dict[str, Any]:
         """Main training orchestration method."""
         self.logger.info(f"Starting {self.__class__.__name__} training")
-        
+
         # Load and prepare data
         data = self.data_loader.load(self.config.data)
-        
+
         # Create model
         model = self.model_factory.create_model(self.config.model)
-        
+
         # Create trainer
         hf_trainer = self._create_hf_trainer(model, data)
-        
+
         # Training
         self._pre_training_hook(hf_trainer, data)
         training_result = self._execute_training(hf_trainer)
         self._post_training_hook(hf_trainer, training_result)
-        
+
         # Evaluation
         metrics = self.evaluator.evaluate(hf_trainer, data)
-        
+
         # Save results
         self._save_results(metrics, training_result)
-        
+
         return metrics
-    
+
     @abstractmethod
     def _create_hf_trainer(self, model, data) -> Trainer:
         """Create HuggingFace trainer with model-specific configuration."""
         pass
-    
+
     def _pre_training_hook(self, trainer: Trainer, data: Any) -> None:
         """Hook called before training starts."""
         pass
-    
+
     def _execute_training(self, trainer: Trainer) -> Any:
         """Execute the actual training."""
         if self.config.training.resume_from_checkpoint:
             return trainer.train(resume_from_checkpoint=True)
         else:
             return trainer.train()
-    
+
     def _post_training_hook(self, trainer: Trainer, result: Any) -> None:
         """Hook called after training completes."""
         pass
-    
+
     def _save_results(self, metrics: Dict[str, Any], training_result: Any) -> None:
         """Save training results and metrics."""
         # Implementation depends on output configuration
@@ -148,26 +148,26 @@ class BaseFoundationTrainer(ABC):
 # Concrete implementation for specific model
 class {ModelName}Trainer(BaseFoundationTrainer):
     """Trainer for {ModelName} architecture."""
-    
+
     def _create_data_loader(self):
         from ..data.loaders import {ModelName}DataLoader
         return {ModelName}DataLoader(self.config.data)
-    
+
     def _create_model_factory(self):
         from ..core.model_factory import {ModelName}ModelFactory
         return {ModelName}ModelFactory()
-    
+
     def _create_evaluator(self):
         from ..evaluation.evaluator import {ModelName}Evaluator
         return {ModelName}Evaluator(self.config.evaluation)
-    
+
     def _create_hf_trainer(self, model, data) -> Trainer:
         # Model-specific trainer creation
         training_args = TrainingArguments(
             # Standard HF arguments based on config
             **self.config.training.to_hf_args()
         )
-        
+
         return Trainer(
             model=model,
             args=training_args,
@@ -195,7 +195,7 @@ class BaseModelConfig:
     model_path: str
     device: str = "auto"
     precision: str = "fp16"  # fp16, fp32, bf16
-    
+
     def validate(self):
         """Validate configuration parameters."""
         if self.model_type not in self.supported_model_types():
@@ -209,7 +209,7 @@ class BaseDataConfig:
     batch_size: int = 32
     num_workers: int = 4
     data_split: List[float] = None
-    
+
     def __post_init__(self):
         if self.data_split is None:
             self.data_split = [0.8, 0.1, 0.1]  # train, val, test
@@ -228,7 +228,7 @@ class BaseTrainingConfig:
     logging_steps: int = 100
     resume_from_checkpoint: bool = False
     gradient_checkpointing: bool = False
-    
+
     def to_hf_args(self) -> Dict[str, Any]:
         """Convert to HuggingFace TrainingArguments format."""
         return {
@@ -250,7 +250,7 @@ class BaseEvaluationConfig:
     metrics: List[str] = None
     eval_batch_size: Optional[int] = None
     save_predictions: bool = True
-    
+
     def __post_init__(self):
         if self.metrics is None:
             self.metrics = ["loss"]
@@ -283,13 +283,13 @@ class {ModelName}Config:
     evaluation: BaseEvaluationConfig
     logging: BaseLoggingConfig
     output: BaseOutputConfig
-    
+
     @classmethod
     def from_yaml(cls, yaml_path: str) -> '{ModelName}Config':
         """Load configuration from YAML file."""
         conf = OmegaConf.load(yaml_path)
         return cls(**conf)
-    
+
     def validate(self):
         """Validate entire configuration."""
         self.model.validate()
@@ -308,15 +308,15 @@ from torch.utils.data import DataLoader, Dataset
 
 class BaseDataLoader(ABC):
     """Base class for all model data loaders."""
-    
+
     def __init__(self, config: 'BaseDataConfig'):
         self.config = config
-        
+
     @abstractmethod
     def load(self, **kwargs) -> 'DataContainer':
         """Load and return processed datasets."""
         pass
-    
+
     @abstractmethod
     def _validate_data(self, data: Any) -> bool:
         """Validate loaded data meets requirements."""
@@ -324,17 +324,17 @@ class BaseDataLoader(ABC):
 
 class DataContainer:
     """Container for train/val/test datasets."""
-    
-    def __init__(self, 
-                 train_dataset: Dataset, 
-                 val_dataset: Dataset, 
+
+    def __init__(self,
+                 train_dataset: Dataset,
+                 val_dataset: Dataset,
                  test_dataset: Dataset,
                  metadata: Dict[str, Any] = None):
         self.train_dataset = train_dataset
-        self.val_dataset = val_dataset  
+        self.val_dataset = val_dataset
         self.test_dataset = test_dataset
         self.metadata = metadata or {}
-    
+
     @property
     def num_samples(self) -> Dict[str, int]:
         return {
@@ -346,48 +346,48 @@ class DataContainer:
 # Model-specific implementation
 class {ModelName}DataLoader(BaseDataLoader):
     """Data loader for {ModelName} architecture."""
-    
+
     def load(self, **kwargs) -> DataContainer:
         # Load raw data
         raw_data = self._load_raw_data()
-        
+
         # Preprocess
         processed_data = self._preprocess_data(raw_data)
-        
+
         # Split
         train_data, val_data, test_data = self._split_data(processed_data)
-        
+
         # Create datasets
         train_dataset = self._create_dataset(train_data)
         val_dataset = self._create_dataset(val_data)
         test_dataset = self._create_dataset(test_data)
-        
+
         # Validate
         assert self._validate_data(train_dataset)
-        
+
         return DataContainer(train_dataset, val_dataset, test_dataset)
-    
+
     def _load_raw_data(self):
         """Load raw data based on source_name."""
         # Implementation specific to model and data source
         pass
-    
+
     def _preprocess_data(self, raw_data):
         """Apply model-specific preprocessing."""
         from ..data.preprocessing import {ModelName}Preprocessor
         preprocessor = {ModelName}Preprocessor(self.config)
         return preprocessor.process(raw_data)
-    
+
     def _split_data(self, data):
         """Split data according to config."""
         # Standard splitting logic
         pass
-    
+
     def _create_dataset(self, data) -> Dataset:
         """Create PyTorch Dataset."""
         from ..data.datasets import {ModelName}Dataset
         return {ModelName}Dataset(data, self.config)
-    
+
     def _validate_data(self, dataset: Dataset) -> bool:
         """Validate dataset meets model requirements."""
         # Model-specific validation
@@ -406,11 +406,11 @@ from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 class BaseMetricsCallback(TrainerCallback):
     """Base callback for metrics collection."""
-    
+
     def __init__(self, metric_functions: Dict[str, Callable] = None):
         self.metric_functions = metric_functions or {}
         self.metrics_history = []
-        
+
     def on_log(self, args, state, control, logs=None, **kwargs):
         """Called when logging occurs."""
         if logs is not None:
@@ -419,33 +419,33 @@ class BaseMetricsCallback(TrainerCallback):
                 if f"eval_{name}" not in logs:
                     # Only add if not already computed
                     continue
-            
+
             # Add metadata
             logs["timestamp"] = time.time()
             logs["step"] = state.global_step
             logs["epoch"] = state.epoch
-            
+
             self.metrics_history.append(logs.copy())
-        
+
         return control
-    
+
     def get_metrics_summary(self) -> Dict[str, Any]:
         """Get summary of all collected metrics."""
         if not self.metrics_history:
             return {}
-        
+
         return {
             "final_metrics": self.metrics_history[-1],
             "best_metrics": self._get_best_metrics(),
             "metrics_history": self.metrics_history,
             "training_summary": self._get_training_summary()
         }
-    
+
     def _get_best_metrics(self) -> Dict[str, Any]:
         """Get best metrics across training."""
         # Implementation depends on what "best" means for each metric
         pass
-    
+
     def _get_training_summary(self) -> Dict[str, Any]:
         """Get training summary statistics."""
         pass
@@ -453,21 +453,21 @@ class BaseMetricsCallback(TrainerCallback):
 def compute_base_metrics(eval_pred) -> Dict[str, float]:
     """Base metrics computation function."""
     predictions, labels = eval_pred
-    
+
     # Ensure correct shapes
     if len(predictions.shape) > 2:
         predictions = predictions.reshape(-1, predictions.shape[-1])
         labels = labels.reshape(-1, labels.shape[-1])
-    
+
     # Convert to numpy if needed
     if hasattr(predictions, 'cpu'):
         predictions = predictions.cpu().numpy()
     if hasattr(labels, 'cpu'):
         labels = labels.cpu().numpy()
-    
+
     # Base metrics that work for most models
     metrics = {}
-    
+
     try:
         # Mean squared error (for regression tasks)
         mse = np.mean((predictions - labels) ** 2)
@@ -475,26 +475,26 @@ def compute_base_metrics(eval_pred) -> Dict[str, float]:
         metrics["rmse"] = float(np.sqrt(mse))
     except:
         pass
-    
+
     try:
         # Mean absolute error
         mae = np.mean(np.abs(predictions - labels))
         metrics["mae"] = float(mae)
     except:
         pass
-    
+
     return metrics
 
 # Model-specific metrics
 class {ModelName}MetricsCallback(BaseMetricsCallback):
     """Metrics callback for {ModelName}."""
-    
+
     def __init__(self):
         super().__init__(metric_functions={
             "custom_metric_1": self._compute_custom_metric_1,
             "custom_metric_2": self._compute_custom_metric_2,
         })
-    
+
     def _compute_custom_metric_1(self, predictions, labels):
         """Compute model-specific metric 1."""
         # Implementation specific to model requirements
@@ -503,14 +503,14 @@ class {ModelName}MetricsCallback(BaseMetricsCallback):
 def compute_{model_name}_metrics(eval_pred) -> Dict[str, float]:
     """Compute {ModelName}-specific metrics."""
     base_metrics = compute_base_metrics(eval_pred)
-    
+
     predictions, labels = eval_pred
-    
+
     # Add model-specific metrics
     custom_metrics = {
         "model_specific_metric": 0.0,  # Replace with actual computation
     }
-    
+
     return {**base_metrics, **custom_metrics}
 ```
 
@@ -530,11 +530,11 @@ def create_base_parser() -> argparse.ArgumentParser:
         description=f"{ModelName} Training Pipeline",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
-    
+
     # Configuration
     parser.add_argument(
-        "--config", 
-        type=str, 
+        "--config",
+        type=str,
         help="Path to YAML configuration file"
     )
     parser.add_argument(
@@ -542,30 +542,30 @@ def create_base_parser() -> argparse.ArgumentParser:
         type=str,
         help="Directory to save run outputs and logs"
     )
-    
+
     # Model overrides
     model_group = parser.add_argument_group("Model Configuration")
     model_group.add_argument("--model-path", type=str, help="Model path or HF identifier")
     model_group.add_argument("--device", type=str, choices=["auto", "cpu", "cuda"], help="Device to use")
-    
+
     # Training overrides
     train_group = parser.add_argument_group("Training Configuration")
     train_group.add_argument("--batch-size", type=int, help="Training batch size")
     train_group.add_argument("--learning-rate", type=float, help="Learning rate")
     train_group.add_argument("--num-epochs", type=int, help="Number of training epochs")
     train_group.add_argument("--resume", action="store_true", help="Resume from checkpoint")
-    
+
     # Data overrides
     data_group = parser.add_argument_group("Data Configuration")
     data_group.add_argument("--data-source", type=str, help="Data source name")
     data_group.add_argument("--data-split", nargs="+", type=float, help="Train/val/test split")
-    
+
     # Utilities
     util_group = parser.add_argument_group("Utilities")
     util_group.add_argument("--debug", action="store_true", help="Enable debug mode")
     util_group.add_argument("--dry-run", action="store_true", help="Dry run (validate config only)")
     util_group.add_argument("--validate-config", action="store_true", help="Validate configuration and exit")
-    
+
     return parser
 
 def apply_cli_overrides(config: '{ModelName}Config', args: argparse.Namespace) -> '{ModelName}Config':
@@ -589,14 +589,14 @@ def apply_cli_overrides(config: '{ModelName}Config', args: argparse.Namespace) -
     if args.debug:
         config.logging.debug_mode = True
         config.logging.level = "DEBUG"
-    
+
     return config
 
 def main():
     """Main CLI entry point."""
     parser = create_base_parser()
     args = parser.parse_args()
-    
+
     # Load configuration
     if args.config:
         from ..config.manager import load_config
@@ -604,46 +604,46 @@ def main():
     else:
         from ..config.defaults import get_default_config
         config = get_default_config()
-    
+
     # Apply CLI overrides
     config = apply_cli_overrides(config, args)
-    
+
     # Validate configuration
     try:
         config.validate()
     except Exception as e:
         print(f"Configuration validation failed: {e}", file=sys.stderr)
         sys.exit(1)
-    
+
     if args.validate_config:
         print("Configuration is valid!")
         sys.exit(0)
-    
+
     if args.dry_run:
         print("Dry run mode - configuration loaded successfully")
         print(f"Would train {config.model.model_type} for {config.training.num_epochs} epochs")
         sys.exit(0)
-    
+
     # Setup output directory
     if args.run_dir:
         output_dir = Path(args.run_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
         config.output.save_dir = str(output_dir)
-    
+
     # Start training
     from ..core.trainer import {ModelName}Trainer
-    
+
     print(f"Starting {ModelName} training...")
     print(f"Model: {config.model.model_path}")
     print(f"Data: {config.data.source_name}")
     print(f"Epochs: {config.training.num_epochs}")
-    
+
     trainer = {ModelName}Trainer(config)
     metrics = trainer.train()
-    
+
     print("Training completed successfully!")
     print(f"Final metrics: {metrics.get('final_metrics', {})}")
-    
+
     # Save metrics if requested
     if config.output.save_metrics and args.run_dir:
         import json
@@ -746,13 +746,13 @@ data:
 training:
   num_epochs: 50
   learning_rate: 5e-5
-  
+
 evaluation:
   metrics: ["loss", "accuracy", "f1", "precision", "recall"]
 
 logging:
   wandb_project: "{model_name}_experiments"
-  
+
 output:
   experiment_name: "{model_name}_baseline_experiment"
 ```
@@ -776,7 +776,7 @@ from src.train.{model_name}.config.schema import {ModelName}Config
 
 class Test{ModelName}Trainer:
     """Test suite for {ModelName}Trainer."""
-    
+
     @pytest.fixture
     def sample_config(self):
         """Create a sample configuration for testing."""
@@ -797,19 +797,19 @@ class Test{ModelName}Trainer:
             logging=BaseLoggingConfig(),
             output=BaseOutputConfig()
         )
-    
+
     @pytest.fixture
     def trainer(self, sample_config):
         """Create trainer instance for testing."""
         return {ModelName}Trainer(sample_config)
-    
+
     def test_trainer_initialization(self, trainer):
         """Test trainer initializes correctly."""
         assert trainer.config is not None
         assert trainer.data_loader is not None
         assert trainer.model_factory is not None
         assert trainer.evaluator is not None
-    
+
     @patch('src.train.{model_name}.data.loaders.{ModelName}DataLoader.load')
     @patch('src.train.{model_name}.core.model_factory.{ModelName}ModelFactory.create_model')
     def test_train_method(self, mock_create_model, mock_load_data, trainer):
@@ -817,22 +817,22 @@ class Test{ModelName}Trainer:
         # Mock data loading
         mock_data = Mock()
         mock_load_data.return_value = mock_data
-        
+
         # Mock model creation
         mock_model = Mock()
         mock_create_model.return_value = mock_model
-        
+
         # Mock HF trainer
         with patch.object(trainer, '_create_hf_trainer') as mock_create_trainer:
             mock_hf_trainer = Mock()
             mock_create_trainer.return_value = mock_hf_trainer
-            
+
             with patch.object(trainer.evaluator, 'evaluate') as mock_evaluate:
                 mock_evaluate.return_value = {"test_loss": 0.5}
-                
+
                 # Test training
                 result = trainer.train()
-                
+
                 # Assertions
                 mock_load_data.assert_called_once()
                 mock_create_model.assert_called_once()
@@ -843,17 +843,17 @@ class Test{ModelName}Trainer:
 # Integration test template
 class TestIntegration{ModelName}:
     """Integration tests for {ModelName} pipeline."""
-    
+
     @pytest.mark.slow
     def test_end_to_end_training(self, tmp_path):
         """Test complete training pipeline with small dataset."""
         # Create minimal config
         config = create_minimal_config(output_dir=tmp_path)
-        
+
         # Run training
         trainer = {ModelName}Trainer(config)
         metrics = trainer.train()
-        
+
         # Check outputs
         assert metrics is not None
         assert "final_metrics" in metrics
@@ -884,7 +884,7 @@ When implementing a new foundation model architecture, follow this checklist:
 - [ ] Define dataset class
 - [ ] Test data loading and preprocessing
 
-### Phase 4: Model Integration  
+### Phase 4: Model Integration
 - [ ] Implement model factory
 - [ ] Define model-specific trainer class
 - [ ] Configure HuggingFace trainer integration
@@ -985,7 +985,7 @@ When migrating existing model training code to this template:
 This template provides a standardized, scalable foundation for implementing training pipelines for any foundation model architecture. By following this structure, new models will be:
 
 - **Consistent** with existing implementations
-- **Maintainable** through clear separation of concerns  
+- **Maintainable** through clear separation of concerns
 - **Testable** with comprehensive testing support
 - **Configurable** with YAML-based configuration management
 - **Professional** following industry best practices
