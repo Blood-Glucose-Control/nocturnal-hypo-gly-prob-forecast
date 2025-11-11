@@ -30,4 +30,3 @@ echo "Lynch 2022 data processing completed"
 
 
 ## Run sbatch sbatch lynch_data_processing.sh
-    
