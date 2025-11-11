@@ -260,8 +260,8 @@ class DatasetBase(ABC):
                     idx = pd.DatetimeIndex(
                         pd.to_datetime(patient_df["datetime"], errors="coerce")
                     )
-                except Exception:
-                    return "unknown"
+                except (TypeError, ValueError, AttributeError):
+                    return "Could not parse datetime column into index with pd.DatetimeIndex(pd.to_datetime(\{column\}))."
             else:
                 return "unknown"
         else:
@@ -278,8 +278,8 @@ class DatasetBase(ABC):
         try:
             idx_min = idx.min().normalize()
             gen_norm = pd.Timestamp(generic_date).normalize()
-        except Exception:
-            return "unknown"
+        except (TypeError, ValueError, AttributeError):
+            return "Coould not complete date normalization for comparison."
 
         # Exact match to generic start date
         if idx_min == gen_norm:
@@ -307,10 +307,10 @@ class DatasetBase(ABC):
             if "datetime" in patient_df.columns:
                 try:
                     patient_df = patient_df.set_index("datetime")
-                except Exception:
+                except (KeyError, ValueError, TypeError) as e:
                     return {
                         "patient_id": patient_id,
-                        "error": "No datetime index available",
+                        "error": f"No datetime index available: {type(e).__name__}",
                     }
             else:
                 # Cannot process without datetime

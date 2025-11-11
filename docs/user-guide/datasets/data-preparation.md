@@ -46,7 +46,7 @@ All datasets are transformed into a standardized format for our benchmark pipeli
 
 ### Core Columns (Required for All Datasets)
 
-| Column                 | Type                   | Description                                 | Source                      | Required?              |           
+| Column                 | Type                   | Description                                 | Source                      | Required?              |
 | ---------------------- | ---------------------- | ------------------------------------------- | --------------------------- | ---------------------- |
 | `datetime`             | `pd.Timestamp` (INDEX) | Primary timestamp for data manipulation     | Created during processing   | Required               |
 | `p_num`                | `str`                  | Patient identifier                          | Original dataset            | Required               |
@@ -165,7 +165,7 @@ Write a shell script for WATGPU:
 scripts/watgpu/data_processing_scripts/{datasets}_data_processing.sh
 ```
 Make sure the partition you're asking for isn't going to request too many resources.
-Check [SLURM documentation ](https://slurm.schedmd.com/pdfs/summary.pdf) for more details. 
+Check [SLURM documentation ](https://slurm.schedmd.com/pdfs/summary.pdf) for more details.
 e.g., `sinfo`, `squeue`, `scontrol show node watgpu608` etc.
 
 Script template:
