@@ -37,6 +37,8 @@ Our benchmark pipeline was originally built on the Kaggle Bristol Type 1 Diabete
 3. simglucose (Coming Soon)
       - Planned integration from benchmark repo as a package
       - Will provide simulated data for testing and validation
+4. Lynch 2022 Dataset
+5. Aleppo Dataset
 
 ## Data Format Standardization
 
@@ -44,17 +46,17 @@ All datasets are transformed into a standardized format for our benchmark pipeli
 
 ### Core Columns (Required for All Datasets)
 
-| Column                 | Type                   | Description                                 | Source                      |
-| ---------------------- | ---------------------- | ------------------------------------------- | --------------------------- |
-| `datetime`             | `pd.Timestamp` (INDEX) | Primary timestamp for data manipulation     | Created during processing   |
-| `p_num`                | `str`                  | Patient identifier                          | Original dataset            |
-| `bg-0:00`              | `float`                | Blood glucose measurement in mg/dL (70-120) | Original dataset            |
-| `insulin-0:00`         | `float`                | Insulin dose in units                       | Original dataset            |
-| `carbs-0:00`           | `float`                | Carbohydrate intake in grams                | Original dataset            |
-| `cob`                  | `float`                | Carbohydrates on board in grams             | Derived from `carbs-0:00`   |
-| `carb_availability`    | `float`                | Estimated total carbohydrates in blood      | Derived from `carbs-0:00`   |
-| `iob`                  | `float`                | Insulin on board in units                   | Derived from `insulin-0:00` |
-| `insulin_availability` | `float`                | Insulin in plasma                           | Derived from `insulin-0:00` |
+| Column                 | Type                   | Description                                 | Source                      | Required?              |
+| ---------------------- | ---------------------- | ------------------------------------------- | --------------------------- | ---------------------- |
+| `datetime`             | `pd.Timestamp` (INDEX) | Primary timestamp for data manipulation     | Created during processing   | Required               |
+| `p_num`                | `str`                  | Patient identifier                          | Original dataset            | Required               |
+| `bg-0:00`              | `float`                | Blood glucose measurement in mg/dL (70-120) | Original dataset            | Required               |
+| `insulin-0:00`         | `float`                | Insulin dose in units                       | Original dataset            | Preferred              |
+| `carbs-0:00`           | `float`                | Carbohydrate intake in grams                | Original dataset            | Preferred              |
+| `cob`                  | `float`                | Carbohydrates on board in grams             | Derived from `carbs-0:00`   | Preferred              |
+| `carb_availability`    | `float`                | Estimated total carbohydrates in blood      | Derived from `carbs-0:00`   | Preferred              |
+| `iob`                  | `float`                | Insulin on board in units                   | Derived from `insulin-0:00` | Preferred              |
+| `insulin_availability` | `float`                | Insulin in plasma                           | Derived from `insulin-0:00` | Preferred              |
 
 ### Optional Activity Metrics
 These columns are available but not typically used in statistical models:
@@ -83,6 +85,10 @@ These columns are available but not typically used in statistical models:
 | `affects_iob`     | `bool`  | Insulin on board flag                                       |
 | `day_start_shift` | `int`   | Day start definition for data processing                    |
 
+#### Lynch Dataset
+
+#### Aleppo Dataset
+
 ## Message Types (Gluroo Dataset)
 The Gluroo dataset includes three types of messages that are processed during data transformation:
 
@@ -96,17 +102,23 @@ To add a new dataset to the pipeline, follow these steps:
 
 ### 1. Directory Structure
 ```
-src/data/
-├── ${dataset_name}/
-│   ├── ${dataset_name}.py      # Data loader class
+cache/data/{dataset_name}/
 │   ├── raw/                    # Original data files
+│   |   └── .gitkeep
 │   └── processed/              # Processed and cached data
+|   |   └── .gitkeep
+src/data/diabetes_datasets/
+├── ${dataset_name}/
+│   ├── __init__.py             # Data initialization
+│   ├── ${dataset_name}.py      # Data loader class
+│   ├── data_cleaner.py         # Data cleaning functions specific ONLY to this dataset
+│   └── README.md               # Instructions on how to access raw data, and where it should go.
 ```
 
 ### 2. Implementation Steps
 
 #### 2.1 Create Data Loader
-- Create a new file: `src/data/${dataset_name}/${dataset_name}.py`
+- Create a new file: `src/data/diabetes_datasets/${dataset_name}/${dataset_name}.py`
 - Inherit from `DatasetBase` class
 - Implement caching mechanism to avoid reprocessing
 - Raw data should be fetchd via API of the host if available (We are thinking of just hosting a private HF datasets now)
@@ -147,6 +159,48 @@ Implement a data cleaner that performs the following steps in order:
          ```python
          data_transforms.create_iob_and_ins_availability_cols(df)
          ```
+#### 2.3 Batch Processing Script
+Write a shell script for WATGPU:
+```
+scripts/watgpu/data_processing_scripts/{datasets}_data_processing.sh
+```
+Make sure the partition you're asking for isn't going to request too many resources.
+Check [SLURM documentation ](https://slurm.schedmd.com/pdfs/summary.pdf) for more details.
+e.g., `sinfo`, `squeue`, `scontrol show node watgpu608` etc.
+
+Script template:
+```
+#!/bin/bash
+
+#SBATCH --job-name="{dataset}_data_processing"
+#SBATCH --time=10:00:00
+#SBATCH --cpus-per-task=30
+#SBATCH --mem-per-cpu=1GB
+#SBATCH --partition=HI
+#SBATCH -o results/runs/{dataset}_data_processing/slurm-%j.out
+#SBATCH -e results/runs/{dataset}_data_processing/slurm-%j.err
+#SBATCH --mail-user={your_email@domain.com}
+#SBATCH --mail-type=ALL
+
+# Activate the virtual environment
+source $HOME/nocturnal/.noctprob-venv/bin/activate
+
+
+# Inline Python code to process the aleppo data (not the best practice but the task is simple enough)
+echo "Starting {dataset} data processing"
+python -c "
+from src.data.diabetes_datasets.data_loader import get_loader
+loader = get_loader(
+    data_source_name='{dataset}',
+    use_cached=False,
+    parallel=True,
+    max_workers=30,
+)
+"
+echo "{dataset} data processing completed"
+
+## Run sbatch {dataset}_data_processing.sh
+```
 
 ### 3. Documentation
 Document all the changes

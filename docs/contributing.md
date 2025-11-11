@@ -706,25 +706,19 @@ When contributing new models, follow the [Foundation Model Template](./foundatio
 
 ### Adding New Datasets
 
-1. **Create data loader**:
+See [Data Documentation](https://probabilistic-forecasting-of-nocturnal-hypoglycemia.readthedocs.io/en/latest/user-guide/datasets/data-preparation/)
+
+1. **Add new directory structure. (See here)**
+2. **Create data loader**:
    ```python
    class NewDatasetLoader(BaseDataLoader):
        def load_raw_data(self): ...
        def preprocess(self, data): ...
        def validate(self, data): ...
    ```
-
-2. **Add configuration**:
-   ```yaml
-   # configs/datasets/new_dataset.yaml
-   source_name: "new_dataset"
-   format: "csv"
-   columns:
-     timestamp: "datetime"
-     target: "bg_level"
-   ```
-
-3. **Update documentation**: Add dataset description and usage
+3. **Add WATGPU sbatch script.**
+   ```scripts/watgpu/data_processing_scripts/{dataset}_data_processing.sh```
+4. **Update documentation**: Add dataset description and usage
 
 ---
 
