@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name="ttm_finetune_kaggle_batchsize_search"
+#SBATCH --job-name="ttm_finetune_aleppo_batchsize_search"
 #SBATCH --time=10:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --mem-per-cpu=4GB
