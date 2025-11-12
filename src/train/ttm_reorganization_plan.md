@@ -100,11 +100,11 @@ src/train/ttm/
 │   ├── trainer.py               # TTMTrainer class - main orchestration
 │   ├── model_factory.py         # Model creation and configuration
 │   └── pipeline.py              # End-to-end training pipeline
-            ├── data/
-            │   ├── __init__.py
-            │   ├── loaders.py               # Data loading strategies
-            │   ├── preprocessing.py         # Feature reduction, imputation
-            │   └── validation.py            # Data validation utilities
+├── data/
+│   ├── __init__.py
+│   ├── loaders.py               # Data loading strategies
+│   ├── preprocessing.py         # Feature reduction, imputation
+│   └── validation.py            # Data validation utilities
 ├── evaluation/
 │   ├── __init__.py
 │   ├── metrics.py               # Custom metrics and callbacks

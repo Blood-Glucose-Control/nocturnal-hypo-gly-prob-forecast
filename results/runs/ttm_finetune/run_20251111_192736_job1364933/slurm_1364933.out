@@ -10,7 +10,7 @@ Python Version: Python 3.11.4
 Python internal path check: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
 
 === GPU Information ===
-Tue Nov 11 19:27:42 2025       
+Tue Nov 11 19:27:42 2025
 +-----------------------------------------------------------------------------------------+
 | NVIDIA-SMI 575.57.08              Driver Version: 575.57.08      CUDA Version: 12.9     |
 |-----------------------------------------+------------------------+----------------------+
@@ -22,7 +22,7 @@ Tue Nov 11 19:27:42 2025
 | N/A   26C    P8             31W /  350W |       0MiB /  46068MiB |      0%      Default |
 |                                         |                        |                  N/A |
 +-----------------------------------------+------------------------+----------------------+
-                                                                                         
+
 +-----------------------------------------------------------------------------------------+
 | Processes:                                                                              |
 |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
@@ -68,7 +68,7 @@ INFO: [info_print] [main] Loading configuration from: /u6/cjrisi/nocturnal/model
 INFO: [info_print] [main] Configuration saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251111_192736_job1364933/experiment_config.yaml
 INFO: [info_print] [main] =====================================
 INFO: [info_print] [main] === Calling finetune_ttm() ===
-INFO: [finetune_ttm] -------------------- Preparing data... -------------------- 
+INFO: [finetune_ttm] -------------------- Preparing data... --------------------
 
 INFO: [load_processed_data_from_cache] Found 226 processed CSV files in /u6/cjrisi/nocturnal/cache/data/awesome_cgm/aleppo/processed
 INFO: [load_processed_data_from_cache] Loaded p40_full: 63574 rows
