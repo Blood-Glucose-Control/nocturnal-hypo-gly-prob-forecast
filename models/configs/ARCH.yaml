@@ -1,8 +1,0 @@
-p: 15
-q: 12
-o: 12
-lags: 36
-power: 1
-dist: ged
-mean: AR
-vol: EGARCH
