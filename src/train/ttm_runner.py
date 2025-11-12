@@ -130,7 +130,7 @@ def main():
                     "carb_availability",
                     "insulin_availability",
                     "iob",
-                ], 
+                ],
             ),
             timestamp_column=data_config.get("timestamp_column", "datetime"),
             resolution_min=data_config.get("resolution_min", 5),
