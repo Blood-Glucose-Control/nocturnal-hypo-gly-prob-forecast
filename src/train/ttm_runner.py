@@ -124,7 +124,7 @@ def main():
             y_feature=data_config.get("y_feature", ["bg_mM"]),
             x_features=data_config.get(
                 "x_features",
-                ["steps", "cob", "carb_availability", "insulin_availability", "iob"],
+                ["steps", "cob", "carb_availability", "insulin_availability", "iob"], #TODO: Should be loaded from config.
             ),
             timestamp_column=data_config.get("timestamp_column", "datetime"),
             resolution_min=data_config.get("resolution_min", 5),

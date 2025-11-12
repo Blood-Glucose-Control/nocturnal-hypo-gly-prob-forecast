@@ -24,6 +24,7 @@ from tsfm_public import (
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
 
+from src.data.cache_manager import get_cache_manager
 from src.tuning.benchmark import impute_missing_values
 from src.utils.os_helper import get_project_root
 from src.utils.time_series_helper import get_interval_minutes
@@ -295,9 +296,9 @@ def load_processed_data_from_cache(data_source_name):
     Returns:
         dict: Dictionary with patient_id as key and DataFrame as value
     """
-    # Get the cache directory path
-    root_dir = get_project_root()
-    cache_dir = os.path.join(root_dir, "cache", "data", data_source_name, "processed")
+    # Get the cache directory path using CacheManager
+    cache_manager = get_cache_manager()
+    cache_dir = cache_manager.get_absolute_path_by_type(data_source_name, "processed")
 
     # Find all CSV files in the processed directory
     csv_files = glob.glob(os.path.join(cache_dir, "*.csv"))
