@@ -1,8 +1,15 @@
-# Foundation Model Training Pipeline Template
+# Time Series Foundation Model (TSFM) Training Pipeline Template
 
 ## Overview
 
-This document provides a standardized template for organizing foundation model training pipelines in the nocturnal project. Use this template when adding new model architectures (LLMs, Vision Transformers, Diffusion Models, etc.) to ensure consistency, maintainability, and adherence to industry best practices.
+This document provides a standardized template for organizing **Time Series Foundation Model** training pipelines in the nocturnal project. This infrastructure is designed specifically for modern foundation models (TTM, Chronos, TimesFM, etc.) and is completely separate from the legacy traditional ML benchmarking system.
+
+**Key Principles:**
+- Use existing `src/data/` infrastructure via `CacheManager`
+- Focus on TSFM-specific training logic only  
+- Independent evaluation system (separate from legacy `src/eval/`)
+- Organized output structure for multiple foundation models and experiments
+- Industry-standard modular architecture
 
 ---
 
@@ -17,16 +24,10 @@ src/train/{model_name}/
 │   ├── model_factory.py         # Model creation and configuration
 │   ├── pipeline.py              # End-to-end training pipeline
 │   └── scheduler.py             # Learning rate schedulers (if custom)
-├── data/
-│   ├── __init__.py
-│   ├── loaders.py               # Data loading strategies
-│   ├── preprocessing.py         # Model-specific preprocessing
-│   ├── transforms.py            # Data transformations
-│   └── validation.py            # Data validation utilities
 ├── evaluation/
 │   ├── __init__.py
-│   ├── metrics.py               # Model-specific metrics and callbacks
-│   ├── evaluator.py             # Evaluation pipeline
+│   ├── metrics.py               # TSFM-specific metrics and callbacks
+│   ├── evaluator.py             # Evaluation pipeline (separate from legacy)
 │   └── visualization.py         # Result visualization (optional)
 ├── losses/
 │   ├── __init__.py
@@ -38,14 +39,93 @@ src/train/{model_name}/
 │   └── schema.py                # Configuration validation schema
 ├── utils/
 │   ├── __init__.py
-│   ├── logging.py               # Logging utilities
+│   ├── logging.py               # TSFM-specific logging utilities
 │   ├── checkpointing.py         # Model checkpointing
-│   ├── io.py                    # File I/O utilities
+│   ├── preprocessing.py         # TSFM-specific preprocessing (uses src/data/)
 │   └── helpers.py               # Model-specific helper functions
 └── cli/
     ├── __init__.py
-    ├── runner.py                # Command-line interface
+    ├── runner.py                # Main CLI entry point
     └── commands.py              # CLI subcommands
+```
+
+---
+
+## Proposed Output Structure for Multiple TSFMs
+
+To handle multiple time series foundation models with multiple experiments each, we propose a new organized output structure:
+
+```
+tsfm_results/
+├── models/                          # Trained model artifacts
+│   ├── ttm/
+│   │   ├── kaggle_experiment_1/
+│   │   │   ├── 2025-11-12_14-30-45/     # Timestamped runs
+│   │   │   │   ├── model/                # Model checkpoints
+│   │   │   │   ├── logs/                 # Training logs
+│   │   │   │   └── metrics.json          # Training metrics
+│   │   │   └── best_model -> 2025-11-12_14-30-45/  # Symlink to best
+│   │   ├── aleppo_experiment_1/
+│   │   └── production_v1/               # Production-ready models
+│   ├── chronos/
+│   │   ├── fine_tune_experiment_1/
+│   │   └── ...
+│   └── timesfm/
+│       └── ...
+├── results/                         # Experiment results and analysis
+│   ├── ttm/
+│   │   ├── kaggle_experiment_1/
+│   │   │   ├── evaluation_report.json
+│   │   │   ├── comparison_plots/
+│   │   │   └── run_history.csv
+│   │   └── ...
+│   └── chronos/
+│       └── ...
+└── scripts/                         # TSFM-specific experiment scripts
+    ├── ttm/
+    │   ├── kaggle_fine_tune.sh
+    │   ├── aleppo_baseline.sh
+    │   └── production_deploy.py
+    ├── chronos/
+    └── shared/                      # Common utilities
+        ├── slurm_templates/
+        └── experiment_tracking.py
+```
+
+**Key Benefits:**
+- **Multi-model support**: Each TSFM gets its own namespace
+- **Experiment organization**: Clear separation of different experimental setups
+- **Production tracking**: Dedicated space for production-ready models
+- **Script organization**: TSFM-specific orchestration separate from legacy scripts
+- **Best model tracking**: Symlinks point to best performing runs
+
+---
+
+## Data Integration with Existing Infrastructure
+
+### Using CacheManager for Data Loading
+
+```python
+# Example: TTM data loading using existing infrastructure
+from src.data.cache_manager import get_cache_manager
+
+class TTMDataLoader:
+    def __init__(self, dataset_name: str):
+        self.cache_manager = get_cache_manager()
+        self.dataset_name = dataset_name
+    
+    def load_processed_data(self) -> dict[str, pd.DataFrame]:
+        """Load processed data (ready for imputation/scaling)"""
+        return self.cache_manager.load_full_processed_data(self.dataset_name)
+    
+    def prepare_for_training(self, data: dict[str, pd.DataFrame]) -> pd.DataFrame:
+        """Apply TSFM-specific preprocessing (imputation, scaling, etc.)"""
+        # Use existing preprocessing utilities from src/data/
+        from src.tuning.benchmark import impute_missing_values
+        from src.utils.time_series_helper import get_interval_minutes
+        
+        # Apply preprocessing and return training-ready data
+        pass
 ```
 
 ---
@@ -296,28 +376,60 @@ class {ModelName}Config:
         # Add model-specific validation
 ```
 
-### 3. Data Pipeline Pattern
+### 3. Data Integration Pattern (Using Existing Infrastructure)
 
-**File: `src/train/{model_name}/data/loaders.py`**
+**File: `src/train/{model_name}/utils/preprocessing.py`**
 
 ```python
-from abc import ABC, abstractmethod
-from typing import Any, Dict, Union
-import torch
-from torch.utils.data import DataLoader, Dataset
+from typing import Dict, List, Tuple
+import pandas as pd
+from src.data.cache_manager import get_cache_manager
+from src.tuning.benchmark import impute_missing_values
 
-class BaseDataLoader(ABC):
-    """Base class for all model data loaders."""
+class TSFMDataPreprocessor:
+    """TSFM-specific data preprocessing using existing infrastructure."""
 
-    def __init__(self, config: 'BaseDataConfig'):
-        self.config = config
+    def __init__(self, dataset_name: str):
+        self.dataset_name = dataset_name
+        self.cache_manager = get_cache_manager()
 
-    @abstractmethod
-    def load(self, **kwargs) -> 'DataContainer':
-        """Load and return processed datasets."""
-        pass
+    def load_and_prepare(
+        self, 
+        x_features: List[str],
+        y_features: List[str],
+        imputation_config: Dict[str, str] = None
+    ) -> Dict[str, pd.DataFrame]:
+        """
+        Load processed data from cache and apply TSFM-specific preprocessing.
+        
+        Uses existing src/data/ infrastructure:
+        - CacheManager for data loading
+        - Existing imputation utilities
+        - Existing preprocessing functions
+        """
+        # Load processed data (ready for imputation/scaling)
+        processed_data = self.cache_manager.load_full_processed_data(self.dataset_name)
+        
+        if processed_data is None:
+            raise ValueError(f"No processed data found for {self.dataset_name}")
+        
+        # Apply imputation using existing utilities
+        if imputation_config:
+            for patient_id, df in processed_data.items():
+                processed_data[patient_id] = impute_missing_values(
+                    df,
+                    columns=x_features + y_features,
+                    **imputation_config
+                )
+        
+        return processed_data
 
-    @abstractmethod
+    def prepare_for_tsfm_training(
+        self, 
+        data: Dict[str, pd.DataFrame],
+        **model_specific_params
+    ) -> pd.DataFrame:
+        """Apply TSFM-specific transformations (feature reduction, etc.)"""
     def _validate_data(self, data: Any) -> bool:
         """Validate loaded data meets requirements."""
         pass
@@ -394,18 +506,21 @@ class {ModelName}DataLoader(BaseDataLoader):
         return True
 ```
 
-### 4. Evaluation Pattern
+### 4. TSFM Evaluation Pattern (Separate from Legacy)
+
+**Note: This evaluation system is completely separate from the legacy `src/eval/` system and traditional ML benchmarking. Focus on TSFM-specific metrics and evaluation needs.**
 
 **File: `src/train/{model_name}/evaluation/metrics.py`**
 
 ```python
 from typing import Dict, Any, List, Callable
 import numpy as np
+import time
 from transformers import TrainerCallback
-from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 
-class BaseMetricsCallback(TrainerCallback):
-    """Base callback for metrics collection."""
+class TSFMMetricsCallback(TrainerCallback):
+    """TSFM-specific callback for metrics collection."""
 
     def __init__(self, metric_functions: Dict[str, Callable] = None):
         self.metric_functions = metric_functions or {}

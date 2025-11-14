@@ -88,9 +88,23 @@ def finetune_ttm(model_path, data_source, ...):
 
 ---
 
-## Proposed Reorganization
+## Proposed Reorganization (Updated Based on Architecture Review)
 
-### New Directory Structure
+**Key Principles from Architecture Review:**
+- ✅ **Use existing `src/data/` infrastructure** via `CacheManager` - no duplicate data directories
+- ✅ **Separate from legacy evaluation** - ignore `src/eval/` and traditional ML benchmarking
+- ✅ **New output structure** for multiple TSFMs and experiments
+- ✅ **Focus on TSFM-specific logic only** - leverage existing preprocessing utilities
+
+**Modern Foundation Model Requirements:**
+- 🔄 **Distributed Training**: Multi-GPU/multi-node support for large models
+- 🔄 **Memory Optimization**: Gradient checkpointing, mixed precision, model sharding
+- 🔄 **Advanced Training**: LoRA, QLoRA, parameter-efficient fine-tuning
+- 🔄 **Model Versioning**: Proper model registry and experiment tracking
+- 🔄 **Configuration Management**: Hydra-style hierarchical configs
+- 🔄 **Cloud Integration**: Wandb, MLflow, HuggingFace Hub integration
+
+### Updated Directory Structure
 
 ```
 src/train/ttm/
@@ -100,14 +114,9 @@ src/train/ttm/
 │   ├── trainer.py               # TTMTrainer class - main orchestration
 │   ├── model_factory.py         # Model creation and configuration
 │   └── pipeline.py              # End-to-end training pipeline
-├── data/
-│   ├── __init__.py
-│   ├── loaders.py               # Data loading strategies
-│   ├── preprocessing.py         # Feature reduction, imputation
-│   └── validation.py            # Data validation utilities
 ├── evaluation/
 │   ├── __init__.py
-│   ├── metrics.py               # Custom metrics and callbacks
+│   ├── metrics.py               # TTM-specific metrics and callbacks (separate from legacy)
 │   └── evaluator.py             # Evaluation pipeline
 ├── config/
 │   ├── __init__.py
@@ -115,48 +124,286 @@ src/train/ttm/
 │   └── defaults.py              # Default configurations
 ├── utils/
 │   ├── __init__.py
-│   ├── logging.py               # Debug/info logging utilities
+│   ├── logging.py               # TTM-specific logging utilities
 │   ├── checkpointing.py         # Model checkpointing
-│   └── io.py                    # File I/O utilities
+│   └── preprocessing.py         # TTM-specific preprocessing (uses src/data/ infrastructure)
 └── cli/
     ├── __init__.py
     └── runner.py                # Command-line interface
 ```
 
+### Data Integration Strategy
+
+**Use Existing Infrastructure (No Duplicate Data Directory):**
+```python
+# TTM will use existing src/data/ infrastructure
+from src.data.cache_manager import get_cache_manager
+from src.tuning.benchmark import impute_missing_values
+
+# Example: TTM preprocessing using existing utilities
+class TTMPreprocessor:
+    def __init__(self):
+        self.cache_manager = get_cache_manager()
+    
+    def load_and_prepare(self, dataset_name: str):
+        # Use existing cache system
+        data = self.cache_manager.load_full_processed_data(dataset_name)
+        # Use existing imputation utilities
+        return impute_missing_values(data, ...)
+```
+
 ### Legacy File Mapping
 
 ```
-# Migration path for existing functionality
+# Updated migration path - leverages existing infrastructure
 ttm.py →
 ├── core/trainer.py (main training logic)
-├── data/loaders.py (cache loading)
-├── data/preprocessing.py (feature reduction)
-├── evaluation/metrics.py (custom metrics)
-└── utils/logging.py (debug/info print)
+├── utils/preprocessing.py (TTM-specific preprocessing using src/data/)
+├── evaluation/metrics.py (TTM metrics, separate from legacy)
+└── utils/logging.py (TTM-specific logging)
 
 ttm_custom_metrics.py →
 ├── evaluation/metrics.py (metrics and callbacks)
 └── core/trainer.py (training logic)
 
 ttm_original.py →
-├── data/loaders.py (legacy loader support)
+├── utils/preprocessing.py (adapter for legacy loader)
 └── core/trainer.py (training logic)
 
 ttm_runner.py →
 └── cli/runner.py (CLI interface)
 ```
 
+### Research-Focused Improvements (Phase 1)
+
+**Goal**: Make the codebase cleaner and more maintainable for research, without over-engineering.
+
+**Key Research Needs:**
+1. **Easy experiment management** - Simple config changes, parameter sweeps
+2. **Multi-GPU support** - Essential for foundation model research
+3. **Better debugging** - Clear logging, metric tracking
+4. **Quick iteration** - Fast setup of new experiments
+5. **Reproducibility** - Consistent results across runs
+
+**Phase 1 Priorities (Research-Appropriate):**
+
+#### 1. **Multi-GPU Training Support (Critical for Foundation Models)**
+```python
+# Add to core/trainer.py - Simple but essential
+import torch
+from accelerate import Accelerator
+
+class TTMTrainer:
+    def __init__(self, config):
+        # Simple multi-GPU setup
+        self.accelerator = Accelerator()
+        self.device = self.accelerator.device
+        
+    def train(self, model, data):
+        # Automatic multi-GPU handling
+        model, optimizer, dataloader = self.accelerator.prepare(
+            model, optimizer, dataloader
+        )
+```
+
+#### 2. **Parameter-Efficient Fine-tuning (LoRA)**
+```python
+# Add to core/adapters.py - Huge memory savings for research
+from peft import LoraConfig, get_peft_model
+
+def add_lora_adapters(model, rank=16):
+    """Add LoRA adapters - reduces memory by 10x for fine-tuning"""
+    lora_config = LoraConfig(r=rank, target_modules=["attention"])
+    return get_peft_model(model, lora_config)
+```
+
+#### 3. **Simple Experiment Tracking**
+```python
+# Keep it simple - just structured logging + Wandb integration
+class ExperimentLogger:
+    def __init__(self, use_wandb=False):
+        self.use_wandb = use_wandb
+        if use_wandb:
+            import wandb
+            wandb.init()
+    
+    def log_metrics(self, metrics, step):
+        # Log to both console and wandb if enabled
+        pass
+```
+
+### Proposed New Output Structure for Multiple TSFMs
+
+**Problem**: Current `results/`, `models/`, and `scripts/` directories are organized for traditional ML experiments, not multiple foundation models with multiple experiments each.
+
+**Solution**: Simple, TSFM research-focused output structure:
+
+```
+experiments/                         # Simple experiment tracking
+├── ttm/
+│   ├── kaggle_experiment_1/
+│   │   ├── run_2025-11-12_14-30-45/     # Timestamped runs
+│   │   │   ├── checkpoints/              # Model checkpoints
+│   │   │   ├── logs/                     # Training logs
+│   │   │   ├── config.yaml               # Full experiment config
+│   │   │   ├── metrics.json              # Training metrics
+│   │   │   └── results.txt               # Quick results summary
+│   │   └── best_run -> run_2025-11-12_14-30-45/  # Symlink to best
+│   ├── aleppo_baseline/
+│   └── lora_experiments/
+├── chronos/                         # Future models
+└── shared/                          # Shared analysis scripts
+    ├── compare_experiments.py
+    └── plot_results.py
+```
+
+**Benefits for Research:**
+- **Easy comparison**: All experiments organized by model and dataset
+- **Quick iteration**: Simple directory structure, easy to navigate
+- **Reproducibility**: Config and results stored together
+- **No over-engineering**: Focused on research needs, not production complexity
+
+### Updated Directory Structure (Research-Focused)
+
+```
+src/train/ttm/
+├── __init__.py                   # Public API exports
+├── core/
+│   ├── __init__.py
+│   ├── trainer.py               # Main TTM training logic with multi-GPU
+│   ├── model_factory.py         # Model creation 
+│   └── adapters.py              # LoRA and parameter-efficient methods
+├── evaluation/
+│   ├── __init__.py
+│   ├── metrics.py               # TTM-specific metrics (separate from legacy)
+│   └── callbacks.py             # Training callbacks (checkpointing, logging)
+├── config/
+│   ├── __init__.py
+│   ├── manager.py               # Simple YAML loading (no Hydra complexity)
+│   └── defaults.py              # Default configurations
+├── utils/
+│   ├── __init__.py
+│   ├── logging.py               # Research-friendly logging + optional Wandb
+│   └── preprocessing.py         # TTM preprocessing using existing src/data/
+└── cli/
+    ├── __init__.py
+    └── runner.py                # Simple CLI for experiments
+├── results/                         # Experiment results and analysis
+│   ├── ttm/
+│   │   ├── kaggle_experiment_1/
+│   │   │   ├── evaluation_report.json
+│   │   │   ├── comparison_plots/
+│   │   │   └── run_history.csv
+│   │   └── ...
+│   └── chronos/
+└── scripts/                         # TSFM-specific experiment scripts
+    ├── ttm/
+    │   ├── kaggle_fine_tune.sh
+    │   ├── aleppo_baseline.sh
+    │   └── production_deploy.py
+    ├── chronos/
+    └── shared/                      # Common TSFM utilities
+        ├── slurm_templates/
+        └── experiment_tracking.py
+```
+
+**Benefits:**
+- **Multi-model support**: Each TSFM gets its own namespace
+- **Experiment organization**: Clear separation of different experimental setups  
+- **Production tracking**: Dedicated space for production-ready models
+- **Script organization**: TSFM-specific orchestration separate from legacy
+- **Best model tracking**: Symlinks point to best performing runs
+
 ---
 
-## Implementation Plan
+## Research-Focused Implementation Plan
 
-### Phase 1: Core Module Creation (Week 1-2)
+### Phase 1: Essential Research Features (Week 1-2)
 
-#### 1.1 Create Base Structure
+#### 1.1 Create Simple Structure
 ```bash
-mkdir -p src/train/ttm/{core,data,evaluation,config,utils,cli}
-touch src/train/ttm/{__init__.py,core/__init__.py,data/__init__.py,evaluation/__init__.py,config/__init__.py,utils/__init__.py,cli/__init__.py}
+mkdir -p src/train/ttm/{core,evaluation,config,utils,cli}
+touch src/train/ttm/{__init__.py,core/__init__.py,evaluation/__init__.py,config/__init__.py,utils/__init__.py,cli/__init__.py}
 ```
+
+#### 1.2 Multi-GPU Support (Critical for Foundation Models)
+- **`core/trainer.py`**: Add Accelerate library integration for easy multi-GPU
+  ```python
+  from accelerate import Accelerator
+  
+  class TTMTrainer:
+      def __init__(self):
+          self.accelerator = Accelerator()  # Handles multi-GPU automatically
+  ```
+
+#### 1.3 Parameter-Efficient Fine-tuning (Huge Research Value)
+- **`core/adapters.py`**: Add LoRA support for memory-efficient training
+  ```python
+  from peft import LoraConfig, get_peft_model
+  
+  def add_lora_to_model(model, rank=16):
+      # Reduces memory usage by ~10x for fine-tuning
+      return get_peft_model(model, LoraConfig(r=rank))
+  ```
+
+#### 1.4 Simple Experiment Tracking
+- **`utils/logging.py`**: Enhanced logging with optional Wandb integration
+- **`evaluation/callbacks.py`**: Research-friendly callbacks (checkpointing, metrics)
+
+#### 1.5 Data Integration (Use Existing Infrastructure)
+- **`utils/preprocessing.py`**: TTM preprocessing using existing CacheManager
+- Remove duplicate functions, use `src/data/` infrastructure
+
+### Why These Changes Matter for Research
+
+#### **Multi-GPU Support = Faster Experiments**
+```python
+# Before: Single GPU, slow training
+trainer = TTMTrainer()  # Takes 8 hours on single GPU
+
+# After: Multi-GPU, faster iteration  
+trainer = TTMTrainer()  # Takes 2 hours on 4 GPUs
+```
+**Research Impact**: 4x faster experiments = 4x more iterations per day
+
+#### **LoRA = More Experiments with Less Memory**
+```python
+# Before: Full fine-tuning
+model = load_ttm_model()  # Requires 80GB VRAM, limits experiments
+
+# After: LoRA fine-tuning
+model = add_lora_to_model(load_ttm_model())  # Requires 8GB VRAM
+```
+**Research Impact**: Run 10x more experiments on same hardware
+
+#### **Better Organization = Easier Comparison**
+```
+# Before: Files scattered everywhere
+ttm.py, ttm_custom_metrics.py, ttm_original.py...
+
+# After: Organized experiments
+experiments/ttm/lora_vs_full_finetune/
+├── lora_rank_8/
+├── lora_rank_16/
+└── full_finetune/
+```
+**Research Impact**: Easy to compare different approaches, reproduce results
+
+### Skip These (Too Complex for Research Phase)
+- ❌ **Advanced Model Registry** - Simple file organization is fine
+- ❌ **Hydra Configuration** - YAML + argparse works well
+- ❌ **Production Deployment** - Focus on research first  
+- ❌ **Complex MLOps** - Wandb integration is enough
+
+### What to Build Next (Phase 2)
+1. **Hyperparameter sweeps** - Simple scripts to test different configs
+2. **Result comparison tools** - Scripts to compare experiment results
+3. **Better visualization** - Plot training curves, metrics across experiments
+  ```python
+  class TTMMetricsCallback(TrainerCallback): 
+      # TTM-specific metrics, completely separate from src/eval/
+      pass
+  ```
 
 #### 1.2 Extract Utilities First
 - **`utils/logging.py`**: Move debug_print/info_print from ttm.py
