@@ -144,7 +144,7 @@ from src.tuning.benchmark import impute_missing_values
 class TTMPreprocessor:
     def __init__(self):
         self.cache_manager = get_cache_manager()
-    
+
     def load_and_prepare(self, dataset_name: str):
         # Use existing cache system
         data = self.cache_manager.load_full_processed_data(dataset_name)
@@ -198,7 +198,7 @@ class TTMTrainer:
         # Simple multi-GPU setup
         self.accelerator = Accelerator()
         self.device = self.accelerator.device
-        
+
     def train(self, model, data):
         # Automatic multi-GPU handling
         model, optimizer, dataloader = self.accelerator.prepare(
@@ -226,7 +226,7 @@ class ExperimentLogger:
         if use_wandb:
             import wandb
             wandb.init()
-    
+
     def log_metrics(self, metrics, step):
         # Log to both console and wandb if enabled
         pass
@@ -271,7 +271,7 @@ src/train/ttm/
 ├── core/
 │   ├── __init__.py
 │   ├── trainer.py               # Main TTM training logic with multi-GPU
-│   ├── model_factory.py         # Model creation 
+│   ├── model_factory.py         # Model creation
 │   └── adapters.py              # LoRA and parameter-efficient methods
 ├── evaluation/
 │   ├── __init__.py
@@ -309,7 +309,7 @@ src/train/ttm/
 
 **Benefits:**
 - **Multi-model support**: Each TSFM gets its own namespace
-- **Experiment organization**: Clear separation of different experimental setups  
+- **Experiment organization**: Clear separation of different experimental setups
 - **Production tracking**: Dedicated space for production-ready models
 - **Script organization**: TSFM-specific orchestration separate from legacy
 - **Best model tracking**: Symlinks point to best performing runs
@@ -330,7 +330,7 @@ touch src/train/ttm/{__init__.py,core/__init__.py,evaluation/__init__.py,config/
 - **`core/trainer.py`**: Add Accelerate library integration for easy multi-GPU
   ```python
   from accelerate import Accelerator
-  
+
   class TTMTrainer:
       def __init__(self):
           self.accelerator = Accelerator()  # Handles multi-GPU automatically
@@ -340,7 +340,7 @@ touch src/train/ttm/{__init__.py,core/__init__.py,evaluation/__init__.py,config/
 - **`core/adapters.py`**: Add LoRA support for memory-efficient training
   ```python
   from peft import LoraConfig, get_peft_model
-  
+
   def add_lora_to_model(model, rank=16):
       # Reduces memory usage by ~10x for fine-tuning
       return get_peft_model(model, LoraConfig(r=rank))
@@ -361,7 +361,7 @@ touch src/train/ttm/{__init__.py,core/__init__.py,evaluation/__init__.py,config/
 # Before: Single GPU, slow training
 trainer = TTMTrainer()  # Takes 8 hours on single GPU
 
-# After: Multi-GPU, faster iteration  
+# After: Multi-GPU, faster iteration
 trainer = TTMTrainer()  # Takes 2 hours on 4 GPUs
 ```
 **Research Impact**: 4x faster experiments = 4x more iterations per day
@@ -392,7 +392,7 @@ experiments/ttm/lora_vs_full_finetune/
 ### Skip These (Too Complex for Research Phase)
 - ❌ **Advanced Model Registry** - Simple file organization is fine
 - ❌ **Hydra Configuration** - YAML + argparse works well
-- ❌ **Production Deployment** - Focus on research first  
+- ❌ **Production Deployment** - Focus on research first
 - ❌ **Complex MLOps** - Wandb integration is enough
 
 ### What to Build Next (Phase 2)
@@ -400,7 +400,7 @@ experiments/ttm/lora_vs_full_finetune/
 2. **Result comparison tools** - Scripts to compare experiment results
 3. **Better visualization** - Plot training curves, metrics across experiments
   ```python
-  class TTMMetricsCallback(TrainerCallback): 
+  class TTMMetricsCallback(TrainerCallback):
       # TTM-specific metrics, completely separate from src/eval/
       pass
   ```

@@ -9,7 +9,7 @@ This document provides a clean overview of the proposed directory structures for
 ```
 src/train/
 ├── ttm.py                    # 765 lines - Most feature-complete, enhanced debugging
-├── ttm_original.py           # 455 lines - Uses deprecated data loader, simple logging  
+├── ttm_original.py           # 455 lines - Uses deprecated data loader, simple logging
 ├── ttm_custom_metrics.py     # 590 lines - Duplicate of ttm.py with different docs
 └── ttm_runner.py             # 171 lines - CLI wrapper, good pattern but isolated
 ```
@@ -31,7 +31,7 @@ src/train/ttm/
 ├── core/
 │   ├── __init__.py
 │   ├── trainer.py               # Main TTM training logic with multi-GPU
-│   ├── model_factory.py         # Model creation 
+│   ├── model_factory.py         # Model creation
 │   └── adapters.py              # LoRA and parameter-efficient methods
 ├── evaluation/
 │   ├── __init__.py
@@ -108,7 +108,7 @@ from src.tuning.benchmark import impute_missing_values
 class TTMPreprocessor:
     def __init__(self):
         self.cache_manager = get_cache_manager()
-    
+
     def load_and_prepare(self, dataset_name: str):
         # Use existing cache system
         data = self.cache_manager.load_full_processed_data(dataset_name)
@@ -129,7 +129,7 @@ class TTMTrainer:
     def __init__(self, config):
         self.accelerator = Accelerator()  # Handles multi-GPU automatically
         self.device = self.accelerator.device
-        
+
     def train(self, model, data):
         # Automatic multi-GPU handling
         model, optimizer, dataloader = self.accelerator.prepare(
@@ -157,7 +157,7 @@ class ExperimentLogger:
         if use_wandb:
             import wandb
             wandb.init()
-    
+
     def log_metrics(self, metrics, step):
         # Log to both console and wandb if enabled
         pass
@@ -215,7 +215,7 @@ touch src/train/ttm/{__init__.py,core/__init__.py,evaluation/__init__.py,config/
 
 ### Key Components to Implement First:
 1. **Multi-GPU Support** (`core/trainer.py`)
-2. **LoRA Integration** (`core/adapters.py`) 
+2. **LoRA Integration** (`core/adapters.py`)
 3. **Simple Logging** (`utils/logging.py`)
 4. **Data Integration** (`utils/preprocessing.py`)
 
@@ -228,7 +228,7 @@ touch src/train/ttm/{__init__.py,core/__init__.py,evaluation/__init__.py,config/
 - **Zero duplication**: Each function implemented once
 - **Clear separation**: Data, training, evaluation separated
 
-### Research Impact  
+### Research Impact
 - **4x faster experiments**: Multi-GPU support
 - **10x memory reduction**: LoRA fine-tuning
 - **Easy comparison**: Organized experiment structure

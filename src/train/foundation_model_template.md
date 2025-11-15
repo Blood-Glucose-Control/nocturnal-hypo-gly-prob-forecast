@@ -6,7 +6,7 @@ This document provides a standardized template for organizing **Time Series Foun
 
 **Key Principles:**
 - Use existing `src/data/` infrastructure via `CacheManager`
-- Focus on TSFM-specific training logic only  
+- Focus on TSFM-specific training logic only
 - Independent evaluation system (separate from legacy `src/eval/`)
 - Organized output structure for multiple foundation models and experiments
 - Industry-standard modular architecture
@@ -113,17 +113,17 @@ class TTMDataLoader:
     def __init__(self, dataset_name: str):
         self.cache_manager = get_cache_manager()
         self.dataset_name = dataset_name
-    
+
     def load_processed_data(self) -> dict[str, pd.DataFrame]:
         """Load processed data (ready for imputation/scaling)"""
         return self.cache_manager.load_full_processed_data(self.dataset_name)
-    
+
     def prepare_for_training(self, data: dict[str, pd.DataFrame]) -> pd.DataFrame:
         """Apply TSFM-specific preprocessing (imputation, scaling, etc.)"""
         # Use existing preprocessing utilities from src/data/
         from src.tuning.benchmark import impute_missing_values
         from src.utils.time_series_helper import get_interval_minutes
-        
+
         # Apply preprocessing and return training-ready data
         pass
 ```
@@ -394,14 +394,14 @@ class TSFMDataPreprocessor:
         self.cache_manager = get_cache_manager()
 
     def load_and_prepare(
-        self, 
+        self,
         x_features: List[str],
         y_features: List[str],
         imputation_config: Dict[str, str] = None
     ) -> Dict[str, pd.DataFrame]:
         """
         Load processed data from cache and apply TSFM-specific preprocessing.
-        
+
         Uses existing src/data/ infrastructure:
         - CacheManager for data loading
         - Existing imputation utilities
@@ -409,10 +409,10 @@ class TSFMDataPreprocessor:
         """
         # Load processed data (ready for imputation/scaling)
         processed_data = self.cache_manager.load_full_processed_data(self.dataset_name)
-        
+
         if processed_data is None:
             raise ValueError(f"No processed data found for {self.dataset_name}")
-        
+
         # Apply imputation using existing utilities
         if imputation_config:
             for patient_id, df in processed_data.items():
@@ -421,11 +421,11 @@ class TSFMDataPreprocessor:
                     columns=x_features + y_features,
                     **imputation_config
                 )
-        
+
         return processed_data
 
     def prepare_for_tsfm_training(
-        self, 
+        self,
         data: Dict[str, pd.DataFrame],
         **model_specific_params
     ) -> pd.DataFrame:
