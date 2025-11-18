@@ -1,0 +1,64 @@
+{
+    "timestamp": "2025-05-13_05-10-33",
+    "yaml_path": "./src/tuning/configs/1_arma_05min.yaml",
+    "interval": "",
+    "patient_numbers": [],
+    "scorers": [
+        "MeanSquaredError"
+    ],
+    "cv_type": "ExpandingWindowSplitter",
+    "models_count": [
+        {
+            "AutoREG": 8
+        }
+    ],
+    "impute_methods": {
+        "bg_method": "linear",
+        "hr_method": "linear",
+        "step_method": "constant",
+        "cal_method": "constant"
+    },
+    "time_taken": 4.003098011016846,
+    "x_features": [
+        "cob",
+        "carb_availability",
+        "insulin_availability",
+        "iob"
+    ],
+    "y_features": [
+        "bg-0:00"
+    ],
+    "initial_window": 864,
+    "step_length": 1728,
+    "steps_per_hour": 12,
+    "hours_to_forecast": 6,
+    "validation_days": 20,
+    "data_source_name": "gluroo",
+    "description": "No description is provided for this run",
+    "yaml_content": {
+        "AutoREG": {
+            "lags": {
+                "type": "list",
+                "values": [
+                    1,
+                    2,
+                    3,
+                    4
+                ]
+            },
+            "trend": {
+                "type": "list",
+                "values": [
+                    "n",
+                    "c"
+                ]
+            },
+            "seasonal": {
+                "type": "list",
+                "values": [
+                    false
+                ]
+            }
+        }
+    }
+}

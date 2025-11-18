@@ -1,0 +1,14 @@
+AutoETS:
+  auto:
+    type: list
+    values: [True]
+
+StatsForecastAutoCES:
+  model:
+    type: list
+    values: ["Z"]
+
+StatsForecastAutoTheta:
+  decomposition_type:
+    type: list
+    values: ["additive", "multiplicative"]
