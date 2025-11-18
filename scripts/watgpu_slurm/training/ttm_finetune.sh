@@ -14,7 +14,7 @@
 # TTM Fine-tuning SLURM Script with YAML Configuration Support
 # Usage: sbatch ttm_finetune.sh [path/to/config.yaml]
 #
-# Example: sbatch scripts/watgpu/training/ttm_finetune.sh models/configs/ttm_baseline_config.yaml
+# Example: sbatch scripts/watgpu_slurm/training/ttm_finetune.sh models/configs/ttm_baseline_config.yaml
 
 # Parse command line arguments
 CONFIG_FILE="${1:-}"

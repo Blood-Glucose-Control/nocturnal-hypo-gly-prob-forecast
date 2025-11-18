@@ -43,7 +43,6 @@ nav:
         - config_loader: api-reference/utils/config_loader.md
         - kaggle_utils: api-reference/utils/kaggle_util.md
   - Contributing: contributing.md
-
 markdown_extensions:
   - pymdownx.highlight
   - pymdownx.superfences

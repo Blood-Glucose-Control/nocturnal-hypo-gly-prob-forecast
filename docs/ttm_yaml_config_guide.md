@@ -7,12 +7,15 @@ The TTM training system now supports YAML configuration files for systematic exp
 
 ### 1. Basic Usage (Default Parameters)
 ```bash
-sbatch scripts/watgpu/ttm_finetune.sh
+sbatch scripts/watgpu_slurm/ttm_finetune.sh
 ```
 
 ### 2. With Configuration File
 ```bash
-sbatch scripts/watgpu/ttm_finetune.sh models/configs/ttm_baseline_config.yaml
+Or with a specific config:
+```bash
+sbatch scripts/watgpu_slurm/ttm_finetune.sh models/configs/ttm_baseline_config.yaml
+```
 ```
 
 ### 3. Available Configurations
@@ -26,7 +29,11 @@ Copy an existing config and modify parameters:
 ```bash
 cp models/configs/ttm_baseline_config.yaml models/configs/my_experiment.yaml
 # Edit my_experiment.yaml with your parameters
-sbatch scripts/watgpu/ttm_finetune.sh models/configs/my_experiment.yaml
+
+Run your experiment:
+```bash
+sbatch scripts/watgpu_slurm/ttm_finetune.sh models/configs/my_experiment.yaml
+```
 ```
 
 ## Key Configuration Sections
@@ -102,13 +109,13 @@ Each run now captures:
 
 ```bash
 # 1. Quick test to verify setup
-sbatch scripts/watgpu/ttm_finetune.sh models/configs/ttm_quick_test_config.yaml
+sbatch scripts/watgpu_slurm/ttm_finetune.sh models/configs/ttm_quick_test_config.yaml
 
 # 2. Check the results
 python results/runs/view_registry.py
 
 # 3. Run high-performance version
-sbatch scripts/watgpu/ttm_finetune.sh models/configs/ttm_high_performance_config.yaml
+sbatch scripts/watgpu_slurm/ttm_finetune.sh models/configs/ttm_high_performance_config.yaml
 
 # 4. Compare results in registry
 python results/runs/view_registry.py

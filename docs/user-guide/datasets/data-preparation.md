@@ -162,7 +162,9 @@ Implement a data cleaner that performs the following steps in order:
 #### 2.3 Batch Processing Script
 Write a shell script for WATGPU:
 ```
-scripts/watgpu/data_processing_scripts/{datasets}_data_processing.sh
+```bash
+scripts/watgpu_slurm/data_processing_scripts/{datasets}_data_processing.sh
+```
 ```
 Make sure the partition you're asking for isn't going to request too many resources.
 Check [SLURM documentation ](https://slurm.schedmd.com/pdfs/summary.pdf) for more details.

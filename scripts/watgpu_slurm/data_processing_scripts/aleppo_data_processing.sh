@@ -6,14 +6,13 @@
 #SBATCH --mem-per-cpu=1GB
 #SBATCH --partition=HI
 ##SBATCH --gres=gpu:1
-#SBATCH -o results/runs/aleppo_data_processing/slurm-%j.out
-#SBATCH -e results/runs/aleppo_data_processing/slurm-%j.err
+#SBATCH -o cache/data/awesome_cgm/aleppo/data_processing_job_output/slurm-%j.out
+#SBATCH -e cache/data/awesome_cgm/aleppo/data_processing_job_output/slurm-%j.err
 #SBATCH --mail-user=cjrisi@uwaterloo.ca,t3chan@uwaterloo.ca
 #SBATCH --mail-type=ALL
 
 # Activate the virtual environment
 source $HOME/nocturnal/.noctprob-venv/bin/activate
-
 
 # Inline Python code to process the aleppo data (not the best practice but the task is simple enough)
 echo "Starting aleppo data processing"
