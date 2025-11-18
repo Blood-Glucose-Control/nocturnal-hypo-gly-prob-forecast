@@ -59,7 +59,7 @@ src/data/diabetes_datasets/**/test.csv
 src/data/diabetes_datasets/**/sample_submission.csv
 src/data/diabetes_datasets/**/processed/*
 scripts/notebooks/**/*.csv
-trained_models/
+trained_models/artifacts/*
 
 scripts/watgpu_slurm/data_processing_scripts/results/
 
@@ -109,8 +109,8 @@ profile_default/
 ipython_config.py
 
 # MLflow
-mlflow_experiments/artifacts/*
-mlflow_experiments/mlflow.db
+mlflow/artifacts/*
+mlflow/mlflow.db
 
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
