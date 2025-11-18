@@ -1,4 +1,0 @@
-INFO:p-3885765:t-128430092506176:get_model.py:get_model:Loading model from: ibm-granite/granite-timeseries-ttm-r2
-INFO:p-3885765:t-128430092506176:get_model.py:get_model:Model loaded successfully from ibm-granite/granite-timeseries-ttm-r2, revision = main.
-INFO:p-3885765:t-128430092506176:get_model.py:get_model:[TTM] context_length = 512, prediction_length = 96
-slurmstepd: error: *** JOB 1354128 ON watgpu608 CANCELLED AT 2025-10-01T13:59:58 DUE TO TIME LIMIT ***

@@ -1,0 +1,56 @@
+# TTM Aleppo GPU Optimization Configuration
+# Optimizing L40S GPU for Aleppo with varying batch sizes
+
+experiment:
+  name: "ttm_aleppo_gpu_optimization"
+  description: "High performance TTM training with varying batch sizes with Aleppo dataset"
+  tags: ["100p_count1000_test", "batch_optimization", "L40S"]
+  version: "1.0"
+
+model:
+  path: "ibm-granite/granite-timeseries-ttm-r2"
+  context_length: 512
+  forecast_length: 96
+
+data:
+  source_name: "aleppo"
+  y_feature: ["bg_mM"]
+  x_features: ["cob", "carb_availability", "insulin_availability", "iob"]
+  timestamp_column: "datetime"
+  resolution_min: 5
+  data_split: [0.95, 0.05]  # Slightly more test data for better evaluation
+  fewshot_percent: 100
+  dataloader_num_workers: 2  # Use 2 workers for data loading
+
+training:
+  batch_size: 32  #
+  learning_rate: 0.001  # Slightly higher LR for larger batch
+  num_epochs: 3
+  use_cpu: false
+  loss: "mse"
+  resume_dir: null
+
+hardware:
+  expected_gpu_type: "L40S"
+  expected_memory_gb: 48
+  mixed_precision: true  # Enable mixed precision for faster training
+
+output:
+  save_checkpoints: true
+  checkpoint_frequency: 10000
+  save_best_model: true
+  log_frequency: 2000
+
+optimization:
+  scheduler: "cosine"  # Cosine annealing scheduler
+  scheduler_params:
+    T_max: 5  # Matches num_epochs
+    eta_min: 0.0001
+  optimizer: "adamw"
+  optimizer_params:
+    weight_decay: 0.01
+
+evaluation:
+  eval_frequency: 5000
+  eval_batch_size: 2048
+  metrics: ["mse"]

@@ -26,6 +26,44 @@ nocturnal/
 │   │   │   └── dataset_registry.py     # Track dataset configs used in experiments
 │   │   └── [existing structure...]
 │   │
+│   ├── evaluation/                     # Enhanced evaluation pipeline
+│   │   ├── __init__.py
+│   │   ├── metrics/
+│   │   │   ├── __init__.py
+│   │   │   ├── regression.py          # RMSE, MSE, MAE, MAPE
+│   │   │   ├── clinical.py            # Clarke Error Grid Analysis
+│   │   │   └── probabilistic.py       # Metrics for probabilistic forecasts
+│   │   ├── evaluator.py               # Main evaluation orchestrator
+│   │   └── report_generator.py        # Automated report generation
+│   │
+│   ├── experiments/                    # NEW: Experiment management
+│   │   ├── __init__.py
+│   │   ├── base/
+│   │   │   ├── __init__.py
+│   │   │   ├── experiment.py          # Base experiment class
+│   │   │   └── registry.py            # Experiment tracking
+│   │   ├── data_ablation/
+│   │   │   ├── __init__.py
+│   │   │   └── experiments.py         # Data ablation experiments
+│   │   ├── gpu_optimization/
+│   │   │   ├── __init__.py
+│   │   │   └── experiments.py         # GPU set-up testing experiments
+│   │   ├── model_scaling/
+│   │   │   ├── __init__.py
+│   │   │   └── experiments.py         # Model scaling experiments
+│   │   ├── nocturnal/
+│   │   │   ├── __init__.py
+│   │   │   └── experiments.py         # Nocturnal-specific experiments
+│   │   ├── personalization/
+│   │   │   ├── __init__.py
+│   │   │   └── experiments.py         # Personalization experiments
+│   │   ├── prandial/
+│   │   │   ├── __init__.py
+│   │   │   └── experiments.py         # Prandial-specific experiments
+│   │   └── transfer_learning/
+│   │       ├── __init__.py
+│   │       └── experiments.py         # Cross-dataset/patient transfer
+│   │
 │   ├── models/                         # NEW: Unified model architectures
 │   │   ├── __init__.py
 │   │   ├── base/
@@ -33,21 +71,32 @@ nocturnal/
 │   │   │   ├── base_model.py          # Abstract base for all TSFMs
 │   │   │   ├── distributed.py         # Multi-GPU training utilities
 │   │   │   └── lora_utils.py          # LoRA integration
-│   │   ├── ttm/
-│   │   │   ├── __init__.py
-│   │   │   ├── model.py               # Refactored TTM implementation
-│   │   │   ├── config.py              # TTM-specific configs
-│   │   │   └── trainer.py             # TTM trainer with distributed support
 │   │   ├── chronos/
 │   │   │   ├── __init__.py
 │   │   │   ├── model.py
 │   │   │   ├── config.py
 │   │   │   └── trainer.py
-│   │   ├── timegpt/
-│   │   ├── ts2vec/
-│   │   ├── timellm/
 │   │   ├── tide/
-│   │   └── tsmixer/
+│   │   ├── timegpt/
+│   │   ├── timellm/
+│   │   ├── ts2vec/
+│   │   ├── tsmixer/
+│   │   └── ttm/
+│   │   │   ├── __init__.py
+│   │   │   ├── model.py               # Refactored TTM implementation
+│   │   │   ├── config.py              # TTM-specific configs
+│   │   │   └── trainer.py             # TTM trainer with distributed support
+│   │
+│   ├── registry/                       # NEW: Model and experiment registries
+│   │   ├── __init__.py
+│   │   ├── experiments/
+│   │   │   ├── __init__.py
+│   │   │   ├── experiment_registry.py  # Experiment result tracking
+│   │   │   └── result_aggregator.py   # Cross-experiment analysis
+│   │   └── models/
+│   │   │   ├── __init__.py
+│   │   │   ├── model_registry.py      # Enhanced model tracking
+│   │   │   └── version_manager.py     # Model versioning
 │   │
 │   ├── training/                       # NEW: Unified training pipeline
 │   │   ├── __init__.py
@@ -67,52 +116,25 @@ nocturnal/
 │   │       ├── reproducibility.py     # Seed setting, version tracking
 │   │       └── memory_optimization.py # LoRA, gradient checkpointing
 │   │
-│   ├── evaluation/                     # Enhanced evaluation pipeline
-│   │   ├── __init__.py
-│   │   ├── metrics/
-│   │   │   ├── __init__.py
-│   │   │   ├── regression.py          # RMSE, MSE, MAE, MAPE
-│   │   │   ├── clinical.py            # Clarke Error Grid Analysis
-│   │   │   └── probabilistic.py       # Metrics for probabilistic forecasts
-│   │   ├── evaluator.py               # Main evaluation orchestrator
-│   │   └── report_generator.py        # Automated report generation
-│   │
-│   ├── experiments/                    # NEW: Experiment management
-│   │   ├── __init__.py
-│   │   ├── base/
-│   │   │   ├── __init__.py
-│   │   │   ├── experiment.py          # Base experiment class
-│   │   │   └── registry.py            # Experiment tracking
-│   │   ├── nocturnal/
-│   │   │   ├── __init__.py
-│   │   │   └── experiments.py         # Nocturnal-specific experiments
-│   │   ├── prandial/
-│   │   │   ├── __init__.py
-│   │   │   └── experiments.py         # Prandial-specific experiments
-│   │   ├── ablation/
-│   │   │   ├── __init__.py
-│   │   │   └── experiments.py         # Data ablation experiments
-│   │   ├── personalization/
-│   │   │   ├── __init__.py
-│   │   │   └── experiments.py         # Personalization experiments
-│   │   └── transfer_learning/
-│   │       ├── __init__.py
-│   │       └── experiments.py         # Cross-dataset/patient transfer
-│   │
-│   ├── registry/                       # NEW: Model and experiment registries
-│   │   ├── __init__.py
-│   │   ├── models/
-│   │   │   ├── __init__.py
-│   │   │   ├── model_registry.py      # Enhanced model tracking
-│   │   │   └── version_manager.py     # Model versioning
-│   │   └── experiments/
-│   │       ├── __init__.py
-│   │       ├── experiment_registry.py  # Experiment result tracking
-│   │       └── result_aggregator.py   # Cross-experiment analysis
-│   │
 │   └── [existing utils/, tuning/...]
 │
-├── configs/                            # NEW: Centralized configuration management
+├── configs/
+│   ├── data/
+│   │   ├── kaggle_bris_t1d.yaml
+│   │   ├── aleppo.yaml
+│   │   ├── gluroo.yaml
+│   │   └── multi_dataset.yaml         # Multi-dataset training configs                  # NEW: Centralized configuration management
+│   ├── evaluation/
+│   │   ├── standard_metrics.yaml
+│   │   ├── clinical_metrics.yaml
+│   │   └── multi_testset.yaml
+│   ├── experiments/
+│   │   ├── nocturnal/
+│   │   │   ├── point_forecast.yaml
+│   │   │   └── probabilistic_forecast.yaml
+│   │   ├── prandial/
+│   │   ├── ablation/
+│   │   └── [other experiment types...]
 │   ├── models/
 │   │   ├── ttm/
 │   │   │   ├── base.yaml              # Base TTM configuration
@@ -121,27 +143,11 @@ nocturnal/
 │   │   ├── chronos/
 │   │   ├── timegpt/
 │   │   └── [other models...]
-│   ├── experiments/
-│   │   ├── nocturnal/
-│   │   │   ├── point_forecast.yaml
-│   │   │   └── probabilistic_forecast.yaml
-│   │   ├── prandial/
-│   │   ├── ablation/
-│   │   └── [other experiment types...]
-│   ├── data/
-│   │   ├── kaggle_bris_t1d.yaml
-│   │   ├── aleppo.yaml
-│   │   ├── gluroo.yaml
-│   │   └── multi_dataset.yaml         # Multi-dataset training configs
-│   ├── training/
-│   │   ├── single_gpu.yaml
-│   │   ├── multi_gpu_ddp.yaml
-│   │   ├── multi_gpu_deepspeed.yaml
-│   │   └── slurm_cluster.yaml
-│   └── evaluation/
-│       ├── standard_metrics.yaml
-│       ├── clinical_metrics.yaml
-│       └── multi_testset.yaml
+│   └── training/
+│       ├── single_gpu.yaml
+│       ├── multi_gpu_ddp.yaml
+│       ├── multi_gpu_deepspeed.yaml
+│       └── slurm_cluster.yaml
 │
 ├── experiments/                        # REORGANIZED: Experiment results storage
 │   ├── nocturnal_forecast/
