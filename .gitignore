@@ -50,6 +50,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.specstory/
 cover/
 
 # Ignore all csv files in the src/data directory
