@@ -1,0 +1,145 @@
+AutoARIMA:
+  start_p:
+    type: int
+    range: [1, 20]
+  max_p:
+    type: int
+    range: [1, 20]
+  start_q:
+    type: int
+    range: [1, 20]
+  max_q:
+    type: int
+    range: [1, 20]
+  d:
+    type: list
+    values: [0, 1, 2, None]
+  max_d:
+    type: list
+    values: [1, 2, 3]
+  start_P:
+    type: list
+    values: [0, 1, 2]
+  max_P:
+    type: list
+    values: [1, 2, 3]
+  D:
+    type: list
+    values: [0, 1, None]
+  max_D:
+    type: int
+    range: [1, 20]
+  start_Q:
+    type: int
+    range: [1, 20]
+  max_Q:
+    type: int
+    range: [1, 20]
+  # sp:
+  #   type: int
+  #   range: [1, 20]
+  # seasonal:
+  #   type: bool
+  # max_order:
+  #   type: int
+  #   range: [1, 20]
+  # information_criterion:
+  #   type: list
+  #   values: ["aic", "bic", "hqic", "oob"]
+  # alpha:
+  #   type: list
+  #   values: [0.01, 0.05, 0.1]
+  # stepwise:
+  #   type: bool
+  # random:
+  #   type: bool
+  # n_fits:
+  #   type: int
+  #   range: [1, 30]
+  # method:
+  #   type: list
+  #   values: ["newton", "nm", "bfgs", "lbfgs", "powell", "cg", "ncg", "basinhopping"]
+  # maxiter:
+  #   type: int
+  #   range: [50, 100]
+  # out_of_sample_size:
+  #   type: int
+  #   range: [0, 20]
+  # with_intercept:
+  #   type: bool
+  # update_pdq:
+  #   type: bool
+  # time_varying_regression:
+  #   type: bool
+  # enforce_stationarity:
+  #   type: bool
+  # enforce_invertibility:
+  #   type: bool
+  # simple_differencing:
+  #   type: bool
+  # measurement_error:
+  #   type: bool
+  # mle_regression:
+  #   type: bool
+  # hamilton_representation:
+  #   type: bool
+  # concentrate_scale:
+  #   type: bool
+
+DartsXGBModel:
+  lags:
+    type: int
+    range: [1, 20]
+  add_encoders:
+    type: list
+    values:
+      [
+        None,
+        { "cyclic": { "future": ["month"] } },
+        { "datetime_attribute": { "future": ["hour", "dayofweek"] } },
+      ]
+  multi_models:
+    type: bool
+  use_static_covariates:
+    type: bool
+  num_samples:
+    type: int
+    range: [100, 200]
+
+PytorchForecastingDeepAR:
+  model_params:
+    type: list
+    values: [{ "max_epochs": 5, "limit_train_batches": 10 }]
+
+StatsForecastARCH:
+  p:
+    type: int
+    range: [0, 20]
+
+StatsForecastAutoTBATS:
+  seasonal_periods:
+    type: int
+    range: [1, 80]
+  use_arma_errors:
+    type: bool
+  bc_lower_bound:
+    type: list
+    values: [0.0, -0.5, -1.0]
+  bc_upper_bound:
+    type: list
+    values: [1.0, 1.5, 2.0]
+
+TBATS:
+  box_cox_bounds:
+    type: list
+    values: [[0, 1], [0.5, 1.5]]
+  sp:
+    type: list
+    values: [12, [12], [12, 24], [12, 24, 48], [12, 24, 48, 96]]
+  use_arma_errors:
+    type: bool
+
+VAR:
+  maxlags:
+    type: list
+    values: [5, 10, 15]

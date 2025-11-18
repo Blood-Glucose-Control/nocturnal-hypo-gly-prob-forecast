@@ -59,8 +59,8 @@ src/data/diabetes_datasets/**/test.csv
 src/data/diabetes_datasets/**/sample_submission.csv
 src/data/diabetes_datasets/**/processed/*
 scripts/notebooks/**/*.csv
-models/
 trained_models/
+
 scripts/watgpu_slurm/data_processing_scripts/results/
 
 cache/**/*.csv

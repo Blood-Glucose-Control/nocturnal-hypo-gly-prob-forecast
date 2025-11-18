@@ -1,0 +1,55 @@
+{
+    "timestamp": "2025-03-20_18-54-56",
+    "yaml_path": "./src/tuning/configs/0_naive_05min.yaml",
+    "interval": "5-min",
+    "patient_numbers": [
+        "p02",
+        "p03"
+    ],
+    "scorers": [
+        "PinballLoss",
+        "MeanSquaredError"
+    ],
+    "cv_type": "ExpandingWindowSplitter",
+    "models_count": [
+        {
+            "NaiveForecaster": 2
+        }
+    ],
+    "impute_methods": {
+        "bg_method": "linear",
+        "hr_method": "linear",
+        "step_method": "constant",
+        "cal_method": "constant"
+    },
+    "time_taken": 1.2686400413513184,
+    "x_features": [
+        "hr_bpm",
+        "steps",
+        "cals",
+        "cob",
+        "carb_availability",
+        "insulin_availability",
+        "iob"
+    ],
+    "y_features": [
+        "bg_mM"
+    ],
+    "initial_window": 864,
+    "step_length": 1728,
+    "steps_per_hour": 12,
+    "hours_to_forecast": 6,
+    "data_source_name": "kaggle_brisT1D",
+    "description": "Test benchmark",
+    "yaml_content": {
+        "NaiveForecaster": {
+            "strategy": {
+                "type": "list",
+                "values": [
+                    "last",
+                    "mean"
+                ]
+            }
+        }
+    }
+}
