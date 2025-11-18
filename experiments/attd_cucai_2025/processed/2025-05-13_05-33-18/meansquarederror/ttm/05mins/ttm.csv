@@ -1,2 +1,0 @@
-validation_id,model_id,runtime_secs,MeanSquaredError_mean,MeanSquaredError_std
-glu001,TinyTimeMixerForecaster,6.917241096496582,1.662149384348947,0.920011366457514

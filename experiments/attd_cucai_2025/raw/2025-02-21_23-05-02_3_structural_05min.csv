@@ -1,7 +1,0 @@
-validation_id,model_id,runtime_secs,MeanSquaredError_fold_0_test,MeanSquaredError_fold_1_test,MeanSquaredError_fold_2_test,MeanSquaredError_fold_3_test,MeanSquaredError_fold_4_test,MeanSquaredError_fold_5_test,MeanSquaredError_fold_6_test,MeanSquaredError_fold_7_test,MeanSquaredError_fold_8_test,MeanSquaredError_fold_9_test,MeanSquaredError_fold_10_test,MeanSquaredError_fold_11_test,MeanSquaredError_mean,MeanSquaredError_std
-p02,ARDL-auto_ardl_True-maxlag_4-maxorder_4,13604.215965986252,,,,,,,,,,,,,,
-p03,ARDL-auto_ardl_True-maxlag_4-maxorder_4,14562.607008934021,,,,,,,,,,,,,,
-p04,ARDL-auto_ardl_True-maxlag_4-maxorder_4,11712.96272277832,,,,,,,,,,,,,,
-p10,ARDL-auto_ardl_True-maxlag_4-maxorder_4,10450.34754705429,,,,,,,,,,,,,,
-p11,ARDL-auto_ardl_True-maxlag_4-maxorder_4,10536.413669347763,,,,,,,,,,,,,,
-p12,ARDL-auto_ardl_True-maxlag_4-maxorder_4,11273.76903295517,,,,,,,,,,,,,,
