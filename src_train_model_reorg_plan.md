@@ -201,20 +201,20 @@ nocturnal/
 # src/models/base/base_model.py
 class BaseTSFM(ABC):
     """Abstract base class for all Time Series Foundation Models"""
-    
+
     def __init__(self, config: ModelConfig):
         self.config = config
         self.distributed_strategy = None
         self.lora_config = None
-    
+
     @abstractmethod
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pass
-    
+
     def setup_distributed(self, strategy: str = "ddp"):
         """Configure distributed training strategy"""
         pass
-    
+
     def enable_lora(self, lora_config: LoRAConfig):
         """Enable LoRA for memory-efficient fine-tuning"""
         pass
@@ -264,13 +264,13 @@ class TrainerFactory:
 model:
   type: ttm
   config: !include ../models/ttm/fine_tune.yaml
-  
+
 training:
   config: !include ../training/multi_gpu_ddp.yaml
-  
+
 data:
   datasets: !include ../data/multi_dataset.yaml
-  
+
 evaluation:
   config: !include ../evaluation/standard_metrics.yaml
 ```
@@ -284,23 +284,23 @@ class BaseExperiment:
     def __init__(self, config: ExperimentConfig):
         self.config = config
         self.registry = ExperimentRegistry()
-        
+
     def setup_data(self):
         """Setup data pipelines with proper train/test splits"""
         pass
-    
+
     def setup_models(self):
         """Initialize models for comparison"""
         pass
-    
+
     def run_training(self):
         """Execute training phase"""
         pass
-    
+
     def run_evaluation(self):
         """Execute evaluation on holdout sets"""
         pass
-    
+
     def generate_report(self):
         """Generate experiment report"""
         pass
@@ -322,7 +322,7 @@ class ModelRegistry:
     def __init__(self, registry_path: str = "trained_models/registry.csv"):
         self.registry_path = registry_path
         self.df = self._load_registry()
-    
+
     def register_model(self, model_info: ModelInfo):
         """Register a newly trained model"""
         entry = {
@@ -340,11 +340,11 @@ class ModelRegistry:
         }
         # Add to CSV and save
         pass
-    
+
     def get_model(self, model_id: str) -> ModelInfo:
         """Retrieve model information"""
         pass
-    
+
     def find_models(self, **filters) -> List[ModelInfo]:
         """Find models by criteria"""
         pass
@@ -364,20 +364,20 @@ class ModelEvaluator:
     def __init__(self, config: EvaluationConfig):
         self.config = config
         self.metrics = self._load_metrics()
-    
+
     def evaluate_model(self, model, test_datasets):
         """Evaluate model on multiple test sets"""
         results = {}
         for dataset_name, dataset in test_datasets.items():
             predictions = model.predict(dataset)
             dataset_results = {}
-            
+
             for metric_name, metric in self.metrics.items():
                 score = metric.compute(predictions, dataset.targets)
                 dataset_results[metric_name] = score
-            
+
             results[dataset_name] = dataset_results
-        
+
         return results
 ```
 
@@ -395,22 +395,22 @@ class ModelEvaluator:
 class DataVersionManager:
     def __init__(self):
         self.version_registry = {}
-    
+
     def create_data_snapshot(self, dataset_config: dict) -> str:
         """Create a versioned snapshot of data configuration"""
         config_hash = hashlib.md5(
             json.dumps(dataset_config, sort_keys=True).encode()
         ).hexdigest()[:8]
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         version_id = f"{timestamp}_{config_hash}"
-        
+
         self.version_registry[version_id] = {
             "config": dataset_config,
             "timestamp": timestamp,
             "hash": config_hash
         }
-        
+
         return version_id
 ```
 
@@ -540,17 +540,17 @@ architecture:
   n_layers: 6
   context_length: 512
   prediction_length: 96
-  
+
 training:
   strategy: fine_tuning
   base_model_path: "huggingface/ttm-1.5B"
-  
+
 lora:
   enabled: true
   rank: 16
   alpha: 32
   target_modules: ["q_proj", "v_proj"]
-  
+
 optimization:
   optimizer: adamw
   learning_rate: 1e-4
@@ -577,7 +577,7 @@ data:
   splits:
     temporal_holdout: 0.2  # Last 20% of data
     patient_holdout: 0.15  # 15% of patients
-  
+
 training:
   distributed: true
   gpu_strategy: ddp
