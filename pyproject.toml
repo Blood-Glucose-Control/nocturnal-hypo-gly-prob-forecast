@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+norecursedirs = [
+    "experiments/attd_cucai_2025/deprecated_code/tests"
+]

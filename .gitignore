@@ -50,6 +50,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+.specstory/
 cover/
 
 # Ignore all csv files in the src/data directory
@@ -59,7 +60,7 @@ src/data/diabetes_datasets/**/sample_submission.csv
 src/data/diabetes_datasets/**/processed/*
 scripts/notebooks/**/*.csv
 models/
-scripts/watgpu/data_processing_scripts/results/
+scripts/watgpu_slurm/data_processing_scripts/results/
 
 cache/**/*.csv
 cache/**/*.txt
