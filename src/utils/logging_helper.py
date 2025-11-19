@@ -11,16 +11,18 @@ def _get_caller_name():
     frame = inspect.currentframe()
     try:
         # Go back two frames: _get_caller_name -> {info/error/debug}_print -> actual_caller
-        caller_frame = frame.f_back.f_back
-        if caller_frame:
-            caller_name = caller_frame.f_code.co_name
-            # Filter out non-useful function names
-            if caller_name not in ["<module>", "wrapper", "main"]:
-                return f"[{caller_name}]"
+        if frame is not None and hasattr(frame, "f_back") and frame.f_back is not None:
+            caller_frame = getattr(frame.f_back, "f_back", None)
+            if caller_frame is not None and hasattr(caller_frame, "f_code"):
+                caller_name = getattr(caller_frame.f_code, "co_name", None)
+                # Filter out non-useful function names
+                if caller_name and caller_name not in ["<module>", "wrapper", "main"]:
+                    return f"[{caller_name}]"
     except (AttributeError, TypeError):
         pass  # Handle cases where frame is None or doesn't have expected attributes
     finally:
-        del frame
+        if frame is not None:
+            del frame
     return ""
 
 
