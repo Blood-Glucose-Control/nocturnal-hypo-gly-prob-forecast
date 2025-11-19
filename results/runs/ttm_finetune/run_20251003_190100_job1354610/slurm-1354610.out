@@ -1,5 +1,0 @@
-Using configuration file: models/configs/ttm_quick_test_config.yaml
-Created run directory: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251003_190100_job1354610
-Job finishing, organizing SLURM output files...
-Moved slurm-1354610.out to /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251003_190100_job1354610/
-Job completed. All files organized in: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251003_190100_job1354610

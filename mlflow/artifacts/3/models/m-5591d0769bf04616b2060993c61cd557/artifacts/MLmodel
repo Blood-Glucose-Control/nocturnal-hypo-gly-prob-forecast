@@ -1,0 +1,28 @@
+artifact_path: /u6/cjrisi/nocturnal/mlflow_experiments/artifacts/3/models/m-5591d0769bf04616b2060993c61cd557/artifacts
+flavors:
+  python_function:
+    data: data
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.tensorflow
+    python_version: 3.11.4
+  tensorflow:
+    code: null
+    data: data
+    keras_version: 2.19.0
+    model_type: keras
+    save_format: tf
+is_signature_from_type_hint: false
+mlflow_version: 3.1.1
+model_id: m-5591d0769bf04616b2060993c61cd557
+model_size_bytes: 51322
+model_uuid: m-5591d0769bf04616b2060993c61cd557
+prompts: null
+run_id: e89e65e50bec4457879c3dc810269ede
+signature:
+  inputs: '[{"type": "tensor", "tensor-spec": {"dtype": "float64", "shape": [-1, 11]}}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "int64", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2025-09-17 16:12:30.903974'

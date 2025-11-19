@@ -1,0 +1,56 @@
+# TTM Quick Test Configuration
+# For rapid experimentation and debugging model_registry.csv populating process
+
+experiment:
+  name: "ttm_quick_test"
+  description: "Quick test run with minimal epochs for rapid iteration"
+  tags: ["test", "debug", "quick"]
+  version: "1.0"
+
+model:
+  path: "ibm-granite/granite-timeseries-ttm-r2"
+  context_length: 512
+  forecast_length: 96
+
+data:
+  source_name: "kaggle_brisT1D"
+  y_feature: ["bg_mM"]
+  x_features: ["steps", "cob", "carb_availability", "insulin_availability", "iob"]
+  timestamp_column: "datetime"
+  resolution_min: 5
+  data_split: [0.90, 0.1]
+  fewshot_percent: 25  # Use only 25% of data for quick testing
+
+training:
+  batch_size: 64  # Smaller batch for quick testing
+  dataloader_num_workers: 2  # Use 2 workers for data loading
+  learning_rate: 0.001
+  num_epochs: 3  # Just a few epochs for testing
+  use_cpu: false
+  loss: "mse"
+  resume_dir: null
+  mixed_precision: false
+
+hardware:
+  expected_gpu_type: "L40S"
+  expected_memory_gb: 48
+
+output:
+  save_checkpoints: true
+  checkpoint_frequency: 100
+  save_best_model: true
+  log_frequency: 20
+  evaluation_frequency: 100
+
+optimization:
+  scheduler: "exponential"
+  scheduler_params:
+    gamma: 0.9
+  optimizer: "adamw"
+  optimizer_params:
+    weight_decay: 0.01
+
+evaluation:
+  eval_frequency: 100
+  eval_batch_size: 64
+  metrics: ["mse"]

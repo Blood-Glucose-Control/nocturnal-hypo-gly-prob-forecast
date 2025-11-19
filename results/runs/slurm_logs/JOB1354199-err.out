@@ -1,49 +1,0 @@
-INFO:p-4076148:t-123251176236096:get_model.py:get_model:Loading model from: ibm-granite/granite-timeseries-ttm-r2
-INFO:p-4076148:t-123251176236096:get_model.py:get_model:Model loaded successfully from ibm-granite/granite-timeseries-ttm-r2, revision = main.
-INFO:p-4076148:t-123251176236096:get_model.py:get_model:[TTM] context_length = 512, prediction_length = 96
-Using auto half precision backend
-***** Running training *****
-  Num examples = 128,583
-  Num Epochs = 5
-  Instantaneous batch size per device = 128
-  Total train batch size (w. parallel, distributed & accumulation) = 128
-  Gradient Accumulation steps = 1
-  Total optimization steps = 5,025
-  Number of trainable parameters = 289,696
-  0%|          | 0/5025 [00:00<?, ?it/s]  0%|          | 1/5025 [01:03<89:02:17, 63.80s/it]                                                     0%|          | 1/5025 [01:03<89:02:17, 63.80s/it]  0%|          | 11/5025 [01:03<5:49:39,  4.18s/it]  0%|          | 21/5025 [01:04<2:30:06,  1.80s/it]  1%|          | 29/5025 [01:04<1:31:06,  1.09s/it]  1%|          | 37/5025 [01:04<58:42,  1.42it/s]    1%|          | 44/5025 [01:04<40:50,  2.03it/s]  1%|          | 51/5025 [01:04<28:41,  2.89it/s]  1%|          | 58/5025 [01:04<20:21,  4.07it/s]  1%|▏         | 64/5025 [01:04<15:12,  5.43it/s]  1%|▏         | 70/5025 [01:04<11:22,  7.26it/s]  2%|▏         | 76/5025 [01:05<08:32,  9.66it/s]  2%|▏         | 82/5025 [01:05<06:28, 12.72it/s]  2%|▏         | 88/5025 [01:05<05:00, 16.44it/s]  2%|▏         | 94/5025 [01:05<03:57, 20.77it/s]                                                   2%|▏         | 100/5025 [01:05<03:57, 20.77it/s]  2%|▏         | 101/5025 [01:05<03:06, 26.34it/s]  2%|▏         | 108/5025 [01:05<02:33, 32.12it/s]  2%|▏         | 114/5025 [01:05<02:14, 36.57it/s]  2%|▏         | 120/5025 [01:05<02:00, 40.78it/s]  3%|▎         | 126/5025 [01:05<01:50, 44.31it/s]  3%|▎         | 133/5025 [01:06<01:41, 48.02it/s]  3%|▎         | 140/5025 [01:06<01:35, 51.25it/s]  3%|▎         | 146/5025 [01:06<01:32, 52.50it/s]  3%|▎         | 152/5025 [01:06<01:30, 54.02it/s]  3%|▎         | 158/5025 [01:06<01:28, 54.82it/s]  3%|▎         | 165/5025 [01:06<01:27, 55.68it/s]  3%|▎         | 172/5025 [01:06<01:24, 57.30it/s]  4%|▎         | 178/5025 [01:06<01:24, 57.53it/s]  4%|▎         | 184/5025 [01:06<01:24, 57.24it/s]  4%|▍         | 190/5025 [01:06<01:24, 56.96it/s]  4%|▍         | 196/5025 [01:07<01:24, 56.97it/s]                                                    4%|▍         | 200/5025 [01:07<01:24, 56.97it/s]  4%|▍         | 202/5025 [01:07<01:23, 57.43it/s]  4%|▍         | 208/5025 [01:07<01:23, 57.35it/s]  4%|▍         | 214/5025 [01:07<01:24, 56.92it/s]  4%|▍         | 220/5025 [01:07<01:24, 57.01it/s]  4%|▍         | 226/5025 [01:07<01:23, 57.75it/s]  5%|▍         | 232/5025 [01:07<01:23, 57.64it/s]  5%|▍         | 238/5025 [01:07<01:23, 57.21it/s]  5%|▍         | 244/5025 [01:07<01:23, 57.23it/s]  5%|▍         | 250/5025 [01:08<01:22, 57.82it/s]  5%|▌         | 256/5025 [01:08<01:22, 57.71it/s]  5%|▌         | 262/5025 [01:08<01:23, 57.06it/s]  5%|▌         | 268/5025 [01:08<01:23, 57.07it/s]  5%|▌         | 274/5025 [01:08<01:22, 57.51it/s]  6%|▌         | 280/5025 [01:08<01:23, 57.13it/s]  6%|▌         | 286/5025 [01:08<01:24, 56.32it/s]  6%|▌         | 292/5025 [01:08<01:23, 56.79it/s]  6%|▌         | 298/5025 [01:08<01:24, 55.66it/s]                                                    6%|▌         | 300/5025 [01:08<01:24, 55.66it/s]  6%|▌         | 304/5025 [01:08<01:24, 55.58it/s]  6%|▌         | 310/5025 [01:09<01:25, 55.04it/s]  6%|▋         | 316/5025 [01:09<01:23, 56.35it/s]  6%|▋         | 322/5025 [01:09<01:23, 56.14it/s]  7%|▋         | 328/5025 [01:09<01:24, 55.83it/s]  7%|▋         | 334/5025 [01:09<01:24, 55.24it/s]  7%|▋         | 340/5025 [01:09<01:22, 56.53it/s]  7%|▋         | 346/5025 [01:09<01:22, 56.89it/s]  7%|▋         | 352/5025 [01:09<01:21, 57.19it/s]  7%|▋         | 358/5025 [01:09<01:21, 56.94it/s]  7%|▋         | 364/5025 [01:10<01:20, 57.59it/s]  7%|▋         | 370/5025 [01:10<01:20, 57.65it/s]  7%|▋         | 376/5025 [01:10<01:20, 57.62it/s]  8%|▊         | 382/5025 [01:10<01:20, 57.35it/s]  8%|▊         | 389/5025 [01:10<01:20, 57.79it/s]  8%|▊         | 395/5025 [01:10<01:19, 58.23it/s]                                                    8%|▊         | 400/5025 [01:10<01:19, 58.23it/s]  8%|▊         | 401/5025 [01:10<01:19, 57.81it/s]  8%|▊         | 407/5025 [01:10<01:19, 57.82it/s]  8%|▊         | 413/5025 [01:10<01:21, 56.88it/s]  8%|▊         | 419/5025 [01:11<01:19, 57.58it/s]  8%|▊         | 425/5025 [01:11<01:19, 57.56it/s]  9%|▊         | 431/5025 [01:11<01:19, 57.57it/s]  9%|▊         | 437/5025 [01:11<01:20, 57.09it/s]  9%|▉         | 443/5025 [01:11<01:20, 57.19it/s]  9%|▉         | 449/5025 [01:11<01:20, 56.96it/s]  9%|▉         | 455/5025 [01:11<01:20, 56.97it/s]  9%|▉         | 461/5025 [01:11<01:19, 57.08it/s]  9%|▉         | 467/5025 [01:11<01:19, 57.68it/s]  9%|▉         | 473/5025 [01:11<01:18, 57.70it/s] 10%|▉         | 479/5025 [01:12<01:18, 57.71it/s] 10%|▉         | 485/5025 [01:12<01:18, 57.59it/s] 10%|▉         | 491/5025 [01:12<01:18, 57.84it/s] 10%|▉         | 497/5025 [01:12<01:18, 57.71it/s]                                                   10%|▉         | 500/5025 [01:12<01:18, 57.71it/s]
-***** Running Evaluation *****
-  Num examples = 7213
-  Batch size = 128
- 10%|▉         | 500/5025 [01:30<01:18, 57.71it/s]
-  0%|          | 0/57 [00:00<?, ?it/s][A
- 23%|██▎       | 13/57 [00:00<00:00, 126.21it/s][A
- 53%|█████▎    | 30/57 [00:00<00:00, 150.90it/s][A
- 81%|████████  | 46/57 [00:00<00:00, 153.33it/s][ATraceback (most recent call last):
-  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 501, in <module>
-    finetune_ttm(
-  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 483, in finetune_ttm
-    finetune_forecast_trainer.train()
-  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 2328, in train
-    return inner_training_loop(
-           ^^^^^^^^^^^^^^^^^^^^
-  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 2754, in _inner_training_loop
-    self._maybe_log_save_evaluate(
-  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 3227, in _maybe_log_save_evaluate
-    metrics = self._evaluate(trial, ignore_keys_for_eval)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 3176, in _evaluate
-    metrics = self.evaluate(ignore_keys=ignore_keys_for_eval)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 4469, in evaluate
-    output = eval_loop(
-             ^^^^^^^^^^
-  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 4760, in evaluation_loop
-    metrics = self.compute_metrics(
-              ^^^^^^^^^^^^^^^^^^^^^
-  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 73, in compute_custom_metrics
-    predictions = np.array(predictions)
-                  ^^^^^^^^^^^^^^^^^^^^^
-ValueError: setting an array element with a sequence. The requested array has an inhomogeneous shape after 2 dimensions. The detected shape was (5, 7213) + inhomogeneous part.
- 10%|▉         | 500/5025 [02:13<20:10,  3.74it/s]
-
-                                                [A

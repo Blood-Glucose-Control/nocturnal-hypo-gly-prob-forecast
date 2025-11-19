@@ -1,27 +1,0 @@
-INFO:p-4062553:t-130033242969152:get_model.py:get_model:Loading model from: ibm-granite/granite-timeseries-ttm-r2
-INFO:p-4062553:t-130033242969152:get_model.py:get_model:Model loaded successfully from ibm-granite/granite-timeseries-ttm-r2, revision = main.
-INFO:p-4062553:t-130033242969152:get_model.py:get_model:[TTM] context_length = 512, prediction_length = 96
-Using auto half precision backend
-***** Running training *****
-  Num examples = 128,583
-  Num Epochs = 5
-  Instantaneous batch size per device = 128
-  Total train batch size (w. parallel, distributed & accumulation) = 128
-  Gradient Accumulation steps = 1
-  Total optimization steps = 5,025
-  Number of trainable parameters = 289,696
-  0%|          | 0/5025 [00:00<?, ?it/s]  0%|          | 1/5025 [01:07<94:28:54, 67.70s/it]                                                     0%|          | 1/5025 [01:07<94:28:54, 67.70s/it]Traceback (most recent call last):
-  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 464, in <module>
-    finetune_ttm(
-  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 446, in finetune_ttm
-    finetune_forecast_trainer.train()
-  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 2328, in train
-    return inner_training_loop(
-           ^^^^^^^^^^^^^^^^^^^^
-  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 2754, in _inner_training_loop
-    self._maybe_log_save_evaluate(
-  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/transformers/trainer.py", line 3226, in _maybe_log_save_evaluate
-    if self.control.should_evaluate:
-       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AttributeError: 'dict' object has no attribute 'should_evaluate'
-  0%|          | 1/5025 [01:08<95:01:47, 68.09s/it]
