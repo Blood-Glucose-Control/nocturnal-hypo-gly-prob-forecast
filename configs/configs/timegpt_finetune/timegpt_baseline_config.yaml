@@ -21,4 +21,3 @@ training:
   forecast_horizon: 12      # Number of steps ahead to forecast/evaluate
   finetune_steps: 10        # Steps passed to Nixtla finetune
   freq: "5min"                # Optional frequency string; TimeGPT can infer if null
-

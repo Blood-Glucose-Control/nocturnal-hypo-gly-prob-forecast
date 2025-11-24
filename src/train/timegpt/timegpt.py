@@ -29,8 +29,8 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 if str(ROOT_DIR) not in sys.path:
     sys.path.append(str(ROOT_DIR))
 
-from src.data.cache_manager import get_cache_manager
-from src.utils.time_series_helper import get_interval_minutes
+from src.data.cache_manager import get_cache_manager  # noqa: E402
+from src.utils.time_series_helper import get_interval_minutes  # noqa: E402
 
 
 def info_print(*args, **kwargs):
@@ -126,7 +126,9 @@ def _load_processed_series(
             .drop_duplicates(subset=[time_col, id_col])
         )
         if effective_freq:
-            subset = subset.set_index(time_col)[target_col].resample(effective_freq).mean()
+            subset = (
+                subset.set_index(time_col)[target_col].resample(effective_freq).mean()
+            )
             subset = subset.to_frame(name=target_col)
             subset[target_col] = subset[target_col].interpolate(limit_direction="both")
             subset = subset.reset_index()
@@ -137,7 +139,9 @@ def _load_processed_series(
         subset = subset.dropna(subset=[target_col, time_col, id_col])
 
         if len(subset) < min_length:
-            info_print(f"Skipping patient {patient_id}: insufficient rows after regularization")
+            info_print(
+                f"Skipping patient {patient_id}: insufficient rows after regularization"
+            )
             continue
 
         series_frames.append(subset)
@@ -179,7 +183,9 @@ def _split_train_test(
         train_frames.append(ordered.iloc[:-horizon])
         test_frames.append(ordered.iloc[-horizon:])
 
-    return pd.concat(train_frames), pd.concat(test_frames) if test_frames else pd.DataFrame()
+    return pd.concat(train_frames), pd.concat(
+        test_frames
+    ) if test_frames else pd.DataFrame()
 
 
 def _select_forecast_value_column(forecast_df: pd.DataFrame, target_col: str) -> str:
@@ -261,7 +267,9 @@ def finetune_timegpt(
             how="inner",
         )
         if merged.empty:
-            info_print("No overlap between forecast timestamps and test horizon; skipping metrics")
+            info_print(
+                "No overlap between forecast timestamps and test horizon; skipping metrics"
+            )
         else:
             diff = merged[target_col] - merged[value_col]
             metrics["mae"] = float(np.abs(diff).mean())
