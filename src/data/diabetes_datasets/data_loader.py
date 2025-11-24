@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Blood-Glucose-Control
+# Licensed under Custom Research License (see LICENSE file)
+# For commercial licensing, contact: cjrisi/christopher AT uwaterloo/gluroo DOT ca/com
+
 """
 Data loading module for accessing and processing various diabetes datasets.
 
@@ -13,14 +17,15 @@ Pleae remember to update the overload signatures in this file
 to match the actual parameters of the data loader classes.
 This ensures that type checking and autocompletion work correctly in IDEs.
 """
-
 from typing import Union, Optional, Dict, Any, overload, Literal
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
-from src.data.diabetes_datasets import Tamborlane2008DataLoader
+from src.data.diabetes_datasets.awesome_cgm.aleppo.aleppo import AleppoDataLoader
+from src.data.diabetes_datasets.awesome_cgm.tamborlane_2008.tamborlane_2008 import Tamborlane2008DataLoader
 
 
+# TODO: Add train_percentage parameter
 @overload
 def get_loader(
     data_source_name: Literal["lynch_2022"],
@@ -58,6 +63,18 @@ def get_loader(
     parallel: bool = True,
 ) -> GlurooDataLoader: ...
 
+
+@overload
+def get_loader(
+    data_source_name: Literal["aleppo"],
+    keep_columns: Optional[list[str]] = None,
+    use_cached: bool = False,
+    # config: Optional[Dict[str, Any]] = None,
+    train_percentage: float = 0.9,
+    parallel: bool = True,
+    max_workers: int = 3,
+) -> AleppoDataLoader: ...
+
 @overload
 def get_loader(
     data_source_name: Literal["tamborlane_2008"],
@@ -77,13 +94,11 @@ def get_loader(
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
+    train_percentage: float = 0.9,
     config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
-) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader, Tamborlane2008DataLoader]:
-    
-
-
+) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader]:
     """
     Factory function to create and return the appropriate data loader instance.
 
@@ -101,6 +116,7 @@ def get_loader(
                                        If None, all columns are loaded. Default: None
         use_cached (bool): Whether to use cached data if available. Default: False
         num_validation_days (int): Number of days to use for validation. Default: 20
+        train_percentage (float): Percentage of the data to use for training. Default: 0.9
         config (dict | None): Additional configuration parameters for the data loader.
                             Default: None
 
@@ -125,6 +141,14 @@ def get_loader(
             num_validation_days=num_validation_days,
             config=config,
             parallel=parallel,
+        )
+    elif data_source_name == "aleppo":
+        return AleppoDataLoader(
+            keep_columns=keep_columns,
+            use_cached=use_cached,
+            train_percentage=train_percentage,
+            parallel=parallel,
+            max_workers=max_workers,
         )
     elif data_source_name == "lynch_2022":
         return Lynch2022DataLoader(

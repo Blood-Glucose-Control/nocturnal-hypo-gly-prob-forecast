@@ -1,0 +1,70 @@
+=== Run Information ===
+Job ID: 1354743
+Job Name: ttm_finetune
+Node: watgpu608
+Start Time: 2025-10-04 18:35:45 UTC
+Start Time (Unix): 1759602945
+Run Directory: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251004_183545_job1354743
+=====================================
+
+=== SLURM Resource Settings ===
+CPUs per Task: 16
+Memory per Node:  MB
+Memory per CPU: 2048 MB
+Partition: HI
+Time Limit:
+QOS: normal
+Number of Nodes: 1
+Number of Tasks:
+GPUs per Node:
+GPU Type: 5
+Account: hi_group
+Working Directory: /u6/cjrisi/nocturnal
+Config File: /u6/cjrisi/nocturnal/models/configs/ttm_quick_test_config.yaml
+=====================================
+
+=== Node Hardware Information ===
+Total CPUs on Node: 128
+Total Memory on Node: 1.5Ti
+Available Memory on Node: 1.5Ti
+CPU Model: AMD EPYC 9354 32-Core Processor
+CPU Architecture: x86_64
+CPU Sockets: 2
+Cores per Socket: 32
+Threads per Core: 2
+=====================================
+
+=== Timing Results ===
+End Time: 2025-10-04 18:37:53 UTC
+End Time (Unix): 1759603073
+Total Elapsed Time: 0h 2m 8s
+Total Elapsed Seconds: 128
+Training Exit Code: 0
+=====================================
+
+=== Final GPU State ===
+Sat Oct  4 18:37:53 2025
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 575.57.08              Driver Version: 575.57.08      CUDA Version: 12.9     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA L40S                    On  |   00000000:04:00.0 Off |                    0 |
+| N/A   33C    P0             84W /  350W |       0MiB /  46068MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+
+=== Run Summary ===
+Exit Code: 0
+Status: completed
+=====================================

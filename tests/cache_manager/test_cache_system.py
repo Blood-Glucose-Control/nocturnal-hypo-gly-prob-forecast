@@ -17,7 +17,9 @@ from src.data.dataset_configs import (
     get_dataset_config,
     get_dataset_info,
     list_available_datasets,
+    register_dataset,
 )
+from src.data.models import DatasetConfig, DatasetSourceType
 
 
 class TestCacheManager:
@@ -27,6 +29,18 @@ class TestCacheManager:
         """Set up test fixtures."""
         self.temp_dir = tempfile.mkdtemp()
         self.cache_manager = CacheManager(cache_root=self.temp_dir)
+        self.test_dataset = "test_dataset"
+        register_dataset(
+            self.test_dataset,
+            DatasetConfig(
+                source=DatasetSourceType.LOCAL,
+                required_files=["test_data.csv"],
+                description="Test dataset",
+                citation="Test dataset",
+                cache_path="test_dataset",
+                url="https://test.com",
+            ),
+        )
 
     def teardown_method(self):
         """Clean up test fixtures."""
@@ -39,20 +53,20 @@ class TestCacheManager:
 
     def test_get_dataset_cache_path(self):
         """Test getting dataset cache path."""
-        path = self.cache_manager.get_dataset_cache_path("test_dataset")
-        expected = Path(self.temp_dir) / "test_dataset"
+        path = self.cache_manager.get_dataset_cache_path(self.test_dataset)
+        expected = Path(self.temp_dir) / self.test_dataset
         assert path == expected
 
     def test_get_raw_data_path(self):
         """Test getting raw data path."""
-        path = self.cache_manager.get_raw_data_path("test_dataset")
-        expected = Path(self.temp_dir) / "test_dataset" / "raw"
+        path = self.cache_manager.get_raw_data_path(self.test_dataset)
+        expected = Path(self.temp_dir) / self.test_dataset / "raw"
         assert path == expected
 
     def test_get_processed_data_path(self):
         """Test getting processed data path."""
-        path = self.cache_manager.get_processed_data_path("test_dataset")
-        expected = Path(self.temp_dir) / "test_dataset" / "processed"
+        path = self.cache_manager.get_processed_data_path(self.test_dataset)
+        expected = Path(self.temp_dir) / self.test_dataset / "processed"
         assert path == expected
 
     def test_save_and_load_full_processed_data(self):
@@ -94,8 +108,8 @@ class TestCacheManager:
 
     def test_load_full_processed_data_not_exists(self):
         """Test loading full processed data when it doesn't exist."""
-        result = self.cache_manager.load_full_processed_data("nonexistent_dataset")
-        assert result is None
+        with pytest.raises(ValueError, match="Configuration not found"):
+            self.cache_manager.load_full_processed_data("nonexistent_dataset")
 
     def test_save_and_load_split_data(self):
         """Test saving and loading train/validation split data."""
@@ -162,8 +176,10 @@ class TestCacheManager:
     def test_load_split_data_not_exists(self):
         """Test loading split data when it doesn't exist."""
         split_params = {"validation_split": 0.2, "random_state": 42}
-        result = self.cache_manager.load_split_data("nonexistent_dataset", split_params)
-        assert result is None
+        import pytest  # already imported at top; safe if duplicated in scope
+
+        with pytest.raises(ValueError, match="Configuration not found"):
+            self.cache_manager.load_split_data("nonexistent_dataset", split_params)
 
     def test_get_processed_data_path_for_type(self):
         """Test getting processed data path for specific type."""
@@ -175,7 +191,13 @@ class TestCacheManager:
 
     def test_raw_data_exists_with_files(self):
         """Test raw data existence check with required files."""
-        dataset_config = {"required_files": ["file1.csv", "file2.csv"]}
+        dataset_config = DatasetConfig(
+            source=DatasetSourceType.LOCAL,
+            required_files=["file1.csv", "file2.csv"],
+            description="Test",
+            citation="Test",
+            url="https://test.com",
+        )
 
         # Should return False when directory doesn't exist
         assert not self.cache_manager._raw_data_exists(
@@ -194,7 +216,13 @@ class TestCacheManager:
 
     def test_raw_data_exists_without_files(self):
         """Test raw data existence check without required files."""
-        dataset_config = {}
+        dataset_config = DatasetConfig(
+            source=DatasetSourceType.LOCAL,
+            required_files=[],
+            description="Test",
+            citation="Test",
+            url="https://test.com",
+        )
         raw_path = self.cache_manager.get_raw_data_path("test_dataset")
 
         # Should return False when directory doesn't exist
@@ -208,6 +236,10 @@ class TestCacheManager:
         (raw_path / "some_file.csv").touch()
         assert self.cache_manager._raw_data_exists(raw_path, dataset_config)
 
+    @pytest.mark.xfail(
+        reason="We are working on removing saving by dataset_type because it is not needed. Will need to add this back",
+        strict=False,
+    )
     def test_save_and_load_processed_data(self):
         """Test saving and loading processed data."""
 
@@ -266,9 +298,9 @@ class TestDatasetConfigs:
 
     def test_get_dataset_config(self):
         """Test getting dataset configuration."""
-        config = get_dataset_config("kaggle_brisT1D")
-        assert config["source"] == "kaggle"
-        assert config["competition_name"] == "brist1d"
+        config = get_dataset_config(DatasetSourceType.KAGGLE_BRIS_T1D.value)
+        assert config.source == DatasetSourceType.KAGGLE_BRIS_T1D
+        assert config.competition_name == "brist1d"
 
     def test_get_dataset_config_invalid(self):
         """Test getting invalid dataset configuration."""
@@ -278,13 +310,13 @@ class TestDatasetConfigs:
     def test_list_available_datasets(self):
         """Test listing available datasets."""
         datasets = list_available_datasets()
-        assert "kaggle_brisT1D" in datasets
-        assert "gluroo" in datasets
-        assert "simglucose" in datasets
+        assert DatasetSourceType.KAGGLE_BRIS_T1D.value in datasets
+        assert DatasetSourceType.GLUROO.value in datasets
+        assert DatasetSourceType.SIMGLUCOSE.value in datasets
 
     def test_get_dataset_info(self):
         """Test getting dataset information."""
-        info = get_dataset_info("kaggle_brisT1D")
+        info = get_dataset_info(DatasetSourceType.KAGGLE_BRIS_T1D.value)
         assert "description" in info
         assert "citation" in info
         assert "url" in info
@@ -310,7 +342,7 @@ class TestCacheIntegration:
         # This should work with the new cache system
         try:
             loader = get_loader(
-                data_source_name="kaggle_brisT1D",
+                data_source_name=DatasetSourceType.KAGGLE_BRIS_T1D.value,
                 dataset_type="train",
                 use_cached=True,
             )

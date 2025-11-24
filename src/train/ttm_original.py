@@ -1,10 +1,14 @@
+# Copyright (c) 2025 Blood-Glucose-Control
+# Licensed under Custom Research License (see LICENSE file)
+# For commercial licensing, contact: [Add your contact information]
+
 import os
 
 import pandas as pd
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ExponentialLR
 from transformers import Trainer, TrainingArguments
-from transformers.integrations import INTEGRATION_TO_CALLBACK
+from transformers.integrations.integration_utils import INTEGRATION_TO_CALLBACK
 
 from tsfm_public import (
     TimeSeriesPreprocessor,
@@ -14,16 +18,23 @@ from tsfm_public import (
 )
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
-from tsfm_public.toolkit.time_series_preprocessor import DEFAULT_FREQUENCY_MAPPING
+from tsfm_public.toolkit.time_series_preprocessor import (
+    ScalerType,
+)
 from src.data.diabetes_datasets.data_loader import get_loader
+from src.data.models import ColumnNames
 from src.utils.os_helper import get_project_root
+
+# TODO: Maybe we should move this out of the benchmark module to a utils module
 from src.tuning.benchmark import impute_missing_values
+from src.utils.time_series_helper import get_interval_minutes
 
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
 
 
+# TODO: Move this to its own utility module
 def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_feature):
     """
     1. Select patients with the correct resolution
@@ -36,14 +47,52 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
 
     for patient_id, df in patients_dict.items():
         # Check if patient has the correct interval
-        if (df.index[1] - df.index[0]).components.minutes == resolution_min:
+        if get_interval_minutes(df) == resolution_min:
             print(f"Processing patient {patient_id}...")
             # Process each patient individually
             p_df = df.iloc[:]
-            p_df = p_df[x_features + y_feature]
+
+            # Only select columns that actually exist in the DataFrame
+            all_requested_features = x_features + y_feature
+            available_features = [
+                col for col in all_requested_features if col in p_df.columns
+            ]
+            missing_features = [
+                col for col in all_requested_features if col not in p_df.columns
+            ]
+
+            if missing_features:
+                print(
+                    f"  Warning: Patient {patient_id} is missing columns: {missing_features}"
+                )
+
+            if not available_features:
+                print(
+                    f"  Error: Patient {patient_id} has none of the requested features. Skipping."
+                )
+                continue
+
+            dropped_features = [
+                col for col in x_features if col not in available_features
+            ]
+            if dropped_features:
+                print(f"Warning: Dropping unavailable x_features: {dropped_features}")
+
+            p_df = p_df[available_features]
+
+            # Filter x_features and y_feature to only include available columns
+            available_x_features = [
+                col for col in x_features if col in available_features
+            ]
+            available_y_feature = [
+                col for col in y_feature if col in available_features
+            ]
+
             # Impute missing values for this patient
-            p_df = impute_missing_values(p_df, columns=x_features)
-            p_df = impute_missing_values(p_df, columns=y_feature)
+            if available_x_features:
+                p_df = impute_missing_values(p_df, columns=available_x_features)
+            if available_y_feature:
+                p_df = impute_missing_values(p_df, columns=available_y_feature)
             p_df["id"] = patient_id
             processed_patients.append(p_df)
 
@@ -81,7 +130,7 @@ def _get_finetune_trainer(
         prediction_length=forecast_length,
         scaling=True,
         encode_categorical=False,
-        scaler_type="standard",
+        scaler_type=ScalerType.STANDARD,
     )
 
     finetune_forecast_model = get_model(
@@ -89,7 +138,7 @@ def _get_finetune_trainer(
         context_length=context_length,
         prediction_length=forecast_length,
         freq_prefix_tuning=False,
-        freq=DEFAULT_FREQUENCY_MAPPING[f"{resolution_min}min"],
+        freq=str(resolution_min) + "min",
         prefer_l1_loss=False,
         prefer_longer_context=True,
         # Can also provide TTM Config args. A param?
@@ -232,7 +281,7 @@ def finetune_ttm(
         # Data Configuration
         data_source_name (str):
             Name of the data source to load patient data from. Currently supported:
-            - "kaggle_brisT1D"
+            - "kaggle_brisT1D" | "aleppo"
         y_feature (list of str):
             List of target variable(s) to predict.
         x_features (list of str):
@@ -275,23 +324,38 @@ def finetune_ttm(
     print("-" * 20, "Preparing data...", "-" * 20, "\n")
     loader = get_loader(
         data_source_name=data_source_name,
-        # NOTE: The val split here is done via ttm preprocessing so ignore this param
-        num_validation_days=20,
+        train_percentage=1,  # ttm's data processor will do the split
         use_cached=True,
     )
-    data_dict = loader.processed_data
-    column_specifiers = {
-        "timestamp_column": timestamp_column,
-        "id_columns": ["id"],
-        "target_columns": y_feature,
-        "control_columns": x_features,
-    }
+    data_dict = loader.train_data
 
     all_patients_df = reduce_features_multi_patient(
         data_dict, resolution_min, x_features, y_feature
     )
     # datetime has to be a column
     data = all_patients_df.reset_index()
+
+    # This removes the columns that are not in the data
+    available_x_features = [col for col in x_features if col in data.columns]
+    available_y_feature = [col for col in y_feature if col in data.columns]
+    missing_x = [col for col in x_features if col not in data.columns]
+    missing_y = [col for col in y_feature if col not in data.columns]
+
+    if missing_x:
+        print(
+            f"Warning: The following x_features are missing from the data: {missing_x}"
+        )
+    if missing_y:
+        print(
+            f"Warning: The following y_feature columns are missing from the data: {missing_y}"
+        )
+
+    column_specifiers = {
+        "timestamp_column": timestamp_column,
+        "id_columns": ["id"],
+        "target_columns": available_y_feature,
+        "control_columns": available_x_features,
+    }
 
     # Train/val/test split
     train, test = data_split
@@ -366,12 +430,18 @@ if __name__ == "__main__":
         context_length=512,
         forecast_length=96,
         # Data Configuration
-        data_source_name="kaggle_brisT1D",
-        y_feature=["bg_mM"],
-        x_features=["steps", "cob", "carb_availability", "insulin_availability", "iob"],
+        data_source_name="aleppo",
+        y_feature=[ColumnNames.BG.value],
+        x_features=[
+            ColumnNames.COB.value,
+            ColumnNames.CARB_AVAILABILITY.value,
+            ColumnNames.INSULIN_AVAILABILITY.value,
+            ColumnNames.IOB.value,
+            ColumnNames.STEPS.value,
+        ],
         timestamp_column="datetime",
         resolution_min=5,
-        data_split=(0.7, 0.2),
+        data_split=(0.9, 0.1),
         fewshot_percent=100,
         # Training Configuration
         batch_size=64,

@@ -1,11 +1,16 @@
+# Copyright (c) 2025 Blood-Glucose-Control
+# Licensed under Custom Research License (see LICENSE file)
+# For commercial licensing, contact: [Add your contact information]
+
 import argparse
 import glob
+import inspect
 import os
 import sys
-import yaml
 from pathlib import Path
 
 import pandas as pd
+import yaml
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ExponentialLR
 from transformers import Trainer, TrainerCallback, TrainingArguments
@@ -18,10 +23,11 @@ from tsfm_public import (
 )
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
-from tsfm_public.toolkit.time_series_preprocessor import DEFAULT_FREQUENCY_MAPPING
 
+from src.data.cache_manager import get_cache_manager
 from src.tuning.benchmark import impute_missing_values
 from src.utils.os_helper import get_project_root
+from src.utils.time_series_helper import get_interval_minutes
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
@@ -32,14 +38,37 @@ DEBUG_MODE = os.getenv("TTM_DEBUG", "false").lower() == "true"
 
 
 def debug_print(*args, **kwargs):
-    """Print debug messages only if DEBUG_MODE is enabled, and to stdout"""
+    """Print debug messages only if DEBUG_MODE is enabled, and to stderr"""
     if DEBUG_MODE:
-        print(*args, **kwargs, file=sys.stdout)
+        print("DEBUG:", *args, **kwargs, file=sys.stderr, flush=True)
 
 
 def info_print(*args, **kwargs):
-    """Print informational messages to stdout"""
-    print(*args, **kwargs, file=sys.stdout)
+    """Print informational messages to stderr with function name (so they show up in slurm error file)"""
+    # Get the calling function name
+    frame = inspect.currentframe()
+    try:
+        caller_frame = frame.f_back
+        if caller_frame:
+            caller_name = caller_frame.f_code.co_name
+            if caller_name not in [
+                "<module>",
+                "wrapper",
+            ]:  # Don't show <module> or decorator wrapper
+                print(
+                    "INFO:",
+                    f"[{caller_name}]",
+                    *args,
+                    **kwargs,
+                    file=sys.stderr,
+                    flush=True,
+                )
+            else:
+                print("INFO:", *args, **kwargs, file=sys.stderr, flush=True)
+        else:
+            print("INFO:", *args, **kwargs, file=sys.stderr, flush=True)
+    finally:
+        del frame
 
 
 def load_config(config_path):
@@ -67,25 +96,70 @@ def parse_arguments():
 
 
 class CustomMetricsCallback(TrainerCallback):
-    """Custom callback to log additional metrics to trainer_state.json"""
+    """Custom callback to log additional metrics and track training progress"""
+
+    def __init__(self):
+        super().__init__()
+        self.best_eval_loss = float("inf")
+        self.final_train_loss = None
+        self.final_eval_loss = None
+        self.training_samples_per_second = None
+        self.best_checkpoint = None
+        self.training_complete = False
 
     def on_log(self, args, state, control, logs=None, **kwargs):
         """Called when logging occurs"""
         if logs is not None:
-            # Add custom metrics to logs
-            if "train_loss" in logs:
-                logs["custom_metric_example"] = logs["train_loss"] * 0.5
-
             # Add timestamp
             import time
 
             logs["timestamp"] = time.time()
 
-            # Add custom training info
+            # Add custom training info (but only add these, don't duplicate)
             logs["custom_batch_size"] = args.per_device_train_batch_size
             logs["custom_learning_rate"] = args.learning_rate
 
-        return control  # Must return control, not logs!
+            # Track metrics for registry (but don't add extra custom metrics to avoid clutter)
+            if "train_loss" in logs:
+                self.final_train_loss = logs["train_loss"]
+
+            if "eval_loss" in logs:
+                self.final_eval_loss = logs["eval_loss"]
+                if logs["eval_loss"] < self.best_eval_loss:
+                    self.best_eval_loss = logs["eval_loss"]
+                    self.best_checkpoint = f"checkpoint-{state.global_step}"
+
+            if "train_samples_per_second" in logs:
+                self.training_samples_per_second = logs["train_samples_per_second"]
+
+        return control
+
+    def on_train_end(self, args, state, control, **kwargs):
+        """Called when training ends"""
+        self.training_complete = True
+        # Print to both stdout (to show up in slurm .out) and stderr (for immediate feedback)
+        summary = f"\n{'=' * 60}\nTRAINING COMPLETED SUCCESSFULLY\n"
+        summary += f"Final train loss: {self.final_train_loss}\n"
+        summary += f"Final eval loss: {self.final_eval_loss}\n"
+        summary += f"Best eval loss: {self.best_eval_loss}\n"
+        summary += f"Best checkpoint: {self.best_checkpoint}\n"
+        if self.training_samples_per_second:
+            summary += f"Training samples/second: {self.training_samples_per_second}\n"
+        summary += "=" * 60
+
+        # Print to both stderr (immediate) and stdout (for slurm out file)
+        print(summary, file=sys.stderr, flush=True)
+        print(summary, file=sys.stdout, flush=True)
+
+    def get_metrics_summary(self):
+        """Get summary of tracked metrics for model registry"""
+        return {
+            "final_train_loss": self.final_train_loss,
+            "final_eval_loss": self.final_eval_loss,
+            "best_eval_loss": self.best_eval_loss,
+            "best_checkpoint": self.best_checkpoint,
+            "training_samples_per_second": self.training_samples_per_second,
+        }
 
 
 def compute_custom_metrics(eval_pred):
@@ -222,9 +296,9 @@ def load_processed_data_from_cache(data_source_name):
     Returns:
         dict: Dictionary with patient_id as key and DataFrame as value
     """
-    # Get the cache directory path
-    root_dir = get_project_root()
-    cache_dir = os.path.join(root_dir, "cache", "data", data_source_name, "processed")
+    # Get the cache directory path using CacheManager
+    cache_manager = get_cache_manager()
+    cache_dir = cache_manager.get_absolute_path_by_type(data_source_name, "processed")
 
     # Find all CSV files in the processed directory
     csv_files = glob.glob(os.path.join(cache_dir, "*.csv"))
@@ -266,7 +340,7 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
 
     for patient_id, df in patients_dict.items():
         # Check if patient has the correct interval
-        if (df.index[1] - df.index[0]).components.minutes == resolution_min:
+        if get_interval_minutes(df) == resolution_min:
             info_print(f"Processing patient {patient_id}...")
             # Process each patient individually
             p_df = df.iloc[:]
@@ -320,7 +394,7 @@ def _get_finetune_trainer(
         context_length=context_length,
         prediction_length=forecast_length,
         freq_prefix_tuning=False,
-        freq=DEFAULT_FREQUENCY_MAPPING[f"{resolution_min}min"],
+        freq=f"{resolution_min}min",
         prefer_l1_loss=False,
         prefer_longer_context=True,
         # Can also provide TTM Config args. A param?
@@ -431,7 +505,7 @@ def _get_finetune_trainer(
     )
     finetune_forecast_trainer.remove_callback(INTEGRATION_TO_CALLBACK["codecarbon"])
 
-    return finetune_forecast_trainer, dset_test
+    return finetune_forecast_trainer, dset_test, custom_metrics_callback
 
 
 def finetune_ttm(
@@ -559,24 +633,26 @@ def finetune_ttm(
     new_run_saved_dir = os.path.join(model_dir, current_time)
 
     dataset_name = f"{resolution_min}min_patients"
-    finetune_forecast_trainer, dset_test = _get_finetune_trainer(
-        model_path=model_path,
-        dataset_name=dataset_name,
-        num_epochs=num_epochs,
-        context_length=context_length,
-        forecast_length=forecast_length,
-        batch_size=batch_size,
-        fewshot_percent=fewshot_percent,
-        learning_rate=learning_rate,
-        loss=loss,
-        use_cpu=use_cpu,
-        column_specifiers=column_specifiers,
-        resolution_min=resolution_min,
-        data=data,
-        dataloader_num_workers=dataloader_num_workers,
-        split_config=split_config,
-        save_dir=new_run_saved_dir,
-        resume_dir=resume_dir,
+    finetune_forecast_trainer, dset_test, custom_metrics_callback = (
+        _get_finetune_trainer(
+            model_path=model_path,
+            dataset_name=dataset_name,
+            num_epochs=num_epochs,
+            context_length=context_length,
+            forecast_length=forecast_length,
+            batch_size=batch_size,
+            fewshot_percent=fewshot_percent,
+            learning_rate=learning_rate,
+            loss=loss,
+            use_cpu=use_cpu,
+            column_specifiers=column_specifiers,
+            resolution_min=resolution_min,
+            data=data,
+            dataloader_num_workers=dataloader_num_workers,
+            split_config=split_config,
+            save_dir=new_run_saved_dir,
+            resume_dir=resume_dir,
+        )
     )
 
     #### Fine-tune ####
@@ -600,6 +676,9 @@ def finetune_ttm(
     fewshot_output = finetune_forecast_trainer.evaluate(dset_test)
     print(fewshot_output)
     print("+" * 60)
+
+    # Return metrics for model registry
+    return custom_metrics_callback.get_metrics_summary()
 
 
 # TODO: Try out Pinball loss too

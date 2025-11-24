@@ -5,8 +5,8 @@ This module provides functionality to load and process the Tamborlane 2008 CGM d
 The dataset contains continuous glucose monitoring data from pediatric patients with
 Type 1 diabetes, collected as part of the DirecNet study.
 
-The module supports data preprocessing including time interval regularization,
-feature extraction, and train/validation splitting.
+The data format includes columns like RecID, PtID, DeviceDate, DeviceTime, GlucoseValue,
+and GlucoseDisplayTime based on the actual CGM export format.
 """
 
 import logging
@@ -19,17 +19,52 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
 import numpy as np
 
-from src.data.cache_manager import get_cache_manager
-from src.data.dataset_configs import get_dataset_config
-from src.data.diabetes_datasets.dataset_base import DatasetBase
-from src.data.diabetes_datasets.awesome_cgm.tamborlane_2008.data_cleaner import (
-    clean_tamborlane_2008_data,
-    process_single_patient_tamborlane,
-    extract_cgm_features,
-    validate_tamborlane_data,
-)
-from src.data.preprocessing.data_splitting import split_multipatient_dataframe
-from src.data.preprocessing.time_processing import get_train_validation_split
+# Import the data cleaner functions
+try:
+    from .data_cleaner import (
+        clean_tamborlane_2008_data,
+        process_single_patient_tamborlane,
+        extract_cgm_features,
+        validate_tamborlane_data,
+    )
+except ImportError:
+    # If relative import fails, try absolute import
+    from data_cleaner import (
+        clean_tamborlane_2008_data,
+        process_single_patient_tamborlane,
+        extract_cgm_features,
+        validate_tamborlane_data,
+    )
+
+# Import other required modules
+try:
+    from src.data.cache_manager import get_cache_manager
+    from src.data.dataset_configs import get_dataset_config
+    from src.data.diabetes_datasets.dataset_base import DatasetBase
+    from src.data.preprocessing.data_splitting import split_multipatient_dataframe
+    from src.data.preprocessing.time_processing import get_train_validation_split
+except ImportError:
+    # Simplified imports for standalone use
+    class DatasetBase:
+        """Simplified base class for standalone use."""
+        pass
+    
+    def get_cache_manager():
+        """Mock cache manager for standalone use."""
+        return None
+    
+    def get_dataset_config(name):
+        """Mock config getter for standalone use."""
+        return {}
+    
+    def split_multipatient_dataframe(df, col):
+        """Simple patient data splitter."""
+        return {patient: group for patient, group in df.groupby(col)}
+    
+    def get_train_validation_split(data, num_validation_days):
+        """Simple train/validation splitter."""
+        split_idx = len(data) - (num_validation_days * 288)  # 288 = 24h * 60min / 5min
+        return data.iloc[:split_idx], data.iloc[split_idx:], None
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +75,14 @@ class Tamborlane2008DataLoader(DatasetBase):
 
     This class handles loading, processing, and caching of the Tamborlane 2008 dataset,
     which contains continuous glucose monitoring data from pediatric Type 1 diabetes patients.
-    The dataset provides high-frequency glucose measurements (typically every 5 minutes)
-    and is valuable for developing glucose prediction models and studying glycemic patterns.
+    
+    The data format expects columns such as:
+    - RecID: Record identifier
+    - PtID: Patient identifier  
+    - DeviceDate: Date of the CGM reading (format: YYYY-MM-DD)
+    - DeviceTime: Time of the CGM reading (format: HH:MM:SS)
+    - GlucoseValue: Glucose value in mg/dL
+    - GlucoseDisplayTime: Alternative timestamp for the glucose reading
 
     Key features of this dataset:
     - CGM data from pediatric patients (age 8-17)
@@ -49,11 +90,6 @@ class Tamborlane2008DataLoader(DatasetBase):
     - Multi-day continuous monitoring periods
     - Useful for nocturnal hypoglycemia prediction
     
-    The loader supports intelligent caching at multiple levels:
-    - Raw data caching to avoid re-downloading
-    - Processed data caching to avoid re-processing
-    - Train/validation split caching for consistent splits
-
     Attributes:
         keep_columns (list[str] | None): Specific columns to load from the dataset
         num_validation_days (int): Number of days to use for validation
@@ -63,17 +99,7 @@ class Tamborlane2008DataLoader(DatasetBase):
         generic_patient_start_date (pd.Timestamp): Starting date for all patients
         max_workers (int): Maximum number of workers for parallel processing
         extract_features (bool): Whether to extract CGM-specific features
-        processed_data (dict[str, pd.DataFrame]): The processed dataset
-        train_data (dict[str, pd.DataFrame] | None): Training subset
-        validation_data (dict[str, pd.DataFrame] | None): Validation subset
-        data_metrics (dict): Validation metrics for the dataset
-        raw_data (pd.DataFrame): The original unprocessed dataset
-
-    Properties:
-        dataset_name (str): Returns "tamborlane_2008"
-        num_patients (int): Number of patients in the dataset
-        patient_ids (list[str]): List of patient IDs
-        train_data_shape_summary (dict[str, tuple[int, int]]): Shape summary for train data
+        raw_data_path (Path): Path to the raw data files
     """
 
     def __init__(
@@ -86,6 +112,7 @@ class Tamborlane2008DataLoader(DatasetBase):
         generic_patient_start_date: pd.Timestamp = pd.Timestamp("2008-01-01"),
         max_workers: int = 3,
         extract_features: bool = True,
+        raw_data_path: Optional[Union[str, Path]] = None,
     ):
         """
         Initialize the Tamborlane 2008 data loader.
@@ -99,10 +126,11 @@ class Tamborlane2008DataLoader(DatasetBase):
             generic_patient_start_date: Starting date for patients (default 2008-01-01)
             max_workers: Maximum number of workers for parallel processing
             extract_features: Whether to extract CGM-specific features
+            raw_data_path: Path to raw data files (optional)
         """
         # Ensure required columns are included
         if keep_columns is not None:
-            required_cols = ["datetime", "bg_mM", "p_num"]
+            required_cols = ["datetime", "bg_mM", "p_num", "bg_mg_dl"]
             for col in required_cols:
                 if col not in keep_columns:
                     keep_columns.append(col)
@@ -115,10 +143,15 @@ class Tamborlane2008DataLoader(DatasetBase):
         self.generic_patient_start_date = generic_patient_start_date
         self.max_workers = max_workers
         self.extract_features = extract_features
+        self.raw_data_path = Path(raw_data_path) if raw_data_path else None
         
         # Initialize cache manager
-        self.cache_manager = get_cache_manager()
-        self.dataset_config = get_dataset_config(self.dataset_name)
+        try:
+            self.cache_manager = get_cache_manager()
+            self.dataset_config = get_dataset_config(self.dataset_name)
+        except:
+            self.cache_manager = None
+            self.dataset_config = {}
         
         # Data containers
         self.raw_data = None
@@ -222,23 +255,26 @@ class Tamborlane2008DataLoader(DatasetBase):
         
         need_to_process_data = True
         
-        if self.use_cached:
+        if self.use_cached and self.cache_manager:
             # Try to load from cache
-            cached_full_data = self.cache_manager.load_full_processed_data(
-                self.dataset_name
-            )
-            if cached_full_data is not None:
-                self.processed_data = cached_full_data
-                logger.info(f"Loaded full processed data from cache for {len(cached_full_data)} patients")
-                need_to_process_data = False
-            else:
-                # Try old cache format
-                cached_data = self.cache_manager.load_processed_data(
-                    self.dataset_name, self.dataset_type
+            try:
+                cached_full_data = self.cache_manager.load_full_processed_data(
+                    self.dataset_name
                 )
-                if cached_data is not None:
-                    self._load_from_cache(cached_data)
+                if cached_full_data is not None:
+                    self.processed_data = cached_full_data
+                    logger.info(f"Loaded full processed data from cache for {len(cached_full_data)} patients")
                     need_to_process_data = False
+                else:
+                    # Try old cache format
+                    cached_data = self.cache_manager.load_processed_data(
+                        self.dataset_name, self.dataset_type
+                    )
+                    if cached_data is not None:
+                        self._load_from_cache(cached_data)
+                        need_to_process_data = False
+            except Exception as e:
+                logger.warning(f"Failed to load cached data: {e}")
         
         # Process raw data if needed
         if need_to_process_data:
@@ -253,25 +289,89 @@ class Tamborlane2008DataLoader(DatasetBase):
         """
         Load raw data from CSV files.
         Searches in subdirectories if no files found in root.
+        Handles the actual CGM data format with RecID, PtID, DeviceDate, etc.
         """
-        raw_data_path = Path("/Users/kirby/BCG-WatAI/nocturnal-hypo-gly-prob-forecast/cache/data/awesome_cgm/tamborlane_2008/raw")
+        # Determine the raw data path
+        if self.raw_data_path:
+            raw_data_path = self.raw_data_path
+        else:
+            # Try default cache location
+            raw_data_path = Path("cache/data/awesome_cgm/tamborlane_2008/raw")
+            if not raw_data_path.exists():
+                # Try alternative paths
+                for alt_path in [
+                    Path("/Users/kirby/BCG-WatAI/nocturnal-hypo-gly-prob-forecast/cache/data/awesome_cgm/tamborlane_2008/raw"),
+                    Path("./raw"),
+                    Path("./data/raw"),
+                ]:
+                    if alt_path.exists():
+                        raw_data_path = alt_path
+                        break
+        
+        if not raw_data_path.exists():
+            raise FileNotFoundError(f"Raw data path not found: {raw_data_path}")
+        
+        logger.info(f"Loading raw data from: {raw_data_path}")
         
         # Search for CSV and Excel files recursively
-        csv_files = list(raw_data_path.rglob("*.csv"))  
+        csv_files = list(raw_data_path.rglob("*.csv"))
+        excel_files = list(raw_data_path.rglob("*.xlsx")) + list(raw_data_path.rglob("*.xls"))
         
-        if not csv_files:
+        all_files = csv_files + excel_files
+        
+        if not all_files:
             raise FileNotFoundError(f"No data files found in {raw_data_path}")
         
-        if len(csv_files) > 1:
-            dfs = []
-            for file in csv_files:
-                dfs.append(pd.read_csv(file))
-            return pd.concat(dfs, ignore_index=True)
+        logger.info(f"Found {len(all_files)} data files")
         
-        # If single CSV file
-        if len(csv_files) == 1:
-            return pd.read_csv(csv_files[0])
+        # Load and combine all files
+        dfs = []
+        for file in all_files:
+            logger.info(f"Loading {file.name}...")
+            try:
+                if file.suffix == '.csv':
+                    # Try to infer delimiter and encoding
+                    try:
+                        df = pd.read_csv(file)
+                    except:
+                        # Try with different encoding
+                        df = pd.read_csv(file, encoding='latin1')
+                else:
+                    # Excel file
+                    df = pd.read_excel(file)
+                
+                logger.info(f"  Loaded {len(df)} rows from {file.name}")
+                logger.info(f"  Columns: {list(df.columns)[:10]}")  # Show first 10 columns
+                dfs.append(df)
+            except Exception as e:
+                logger.error(f"Failed to load {file.name}: {e}")
+                continue
         
+        if not dfs:
+            raise ValueError("No data could be loaded from any files")
+        
+        # Combine all dataframes
+        if len(dfs) > 1:
+            combined_df = pd.concat(dfs, ignore_index=True, sort=False)
+            logger.info(f"Combined {len(dfs)} files into dataset with {len(combined_df)} total rows")
+        else:
+            combined_df = dfs[0]
+        
+        # Log data summary
+        logger.info(f"Raw data shape: {combined_df.shape}")
+        logger.info(f"Raw data columns: {list(combined_df.columns)}")
+        
+        # Check for expected columns
+        expected_cols = ['RecID', 'PtID', 'DeviceDate', 'DeviceTime', 'GlucoseValue']
+        found_cols = [col for col in expected_cols if col in combined_df.columns]
+        missing_cols = [col for col in expected_cols if col not in combined_df.columns]
+        
+        if found_cols:
+            logger.info(f"Found expected columns: {found_cols}")
+        if missing_cols:
+            logger.warning(f"Missing expected columns: {missing_cols}")
+        
+        return combined_df
 
     def _load_from_cache(self, cached_data: Dict[str, pd.DataFrame]):
         """
@@ -325,7 +425,7 @@ class Tamborlane2008DataLoader(DatasetBase):
         
         logger.info("Processing Tamborlane 2008 raw data...")
         
-        # Clean the data
+        # Clean the data using the updated cleaner
         cleaned_data = clean_tamborlane_2008_data(self.raw_data)
         
         # Split by patient
@@ -334,8 +434,15 @@ class Tamborlane2008DataLoader(DatasetBase):
             logger.warning("No patient ID column found, treating as single patient dataset")
             cleaned_data['p_num'] = 'patient_001'
         
+        # Use the splitter function
         multipatient_data_dict = split_multipatient_dataframe(cleaned_data, 'p_num')
         logger.info(f"Processing {len(multipatient_data_dict)} patients")
+        
+        # Log sample of data for each patient
+        for patient_id, patient_df in list(multipatient_data_dict.items())[:3]:  # First 3 patients
+            logger.info(f"Patient {patient_id}: {len(patient_df)} readings")
+            if 'datetime' in patient_df.columns:
+                logger.info(f"  Date range: {patient_df['datetime'].min()} to {patient_df['datetime'].max()}")
         
         # Process each patient
         if self.parallel:
@@ -345,16 +452,21 @@ class Tamborlane2008DataLoader(DatasetBase):
         
         # Extract features if requested
         if self.extract_features:
+            logger.info("Extracting CGM-specific features...")
             for patient_id in processed_results:
                 processed_results[patient_id] = extract_cgm_features(
                     processed_results[patient_id]
                 )
         
-        # Save to cache
-        logger.info("Saving processed data to cache...")
-        self.cache_manager.save_full_processed_data(
-            self.dataset_name, processed_results
-        )
+        # Save to cache if cache manager is available
+        if self.cache_manager:
+            logger.info("Saving processed data to cache...")
+            try:
+                self.cache_manager.save_full_processed_data(
+                    self.dataset_name, processed_results
+                )
+            except Exception as e:
+                logger.warning(f"Failed to save to cache: {e}")
         
         return processed_results
 
@@ -429,10 +541,15 @@ class Tamborlane2008DataLoader(DatasetBase):
             'dataset_type': self.dataset_type
         }
         
-        # Try to load cached split
-        cached_split_data = self.cache_manager.load_split_data(
-            self.dataset_name, split_params
-        )
+        # Try to load cached split if cache manager available
+        cached_split_data = None
+        if self.cache_manager:
+            try:
+                cached_split_data = self.cache_manager.load_split_data(
+                    self.dataset_name, split_params
+                )
+            except:
+                pass
         
         if cached_split_data is not None:
             train_data_dict, validation_data_dict = cached_split_data
@@ -469,11 +586,15 @@ class Tamborlane2008DataLoader(DatasetBase):
                 train_data_dict[patient_id] = patient_train
                 validation_data_dict[patient_id] = patient_validation
             
-            # Save to cache
-            self.cache_manager.save_split_data(
-                self.dataset_name, train_data_dict, validation_data_dict, split_params
-            )
-            logger.info(f"Cached train/validation split for {len(train_data_dict)} patients")
+            # Save to cache if cache manager available
+            if self.cache_manager:
+                try:
+                    self.cache_manager.save_split_data(
+                        self.dataset_name, train_data_dict, validation_data_dict, split_params
+                    )
+                    logger.info(f"Cached train/validation split for {len(train_data_dict)} patients")
+                except Exception as e:
+                    logger.warning(f"Failed to cache split data: {e}")
         
         self.train_data = train_data_dict
         self.validation_data = validation_data_dict
@@ -490,10 +611,11 @@ class Tamborlane2008DataLoader(DatasetBase):
             # Calculate total training days
             all_train_dates = set()
             for patient_train_df in train_data_dict.values():
-                datetime_index = pd.DatetimeIndex(patient_train_df.index)
-                patient_dates = datetime_index.date
-                all_train_dates.update(patient_dates)
-            self.num_train_days = len(all_train_dates)
+                if isinstance(patient_train_df.index, pd.DatetimeIndex):
+                    datetime_index = pd.DatetimeIndex(patient_train_df.index)
+                    patient_dates = datetime_index.date
+                    all_train_dates.update(patient_dates)
+            self.num_train_days = len(all_train_dates) if all_train_dates else 0
 
     def _validate_dataset(self):
         """
@@ -519,6 +641,9 @@ class Tamborlane2008DataLoader(DatasetBase):
             if 'glucose_mean' in self.data_metrics:
                 logger.info(f"  Mean glucose: {self.data_metrics['glucose_mean']:.2f} mmol/L")
                 logger.info(f"  Std glucose: {self.data_metrics['glucose_std']:.2f} mmol/L")
+            elif 'glucose_mean_mg_dl' in self.data_metrics:
+                logger.info(f"  Mean glucose: {self.data_metrics['glucose_mean_mg_dl']:.2f} mg/dL")
+                logger.info(f"  Std glucose: {self.data_metrics['glucose_std_mg_dl']:.2f} mg/dL")
             if 'time_in_range' in self.data_metrics:
                 logger.info(f"  Time in range: {self.data_metrics['time_in_range']:.1f}%")
                 logger.info(f"  Time below range: {self.data_metrics['time_below_range']:.1f}%")
@@ -569,3 +694,66 @@ class Tamborlane2008DataLoader(DatasetBase):
             return pd.concat(all_dfs, ignore_index=False)
         else:
             return pd.DataFrame()
+
+    def save_processed_data(self, output_path: Union[str, Path], format: str = 'csv'):
+        """
+        Save processed data to files.
+        
+        Args:
+            output_path: Directory to save files
+            format: File format ('csv' or 'parquet')
+        """
+        output_path = Path(output_path)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        for patient_id, patient_df in self.processed_data.items():
+            if format == 'csv':
+                file_path = output_path / f"patient_{patient_id}.csv"
+                patient_df.to_csv(file_path)
+            elif format == 'parquet':
+                file_path = output_path / f"patient_{patient_id}.parquet"
+                patient_df.to_parquet(file_path)
+            else:
+                raise ValueError(f"Unsupported format: {format}")
+        
+        logger.info(f"Saved {len(self.processed_data)} patient files to {output_path}")
+
+
+# Example usage and testing
+if __name__ == "__main__":
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # Example: Load the dataset
+    loader = Tamborlane2008DataLoader(
+        use_cached=False,  # Process from raw data
+        extract_features=True,  # Extract CGM features
+        num_validation_days=7,  # Use 7 days for validation
+        parallel=False,  # Use sequential processing for debugging
+    )
+    
+    # Print dataset information
+    print("\nDataset Information:")
+    info = loader.dataset_info
+    for key, value in info.items():
+        if isinstance(value, dict) and len(str(value)) > 100:
+            print(f"{key}: {type(value)} with {len(value)} items")
+        else:
+            print(f"{key}: {value}")
+    
+    # Get sample patient data
+    if loader.patient_ids:
+        sample_patient_id = loader.patient_ids[0]
+        sample_data = loader.get_patient_data(sample_patient_id)
+        
+        print(f"\nSample data for patient {sample_patient_id}:")
+        print(f"  Shape: {sample_data.shape}")
+        print(f"  Columns: {list(sample_data.columns)}")
+        print(f"  Date range: {sample_data.index.min()} to {sample_data.index.max()}")
+        
+        # Show first few rows
+        print("\nFirst 5 rows:")
+        print(sample_data.head())

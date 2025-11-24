@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Blood-Glucose-Control
+# Licensed under Custom Research License (see LICENSE file)
+# For commercial licensing, contact: [Add your contact information]
+
 # Import existing dataset loaders
 from src.data.diabetes_datasets.kaggle_bris_t1d.bris_t1d import BrisT1DDataLoader
 from src.data.diabetes_datasets.gluroo.gluroo import GlurooDataLoader

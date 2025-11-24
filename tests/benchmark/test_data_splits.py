@@ -7,7 +7,10 @@ from datetime import datetime, timedelta
 import pandas as pd
 import pytest
 
-from src.data.preprocessing.time_processing import get_train_validation_split
+from src.data.preprocessing.time_processing import (
+    get_train_validation_split,
+    get_train_validation_split_by_percentage,
+)
 
 
 @pytest.fixture
@@ -216,3 +219,90 @@ def test_edge_cases():
     df_no_datetime_index = df.reset_index()
     with pytest.raises(TypeError, match="DatetimeIndex"):
         get_train_validation_split(df_no_datetime_index, num_validation_days=1)
+
+
+### get_train_validation_split_by_percentage tests ###
+def test_get_train_validation_split_by_percentage_basic(dataset):
+    """Train 90%, Validate 10% on a 30-day span -> ~27 train days, ~3 validation days."""
+    train_data, validation_data, info = get_train_validation_split_by_percentage(
+        dataset, train_percentage=0.9
+    )
+
+    assert len(train_data) > 0
+    assert len(validation_data) > 0
+
+    overlap = set(train_data.index).intersection(validation_data.index)
+    assert len(overlap) == 0
+    assert len(train_data) + len(validation_data) == len(dataset)
+
+    validation_span_days = (
+        validation_data.index.max() - validation_data.index.min()
+    ).days
+    assert 2 <= validation_span_days <= 3
+    train_span_days = (train_data.index.max() - train_data.index.min()).days
+    assert 26 <= train_span_days <= 27
+
+    # Metadata sanity
+    assert info.get("split_method") == "percentage"
+    assert info.get("train_percentage") == 0.9
+    assert info.get("total_days_estimated") == 30
+    assert info.get("train_days_estimated") == 27
+    assert info.get("validation_days_requested") == 3
+
+
+def test_get_train_validation_split_by_percentage_half(dataset):
+    """Train 50%, Validate 50% on a 30-day span -> ~15 / 15."""
+    train_data, validation_data, info = get_train_validation_split_by_percentage(
+        dataset, train_percentage=0.5
+    )
+
+    # No overlap
+    overlap = set(train_data.index).intersection(validation_data.index)
+    assert len(overlap) == 0
+
+    # Validation spans ~15 days
+    validation_span_days = (
+        validation_data.index.max() - validation_data.index.min()
+    ).days
+    assert 14 <= validation_span_days <= 15
+    train_span_days = (train_data.index.max() - train_data.index.min()).days
+    assert 14 <= train_span_days <= 15
+
+    # Metadata sanity
+    assert info.get("total_days_estimated") == 30
+    assert info.get("train_days_estimated") == 15
+    assert info.get("validation_days_requested") == 15
+
+
+@pytest.mark.parametrize("pct", [0.0, -0.1, 1.1])
+def test_get_train_validation_split_by_percentage_invalid_percentage(dataset, pct):
+    """Invalid train_percentage should raise ValueError."""
+    with pytest.raises(
+        ValueError,
+        match=r"train_percentage must be between 0 \(exclusive\) and 1 \(inclusive\)",
+    ):
+        get_train_validation_split_by_percentage(dataset, train_percentage=pct)
+
+
+def test_get_train_validation_split_by_percentage_non_datetime_index(dataset):
+    """Non-DatetimeIndex should raise TypeError."""
+    df_no_index = dataset.reset_index()
+    with pytest.raises(TypeError, match="DatetimeIndex"):
+        get_train_validation_split_by_percentage(df_no_index, train_percentage=0.8)
+
+
+def test_get_train_validation_split_by_percentage_insufficient_span():
+    """Span < 2 days should raise ValueError."""
+    start = datetime(2023, 1, 1, 6, 0)
+    end = start + timedelta(days=1, hours=12)  # 1.5 days
+    timestamps = pd.date_range(start=start, end=end, freq="15min")
+
+    df = pd.DataFrame(
+        {
+            "p_num": 1,
+            "bg_mM": 5.5,
+        },
+        index=timestamps,
+    )
+    with pytest.raises(ValueError, match="Insufficient data span"):
+        get_train_validation_split_by_percentage(df, train_percentage=0.8)

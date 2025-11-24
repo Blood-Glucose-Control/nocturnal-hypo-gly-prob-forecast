@@ -1,0 +1,390 @@
+Using configuration file: models/configs/ttm_gpu_optimization/aleppo_experiment/ttm_high_performance_config_test_run.yaml
+
+=== Environment Check ===
+Job started at: 2025-11-11 19:27:42 UTC
+Job ID: 1364933
+Node: watgpu608
+Run Directory: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251111_192736_job1364933
+Virtual Environment source python path: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
+Python Version: Python 3.11.4
+Python internal path check: /u6/cjrisi/nocturnal/.noctprob-venv/bin/python
+
+=== GPU Information ===
+Tue Nov 11 19:27:42 2025
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 575.57.08              Driver Version: 575.57.08      CUDA Version: 12.9     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA L40S                    On  |   00000000:04:00.0 Off |                    0 |
+| N/A   26C    P8             31W /  350W |       0MiB /  46068MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+GPU Driver Version: 575.57.08
+GPU Name: NVIDIA L40S
+GPU Memory: 46068 MiB
+=====================================
+
+=== Model Registry Initialization ===
+Registering run in model registry...
+Registered run: run_20251111_192736_job1364933
+
+=== GPU Monitoring Log Setup ===
+Starting GPU monitoring...
+Started GPU monitoring (PID: 1565381) and utilization logging (PID: 1565382)
+
+=== Starting Training ===
+Training started at: 2025-11-11 19:27:44 UTC
+Running command:
+  python /u6/cjrisi/nocturnal/src/train/ttm_runner.py \
+    --run-dir "/u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251111_192736_job1364933"
+    --config "/u6/cjrisi/nocturnal/models/configs/ttm_gpu_optimization/aleppo_experiment/ttm_high_performance_config_test_run.yaml"
+
+2025-11-11 19:27:51.951737: I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
+2025-11-11 19:27:52.215114: E external/local_xla/xla/stream_executor/cuda/cuda_fft.cc:467] Unable to register cuFFT factory: Attempting to register factory for plugin cuFFT when one has already been registered
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+E0000 00:00:1762889272.298944 1565389 cuda_dnn.cc:8579] Unable to register cuDNN factory: Attempting to register factory for plugin cuDNN when one has already been registered
+E0000 00:00:1762889272.323847 1565389 cuda_blas.cc:1407] Unable to register cuBLAS factory: Attempting to register factory for plugin cuBLAS when one has already been registered
+W0000 00:00:1762889272.526147 1565389 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1762889272.526180 1565389 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1762889272.526182 1565389 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+W0000 00:00:1762889272.526184 1565389 computation_placer.cc:177] computation placer already registered. Please check linkage and avoid linking the same target more than once.
+2025-11-11 19:27:52.546648: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: AVX2 AVX512F AVX512_VNNI AVX512_BF16 FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2025-11-11T19:27:58 - TensorFlow version 2.19.1 available.
+INFO: [info_print] [main] =====================================
+INFO: [info_print] [main] === TTM Runner Starting ===
+INFO: [info_print] [main] Loading configuration from: /u6/cjrisi/nocturnal/models/configs/ttm_gpu_optimization/aleppo_experiment/ttm_high_performance_config_test_run.yaml
+INFO: [info_print] [main] Configuration saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251111_192736_job1364933/experiment_config.yaml
+INFO: [info_print] [main] =====================================
+INFO: [info_print] [main] === Calling finetune_ttm() ===
+INFO: [finetune_ttm] -------------------- Preparing data... --------------------
+
+INFO: [load_processed_data_from_cache] Found 226 processed CSV files in /u6/cjrisi/nocturnal/cache/data/awesome_cgm/aleppo/processed
+INFO: [load_processed_data_from_cache] Loaded p40_full: 63574 rows
+INFO: [load_processed_data_from_cache] Loaded p205_full: 74507 rows
+INFO: [load_processed_data_from_cache] Loaded p108_full: 63893 rows
+INFO: [load_processed_data_from_cache] Loaded p252_full: 54063 rows
+INFO: [load_processed_data_from_cache] Loaded p18_full: 69911 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p17_full: 68190 rows
+INFO: [load_processed_data_from_cache] Loaded p50_full: 62048 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p215_full: 66511 rows
+INFO: [load_processed_data_from_cache] Loaded p118_full: 52104 rows
+INFO: [load_processed_data_from_cache] Loaded p140_full: 63209 rows
+INFO: [load_processed_data_from_cache] Loaded p86_full: 54947 rows
+INFO: [load_processed_data_from_cache] Loaded p127_full: 60852 rows
+INFO: [load_processed_data_from_cache] Loaded p128_full: 45570 rows
+INFO: [load_processed_data_from_cache] Loaded p89_full: 45674 rows
+INFO: [load_processed_data_from_cache] Loaded p60_full: 70940 rows
+INFO: [load_processed_data_from_cache] Loaded p37_full: 55739 rows
+INFO: [load_processed_data_from_cache] Loaded p38_full: 63297 rows
+INFO: [load_processed_data_from_cache] Loaded p170_full: 61055 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p272_full: 67973 rows
+INFO: [load_processed_data_from_cache] Loaded p138_full: 27341 rows
+INFO: [load_processed_data_from_cache] Loaded p235_full: 45532 rows
+INFO: [load_processed_data_from_cache] Loaded p137_full: 71973 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p96_full: 61366 rows
+INFO: [load_processed_data_from_cache] Loaded p70_full: 77417 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p284_full: 52904 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p189_full: 70822 rows
+INFO: [load_processed_data_from_cache] Loaded p186_full: 39954 rows
+INFO: [load_processed_data_from_cache] Loaded p27_full: 59633 rows
+INFO: [load_processed_data_from_cache] Loaded p160_full: 65492 rows
+INFO: [load_processed_data_from_cache] Loaded p58_full: 56951 rows
+INFO: [load_processed_data_from_cache] Loaded p57_full: 53503 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p110_full: 41398 rows
+INFO: [load_processed_data_from_cache] Loaded p245_full: 76428 rows
+INFO: [load_processed_data_from_cache] Loaded p148_full: 59839 rows
+INFO: [load_processed_data_from_cache] Loaded p147_full: 62689 rows
+INFO: [load_processed_data_from_cache] Loaded p47_full: 49063 rows
+INFO: [load_processed_data_from_cache] Loaded p48_full: 69002 rows
+INFO: [load_processed_data_from_cache] Loaded p157_full: 57649 rows
+INFO: [load_processed_data_from_cache] Loaded p158_full: 69787 rows
+INFO: [load_processed_data_from_cache] Loaded p10_full: 53115 rows
+INFO: [load_processed_data_from_cache] Loaded p91_full: 57276 rows
+INFO: [load_processed_data_from_cache] Loaded p130_full: 81935 rows
+INFO: [load_processed_data_from_cache] Loaded p232_full: 69982 rows
+INFO: [load_processed_data_from_cache] Loaded p77_full: 84823 rows
+INFO: [load_processed_data_from_cache] Loaded p78_full: 56273 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p20_full: 57934 rows
+INFO: [load_processed_data_from_cache] Loaded p181_full: 40809 rows
+INFO: [load_processed_data_from_cache] Loaded p283_full: 62985 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p167_full: 41146 rows
+INFO: [load_processed_data_from_cache] Loaded p168_full: 68444 rows
+INFO: [load_processed_data_from_cache] Loaded p265_full: 30692 rows
+INFO: [load_processed_data_from_cache] Loaded p222_full: 63418 rows
+INFO: [load_processed_data_from_cache] Loaded p81_full: 3748 rows
+INFO: [load_processed_data_from_cache] Loaded p68_full: 69044 rows
+INFO: [load_processed_data_from_cache] Loaded p67_full: 66239 rows
+INFO: [load_processed_data_from_cache] Loaded p293_full: 61533 rows
+INFO: [load_processed_data_from_cache] Loaded p30_full: 65118 rows
+INFO: [load_processed_data_from_cache] Loaded p275_full: 64176 rows
+INFO: [load_processed_data_from_cache] Loaded p3_full: 73092 rows
+INFO: [load_processed_data_from_cache] Loaded p177_full: 50651 rows
+INFO: [load_processed_data_from_cache] Loaded p61_full: 71357 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p224_full: 67285 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p129_full: 71969 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p87_full: 66102 rows
+INFO: [load_processed_data_from_cache] Loaded p5_full: 51932 rows
+INFO: [load_processed_data_from_cache] Loaded p273_full: 70792 rows
+INFO: [load_processed_data_from_cache] Loaded p171_full: 58677 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p198_full: 73818 rows
+INFO: [load_processed_data_from_cache] Loaded p39_full: 28081 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p36_full: 67868 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p197_full: 66135 rows
+INFO: [load_processed_data_from_cache] Loaded p71_full: 70181 rows
+INFO: [load_processed_data_from_cache] Loaded p136_full: 72876 rows
+INFO: [load_processed_data_from_cache] Loaded p97_full: 64872 rows
+INFO: [load_processed_data_from_cache] Loaded p234_full: 70777 rows
+INFO: [load_processed_data_from_cache] Loaded p98_full: 48505 rows
+INFO: [load_processed_data_from_cache] Loaded p139_full: 74414 rows
+INFO: [load_processed_data_from_cache] Loaded p263_full: 77576 rows
+INFO: [load_processed_data_from_cache] Loaded p187_full: 73678 rows
+INFO: [load_processed_data_from_cache] Loaded p26_full: 66651 rows
+INFO: [load_processed_data_from_cache] Loaded p29_full: 66553 rows
+INFO: [load_processed_data_from_cache] Loaded p188_full: 70756 rows
+INFO: [load_processed_data_from_cache] Loaded p285_full: 64699 rows
+INFO: [load_processed_data_from_cache] Loaded p106_full: 70741 rows
+INFO: [load_processed_data_from_cache] Loaded p109_full: 44267 rows
+INFO: [load_processed_data_from_cache] Loaded p204_full: 59220 rows
+INFO: [load_processed_data_from_cache] Loaded p41_full: 61702 rows
+INFO: [load_processed_data_from_cache] Loaded p16_full: 68915 rows
+INFO: [load_processed_data_from_cache] Loaded p19_full: 10852 rows
+INFO: [load_processed_data_from_cache] Loaded p253_full: 66365 rows
+INFO: [load_processed_data_from_cache] Loaded p119_full: 63765 rows
+INFO: [load_processed_data_from_cache] Loaded p214_full: 75174 rows
+INFO: [load_processed_data_from_cache] Loaded p116_full: 72473 rows
+INFO: [load_processed_data_from_cache] Loaded p243_full: 78544 rows
+INFO: [load_processed_data_from_cache] Loaded p141_full: 53561 rows
+INFO: [load_processed_data_from_cache] Loaded p79_full: 70136 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p76_full: 66679 rows
+INFO: [load_processed_data_from_cache] Loaded p233_full: 68396 rows
+INFO: [load_processed_data_from_cache] Loaded p90_full: 68258 rows
+INFO: [load_processed_data_from_cache] Loaded p131_full: 60284 rows
+INFO: [load_processed_data_from_cache] Loaded p264_full: 45257 rows
+INFO: [load_processed_data_from_cache] Loaded p169_full: 58119 rows
+INFO: [load_processed_data_from_cache] Loaded p166_full: 73846 rows
+INFO: [load_processed_data_from_cache] Loaded p21_full: 52289 rows
+INFO: [load_processed_data_from_cache] Loaded p69_full: 51779 rows
+INFO: [load_processed_data_from_cache] Loaded p121_full: 64655 rows
+INFO: [load_processed_data_from_cache] Loaded p80_full: 49761 rows
+INFO: [load_processed_data_from_cache] Loaded p223_full: 18864 rows
+INFO: [load_processed_data_from_cache] Loaded p176_full: 66316 rows
+INFO: [load_processed_data_from_cache] Loaded p2_full: 67549 rows
+INFO: [load_processed_data_from_cache] Loaded p274_full: 71778 rows
+INFO: [load_processed_data_from_cache] Loaded p179_full: 65429 rows
+INFO: [load_processed_data_from_cache] Loaded p190_full: 66016 rows
+INFO: [load_processed_data_from_cache] Loaded p31_full: 68632 rows
+INFO: [load_processed_data_from_cache] Loaded p292_full: 61502 rows
+INFO: [load_processed_data_from_cache] Loaded p111_full: 85006 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p213_full: 65797 rows
+INFO: [load_processed_data_from_cache] Loaded p146_full: 73314 rows
+INFO: [load_processed_data_from_cache] Loaded p149_full: 62466 rows
+INFO: [load_processed_data_from_cache] Loaded p244_full: 54190 rows
+INFO: [load_processed_data_from_cache] Loaded p203_full: 23784 rows
+INFO: [load_processed_data_from_cache] Loaded p101_full: 50666 rows
+INFO: [load_processed_data_from_cache] Loaded p49_full: 51069 rows
+INFO: [load_processed_data_from_cache] Loaded p46_full: 58162 rows
+INFO: [load_processed_data_from_cache] Loaded p11_full: 62069 rows
+INFO: [load_processed_data_from_cache] Loaded p254_full: 57800 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p156_full: 70766 rows
+INFO: [load_processed_data_from_cache] Loaded p145_full: 31238 rows
+INFO: [load_processed_data_from_cache] Loaded p248_full: 45690 rows
+INFO: [load_processed_data_from_cache] Loaded p247_full: 71768 rows
+INFO: [load_processed_data_from_cache] Loaded p112_full: 55352 rows
+INFO: [load_processed_data_from_cache] Loaded p210_full: 49995 rows
+INFO: [load_processed_data_from_cache] Loaded p55_full: 51696 rows
+INFO: [load_processed_data_from_cache] Loaded p257_full: 44354 rows
+INFO: [load_processed_data_from_cache] Loaded p155_full: 76570 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p258_full: 71476 rows
+INFO: [load_processed_data_from_cache] Loaded p200_full: 61863 rows
+INFO: [load_processed_data_from_cache] Loaded p102_full: 78556 rows
+INFO: [load_processed_data_from_cache] Loaded p45_full: 57391 rows
+INFO: [load_processed_data_from_cache] Loaded p267_full: 47447 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p165_full: 69816 rows
+INFO: [load_processed_data_from_cache] Loaded p281_full: 63230 rows
+INFO: [load_processed_data_from_cache] Loaded p183_full: 64888 rows
+INFO: [load_processed_data_from_cache] Loaded p22_full: 59741 rows
+INFO: [load_processed_data_from_cache] Loaded p132_full: 39016 rows
+INFO: [load_processed_data_from_cache] Loaded p93_full: 63213 rows
+INFO: [load_processed_data_from_cache] Loaded p278_full: 72415 rows
+INFO: [load_processed_data_from_cache] Loaded p175_full: 71049 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p277_full: 87660 rows
+INFO: [load_processed_data_from_cache] Loaded p32_full: 71860 rows
+INFO: [load_processed_data_from_cache] Loaded p193_full: 80628 rows
+INFO: [load_processed_data_from_cache] Loaded p291_full: 62062 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p65_full: 73591 rows
+INFO: [load_processed_data_from_cache] Loaded p220_full: 71018 rows
+INFO: [load_processed_data_from_cache] Loaded p15_full: 63920 rows
+INFO: [load_processed_data_from_cache] Loaded p152_full: 62763 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p250_full: 76618 rows
+INFO: [load_processed_data_from_cache] Loaded p105_full: 77616 rows
+INFO: [load_processed_data_from_cache] Loaded p42_full: 50046 rows
+INFO: [load_processed_data_from_cache] Loaded p240_full: 70783 rows
+INFO: [load_processed_data_from_cache] Loaded p217_full: 46167 rows
+INFO: [load_processed_data_from_cache] Loaded p115_full: 61861 rows
+INFO: [load_processed_data_from_cache] Loaded p218_full: 71232 rows
+INFO: [load_processed_data_from_cache] Loaded p52_full: 27597 rows
+INFO: [load_processed_data_from_cache] Loaded p9_full: 54554 rows
+INFO: [load_processed_data_from_cache] Loaded p172_full: 65862 rows
+INFO: [load_processed_data_from_cache] Loaded p35_full: 63468 rows
+INFO: [load_processed_data_from_cache] Loaded p62_full: 57857 rows
+INFO: [load_processed_data_from_cache] Loaded p227_full: 58942 rows
+INFO: [load_processed_data_from_cache] Loaded p228_full: 77545 rows
+INFO: [load_processed_data_from_cache] Loaded p162_full: 36133 rows
+INFO: [load_processed_data_from_cache] Loaded p260_full: 36980 rows
+INFO: [load_processed_data_from_cache] Loaded p184_full: 49068 rows
+INFO: [load_processed_data_from_cache] Loaded p289_full: 15516 rows
+INFO: [load_processed_data_from_cache] Loaded p72_full: 58895 rows
+INFO: [load_processed_data_from_cache] Loaded p135_full: 72513 rows
+INFO: [load_processed_data_from_cache] Loaded p23_full: 72627 rows
+INFO: [load_processed_data_from_cache] Loaded p280_full: 57564 rows
+INFO: [load_processed_data_from_cache] Loaded p164_full: 74845 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p269_full: 71689 rows
+INFO: [load_processed_data_from_cache] Loaded p266_full: 25428 rows
+INFO: [load_processed_data_from_cache] Loaded p231_full: 68602 rows
+INFO: [load_processed_data_from_cache] Loaded p74_full: 72529 rows
+INFO: [load_processed_data_from_cache] Loaded p290_full: 61237 rows
+INFO: [load_processed_data_from_cache] Loaded p33_full: 70997 rows
+INFO: [load_processed_data_from_cache] Loaded p276_full: 68440 rows
+INFO: [load_processed_data_from_cache] Loaded p174_full: 60402 rows
+INFO: [load_processed_data_from_cache] Loaded p221_full: 57449 rows
+INFO: [load_processed_data_from_cache] Loaded p82_full: 62828 rows
+INFO: [load_processed_data_from_cache] Loaded p123_full: 74002 rows
+INFO: [load_processed_data_from_cache] Loaded p64_full: 67825 rows
+INFO: [load_processed_data_from_cache] Loaded p246_full: 64151 rows
+INFO: [load_processed_data_from_cache] Loaded p249_full: 29288 rows
+INFO: [load_processed_data_from_cache] Loaded p54_full: 62443 rows
+INFO: [load_processed_data_from_cache] Loaded p211_full: 61675 rows
+INFO: [load_processed_data_from_cache] Loaded p113_full: 52374 rows
+INFO: [load_processed_data_from_cache] Loaded p256_full: 57532 rows
+INFO: [load_processed_data_from_cache] Loaded p103_full: 64837 rows
+INFO: [load_processed_data_from_cache] Loaded p201_full: 64829 rows
+INFO: [load_processed_data_from_cache] Loaded p173_full: 64750 rows
+INFO: [load_processed_data_from_cache] Loaded p8_full: 52927 rows
+INFO: [load_processed_data_from_cache] Loaded p271_full: 68120 rows
+INFO: [load_processed_data_from_cache] Loaded p7_full: 78157 rows
+INFO: [load_processed_data_from_cache] Loaded p124_full: 70494 rows
+INFO: [load_processed_data_from_cache] Loaded p229_full: 56591 rows
+INFO: [load_processed_data_from_cache] Loaded p226_full: 57827 rows
+INFO: [load_processed_data_from_cache] Loaded p287_full: 63823 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p288_full: 66734 rows
+INFO: [load_processed_data_from_cache] Loaded p24_full: 56758 rows
+INFO: [load_processed_data_from_cache] Loaded p185_full: 70779 rows
+INFO: [load_processed_data_from_cache] Loaded p163_full: 65012 rows
+INFO: [load_processed_data_from_cache] Loaded p236_full: 44437 rows
+INFO: [load_processed_data_from_cache] Loaded p95_full: 77578 rows
+INFO: [load_processed_data_from_cache] Loaded p134_full: 71944 rows
+INFO: [load_processed_data_from_cache] Loaded p239_full: 62149 rows
+INFO: [load_processed_data_from_cache] Loaded p73_full: 44251 rows
+INFO: [load_processed_data_from_cache] Loaded p251_full: 70600 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p14_full: 70986 rows
+INFO: [load_processed_data_from_cache] Loaded p43_full: 62676 rows
+INFO: [load_processed_data_from_cache] Loaded p206_full: 69076 rows
+INFO: [load_processed_data_from_cache] Loaded p209_full: 48888 rows
+/u6/cjrisi/nocturnal/src/train/ttm.py:320: DtypeWarning: Columns (3,13) have mixed types. Specify dtype option on import or set low_memory=False.
+  df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+INFO: [load_processed_data_from_cache] Loaded p143_full: 65621 rows
+INFO: [load_processed_data_from_cache] Loaded p241_full: 67492 rows
+INFO: [load_processed_data_from_cache] Loaded p53_full: 71434 rows
+INFO: [load_processed_data_from_cache] Loaded p219_full: 66868 rows
+INFO: [load_processed_data_from_cache] Loaded p216_full: 12648 rows
+INFO: [load_processed_data_from_cache] Successfully loaded 226 patients
+INFO: [reduce_features_multi_patient] Processing patient p40_full...
+Traceback (most recent call last):
+  File "/u6/cjrisi/nocturnal/src/train/ttm_runner.py", line 185, in <module>
+    main()
+  File "/u6/cjrisi/nocturnal/src/train/ttm_runner.py", line 44, in wrapper
+    result = func(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/src/train/ttm_runner.py", line 116, in main
+    metrics = finetune_ttm(
+              ^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 609, in finetune_ttm
+    all_patients_df = reduce_features_multi_patient(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/src/train/ttm.py", line 347, in reduce_features_multi_patient
+    p_df = p_df[x_features + y_feature]
+           ~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/pandas/core/frame.py", line 4119, in __getitem__
+    indexer = self.columns._get_indexer_strict(key, "columns")[1]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/pandas/core/indexes/base.py", line 6212, in _get_indexer_strict
+    self._raise_if_missing(keyarr, indexer, axis_name)
+  File "/u6/cjrisi/nocturnal/.noctprob-venv/lib/python3.11/site-packages/pandas/core/indexes/base.py", line 6264, in _raise_if_missing
+    raise KeyError(f"{not_found} not in index")
+KeyError: "['steps'] not in index"
+Training finished at: 2025-11-11 19:28:21 UTC
+Training exit code: 0
+Total elapsed time: 0h 0m 45s (45 seconds)
+Run completed. Logs and monitoring data saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251111_192736_job1364933
+Updating model registry with completion info...
+Warning: Could not load metrics: name 'os' is not defined
+Updated registry for run: run_20251111_192736_job1364933 with status: completed
+All run data and logs saved to: /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251111_192736_job1364933
+Configuration and results tracked in model registry
+Moving SLURM output files to run directory...
+Moved SLURM output file to /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251111_192736_job1364933/
+Moved SLURM error file to /u6/cjrisi/nocturnal/results/runs/ttm_finetune/run_20251111_192736_job1364933/
