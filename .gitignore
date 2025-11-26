@@ -199,5 +199,4 @@ cython_debug/
 *.code-workspace
 
 scripts/notebooks/mlruns/
-src/models
 mlflow_experiments/README.md
