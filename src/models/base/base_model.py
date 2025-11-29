@@ -146,7 +146,7 @@ class BaseTSFM(ABC):
         self.distributed_config = distributed_config or DistributedConfig()
 
         # Model and training components
-        self.model: Optional[PreTrainedModel] = None
+        self.model: Optional[Union[PreTrainedModel, torch.nn.parallel.DistributedDataParallel]] = None
         self.trainer: Optional[Trainer] = None
         self.tokenizer = None  # For models that need tokenization
 
@@ -218,7 +218,9 @@ class BaseTSFM(ABC):
         self._distributed_setup_done = True
 
     def _setup_ddp(self) -> None:
-        """Set up PyTorch Distributed Data Parallel."""
+        """Set up PyTorch Distributed Data Parallel.
+           DDP requires explicit setup before the Trainer, unlike DeepSpeed and FSDP.
+        """
         if not torch.distributed.is_initialized():
             torch.distributed.init_process_group(
                 backend=self.distributed_config.backend,
@@ -228,7 +230,9 @@ class BaseTSFM(ABC):
 
         if self.model is not None and torch.cuda.is_available():
             device = torch.device(f"cuda:{self.distributed_config.local_rank}")
+            # Move model to the appropriate device
             self.model = self.model.to(device)
+            # Wrap with DDP
             self.model = torch.nn.parallel.DistributedDataParallel(
                 self.model,
                 device_ids=[self.distributed_config.local_rank],

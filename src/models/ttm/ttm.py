@@ -24,9 +24,11 @@ from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
 
 from src.data.cache_manager import get_cache_manager
-from src.data.preprocessing.split_or_combine_patients import reduce_features_multi_patient
+from src.data.preprocessing.split_or_combine_patients import (
+    reduce_features_multi_patient,
+)
 from src.utils.os_helper import get_project_root
-from src.utils.logging_helper import info_print, error_print, debug_print
+from src.utils.logging_helper import info_print, debug_print
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
@@ -34,6 +36,7 @@ PREDICTION_LENGTH = 96
 # Debug configuration - set to False for production runs
 # To enable debug mode, set environment variable: export TTM_DEBUG=true
 DEBUG_MODE = os.getenv("TTM_DEBUG", "false").lower() == "true"
+
 
 def load_config(config_path):
     """Load YAML configuration file"""
@@ -290,6 +293,7 @@ def load_processed_data_from_cache(data_source_name):
 
     info_print(f"Successfully loaded {len(data_dict)} patients")
     return data_dict
+
 
 def _get_finetune_trainer(
     dataset_name,
