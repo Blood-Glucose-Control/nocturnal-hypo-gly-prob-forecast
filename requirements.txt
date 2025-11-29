@@ -19,6 +19,10 @@ matplotlib
 mkdocs
 mkdocs-material
 mlflow
+
+#TimeGPT
+nixtla>=0.7.0
+
 #neuralforecast
 notebook
 numba
@@ -34,6 +38,9 @@ python-dotenv
 #pytorch-forecasting
 #pytorch-lightning
 PyWavelets
+# timegpt
+pyyaml
+
 ruff>=0.3.0
 scikit-learn
 seaborn

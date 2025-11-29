@@ -1,0 +1,23 @@
+# TimeGPT finetuning configuration
+
+experiment:
+  name: "timegpt_baseline_finetune"
+  description: "Baseline TimeGPT finetuning on kaggle_brisT1D"
+  tags: ["timegpt", "kaggle_brisT1D", "5min"]
+  version: "1.0"
+
+model:
+  path: "timegpt-1"
+  api_key: null             # Optional override; defaults to $NIXTLA_API_KEY env var
+
+data:
+  source_name: "kaggle_brisT1D"
+  target_col: "bg_mM"
+  time_col: "datetime"
+  id_col: "id"
+  resolution_min: 5
+
+training:
+  forecast_horizon: 12      # Number of steps ahead to forecast/evaluate
+  finetune_steps: 10        # Steps passed to Nixtla finetune
+  freq: "5min"                # Optional frequency string; TimeGPT can infer if null
