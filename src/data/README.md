@@ -40,20 +40,36 @@ All datasets are transformed into a standardized format for our benchmark pipeli
 
 ### Core Columns (Required for All Datasets)
 
-The DataFrame index should `datetime`.
+The DataFrame index should be `datetime`.
+
+| Column | Type | Description | Source | Required? |
+|--------|------|-------------|---------|-----------|
+| `datetime` | `pd.Timestamp` **INDEX** | Primary timestamp for each measurement | Mapped from `time` or original `datetime` | **Required** |
+| `p_num` | `str` | Patient identifier (e.g., "p01", "glu001") | Artificially created by dataset loader | **Required** |
+| `bg_mM` | `float` | Blood glucose measurement in mmol/L | Original data source, converted from mg/dL if needed | **Required** |
+
+### Optional Columns (Enhance Features but Don't Block Processing)
+
+| Column | Type | Description | Source | Notes |
+|--------|------|-------------|---------|-------|
+| `dose_units` | `float` | Insulin dose in units | Original data source | Enables IOB calculation |
+| `food_g` | `float` | Carbohydrate intake in grams | Original data source | Enables COB calculation |
+| `msg_type` | `str` | Message type indicator ('ANNOUNCE_MEAL' or empty) | Derived from rows where `food_g` is not null | - |
+| `rate` | `float` | Basal insulin rate in U/hr | Original data source | Enables basal rollover |
+| `basal_duration_mins` | `int` | Duration of basal rate in minutes | Original data source or derived | Required for basal rollover along with `rate` and `dose_units` |
+
+### Derived Physiological Features
+
+These columns are computed by the preprocessing pipeline from the optional columns above. If the source column is missing or all NaN, these will be set to NaN.
 
 | Column | Type | Description | Source |
 |--------|------|-------------|---------|
-| `datetime` | `pd.Timestamp` **INDEX** | Primary timestamp for each measurement | Mapped from `time` or original `datetime` |
-| `p_num` | `str` | Patient identifier (e.g., "p01", "glu001") | Artificially created by dataset loader |
-| `bg_mM` | `float` | Blood glucose measurement in mmol/L | Original data source, converted from mg/dL if needed |
-| `dose_units` | `float` | Insulin dose in units | Original data source |
-| `food_g` | `float` | Carbohydrate intake in grams | Original data source |
-| `msg_type` | `str` | Message type indicator ('ANNOUNCE_MEAL' or empty) | Derived from rows where `food_g` is not null |
 | `cob` | `float` | Carbohydrates on board in grams | Derived from `food_g` using physiological model |
 | `carb_availability` | `float` | Estimated total carbohydrates in blood | Derived from `food_g` using physiological model |
 | `iob` | `float` | Insulin on board in units | Derived from `dose_units` using physiological model |
 | `insulin_availability` | `float` | Insulin in plasma | Derived from `dose_units` using physiological model |
+
+> **Note:** CGM-only datasets (e.g., some Type 2 diabetes patients, pre-training scenarios) are supported. The pipeline will skip COB/IOB calculations and set those features to NaN if the source columns are missing.
 
 ### Optional Activity Metrics
 These columns are also available but not used as much due to limited data availability:
@@ -168,9 +184,10 @@ Implement a data cleaner that performs the following steps in order:
    - Rename the dataset's blood glucose level column to `bg_mM` and convert to mmol/L
    - Convert the `time` column to `datetime` and set it as the index (if there is no time column, artificially create one starting from a random date)
    - Convert "food" rows to `food_g` and set `msg_type` to `ANNOUNCE_MEAL`
-   - Convert "insulin" column to `dose_units`. Note that this column can contain small consecutive numbers for pump patients or discrete large numbers for non-pump patients
+   - Convert "insulin" column to `dose_units` if available. Note that this column can contain small consecutive numbers for pump patients or discrete large numbers for non-pump patients
    - Add `p_num`. If your dataset has multiple patients, give each a unique ID like "p01", "p02"
-   - The above columns are required
+   - **Required columns**: `datetime`, `p_num`, `bg_mM`
+   - **Optional columns**: `dose_units`, `food_g`, `msg_type`, `rate` (enhance features but don't block processing)
    - Add `cals`, `steps`, `hr_bpm`, and `activity` if they exist
    - Ensure the `datetime` column exists and is set as the DataFrame index
 

@@ -49,6 +49,7 @@ Notes:
 import logging
 
 import pandas as pd
+import numpy as np
 
 from src.data.models import ColumnNames
 from src.data.physiological.carb_model.carb_model import (
@@ -65,12 +66,6 @@ from src.data.preprocessing.sampling import (
 from src.data.preprocessing.time_processing import get_most_common_time_interval
 
 logger = logging.getLogger(__name__)
-
-required_columns = [
-    ColumnNames.DATETIME.value,  # Datetime of the data (not the index)
-    ColumnNames.FOOD_G.value,  # Carbs in grams
-    ColumnNames.DOSE_UNITS.value,  # Insulin units
-]
 
 
 # TODO: We should't really be adding dose_units because each insulin has different activation curves.
@@ -144,15 +139,17 @@ def create_physiological_features(
     4. Creating insulin-on-board (IOB) and insulin availability features from dose data
 
     Args:
-        df (pd.DataFrame): Input DataFrame with datetime index containing at minimum
-                          'food_g' (carbs in grams) and 'dose_units' (insulin units)
+        df (pd.DataFrame): Input DataFrame with datetime index. Optional columns:
+                          'food_g' (carbs) enables COB calculation,
+                          'dose_units' (insulin) enables IOB calculation,
+                          'rate' (basal) enables basal rollover.
         use_aggregation (bool, optional): Whether to use aggregation to ensure regular time intervals.
                                           If True, will consider all rows within the same regular time interval.
                                           If False, will only consider the first row within the regular time interval.
 
     Returns:
         pd.DataFrame: Enhanced DataFrame with original data plus derived physiological
-                     features including COB, IOB, and availability metrics
+                     features. COB/IOB will be NaN if the corresponding columns are missing.
 
     Raises:
         ValueError: If the DataFrame does not have a datetime index
@@ -164,22 +161,48 @@ def create_physiological_features(
     if use_aggregation:
         logger.info("\tEnsuring regular time intervals with aggregation...")
         df, freq = ensure_regular_time_intervals_with_aggregation(df)
-        # df.to_csv("resampled_with_aggregation.csv")  # TODO: Remove this. Debugging only
     else:
         logger.info("\tEnsuring regular time intervals...")
         df, freq = ensure_regular_time_intervals(df)
 
-    logger.info("\tRollover basal rate...")
-    df = rollover_basal_rate(df)
+    # Conditionally apply basal rollover (requires both dose_units and rate columns)
+    if (
+        ColumnNames.DOSE_UNITS.value in df.columns
+        and ColumnNames.RATE.value in df.columns
+    ):
+        logger.info("\tRollover basal rate...")
+        df = rollover_basal_rate(df)
+    else:
+        logger.info("\tSkipping basal rollover (missing dose_units or rate column)")
 
     logger.info(
-        "\tCreating COB/IOB and availability columns. This may take a while depending on the size of the data."
+        "\tCreating COB/IOB and availability columns. "
+        "This may take a while depending on the size of the data."
     )
-    logger.info("\tCreating COB and carb availability columns...")
-    df = create_cob_and_carb_availability_cols(df, freq)
 
-    logger.info("\tCreating IOB and insulin availability columns...")
-    df = create_iob_and_ins_availability_cols(df, freq)
+    # Conditionally compute COB (requires food_g column with at least some data)
+    if (
+        ColumnNames.FOOD_G.value in df.columns
+        and df[ColumnNames.FOOD_G.value].notna().any()
+    ):
+        logger.info("\tCreating COB and carb availability columns...")
+        df = create_cob_and_carb_availability_cols(df, freq)
+    else:
+        logger.info("\tSkipping COB (no food_g column or all NaN) - setting to NaN")
+        df[ColumnNames.COB.value] = np.nan
+        df[ColumnNames.CARB_AVAILABILITY.value] = np.nan
+
+    # Conditionally compute IOB (requires dose_units column with at least some data)
+    if (
+        ColumnNames.DOSE_UNITS.value in df.columns
+        and df[ColumnNames.DOSE_UNITS.value].notna().any()
+    ):
+        logger.info("\tCreating IOB and insulin availability columns...")
+        df = create_iob_and_ins_availability_cols(df, freq)
+    else:
+        logger.info("\tSkipping IOB (no dose_units column or all NaN) - setting to NaN")
+        df[ColumnNames.IOB.value] = np.nan
+        df[ColumnNames.INSULIN_AVAILABILITY.value] = np.nan
 
     logger.info("\tReducing floating point precision...")
     df = reduce_fp_precision(df)
