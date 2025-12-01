@@ -56,6 +56,7 @@ The DataFrame index should be `datetime`.
 | `food_g` | `float` | Carbohydrate intake in grams | Original data source | Enables COB calculation |
 | `msg_type` | `str` | Message type indicator ('ANNOUNCE_MEAL' or empty) | Derived from rows where `food_g` is not null | - |
 | `rate` | `float` | Basal insulin rate in U/hr | Original data source | Enables basal rollover |
+| `basal_duration_mins` | `int` | Duration of basal rate in minutes | Original data source or derived | Required for basal rollover along with `rate` and `dose_units` |
 
 ### Derived Physiological Features
 

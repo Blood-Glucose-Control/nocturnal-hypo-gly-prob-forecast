@@ -161,7 +161,6 @@ def create_physiological_features(
     if use_aggregation:
         logger.info("\tEnsuring regular time intervals with aggregation...")
         df, freq = ensure_regular_time_intervals_with_aggregation(df)
-        # df.to_csv("resampled_with_aggregation.csv")  # TODO: Remove this. Debugging only
     else:
         logger.info("\tEnsuring regular time intervals...")
         df, freq = ensure_regular_time_intervals(df)
