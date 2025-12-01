@@ -18,7 +18,9 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
 
     for patient_id, df in patients_dict.items():
         # Check if patient has the correct interval
-        if get_interval_minutes(df) == resolution_min:
+        interval_minutes = get_interval_minutes(df)
+        info_print(f"Checking patient {patient_id} with interval {interval_minutes} minutes...")
+        if interval_minutes == resolution_min:
             info_print(f"Processing patient {patient_id}...")
             # Process each patient individually
             p_df = df.iloc[:]
@@ -28,5 +30,6 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
             p_df = impute_missing_values(p_df, columns=y_feature)
             p_df["id"] = patient_id
             processed_patients.append(p_df)
-
+        else:
+            info_print(f"Skipping patient {patient_id} due to incorrect interval: {interval_minutes} minutes\n Needed: {resolution_min} minutes")
     return pd.concat(processed_patients)

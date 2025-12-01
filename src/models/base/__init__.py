@@ -10,6 +10,7 @@ from .base_model import (
     ModelConfig,
     LoRAConfig,
     DistributedConfig,
+    TrainingStrategy,
     create_model_from_config,
     compare_models,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "ModelConfig",
     "LoRAConfig",
     "DistributedConfig",
+    "TrainingStrategy",
     # Factory functions
     "create_model_from_config",
     "compare_models",

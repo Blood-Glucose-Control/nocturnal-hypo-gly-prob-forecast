@@ -13,6 +13,8 @@ import pandas as pd
 from torch.utils.data import DataLoader
 from transformers import (
     TrainingArguments,
+    Trainer,
+    EarlyStoppingCallback,
 )
 
 # Import your existing TTM-related modules
@@ -24,7 +26,8 @@ from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 # Local imports
-from src.models.base import BaseTSFM, ModelConfig
+from src.models.base import BaseTSFM, ModelConfig, TrainingStrategy
+from src.models.ttm.config import TTMConfig
 from src.data.diabetes_datasets.data_loader import get_loader
 from src.data.models import ColumnNames
 from src.data.preprocessing.split_or_combine_patients import (
@@ -55,6 +58,7 @@ class TTMConfig(ModelConfig):
 
         # Set TTM-specific parameters
         self.model_type = "ttm"
+        self.training_strategy = TrainingStrategy.TRANSFORMERS
         # model_path is now handled by the parent class
 
         # Data preprocessing
@@ -73,7 +77,7 @@ class TTMConfig(ModelConfig):
         # TTM architecture specifics
         self.num_input_channels = kwargs.get("num_input_channels", 1)
         self.num_output_channels = kwargs.get("num_output_channels", 1)
-        self.resolution_min = kwargs.get("resolution_min", 100)
+        self.resolution_min = kwargs.get("resolution_min", 5)
 
         # Training specifics for TTM
         self.freeze_backbone = kwargs.get("freeze_backbone", True)
@@ -89,10 +93,20 @@ class TTMForecaster(BaseTSFM):
     """
 
     def __init__(self, config: TTMConfig, lora_config=None, distributed_config=None):
-        """Initialize TTM forecaster."""
-        # Ensure we're using TTMConfig
+        """Initialize TTM forecaster.""" 
+        # Use the config as-is if it's already a TTMConfig
+        # Only convert if we receive a different type
         if not isinstance(config, TTMConfig):
-            config = TTMConfig(**config.to_dict())
+            # Create a basic TTMConfig from the essential parameters
+            essential_params = {
+                'model_path': getattr(config, 'model_path', None),
+                'context_length': getattr(config, 'context_length', 512),
+                'forecast_length': getattr(config, 'forecast_length', 96),
+                'learning_rate': getattr(config, 'learning_rate', 1e-4),
+                'batch_size': getattr(config, 'batch_size', 64),
+                'num_epochs': getattr(config, 'num_epochs', 10),
+            }
+            config = TTMConfig(**essential_params)
 
         super().__init__(config, lora_config, distributed_config)
 
@@ -109,7 +123,6 @@ class TTMForecaster(BaseTSFM):
             info_print(f"Initializing TTM model from {self.config.model_path}")
 
             # Prepare minimal parameters for TTM model initialization
-            # The freeze_backbone and other parameters might need to be applied after loading
             model_params = {
                 "model_path": self.config.model_path,
                 "context_length": self.config.context_length,
@@ -126,15 +139,16 @@ class TTMForecaster(BaseTSFM):
             # Get TTM model using the existing tsfm_public toolkit
             ttm_model = get_model(**model_params)
 
-            # Apply freeze_backbone after model loading if needed
-            if self.config.freeze_backbone:
-                debug_print("Freezing backbone parameters...")
+            # Configure parameter gradients based on training strategy
+            if self.config.fit_strategy == "zero_shot":
+                info_print("Freezing all parameters for zero-shot evaluation")
                 for param in ttm_model.parameters():
                     param.requires_grad = False
-                # Unfreeze the prediction head (usually the last layer)
-                if hasattr(ttm_model, "prediction_head"):
-                    for param in ttm_model.prediction_head.parameters():
-                        param.requires_grad = True
+            else:
+                # For any training scenario (fine_tune, from_scratch), enable gradients
+                info_print(f"Enabling gradients for all parameters ({self.config.fit_strategy} mode)")
+                for param in ttm_model.parameters():
+                    param.requires_grad = True
 
             self.model = ttm_model
             info_print("TTM model initialized successfully")
@@ -167,7 +181,9 @@ class TTMForecaster(BaseTSFM):
                 use_cached=True,
             )
             data = loader.processed_data
-
+            info_print(
+                f"Loaded data from source '{data_source_name}' with data.head:\n{data[ next(iter(data))].head()}"
+            )
         elif isinstance(train_data, pd.DataFrame):
             data = train_data
         else:
@@ -284,7 +300,56 @@ class TTMForecaster(BaseTSFM):
 
         return column_specifiers
 
-    def _create_training_arguments(self, output_dir: str) -> TrainingArguments:
+    def _fit_impl(
+        self,
+        train_data: Any,
+        val_data: Optional[Any] = None,
+        test_data: Optional[Any] = None,
+        output_dir: str = "./output",
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        TTM-specific training implementation using Transformers Trainer.
+        """
+        # Prepare data loaders
+        train_loader, val_loader, test_loader = self._prepare_data(
+            train_data, val_data, test_data
+        )
+
+        # Create training arguments
+        training_args = self._create_training_arguments(output_dir)
+
+        # Create trainer
+        trainer = Trainer(
+            model=self.model,
+            args=training_args,
+            train_dataset=train_loader.dataset if train_loader else None,
+            eval_dataset=val_loader.dataset if val_loader else None,
+            compute_metrics=self._compute_metrics,
+            callbacks=self._get_callbacks(),
+        )
+
+        # Train the model
+        resume_from_checkpoint = kwargs.get("resume_from_checkpoint", None)
+        if resume_from_checkpoint:
+            info_print(f"Resuming training from {resume_from_checkpoint}")
+            train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        else:
+            train_result = trainer.train()
+
+        # Save the model
+        trainer.save_model()
+
+        # Evaluate on test set if provided
+        test_metrics = {}
+        if test_loader is not None:
+            test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
+            info_print(f"Test metrics: {test_metrics}")
+
+        return {
+            "train_metrics": train_result.metrics,
+            "test_metrics": test_metrics,
+        }
         """Create TTM-specific training arguments."""
         return TrainingArguments(
             output_dir=output_dir,
@@ -388,6 +453,189 @@ class TTMForecaster(BaseTSFM):
         except Exception as e:
             error_print(f"Error computing metrics: {str(e)}")
             return {"custom_error": str(e)}
+
+    def get_training_strategy(self) -> TrainingStrategy:
+        """TTM uses Transformers library for training."""
+        return TrainingStrategy.TRANSFORMERS
+
+    def supports_lora(self) -> bool:
+        """TTM is MLP-based (Mixer architecture) and does NOT support LoRA fine-tuning."""
+        return False
+
+    def _get_callbacks(self) -> List:
+        """Get training callbacks for TTM."""
+        from transformers import EarlyStoppingCallback
+        
+        callbacks = []
+        
+        # Early stopping
+        if self.config.early_stopping_patience > 0:
+            callbacks.append(
+                EarlyStoppingCallback(
+                    early_stopping_patience=self.config.early_stopping_patience,
+                    early_stopping_threshold=0.0,
+                )
+            )
+        
+        return callbacks
+
+    def _create_training_arguments(self, output_dir: str) -> TrainingArguments:
+        """Create TTM-specific training arguments."""
+        return TrainingArguments(
+            output_dir=output_dir,
+            learning_rate=self.config.learning_rate,
+            num_train_epochs=self.config.num_epochs,
+            per_device_train_batch_size=self.config.batch_size,
+            per_device_eval_batch_size=self.config.batch_size,
+            warmup_steps=self.config.warmup_steps,
+            weight_decay=self.config.weight_decay,
+            logging_dir=os.path.join(output_dir, "logs"),
+            logging_steps=self.config.logging_steps,
+            eval_strategy=self.config.eval_strategy,
+            eval_steps=self.config.eval_steps,
+            save_steps=self.config.save_steps,
+            metric_for_best_model=self.config.metric_for_best_model,
+            greater_is_better=self.config.greater_is_better,
+            load_best_model_at_end=True,
+            fp16=self.config.fp16,
+            dataloader_num_workers=self.config.dataloader_num_workers,
+            use_cpu=self.config.use_cpu,
+            report_to="none",  # Disable wandb/tensorboard by default
+        )
+
+    def fit(
+        self,
+        train_data: Any,
+        val_data: Optional[Any] = None,
+        test_data: Optional[Any] = None,
+        output_dir: str = "./output",
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Train the TTM model using Transformers Trainer.
+        Much simpler - just override fit() directly!
+        """
+        # Call parent for common setup
+        super().fit(train_data, val_data, test_data, output_dir, **kwargs)
+        
+        # Prepare data loaders
+        train_loader, val_loader, test_loader = self._prepare_data(
+            train_data, val_data, test_data
+        )
+
+        # Create training arguments
+        training_args = self._create_training_arguments(output_dir)
+
+        # Create trainer
+        trainer = Trainer(
+            model=self.model,
+            args=training_args,
+            train_dataset=train_loader.dataset if train_loader else None,
+            eval_dataset=val_loader.dataset if val_loader else None,
+            compute_metrics=self._compute_metrics,
+            callbacks=self._get_callbacks(),
+        )
+
+        # Train the model
+        resume_from_checkpoint = kwargs.get("resume_from_checkpoint", None)
+        if resume_from_checkpoint:
+            info_print(f"Resuming training from {resume_from_checkpoint}")
+            train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        else:
+            train_result = trainer.train()
+
+        # Save the model
+        trainer.save_model()
+        
+        # Update training state
+        self.training_history = train_result.metrics
+        self.is_fitted = True
+
+        # Evaluate on test set if provided
+        test_metrics = {}
+        if test_loader is not None:
+            test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
+            info_print(f"Test metrics: {test_metrics}")
+
+        # Save comprehensive metadata
+        final_metrics = {
+            "train_metrics": train_result.metrics,
+            "test_metrics": test_metrics,
+        }
+        self._save_training_metadata(output_dir, final_metrics)
+
+        return final_metrics
+
+    def _train_model(
+        self,
+        train_data: Any,
+        val_data: Optional[Any] = None,
+        test_data: Optional[Any] = None,
+        output_dir: str = "./output",
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        TTM-specific training implementation using Transformers Trainer.
+        """
+        # Prepare data loaders
+        train_loader, val_loader, test_loader = self._prepare_data(
+            train_data, val_data, test_data
+        )
+
+        # Create training arguments
+        training_args = self._create_training_arguments(output_dir)
+
+        # Create trainer
+        trainer = Trainer(
+            model=self.model,
+            args=training_args,
+            train_dataset=train_loader.dataset if train_loader else None,
+            eval_dataset=val_loader.dataset if val_loader else None,
+            compute_metrics=self._compute_metrics,
+            callbacks=self._get_callbacks(),
+        )
+
+        # Train the model
+        resume_from_checkpoint = kwargs.get("resume_from_checkpoint", None)
+        if resume_from_checkpoint:
+            info_print(f"Resuming training from {resume_from_checkpoint}")
+            train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        else:
+            train_result = trainer.train()
+
+        # Save the model
+        trainer.save_model()
+
+        # Evaluate on test set if provided
+        test_metrics = {}
+        if test_loader is not None:
+            test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
+            info_print(f"Test metrics: {test_metrics}")
+
+        return {
+            "train_metrics": train_result.metrics,
+            "test_metrics": test_metrics,
+        }
+
+    def _save_model_weights(self, output_dir: str) -> None:
+        """Save TTM model using Transformers format."""
+        if self.model is not None:
+            self.model.save_pretrained(output_dir)
+            info_print(f"TTM model saved to {output_dir}")
+
+    def _evaluate_model(self, test_data: Any) -> Dict[str, float]:
+        """Evaluate TTM model."""
+        _, _, test_loader = self._prepare_data(None, None, test_data)
+        
+        # Create a trainer for evaluation
+        training_args = self._create_training_arguments("./temp_eval")
+        trainer = Trainer(
+            model=self.model,
+            args=training_args,
+            compute_metrics=self._compute_metrics,
+        )
+        
+        return trainer.evaluate(eval_dataset=test_loader.dataset)
 
     def _load_model_weights(self, model_dir: str) -> None:
         """Load TTM model weights from directory."""

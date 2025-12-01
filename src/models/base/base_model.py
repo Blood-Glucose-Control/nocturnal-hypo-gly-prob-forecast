@@ -20,15 +20,17 @@ import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-from transformers import (
-    EarlyStoppingCallback,
-    PreTrainedModel,
-    Trainer,
-    TrainingArguments,
-)
+from enum import Enum
 
 # Local imports - adapt these to your existing structure
 from src.utils.logging_helper import info_print, error_print
+
+
+class TrainingStrategy(Enum):
+    """Training strategy options for different model architectures."""
+    TRANSFORMERS = "transformers"  # Uses transformers.Trainer
+    PYTORCH = "pytorch"            # Custom PyTorch training loop
+    CUSTOM = "custom"              # Model-specific training implementation
 
 
 @dataclass
@@ -70,13 +72,23 @@ class ModelConfig:
     fp16: bool = True
     dataloader_num_workers: int = 2
     use_cpu: bool = False
+    
+    # Training strategy
+    training_strategy: TrainingStrategy = TrainingStrategy.TRANSFORMERS
 
     # Loss function
     loss_function: str = "mse"  # "mse", "mae", "huber", "pinball"
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert config to dictionary."""
-        return {k: v for k, v in self.__dict__.items()}
+        result = {}
+        for k, v in self.__dict__.items():
+            # Handle enum values by converting to their string representation
+            if hasattr(v, 'value'):  # Enum objects have a 'value' attribute
+                result[k] = v.value
+            else:
+                result[k] = v
+        return result
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> "ModelConfig":
@@ -94,6 +106,9 @@ class LoRAConfig:
     dropout: float = 0.1
     target_modules: List[str] = field(default_factory=lambda: ["q_proj", "v_proj"])
     bias: str = "none"  # "none", "all", "lora_only"
+    
+    # Architecture compatibility
+    auto_detect_modules: bool = True  # Automatically detect target modules
 
 
 @dataclass
@@ -146,8 +161,7 @@ class BaseTSFM(ABC):
         self.distributed_config = distributed_config or DistributedConfig()
 
         # Model and training components
-        self.model: Optional[Union[PreTrainedModel, torch.nn.parallel.DistributedDataParallel]] = None
-        self.trainer: Optional[Trainer] = None
+        self.model: Optional[torch.nn.Module] = None
         self.tokenizer = None  # For models that need tokenization
 
         # Training state
@@ -190,13 +204,23 @@ class BaseTSFM(ABC):
         pass
 
     @abstractmethod
-    def _create_training_arguments(self, output_dir: str) -> TrainingArguments:
-        """Create training arguments specific to the model type."""
+    def get_training_strategy(self) -> TrainingStrategy:
+        """
+        Return the training strategy this model uses.
+        
+        Returns:
+            TrainingStrategy: The training approach for this model
+        """
         pass
 
     @abstractmethod
-    def _compute_metrics(self, eval_pred) -> Dict[str, float]:
-        """Compute evaluation metrics specific to the model/task."""
+    def supports_lora(self) -> bool:
+        """
+        Check if this model architecture supports LoRA fine-tuning.
+        
+        Returns:
+            bool: True if the model supports LoRA, False otherwise
+        """
         pass
 
     def setup_distributed(self) -> None:
@@ -219,7 +243,7 @@ class BaseTSFM(ABC):
 
     def _setup_ddp(self) -> None:
         """Set up PyTorch Distributed Data Parallel.
-           DDP requires explicit setup before the Trainer, unlike DeepSpeed and FSDP.
+        DDP requires explicit setup before the Trainer, unlike DeepSpeed and FSDP.
         """
         if not torch.distributed.is_initialized():
             torch.distributed.init_process_group(
@@ -260,6 +284,12 @@ class BaseTSFM(ABC):
         """Enable LoRA for memory-efficient fine-tuning."""
         if not self.lora_config.enabled or self.model is None:
             return
+            
+        # Check if this model supports LoRA
+        if not self.supports_lora():
+            info_print(f"LoRA is not supported for {self.__class__.__name__} architecture")
+            info_print("LoRA requires transformer-based models with attention layers")
+            return
 
         try:
             from peft import LoraConfig, get_peft_model, TaskType
@@ -278,10 +308,19 @@ class BaseTSFM(ABC):
             bias=self.lora_config.bias,
         )
 
+        # Auto-detect target modules if enabled
+        if self.lora_config.auto_detect_modules:
+            detected_modules = self._detect_lora_target_modules()
+            if detected_modules:
+                peft_config.target_modules = detected_modules
+                info_print(f"Auto-detected LoRA target modules: {detected_modules}")
+            else:
+                info_print(f"Using configured target modules: {self.lora_config.target_modules}")
+
         # Apply LoRA to model
         self.model = get_peft_model(self.model, peft_config)
         info_print(f"LoRA enabled with rank {self.lora_config.rank}")
-        info_print(f"Target modules: {self.lora_config.target_modules}")
+        info_print(f"Target modules: {peft_config.target_modules}")
 
         # Print trainable parameters
         trainable_params = sum(
@@ -292,93 +331,66 @@ class BaseTSFM(ABC):
         info_print(f"Total parameters: {total_params:,}")
         info_print(f"Trainable %: {100 * trainable_params / total_params:.2f}%")
 
+    def _detect_lora_target_modules(self) -> List[str]:
+        """
+        Automatically detect suitable target modules for LoRA.
+        
+        Returns:
+            List[str]: List of module names suitable for LoRA adaptation
+        """
+        if self.model is None:
+            return []
+            
+        target_modules = []
+        
+        # Common transformer module patterns
+        transformer_patterns = [
+            "q_proj", "k_proj", "v_proj", "o_proj",  # Attention projections
+            "gate_proj", "up_proj", "down_proj",     # Feed-forward layers
+            "query", "key", "value", "output",       # Alternative naming
+            "dense", "linear",                       # Generic linear layers
+        ]
+        
+        # Scan model modules
+        for name, module in self.model.named_modules():
+            module_name = name.split('.')[-1]  # Get the last part of the name
+            
+            # Check if it's a linear layer and matches patterns
+            if hasattr(module, 'weight') and hasattr(module, 'bias'):
+                if any(pattern in module_name.lower() for pattern in transformer_patterns):
+                    if module_name not in target_modules:
+                        target_modules.append(module_name)
+        
+        # Remove duplicates and sort
+        target_modules = sorted(list(set(target_modules)))
+        
+        return target_modules
+
     def fit(
         self,
         train_data: Any,
         val_data: Optional[Any] = None,
         test_data: Optional[Any] = None,
         output_dir: str = "./output",
-        resume_from_checkpoint: Optional[str] = None,
+        **kwargs
     ) -> Dict[str, Any]:
         """
         Fit the model to training data.
-
-        Args:
-            train_data: Training dataset
-            val_data: Validation dataset (optional)
-            test_data: Test dataset (optional)
-            output_dir: Directory to save model outputs
-            resume_from_checkpoint: Path to checkpoint to resume from
-
-        Returns:
-            Dictionary containing training metrics and results
+        
+        This is a simple wrapper that just calls the model's specific
+        training implementation. Each model handles its own training strategy.
         """
         info_print(f"Starting training for {self.__class__.__name__}")
+        info_print(f"Training strategy: {self.get_training_strategy().value}")
 
         # Setup distributed training if configured
         self.setup_distributed()
 
-        # Enable LoRA if configured
+        # Enable LoRA if configured and supported
         self.enable_lora()
 
-        # Prepare data loaders
-        train_loader, val_loader, test_loader = self._prepare_data(
-            train_data, val_data, test_data
-        )
-
-        # Create training arguments
-        training_args = self._create_training_arguments(output_dir)
-
-        # Create trainer
-        self.trainer = Trainer(
-            model=self.model,
-            args=training_args,
-            train_dataset=train_loader.dataset if train_loader else None,
-            eval_dataset=val_loader.dataset if val_loader else None,
-            compute_metrics=self._compute_metrics,
-            callbacks=self._get_callbacks(),
-        )
-        # Train the model
-        try:
-            if resume_from_checkpoint:
-                info_print(f"Resuming training from {resume_from_checkpoint}")
-                train_result = self.trainer.train(
-                    resume_from_checkpoint=resume_from_checkpoint
-                )
-            else:
-                train_result = self.trainer.train()
-
-            # Save the model
-            self.trainer.save_model()
-
-            # Extract training history
-            self.training_history = train_result.metrics
-            self.is_fitted = True
-
-            # Evaluate on test set if provided
-            test_metrics = {}
-            if test_loader is not None:
-                test_metrics = self.evaluate(test_loader)
-                info_print(f"Test metrics: {test_metrics}")
-
-            # Combine all metrics
-            final_metrics = {
-                "train_metrics": self.training_history,
-                "test_metrics": test_metrics,
-                "model_config": self.config.to_dict(),
-                "lora_config": self.lora_config.__dict__,
-                "distributed_config": self.distributed_config.__dict__,
-            }
-
-            # Save metrics
-            self._save_training_metadata(output_dir, final_metrics)
-
-            info_print("Training completed successfully")
-            return final_metrics
-
-        except Exception as e:
-            error_print(f"Training failed: {str(e)}")
-            raise
+        # Let each model handle its own training
+        return self._train_model(train_data, val_data, test_data, output_dir, **kwargs)
 
     def predict(
         self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
@@ -439,32 +451,20 @@ class BaseTSFM(ABC):
 
         return predictions
 
-    def evaluate(self, data_loader: DataLoader) -> Dict[str, float]:
-        """Evaluate the model on a dataset."""
-        if self.trainer is None:
+    def evaluate(self, test_data: Any) -> Dict[str, float]:
+        """Evaluate the model. Models can override this entirely."""
+        if not self.is_fitted:
             raise ValueError("Model must be fitted before evaluation")
-
-        eval_results = self.trainer.evaluate(eval_dataset=data_loader.dataset)
-        return eval_results
+        raise NotImplementedError(f"{self.__class__.__name__} must implement evaluate() method")
 
     def save_model(
         self, output_dir: str, save_config: bool = True, save_metadata: bool = True
     ) -> None:
         """
         Save the model and associated metadata.
-
-        Args:
-            output_dir: Directory to save the model
-            save_config: Whether to save model configuration
-            save_metadata: Whether to save training metadata
+        Models can override this entirely or call super() for common metadata saving.
         """
         os.makedirs(output_dir, exist_ok=True)
-
-        # Save the actual model
-        if self.trainer is not None:
-            self.trainer.save_model(output_dir)
-        elif self.model is not None:
-            self.model.save_pretrained(output_dir)
 
         # Save configuration
         if save_config:
@@ -482,13 +482,15 @@ class BaseTSFM(ABC):
                 "config": self.config.to_dict(),
                 "lora_config": self.lora_config.__dict__,
                 "distributed_config": self.distributed_config.__dict__,
+                "training_strategy": self.get_training_strategy().value,
             }
 
             metadata_path = os.path.join(output_dir, "metadata.json")
             with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=2)
 
-        info_print(f"Model saved to {output_dir}")
+        # Models should override this to save actual model weights
+        raise NotImplementedError(f"{self.__class__.__name__} must override save_model() to save model weights")
 
     @classmethod
     def load_model(
@@ -535,24 +537,17 @@ class BaseTSFM(ABC):
 
     @abstractmethod
     def _load_model_weights(self, model_dir: str) -> None:
-        """Load model weights from directory. To be implemented by subclasses."""
+        """Load model weights from directory. Each model implements this."""
         pass
 
-    def _get_callbacks(self) -> List:
-        """Get training callbacks."""
-        callbacks = []
-
-        # Early stopping
-        if self.config.early_stopping_patience > 0:
-            callbacks.append(
-                EarlyStoppingCallback(
-                    early_stopping_patience=self.config.early_stopping_patience,
-                    early_stopping_threshold=0.0,
-                )
-            )
-
-        # Add custom callbacks here as needed
-        return callbacks
+    def _get_early_stopping_config(self) -> Dict[str, Any]:
+        """Get early stopping configuration for models that support it."""
+        return {
+            "patience": self.config.early_stopping_patience,
+            "threshold": 0.0,
+            "metric": self.config.metric_for_best_model,
+            "greater_is_better": self.config.greater_is_better,
+        }
 
     def _save_training_metadata(self, output_dir: str, metrics: Dict[str, Any]) -> None:
         """Save comprehensive training metadata.
@@ -641,17 +636,20 @@ def create_model_from_config(config_path: str) -> BaseTSFM:
         config_dict = json.load(f)
 
     model_type = config_dict.pop("model_type", "base")
-    config = ModelConfig.from_dict(config_dict)
 
     # Import and create the appropriate model class
     if model_type == "ttm":
-        from src.models.ttm.model import TTMForecaster
-
+        from src.models.ttm import TTMForecaster, TTMConfig
+        config = TTMConfig(**config_dict)
         return TTMForecaster(config)
     elif model_type == "chronos":
         from src.models.chronos.model import ChronosForecaster
-
+        config = ModelConfig.from_dict(config_dict)
         return ChronosForecaster(config)
+    elif model_type == "tsmixer":
+        from src.models.tsmixer import TSMixerForecaster, TSMixerConfig
+        config = TSMixerConfig(**config_dict)
+        return TSMixerForecaster(config)
     # Add other model types as needed
     else:
         raise ValueError(f"Unknown model type: {model_type}")
