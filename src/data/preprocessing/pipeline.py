@@ -43,8 +43,9 @@ Example:
     >>> # Returns DataFrame with original data plus IOB, COB, and availability features
 
 Notes:
-    - Input DataFrame must contain all required columns: datetime, p_num, bg_mM,
-      msg_type, food_g, dose_units
+    - Input DataFrame must contain core columns: datetime, p_num, bg_mM
+    - Optional columns (msg_type, food_g, dose_units, rate) enhance features but don't block processing
+    - CGM-only datasets are supported (COB/IOB will be set to NaN)
     - Patient identifier is used for logging and tracking purposes
     - Processing includes comprehensive logging for monitoring pipeline execution
     - Output preserves all original data while adding derived physiological features
@@ -60,13 +61,19 @@ from src.data.preprocessing.validation import validate_required_columns
 
 logger = logging.getLogger(__name__)
 
-required_columns = [
+# Core columns - always required for pipeline to function
+REQUIRED_COLUMNS = [
     "datetime",  # Datetime of the data (not the index)
     "p_num",  # Patient number (id)
     "bg_mM",  # Blood glucose in mmol/L
+]
+
+# Optional columns - enhance features but don't block processing
+OPTIONAL_COLUMNS = [
     "msg_type",  # Message type: ANNOUNCE_MEAL | ''
-    "food_g",  # Carbs in grams
-    "dose_units",  # Insulin units
+    "food_g",  # Carbs in grams (enables COB calculation)
+    "dose_units",  # Insulin units (enables IOB calculation)
+    "rate",  # Basal rate U/hr (enables basal rollover)
 ]
 
 
@@ -98,7 +105,18 @@ def preprocessing_pipeline(
     logger.info(f"Preprocessing patient {p_num}")
     logger.info("==============================")
 
-    validate_required_columns(df, required_columns)
+    validate_required_columns(df, REQUIRED_COLUMNS)
+
+    # Log which optional columns are present
+    present_optional = [col for col in OPTIONAL_COLUMNS if col in df.columns]
+    missing_optional = [col for col in OPTIONAL_COLUMNS if col not in df.columns]
+    if present_optional:
+        logger.info(f"Optional columns present: {present_optional}")
+    if missing_optional:
+        logger.info(
+            f"Optional columns missing (features will be skipped): {missing_optional}"
+        )
+
     patient_df = df.copy(deep=True)
     processed_df = create_physiological_features(
         patient_df, use_aggregation=use_aggregation
