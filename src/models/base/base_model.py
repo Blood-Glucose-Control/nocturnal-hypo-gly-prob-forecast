@@ -28,9 +28,10 @@ from src.utils.logging_helper import info_print, error_print
 
 class TrainingStrategy(Enum):
     """Training strategy options for different model architectures."""
+
     TRANSFORMERS = "transformers"  # Uses transformers.Trainer
-    PYTORCH = "pytorch"            # Custom PyTorch training loop
-    CUSTOM = "custom"              # Model-specific training implementation
+    PYTORCH = "pytorch"  # Custom PyTorch training loop
+    CUSTOM = "custom"  # Model-specific training implementation
 
 
 @dataclass
@@ -72,7 +73,7 @@ class ModelConfig:
     fp16: bool = True
     dataloader_num_workers: int = 2
     use_cpu: bool = False
-    
+
     # Training strategy
     training_strategy: TrainingStrategy = TrainingStrategy.TRANSFORMERS
 
@@ -84,7 +85,7 @@ class ModelConfig:
         result = {}
         for k, v in self.__dict__.items():
             # Handle enum values by converting to their string representation
-            if hasattr(v, 'value'):  # Enum objects have a 'value' attribute
+            if hasattr(v, "value"):  # Enum objects have a 'value' attribute
                 result[k] = v.value
             else:
                 result[k] = v
@@ -106,7 +107,7 @@ class LoRAConfig:
     dropout: float = 0.1
     target_modules: List[str] = field(default_factory=lambda: ["q_proj", "v_proj"])
     bias: str = "none"  # "none", "all", "lora_only"
-    
+
     # Architecture compatibility
     auto_detect_modules: bool = True  # Automatically detect target modules
 
@@ -120,6 +121,12 @@ class DistributedConfig:
     world_size: int = 1
     local_rank: int = 0
     backend: str = "nccl"
+
+    # DDP specific optimizations
+    find_unused_parameters: bool = (
+        False  # Set to False for better performance with static models like TTM
+    )
+    gradient_as_bucket_view: bool = True  # Enable for memory efficiency
 
     # DeepSpeed specific
     deepspeed_config: Optional[Dict[str, Any]] = None
@@ -207,7 +214,7 @@ class BaseTSFM(ABC):
     def get_training_strategy(self) -> TrainingStrategy:
         """
         Return the training strategy this model uses.
-        
+
         Returns:
             TrainingStrategy: The training approach for this model
         """
@@ -217,7 +224,7 @@ class BaseTSFM(ABC):
     def supports_lora(self) -> bool:
         """
         Check if this model architecture supports LoRA fine-tuning.
-        
+
         Returns:
             bool: True if the model supports LoRA, False otherwise
         """
@@ -284,10 +291,12 @@ class BaseTSFM(ABC):
         """Enable LoRA for memory-efficient fine-tuning."""
         if not self.lora_config.enabled or self.model is None:
             return
-            
+
         # Check if this model supports LoRA
         if not self.supports_lora():
-            info_print(f"LoRA is not supported for {self.__class__.__name__} architecture")
+            info_print(
+                f"LoRA is not supported for {self.__class__.__name__} architecture"
+            )
             info_print("LoRA requires transformer-based models with attention layers")
             return
 
@@ -315,7 +324,9 @@ class BaseTSFM(ABC):
                 peft_config.target_modules = detected_modules
                 info_print(f"Auto-detected LoRA target modules: {detected_modules}")
             else:
-                info_print(f"Using configured target modules: {self.lora_config.target_modules}")
+                info_print(
+                    f"Using configured target modules: {self.lora_config.target_modules}"
+                )
 
         # Apply LoRA to model
         self.model = get_peft_model(self.model, peft_config)
@@ -334,36 +345,47 @@ class BaseTSFM(ABC):
     def _detect_lora_target_modules(self) -> List[str]:
         """
         Automatically detect suitable target modules for LoRA.
-        
+
         Returns:
             List[str]: List of module names suitable for LoRA adaptation
         """
         if self.model is None:
             return []
-            
+
         target_modules = []
-        
+
         # Common transformer module patterns
         transformer_patterns = [
-            "q_proj", "k_proj", "v_proj", "o_proj",  # Attention projections
-            "gate_proj", "up_proj", "down_proj",     # Feed-forward layers
-            "query", "key", "value", "output",       # Alternative naming
-            "dense", "linear",                       # Generic linear layers
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",  # Attention projections
+            "gate_proj",
+            "up_proj",
+            "down_proj",  # Feed-forward layers
+            "query",
+            "key",
+            "value",
+            "output",  # Alternative naming
+            "dense",
+            "linear",  # Generic linear layers
         ]
-        
+
         # Scan model modules
         for name, module in self.model.named_modules():
-            module_name = name.split('.')[-1]  # Get the last part of the name
-            
+            module_name = name.split(".")[-1]  # Get the last part of the name
+
             # Check if it's a linear layer and matches patterns
-            if hasattr(module, 'weight') and hasattr(module, 'bias'):
-                if any(pattern in module_name.lower() for pattern in transformer_patterns):
+            if hasattr(module, "weight") and hasattr(module, "bias"):
+                if any(
+                    pattern in module_name.lower() for pattern in transformer_patterns
+                ):
                     if module_name not in target_modules:
                         target_modules.append(module_name)
-        
+
         # Remove duplicates and sort
         target_modules = sorted(list(set(target_modules)))
-        
+
         return target_modules
 
     def fit(
@@ -372,11 +394,11 @@ class BaseTSFM(ABC):
         val_data: Optional[Any] = None,
         test_data: Optional[Any] = None,
         output_dir: str = "./output",
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Fit the model to training data.
-        
+
         This is a simple wrapper that just calls the model's specific
         training implementation. Each model handles its own training strategy.
         """
@@ -455,7 +477,9 @@ class BaseTSFM(ABC):
         """Evaluate the model. Models can override this entirely."""
         if not self.is_fitted:
             raise ValueError("Model must be fitted before evaluation")
-        raise NotImplementedError(f"{self.__class__.__name__} must implement evaluate() method")
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement evaluate() method"
+        )
 
     def save_model(
         self, output_dir: str, save_config: bool = True, save_metadata: bool = True
@@ -490,7 +514,9 @@ class BaseTSFM(ABC):
                 json.dump(metadata, f, indent=2)
 
         # Models should override this to save actual model weights
-        raise NotImplementedError(f"{self.__class__.__name__} must override save_model() to save model weights")
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must override save_model() to save model weights"
+        )
 
     @classmethod
     def load_model(
@@ -594,6 +620,7 @@ class BaseTSFM(ABC):
             "is_fitted": self.is_fitted,
             "lora_enabled": self.lora_config.enabled,
             "distributed_enabled": self.distributed_config.enabled,
+            "training_strategy": self.get_training_strategy().value,
         }
 
         if self.model is not None:
@@ -640,14 +667,17 @@ def create_model_from_config(config_path: str) -> BaseTSFM:
     # Import and create the appropriate model class
     if model_type == "ttm":
         from src.models.ttm import TTMForecaster, TTMConfig
+
         config = TTMConfig(**config_dict)
         return TTMForecaster(config)
     elif model_type == "chronos":
         from src.models.chronos.model import ChronosForecaster
+
         config = ModelConfig.from_dict(config_dict)
         return ChronosForecaster(config)
     elif model_type == "tsmixer":
         from src.models.tsmixer import TSMixerForecaster, TSMixerConfig
+
         config = TSMixerConfig(**config_dict)
         return TSMixerForecaster(config)
     # Add other model types as needed
