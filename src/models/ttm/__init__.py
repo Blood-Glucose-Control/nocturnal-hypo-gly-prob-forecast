@@ -17,11 +17,11 @@ from .config import (
 
 __all__ = [
     "TTMForecaster",
-    "TTMConfig", 
+    "TTMConfig",
     "TTMTrainingConfig",
     "TTMDataConfig",
     "create_ttm_model",
     "create_default_ttm_config",
-    "create_ttm_fine_tuning_config", 
+    "create_ttm_fine_tuning_config",
     "create_ttm_zero_shot_config",
 ]

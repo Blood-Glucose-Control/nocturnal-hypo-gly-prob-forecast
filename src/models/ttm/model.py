@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import torch
 from torch.utils.data import DataLoader
 from transformers import (
     TrainingArguments,
@@ -26,7 +27,7 @@ from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 # Local imports
-from src.models.base import BaseTSFM, ModelConfig, TrainingStrategy
+from src.models.base import BaseTSFM, TrainingStrategy
 from src.models.ttm.config import TTMConfig
 from src.data.diabetes_datasets.data_loader import get_loader
 from src.data.models import ColumnNames
@@ -34,54 +35,6 @@ from src.data.preprocessing.split_or_combine_patients import (
     reduce_features_multi_patient,
 )
 from src.utils.logging_helper import info_print, debug_print, error_print
-
-
-class TTMConfig(ModelConfig):
-    """Extended configuration class for TTM-specific parameters."""
-
-    def __init__(self, **kwargs):
-        # Extract TTM-specific parameters before calling parent
-        ttm_specific_params = {
-            "scaler_type",
-            "imputation_strategy",
-            "num_input_channels",
-            "num_output_channels",
-            "prediction_filter_length",
-            "resolution_min",
-        }
-
-        # Filter out TTM-specific params from kwargs for parent class
-        base_kwargs = {k: v for k, v in kwargs.items() if k not in ttm_specific_params}
-
-        # Call parent with filtered kwargs
-        super().__init__(**base_kwargs)
-
-        # Set TTM-specific parameters
-        self.model_type = "ttm"
-        self.training_strategy = TrainingStrategy.TRANSFORMERS
-        # model_path is now handled by the parent class
-
-        # Data preprocessing
-        self.scaler_type = kwargs.get("scaler_type", "standard")
-        self.imputation_strategy = kwargs.get("imputation_strategy", "mean")
-        self.input_features = kwargs.get(
-            "input_features",
-            ["cob", "carb_availability", "insulin_availability", "iob", "steps"],
-        )
-        self.target_features = kwargs.get("target_features", ["bg_mM"])
-        self.split_config = kwargs.get(
-            "split_config", {"train": 0.9, "val": 0.05, "test": 0.05}
-        )
-        self.fewshot_percent = kwargs.get("fewshot_percent", 5)
-
-        # TTM architecture specifics
-        self.num_input_channels = kwargs.get("num_input_channels", 1)
-        self.num_output_channels = kwargs.get("num_output_channels", 1)
-        self.resolution_min = kwargs.get("resolution_min", 5)
-
-        # Training specifics for TTM
-        self.freeze_backbone = kwargs.get("freeze_backbone", True)
-        self.prediction_filter_length = kwargs.get("prediction_filter_length", None)
 
 
 class TTMForecaster(BaseTSFM):
@@ -93,18 +46,18 @@ class TTMForecaster(BaseTSFM):
     """
 
     def __init__(self, config: TTMConfig, lora_config=None, distributed_config=None):
-        """Initialize TTM forecaster.""" 
+        """Initialize TTM forecaster."""
         # Use the config as-is if it's already a TTMConfig
         # Only convert if we receive a different type
         if not isinstance(config, TTMConfig):
             # Create a basic TTMConfig from the essential parameters
             essential_params = {
-                'model_path': getattr(config, 'model_path', None),
-                'context_length': getattr(config, 'context_length', 512),
-                'forecast_length': getattr(config, 'forecast_length', 96),
-                'learning_rate': getattr(config, 'learning_rate', 1e-4),
-                'batch_size': getattr(config, 'batch_size', 64),
-                'num_epochs': getattr(config, 'num_epochs', 10),
+                "model_path": getattr(config, "model_path", None),
+                "context_length": getattr(config, "context_length", 512),
+                "forecast_length": getattr(config, "forecast_length", 96),
+                "learning_rate": getattr(config, "learning_rate", 1e-4),
+                "batch_size": getattr(config, "batch_size", 64),
+                "num_epochs": getattr(config, "num_epochs", 10),
             }
             config = TTMConfig(**essential_params)
 
@@ -146,7 +99,9 @@ class TTMForecaster(BaseTSFM):
                     param.requires_grad = False
             else:
                 # For any training scenario (fine_tune, from_scratch), enable gradients
-                info_print(f"Enabling gradients for all parameters ({self.config.fit_strategy} mode)")
+                info_print(
+                    f"Enabling gradients for all parameters ({self.config.fit_strategy} mode)"
+                )
                 for param in ttm_model.parameters():
                     param.requires_grad = True
 
@@ -181,7 +136,7 @@ class TTMForecaster(BaseTSFM):
                 use_cached=True,
             )
             data = loader.processed_data
-            info_print(
+            debug_print(
                 f"Loaded data from source '{data_source_name}' with data.head:\n{data[ next(iter(data))].head()}"
             )
         elif isinstance(train_data, pd.DataFrame):
@@ -306,7 +261,7 @@ class TTMForecaster(BaseTSFM):
         val_data: Optional[Any] = None,
         test_data: Optional[Any] = None,
         output_dir: str = "./output",
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         TTM-specific training implementation using Transformers Trainer.
@@ -391,8 +346,25 @@ class TTMForecaster(BaseTSFM):
 
         args = {}
 
-        if self.distributed_config.strategy == "deepspeed":
+        if self.distributed_config.strategy == "ddp":
+            # For DDP, TrainingArguments automatically handles distributed training
+            # when torch.distributed is initialized. We just need to ensure
+            # proper configuration is passed.
+            args["ddp_backend"] = self.distributed_config.backend
+
+            # DDP performance optimizations
+            args["ddp_find_unused_parameters"] = (
+                self.distributed_config.find_unused_parameters
+            )
+            args["ddp_bucket_cap_mb"] = (
+                25  # Default bucket size for gradient communication
+            )
+
+            # TrainingArguments will auto-detect distributed environment
+
+        elif self.distributed_config.strategy == "deepspeed":
             args["deepspeed"] = self.distributed_config.deepspeed_config
+
         elif self.distributed_config.strategy == "fsdp":
             args.update(self.distributed_config.fsdp_config or {})
 
@@ -464,10 +436,9 @@ class TTMForecaster(BaseTSFM):
 
     def _get_callbacks(self) -> List:
         """Get training callbacks for TTM."""
-        from transformers import EarlyStoppingCallback
-        
+
         callbacks = []
-        
+
         # Early stopping
         if self.config.early_stopping_patience > 0:
             callbacks.append(
@@ -476,32 +447,39 @@ class TTMForecaster(BaseTSFM):
                     early_stopping_threshold=0.0,
                 )
             )
-        
+
         return callbacks
 
     def _create_training_arguments(self, output_dir: str) -> TrainingArguments:
-        """Create TTM-specific training arguments."""
-        return TrainingArguments(
-            output_dir=output_dir,
-            learning_rate=self.config.learning_rate,
-            num_train_epochs=self.config.num_epochs,
-            per_device_train_batch_size=self.config.batch_size,
-            per_device_eval_batch_size=self.config.batch_size,
-            warmup_steps=self.config.warmup_steps,
-            weight_decay=self.config.weight_decay,
-            logging_dir=os.path.join(output_dir, "logs"),
-            logging_steps=self.config.logging_steps,
-            eval_strategy=self.config.eval_strategy,
-            eval_steps=self.config.eval_steps,
-            save_steps=self.config.save_steps,
-            metric_for_best_model=self.config.metric_for_best_model,
-            greater_is_better=self.config.greater_is_better,
-            load_best_model_at_end=True,
-            fp16=self.config.fp16,
-            dataloader_num_workers=self.config.dataloader_num_workers,
-            use_cpu=self.config.use_cpu,
-            report_to="none",  # Disable wandb/tensorboard by default
-        )
+        """Create TTM-specific training arguments with distributed support."""
+        # Base training arguments
+        base_args = {
+            "output_dir": output_dir,
+            "learning_rate": self.config.learning_rate,
+            "num_train_epochs": self.config.num_epochs,
+            "per_device_train_batch_size": self.config.batch_size,
+            "per_device_eval_batch_size": self.config.batch_size,
+            "warmup_steps": self.config.warmup_steps,
+            "weight_decay": self.config.weight_decay,
+            "logging_dir": os.path.join(output_dir, "logs"),
+            "logging_steps": self.config.logging_steps,
+            "eval_strategy": self.config.eval_strategy,
+            "eval_steps": self.config.eval_steps,
+            "save_steps": self.config.save_steps,
+            "metric_for_best_model": self.config.metric_for_best_model,
+            "greater_is_better": self.config.greater_is_better,
+            "load_best_model_at_end": True,
+            "fp16": self.config.fp16,
+            "dataloader_num_workers": self.config.dataloader_num_workers,
+            "use_cpu": self.config.use_cpu,
+            "report_to": "none",  # Disable wandb/tensorboard by default
+        }
+
+        # Add distributed training arguments
+        distributed_args = self._get_distributed_training_args()
+        base_args.update(distributed_args)
+
+        return TrainingArguments(**base_args)
 
     def fit(
         self,
@@ -509,15 +487,59 @@ class TTMForecaster(BaseTSFM):
         val_data: Optional[Any] = None,
         test_data: Optional[Any] = None,
         output_dir: str = "./output",
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         Train the TTM model using Transformers Trainer.
         Much simpler - just override fit() directly!
         """
-        # Call parent for common setup
-        super().fit(train_data, val_data, test_data, output_dir, **kwargs)
-        
+        # Call parent for common setup (but skip distributed setup for TTM)
+        # TTM uses transformers.Trainer which handles distributed automatically
+        # super().fit(train_data, val_data, test_data, output_dir, **kwargs)
+
+        # For TTM, we only need to initialize process groups, not wrap model
+        if (
+            self.distributed_config.enabled
+            and self.distributed_config.strategy == "ddp"
+        ):
+            if not torch.distributed.is_initialized():
+                # Check if we have required environment variables
+                master_addr = os.environ.get("MASTER_ADDR")
+                master_port = os.environ.get("MASTER_PORT", "29500")
+
+                if not master_addr:
+                    error_print(
+                        "MASTER_ADDR environment variable not set for distributed training!"
+                    )
+                    error_print(
+                        "Run with: torchrun --nproc_per_node=N --nnodes=1 script.py"
+                    )
+                    raise ValueError(
+                        "Distributed training requires MASTER_ADDR environment variable"
+                    )
+
+                info_print(
+                    f"Initializing DDP with MASTER_ADDR={master_addr}:{master_port}"
+                )
+
+                # Set the device for this process
+                if torch.cuda.is_available() and not self.config.use_cpu:
+                    device_id = self.distributed_config.local_rank
+                    torch.cuda.set_device(device_id)
+                    info_print(f"Set CUDA device to GPU {device_id}")
+                else:
+                    device_id = None
+
+                torch.distributed.init_process_group(
+                    backend=self.distributed_config.backend,
+                    world_size=self.distributed_config.world_size,
+                    rank=self.distributed_config.local_rank,
+                    device_id=device_id,  # This mutes the barrier warning
+                )
+                info_print(
+                    f"✅ Initialized DDP process group: rank {self.distributed_config.local_rank}/{self.distributed_config.world_size}"
+                )
+
         # Prepare data loaders
         train_loader, val_loader, test_loader = self._prepare_data(
             train_data, val_data, test_data
@@ -526,7 +548,7 @@ class TTMForecaster(BaseTSFM):
         # Create training arguments
         training_args = self._create_training_arguments(output_dir)
 
-        # Create trainer
+        # Create trainer (Trainer will handle DDP model wrapping automatically)
         trainer = Trainer(
             model=self.model,
             args=training_args,
@@ -546,7 +568,7 @@ class TTMForecaster(BaseTSFM):
 
         # Save the model
         trainer.save_model()
-        
+
         # Update training state
         self.training_history = train_result.metrics
         self.is_fitted = True
@@ -564,7 +586,39 @@ class TTMForecaster(BaseTSFM):
         }
         self._save_training_metadata(output_dir, final_metrics)
 
+        info_print("🏁 Training complete!")
+        # Clean up distributed training resources
+        self._cleanup_distributed()
+
         return final_metrics
+
+    def _cleanup_distributed(self) -> None:
+        """Clean up distributed training resources properly."""
+        if (
+            self.distributed_config.enabled
+            and self.distributed_config.strategy == "ddp"
+            and torch.distributed.is_initialized()
+        ):
+            info_print("🧹 Cleaning up distributed training resources...")
+            try:
+                # Synchronize all processes before cleanup
+                torch.distributed.barrier()
+                # Properly destroy the process group
+                torch.distributed.destroy_process_group()
+                info_print(
+                    f"✅ Distributed training cleanup complete for {self.distributed_config.local_rank}"
+                )
+            except Exception as e:
+                # Don't crash if cleanup fails, but warn about it
+                info_print(f"⚠️  Warning: Distributed cleanup failed: {e}")
+
+    def __del__(self):
+        """Ensure cleanup happens even if not called explicitly."""
+        try:
+            self._cleanup_distributed()
+        except Exception:
+            # Don't raise exceptions in destructor
+            pass
 
     def _train_model(
         self,
@@ -572,7 +626,7 @@ class TTMForecaster(BaseTSFM):
         val_data: Optional[Any] = None,
         test_data: Optional[Any] = None,
         output_dir: str = "./output",
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         TTM-specific training implementation using Transformers Trainer.
@@ -626,7 +680,7 @@ class TTMForecaster(BaseTSFM):
     def _evaluate_model(self, test_data: Any) -> Dict[str, float]:
         """Evaluate TTM model."""
         _, _, test_loader = self._prepare_data(None, None, test_data)
-        
+
         # Create a trainer for evaluation
         training_args = self._create_training_arguments("./temp_eval")
         trainer = Trainer(
@@ -634,7 +688,7 @@ class TTMForecaster(BaseTSFM):
             args=training_args,
             compute_metrics=self._compute_metrics,
         )
-        
+
         return trainer.evaluate(eval_dataset=test_loader.dataset)
 
     def _load_model_weights(self, model_dir: str) -> None:
