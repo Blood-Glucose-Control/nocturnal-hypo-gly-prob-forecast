@@ -44,44 +44,45 @@ from src.models.base import GPUManager
 from src.utils.logging_helper import info_print
 import torch
 
+
 def print_gpu_info():
     """
     Display comprehensive hardware information for deep learning.
-    
+
     This function provides detailed information about the system's hardware
     capabilities, including:
-    
+
     - GPU specifications (memory, compute capability, architecture)
     - PyTorch and CUDA version compatibility
     - Current memory usage and availability
     - Distributed training backend support
     - CPU information for fallback scenarios
-    
+
     Useful for hardware diagnostics, environment setup validation,
     and planning model configurations based on available resources.
     """
-    
+
     info_print("🖥️  GPU Information Summary")
     info_print("=" * 50)
-    
+
     # Use our framework's GPU manager
     gpu_info = GPUManager.get_gpu_info()
-    
+
     info_print(f"GPU Available: {gpu_info['gpu_available']}")
     info_print(f"GPU Count: {gpu_info['gpu_count']}")
-    
-    if gpu_info['gpu_available']:
+
+    if gpu_info["gpu_available"]:
         info_print(f"Current GPU: {gpu_info['current_device']}")
-        
+
         # Additional PyTorch GPU info
         info_print("\n🔧 PyTorch GPU Details:")
         info_print(f"CUDA Available: {torch.cuda.is_available()}")
         info_print(f"CUDA Version: {torch.version.cuda}")
         info_print(f"PyTorch Version: {torch.__version__}")
-        
+
         if torch.cuda.is_available():
             info_print(f"CUDA Device Count: {torch.cuda.device_count()}")
-            
+
             for i in range(torch.cuda.device_count()):
                 props = torch.cuda.get_device_properties(i)
                 memory_gb = props.total_memory / (1024**3)
@@ -89,14 +90,14 @@ def print_gpu_info():
                 info_print(f"  Memory: {memory_gb:.1f} GB")
                 info_print(f"  Compute Capability: {props.major}.{props.minor}")
                 info_print(f"  Multiprocessors: {props.multi_processor_count}")
-                
+
                 # Current memory usage
                 if torch.cuda.is_available():
                     allocated = torch.cuda.memory_allocated(i) / (1024**3)
                     reserved = torch.cuda.memory_reserved(i) / (1024**3)
                     info_print(f"  Memory Allocated: {allocated:.1f} GB")
                     info_print(f"  Memory Reserved: {reserved:.1f} GB")
-        
+
         # Distributed training info
         info_print("\n🌐 Distributed Training Support:")
         info_print(f"Torch Distributed Available: {torch.distributed.is_available()}")
@@ -106,10 +107,15 @@ def print_gpu_info():
     else:
         info_print("No GPU available - using CPU")
         info_print(f"CPU Count: {torch.get_num_threads()} threads")
-    
+
     info_print("\n🔗 Related Tools:")
-    info_print("   For distributed training setup: python scripts/examples/check_gpu_setup.py")
-    info_print("   For framework testing: python scripts/examples/test_base_framework.py")
+    info_print(
+        "   For distributed training setup: python scripts/examples/check_gpu_setup.py"
+    )
+    info_print(
+        "   For framework testing: python scripts/examples/test_base_framework.py"
+    )
+
 
 if __name__ == "__main__":
     print_gpu_info()
