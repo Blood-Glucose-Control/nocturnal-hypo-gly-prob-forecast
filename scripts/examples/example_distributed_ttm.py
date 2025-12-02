@@ -7,10 +7,10 @@ with minimal changes. TTM + transformers.Trainer makes it almost effortless!
 
 How to run:
   # Single GPU or CPU (automatic detection):
-  python example_distributed_ttm.py
+  python scripts/examples/example_distributed_ttm.py
 
   # Multi-GPU with torchrun (recommended):
-  torchrun --nproc_per_node=2 --nnodes=1 example_distributed_ttm.py
+  torchrun --nproc_per_node=2 --nnodes=1 scripts/examples/example_distributed_ttm.py
 
   # Multi-GPU with environment variables:
   CUDA_VISIBLE_DEVICES=0,1 WORLD_SIZE=2 python example_distributed_ttm.py
@@ -151,7 +151,13 @@ def main():
 
     try:
         # This call is identical whether single or multi-GPU!
-        results = model.fit(train_data="kaggle_brisT1D", output_dir=output_dir)
+        info_print("🔄 About to call model.fit()...")
+
+        results = model.fit(
+            train_data="kaggle_brisT1D",
+            output_dir=output_dir,
+        )
+        info_print("✅ model.fit() completed successfully!")
         return results
 
     except KeyboardInterrupt:
