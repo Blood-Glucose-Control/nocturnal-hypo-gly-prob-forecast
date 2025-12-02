@@ -1,9 +1,32 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
 # For commercial licensing, contact: cjrisi/christopher AT uwaterloo/gluroo DOT ca/com
+"""Logging Helper Utilities
+
+Provides standardized logging functions with function name context`
+
+To run in debug mode, set the DEBUG environment variable:
+DEBUG=1 python your_script.py
+# or
+export DEBUG=true
+python your_script.py
+"""
 
 import inspect
 import sys
+
+# Import torch at module level to avoid repeated imports
+try:
+    import torch
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
+
+# Global debug flag - can be controlled via environment variable
+import os
+
+DEBUG_ENABLED = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes", "on")
 
 
 def _get_caller_name():
@@ -26,8 +49,38 @@ def _get_caller_name():
     return ""
 
 
-def info_print(*args, **kwargs):
-    """Print informational messages to stderr with function name (so they show up in slurm error file)"""
+def _should_print_on_rank():
+    """Check if current process should print (only rank 0 in distributed settings)."""
+    if not TORCH_AVAILABLE:
+        # torch not available, always print
+        return True
+    # print(f'torch dist avail: {torch.distributed.is_available()}, \t torch dist init: {torch.distributed.is_initialized()}')
+    try:
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            # In distributed training, only rank 0 should print
+            rank = torch.distributed.get_rank()
+            return rank == 0
+        else:
+            # Not in distributed mode, always print
+            return True
+    except Exception:
+        # Any error in detection, always print (safer)
+        return True
+
+
+def info_print(*args, rank_zero_only=True, **kwargs):
+    """
+    Print informational messages to stderr with function name.
+
+    Args:
+        *args: Arguments to print
+        rank_zero_only (bool): If True (default), only print on rank 0 in distributed settings.
+                              If False, print on all ranks.
+        **kwargs: Additional keyword arguments for print()
+    """
+    if rank_zero_only and not _should_print_on_rank():
+        return
+
     caller = _get_caller_name()
     if caller:
         print("INFO:", caller, *args, file=sys.stderr, flush=True, **kwargs)
@@ -35,8 +88,19 @@ def info_print(*args, **kwargs):
         print("INFO:", *args, file=sys.stderr, flush=True, **kwargs)
 
 
-def error_print(*args, **kwargs):
-    """Print error messages to stderr with function name (so they show up in slurm error file)"""
+def error_print(*args, rank_zero_only=True, **kwargs):
+    """
+    Print error messages to stderr with function name.
+
+    Args:
+        *args: Arguments to print
+        rank_zero_only (bool): If True (default), only print on rank 0 in distributed settings.
+                              If False, print on all ranks (useful for debugging).
+        **kwargs: Additional keyword arguments for print()
+    """
+    if rank_zero_only and not _should_print_on_rank():
+        return
+
     caller = _get_caller_name()
     if caller:
         print("ERROR:", caller, *args, file=sys.stderr, flush=True, **kwargs)
@@ -44,8 +108,24 @@ def error_print(*args, **kwargs):
         print("ERROR:", *args, file=sys.stderr, flush=True, **kwargs)
 
 
-def debug_print(*args, **kwargs):
-    """Print debug messages to stderr with function name (so they show up in slurm error file)"""
+def debug_print(*args, rank_zero_only=True, **kwargs):
+    """
+    Print debug messages to stderr with function name.
+    Only prints if DEBUG environment variable is set to true/1/yes/on.
+
+    Args:
+        *args: Arguments to print
+        rank_zero_only (bool): If True (default), only print on rank 0 in distributed settings.
+                              If False, print on all ranks (useful for debugging).
+        **kwargs: Additional keyword arguments for print()
+    """
+    # Check debug flag first - if debug is disabled, don't print at all
+    if not DEBUG_ENABLED:
+        return
+
+    if rank_zero_only and not _should_print_on_rank():
+        return
+
     caller = _get_caller_name()
     if caller:
         print("DEBUG:", caller, *args, file=sys.stderr, flush=True, **kwargs)
