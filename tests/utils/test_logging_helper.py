@@ -53,7 +53,7 @@ class TestLoggingHelper(unittest.TestCase):
 
     def test_debug_print_basic_message(self):
         """Test debug_print prints basic message to stderr when DEBUG is enabled."""
-        with patch.dict(os.environ, {'DEBUG': '1'}):
+        with patch.dict(os.environ, {"DEBUG": "1"}):
             with redirect_stderr(self.stderr_buffer):
                 debug_print("Test debug")
 
@@ -91,7 +91,7 @@ class TestLoggingHelper(unittest.TestCase):
         """Test that debug_print includes caller function name when DEBUG is enabled."""
 
         def test_function():
-            with patch.dict(os.environ, {'DEBUG': '1'}):
+            with patch.dict(os.environ, {"DEBUG": "1"}):
                 with redirect_stderr(self.stderr_buffer):
                     debug_print("Debug from function")
 
@@ -227,8 +227,11 @@ class TestLoggingHelper(unittest.TestCase):
         """Test that all functions write to stderr, not stdout."""
         stdout_buffer = io.StringIO()
 
-        with patch.dict(os.environ, {'DEBUG': '1'}):
-            with redirect_stderr(self.stderr_buffer), patch("sys.stdout", stdout_buffer):
+        with patch.dict(os.environ, {"DEBUG": "1"}):
+            with (
+                redirect_stderr(self.stderr_buffer),
+                patch("sys.stdout", stdout_buffer),
+            ):
                 info_print("Info test")
                 error_print("Error test")
                 debug_print("Debug test")
@@ -306,7 +309,7 @@ class TestLoggingHelper(unittest.TestCase):
 
             info_print("Training completed successfully")
 
-        with patch.dict(os.environ, {'DEBUG': '1'}):
+        with patch.dict(os.environ, {"DEBUG": "1"}):
             with redirect_stderr(self.stderr_buffer):
                 train_model()
 
@@ -340,7 +343,7 @@ class TestIntegrationWithExistingCode(unittest.TestCase):
         """Test that the refactored functions work the same as before."""
 
         def existing_function_pattern():
-            with patch.dict(os.environ, {'DEBUG': '1'}):
+            with patch.dict(os.environ, {"DEBUG": "1"}):
                 with redirect_stderr(self.stderr_buffer):
                     info_print("Model training started")
                     debug_print("Loading data from cache")
