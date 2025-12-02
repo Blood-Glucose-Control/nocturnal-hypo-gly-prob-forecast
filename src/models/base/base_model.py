@@ -414,6 +414,29 @@ class BaseTSFM(ABC):
         # Let each model handle its own training
         return self._train_model(train_data, val_data, test_data, output_dir, **kwargs)
 
+    @abstractmethod
+    def _train_model(
+        self,
+        train_data: Any,
+        val_data: Optional[Any],
+        test_data: Optional[Any],
+        output_dir: str,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Model-specific training implementation.
+
+        Args:
+            train_data: Training dataset
+            val_data: Validation dataset (optional)
+            test_data: Test dataset (optional)
+            output_dir: Directory to save outputs
+            **kwargs: Additional arguments
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement _train_model() method"
+        )
+
     def predict(
         self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
     ) -> Union[np.ndarray, Dict[str, Any]]:
