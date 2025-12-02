@@ -12,7 +12,7 @@ You correctly identified a major design flaw in the original base model framewor
 
 | Model | Architecture | LoRA Support | Target Modules |
 |-------|-------------|-------------|----------------|
-| **Chronos** | T5 Transformer | ✅ Yes | `q`, `k`, `v`, `o` |  
+| **Chronos** | T5 Transformer | ✅ Yes | `q`, `k`, `v`, `o` |
 | **TimeGPT** | GPT Transformer | ✅ Yes | `c_attn`, `c_proj` |
 
 **❌ LoRA Incompatible Models (Non-transformer):**
@@ -34,7 +34,7 @@ class BaseTSFM(ABC):
     def supports_lora(self) -> bool:
         """Check if this model architecture supports LoRA fine-tuning."""
         pass
-        
+
     def enable_lora(self) -> None:
         """Enable LoRA with compatibility checking."""
         if not self.supports_lora():
@@ -51,7 +51,7 @@ class ChronosForecaster(BaseTSFM):
     def supports_lora(self) -> bool:
         return True  # Chronos has transformer attention layers
 
-# MLP-based model  
+# MLP-based model
 class TTMForecaster(BaseTSFM):
     def supports_lora(self) -> bool:
         return False  # TTM uses MLP-Mixer, no attention
@@ -66,7 +66,7 @@ class TSMixerForecaster(BaseTSFM):
 ```python
 class LoRAConfig:
     auto_detect_modules: bool = True  # Automatically find target modules
-    
+
 def _detect_lora_target_modules(self) -> List[str]:
     """Scan model for attention/linear layers suitable for LoRA."""
     transformer_patterns = [
@@ -116,7 +116,7 @@ else:
 
 ### 1. **Automatic Compatibility Checking**
 - Models automatically report LoRA support
-- Framework gracefully handles incompatible architectures  
+- Framework gracefully handles incompatible architectures
 - Clear user feedback about why LoRA isn't available
 
 ### 2. **Future-Proof Architecture**
@@ -160,7 +160,7 @@ Testing LoRA support across different model architectures:
    TTM supports LoRA: True
    Auto-detected modules for TTM: ['q_proj', 'v_proj', 'k_proj', 'o_proj']
 
-2. Testing TSMixer (MLP-based model):  
+2. Testing TSMixer (MLP-based model):
    TSMixer supports LoRA: False
    LoRA was automatically disabled for TSMixer
 ```

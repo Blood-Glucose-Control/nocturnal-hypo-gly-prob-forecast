@@ -1,5 +1,8 @@
 # TTM Training with YAML Configuration Guide
 
+!Warning
+Outdated
+
 ## Overview
 The TTM training system now supports YAML configuration files for systematic experiment tracking and reproducibility.
 

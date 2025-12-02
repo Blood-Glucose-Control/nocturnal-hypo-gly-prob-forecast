@@ -446,19 +446,19 @@ class DataVersionManager:
 ## Implementation Roadmap
 
 ### Week 1: Foundation Setup
-- [ ] Create new directory structure
-- [ ] Implement base model classes
+- [X] Create new directory structure
+- [X] Implement base model classes
 - [ ] Set up configuration management system
 
 ### Week 2: Training Pipeline
 - [ ] Implement unified training framework
-- [ ] Add distributed training support
+- [IP] Add distributed training support
 - [ ] Create SLURM integration scripts
 
 ### Week 3: Model Implementation
-- [ ] Migrate TTM to new structure
+- [IP] Migrate TTM to new structure
 - [ ] Implement Chronos integration
-- [ ] Add LoRA support
+- [IP] Add LoRA support
 
 ### Week 4: Experiment Framework
 - [ ] Create experiment management system
