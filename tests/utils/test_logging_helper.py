@@ -7,6 +7,7 @@ and the internal _get_caller_name helper function.
 """
 
 import io
+import os
 import sys
 import unittest
 from unittest.mock import patch, MagicMock
@@ -51,9 +52,10 @@ class TestLoggingHelper(unittest.TestCase):
         self.assertIn("Test error", output)
 
     def test_debug_print_basic_message(self):
-        """Test debug_print prints basic message to stderr."""
-        with redirect_stderr(self.stderr_buffer):
-            debug_print("Test debug")
+        """Test debug_print prints basic message to stderr when DEBUG is enabled."""
+        with patch.dict(os.environ, {'DEBUG': '1'}):
+            with redirect_stderr(self.stderr_buffer):
+                debug_print("Test debug")
 
         output = self.stderr_buffer.getvalue()
         self.assertIn("DEBUG:", output)
@@ -86,11 +88,12 @@ class TestLoggingHelper(unittest.TestCase):
         self.assertIn("Error from function", output)
 
     def test_debug_print_with_caller_name(self):
-        """Test that debug_print includes caller function name."""
+        """Test that debug_print includes caller function name when DEBUG is enabled."""
 
         def test_function():
-            with redirect_stderr(self.stderr_buffer):
-                debug_print("Debug from function")
+            with patch.dict(os.environ, {'DEBUG': '1'}):
+                with redirect_stderr(self.stderr_buffer):
+                    debug_print("Debug from function")
 
         test_function()
         output = self.stderr_buffer.getvalue()
@@ -224,10 +227,11 @@ class TestLoggingHelper(unittest.TestCase):
         """Test that all functions write to stderr, not stdout."""
         stdout_buffer = io.StringIO()
 
-        with redirect_stderr(self.stderr_buffer), patch("sys.stdout", stdout_buffer):
-            info_print("Info test")
-            error_print("Error test")
-            debug_print("Debug test")
+        with patch.dict(os.environ, {'DEBUG': '1'}):
+            with redirect_stderr(self.stderr_buffer), patch("sys.stdout", stdout_buffer):
+                info_print("Info test")
+                error_print("Error test")
+                debug_print("Debug test")
 
         # stderr should have content
         stderr_content = self.stderr_buffer.getvalue()
@@ -302,8 +306,9 @@ class TestLoggingHelper(unittest.TestCase):
 
             info_print("Training completed successfully")
 
-        with redirect_stderr(self.stderr_buffer):
-            train_model()
+        with patch.dict(os.environ, {'DEBUG': '1'}):
+            with redirect_stderr(self.stderr_buffer):
+                train_model()
 
         output = self.stderr_buffer.getvalue()
         lines = output.strip().split("\n")
@@ -335,10 +340,11 @@ class TestIntegrationWithExistingCode(unittest.TestCase):
         """Test that the refactored functions work the same as before."""
 
         def existing_function_pattern():
-            with redirect_stderr(self.stderr_buffer):
-                info_print("Model training started")
-                debug_print("Loading data from cache")
-                error_print("CUDA out of memory")
+            with patch.dict(os.environ, {'DEBUG': '1'}):
+                with redirect_stderr(self.stderr_buffer):
+                    info_print("Model training started")
+                    debug_print("Loading data from cache")
+                    error_print("CUDA out of memory")
 
         existing_function_pattern()
         output = self.stderr_buffer.getvalue()

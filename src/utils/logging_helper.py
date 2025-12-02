@@ -3,13 +3,19 @@
 # For commercial licensing, contact: cjrisi/christopher AT uwaterloo/gluroo DOT ca/com
 """Logging Helper Utilities
 
-Provides standardized logging functions with function name context`
+Provides standardized logging functions with function name context and distributed training awareness.
+
+The debug_print function respects the DEBUG environment variable and checks it dynamically,
+allowing for runtime control of debug output. This is especially useful for testing and
+distributed training scenarios.
 
 To run in debug mode, set the DEBUG environment variable:
 DEBUG=1 python your_script.py
 # or
 export DEBUG=true
 python your_script.py
+
+Supported DEBUG values: "1", "true", "yes", "on" (case-insensitive)
 """
 
 import inspect
@@ -23,10 +29,13 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
 
-# Global debug flag - can be controlled via environment variable
+# Global debug flag - checked dynamically to support runtime environment changes
 import os
 
-DEBUG_ENABLED = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes", "on")
+
+def _is_debug_enabled():
+    """Check if debug mode is enabled via environment variable."""
+    return os.environ.get("DEBUG", "").lower() in ("1", "true", "yes", "on")
 
 
 def _get_caller_name():
@@ -120,7 +129,7 @@ def debug_print(*args, rank_zero_only=True, **kwargs):
         **kwargs: Additional keyword arguments for print()
     """
     # Check debug flag first - if debug is disabled, don't print at all
-    if not DEBUG_ENABLED:
+    if not _is_debug_enabled():
         return
 
     if rank_zero_only and not _should_print_on_rank():
