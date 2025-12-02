@@ -3,7 +3,7 @@
 import pandas as pd
 from src.data.preprocessing.imputation import impute_missing_values
 from src.utils.time_series_helper import get_interval_minutes
-from src.utils.logging_helper import info_print
+from src.utils.logging_helper import info_print, debug_print
 
 
 def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_feature):
@@ -19,7 +19,9 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
     for patient_id, df in patients_dict.items():
         # Check if patient has the correct interval
         interval_minutes = get_interval_minutes(df)
-        info_print(f"Checking patient {patient_id} with interval {interval_minutes} minutes...")
+        debug_print(
+            f"Checking patient {patient_id} with interval {interval_minutes} minutes..."
+        )
         if interval_minutes == resolution_min:
             info_print(f"Processing patient {patient_id}...")
             # Process each patient individually
@@ -31,5 +33,7 @@ def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_f
             p_df["id"] = patient_id
             processed_patients.append(p_df)
         else:
-            info_print(f"Skipping patient {patient_id} due to incorrect interval: {interval_minutes} minutes\n Needed: {resolution_min} minutes")
+            info_print(
+                f"Skipping patient {patient_id} due to incorrect interval: {interval_minutes} minutes\n Needed: {resolution_min} minutes"
+            )
     return pd.concat(processed_patients)
