@@ -22,7 +22,7 @@ from typing import Union, Optional, Dict, Any, overload, Literal
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
-from src.data.diabetes_datasets.aleppo.aleppo import AleppoDataLoader
+from src.data.diabetes_datasets import AleppoDataLoader
 
 
 # TODO: Add train_percentage parameter

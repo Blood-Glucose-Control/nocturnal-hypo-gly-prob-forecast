@@ -21,7 +21,7 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, Literal, Optional
+from typing import Literal, Optional
 from typing_extensions import deprecated
 
 import pandas as pd
@@ -48,22 +48,17 @@ class CacheManager:
     def __init__(
         self,
         cache_root: str = "cache/data",
-        dataset_path_overrides: Optional[Dict[str, Path]] = None,
     ):
         """
         Initialize the cache manager.
 
         Args:
             cache_root (str): Root directory for cache storage (relative to project root)
-            dataset_path_overrides (Optional[Dict[str, Path]]): Optional mapping from dataset_name
-                to a custom subdirectory path (relative to cache_root). If None, defaults to module overrides.
         """
         # Make cache root relative to project root, not current working directory
         project_root = get_project_root()
         self.cache_root = project_root / cache_root
         self.cache_root.mkdir(parents=True, exist_ok=True)
-        # Use provided overrides or empty dict
-        self.dataset_path_overrides: Dict[str, Path] = dataset_path_overrides or {}
 
     def get_dataset_cache_path(self, dataset_name: str) -> Path:
         """
@@ -75,15 +70,8 @@ class CacheManager:
         Returns:
             Path: Path to the dataset's cache directory
         """
-        # Respect explicit override
-        if dataset_name in self.dataset_path_overrides:
-            subpath = self.dataset_path_overrides[dataset_name]
-        else:
-            # If dataset_name includes a path separator, treat it as a subdir
-            p = Path(dataset_name)
-            subpath = p if len(p.parts) > 1 else Path(dataset_name)
 
-        return self.cache_root / subpath
+        return self.cache_root / dataset_name
 
     def get_absolute_path_by_type(
         self,
@@ -147,9 +135,7 @@ class CacheManager:
         elif source == DatasetSourceType.HUGGING_FACE:
             self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
         elif source in (DatasetSourceType.ALEPPO, DatasetSourceType.LYNCH_2022):
-            self._show_manual_download_instructions(
-                dataset_name, raw_path, dataset_config
-            )
+            self._fetch_manual_download_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.LOCAL:
             self._copy_local_data(dataset_name, raw_path, dataset_config)
         else:
@@ -346,12 +332,12 @@ class CacheManager:
                 f"Failed to fetch HuggingFace data for {dataset_name}: {str(e)}"
             )
 
-    def _show_manual_download_instructions(
+    def _fetch_manual_download_data(
         self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
-        Handle datasets that require manual download.
-        Uses config fields to provide clear instructions.
+        Fetch data for datasets that require manual download.
+        Raises an error with download instructions if data is not present.
         """
         if self._raw_data_exists(raw_path, dataset_config):
             return raw_path
