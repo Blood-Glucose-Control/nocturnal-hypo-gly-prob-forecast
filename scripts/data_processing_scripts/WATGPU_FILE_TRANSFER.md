@@ -37,5 +37,5 @@ scp -r <local_path> <remote_username>@watgpu.cs.uwaterloo.ca:<remote_path>
 ## Example usage: Uploading a large dataset to the remote machine
 
 ```bash
-scp -r ~/Projects/diabetes/nocturnal-hypo-gly-prob-forecast/cache/data/awesome_cgm/aleppo/raw t3chan@watgpu.cs.uwaterloo.ca:/u4/t3chan/nocturnal-hypo-gly-prob-forecast/cache/data/awesome_cgm/aleppo/raw
+scp -r ~/Projects/diabetes/nocturnal-hypo-gly-prob-forecast/cache/data/aleppo/raw t3chan@watgpu.cs.uwaterloo.ca:/u4/t3chan/nocturnal-hypo-gly-prob-forecast/cache/data/aleppo/raw
 ```

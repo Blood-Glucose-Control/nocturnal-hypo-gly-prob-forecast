@@ -46,9 +46,9 @@ logger = logging.getLogger(__name__)
 
 
 repo = get_project_root()
-CACHE_DIR = repo / "cache" / "data" / "awesome_cgm" / "aleppo"
+CACHE_DIR = repo / "cache" / "data" / "aleppo"
 DATA_TABLES = CACHE_DIR / "raw" / "Data Tables"
-DB_PATH = CACHE_DIR / "awesome_cgm.db"
+DB_PATH = CACHE_DIR / "aleppo.db"
 
 # SQLite param cap (commonly 999). Keep a margin.
 SQLITE_MAX_VARS = 999
@@ -226,7 +226,7 @@ def convert_to_csv(df):
     logger.info("Converting data to CSV")
     project_root = get_project_root()
     # TODO: Probably shouldn't hardcode this.
-    data_dir = project_root / "cache" / "data" / "awesome_cgm" / "aleppo" / "interim"
+    data_dir = project_root / "cache" / "data" / "aleppo" / "interim"
     os.makedirs(data_dir, exist_ok=True)
     for pid in df["pid"].unique():
         df_pid = df[df["pid"] == pid]

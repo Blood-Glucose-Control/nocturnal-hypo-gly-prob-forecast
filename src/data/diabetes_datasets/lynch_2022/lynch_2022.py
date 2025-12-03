@@ -23,7 +23,7 @@ from tqdm import tqdm
 from src.data.cache_manager import get_cache_manager
 from src.data.dataset_configs import get_dataset_config
 from src.data.diabetes_datasets.dataset_base import DatasetBase
-from src.data.diabetes_datasets.awesome_cgm.lynch_2022.data_cleaner import (
+from src.data.diabetes_datasets.lynch_2022.data_cleaner import (
     clean_lynch2022_test_data,
     clean_lynch2022_train_data,
     load_lynch2022_raw_dataset,
