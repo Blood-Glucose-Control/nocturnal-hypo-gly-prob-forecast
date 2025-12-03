@@ -1,0 +1,21 @@
+data:
+  id_col: id
+  resolution_min: 5
+  source_name: kaggle_brisT1D
+  target_col: bg_mM
+  time_col: datetime
+experiment:
+  description: Baseline TimeGPT finetuning on kaggle_brisT1D
+  name: timegpt_baseline_finetune
+  tags:
+  - timegpt
+  - kaggle_brisT1D
+  - 5min
+  version: '1.0'
+model:
+  api_key: null
+  path: timegpt-1
+training:
+  finetune_steps: 10
+  forecast_horizon: 12
+  freq: 5min
