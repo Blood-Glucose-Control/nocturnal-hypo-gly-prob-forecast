@@ -110,7 +110,7 @@ def print_gpu_info():
 
     info_print("\n🔗 Related Tools:")
     info_print(
-        "   For distributed training setup: python scripts/examples/check_gpu_setup.py"
+        "   For distributed training setup: python scripts/examples/check_distributed_training_setup.py"
     )
     info_print(
         "   For framework testing: python scripts/examples/test_base_framework.py"
