@@ -118,7 +118,7 @@ class CacheManager:
             RuntimeError: If data fetching fails
         """
         # Absolute raw data path thtat should contain the raw data
-        raw_path = self.get_raw_data_path(dataset_name)
+        raw_path = self.get_absolute_path_by_type(dataset_name, "raw")
 
         # Check if raw data already exists
         if self._raw_data_exists(raw_path, dataset_config):
@@ -459,7 +459,7 @@ class CacheManager:
             dataset_name (str): Name of the dataset
             data (dict[str, pd.DataFrame]): Dictionary mapping patient_id -> DataFrame
         """
-        processed_path = self.get_processed_data_path(dataset_name)
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
         processed_path.mkdir(parents=True, exist_ok=True)
 
         for patient_id, patient_df in data.items():
@@ -482,7 +482,7 @@ class CacheManager:
         Returns:
             Dictionary with patient IDs as keys and DataFrames as values, or None if not found
         """
-        processed_path = self.get_processed_data_path(dataset_name)
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
 
         if processed_path.exists():
             result = {}
@@ -626,7 +626,7 @@ class CacheManager:
             return None
 
         # We do the split at the code level not the cache level so we no longer need dataset_type here.
-        processed_path = self.get_processed_data_path(dataset_name)
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
 
         if file_format == "csv":
             if processed_path.exists():

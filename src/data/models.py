@@ -13,6 +13,7 @@ class DatasetSourceType(str, Enum):
     HUGGING_FACE = "hugging_face"
     ALEPPO = "aleppo"
     LYNCH_2022 = "lynch_2022"
+    BROWN_2019 = "brown_2019"
     SIMGLUCOSE = "simglucose"
     TAMBORLANE_2008 = "tamborlane_2008"
 

@@ -23,7 +23,7 @@ import pandas as pd
 from src.data.cache_manager import get_cache_manager
 from src.data.dataset_configs import DatasetConfig, get_dataset_config
 from src.data.diabetes_datasets.dataset_base import DatasetBase
-from src.data.models import ColumnNames
+from src.data.models import ColumnNames, DatasetSourceType
 from src.data.preprocessing.time_processing import (
     get_train_validation_split_by_percentage,
 )
@@ -95,7 +95,7 @@ class Brown2019DataLoader(DatasetBase):
 
     @property
     def dataset_name(self) -> str:
-        return "brown_2019"
+        return DatasetSourceType.BROWN_2019.value
 
     @property
     def description(self) -> str:
@@ -168,7 +168,9 @@ class Brown2019DataLoader(DatasetBase):
         self.processed_data = self._process_raw_data()
 
         # Save to cache
-        processed_path = self.cache_manager.get_processed_data_path(self.dataset_name)
+        processed_path = self.cache_manager.get_absolute_path_by_type(
+            self.dataset_name, "processed"
+        )
         processed_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Save each patient as separate parquet file
