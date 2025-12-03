@@ -272,15 +272,19 @@ class BaseTSFM(ABC):
         """Set up PyTorch Distributed Data Parallel."""
         if torch.distributed.is_initialized():
             return  # Already initialized
-            
+
         # Check if we have required environment variables
         master_addr = os.environ.get("MASTER_ADDR")
         master_port = os.environ.get("MASTER_PORT", "29500")
 
         if not master_addr:
-            error_print("MASTER_ADDR environment variable not set for distributed training!")
+            error_print(
+                "MASTER_ADDR environment variable not set for distributed training!"
+            )
             error_print("Run with: torchrun --nproc_per_node=N --nnodes=1 script.py")
-            raise ValueError("Distributed training requires MASTER_ADDR environment variable")
+            raise ValueError(
+                "Distributed training requires MASTER_ADDR environment variable"
+            )
 
         info_print(f"Initializing DDP with MASTER_ADDR={master_addr}:{master_port}")
 
@@ -300,7 +304,7 @@ class BaseTSFM(ABC):
         info_print(
             f"✅ Initialized DDP process group: rank {self.distributed_config.local_rank}/{self.distributed_config.world_size}"
         )
-        
+
         # NOTE: Don't wrap model with DDP here for Transformers-based models
         # The Trainer handles that automatically
 
@@ -447,22 +451,22 @@ class BaseTSFM(ABC):
 
         try:
             # Let each model handle its own training
-            metrics = self._train_model(train_data, val_data, test_data, output_dir, **kwargs)
-            
+            metrics = self._train_model(
+                train_data, val_data, test_data, output_dir, **kwargs
+            )
+
             # Post-training state updates
             self.is_fitted = True
             self.training_history = metrics.get("train_metrics", metrics)
             self._save_training_metadata(output_dir, metrics)
-            
+
             info_print("🏁 Training complete!")
             return metrics
-            
+
         finally:
             # Common cleanup that must happen in distributed training scenarios
-            # This can causes serious issues causes GPUs to be locked if not run. 
+            # This can causes serious issues causes GPUs to be locked if not run.
             self._cleanup_distributed()
-    
-
 
     @abstractmethod
     def _train_model(
@@ -487,11 +491,15 @@ class BaseTSFM(ABC):
             f"{self.__class__.__name__} must implement _train_model() method"
         )
 
+    @abstractmethod
     def predict(
         self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
     ) -> Union[np.ndarray, Dict[str, Any]]:
         """
         Make predictions on new data.
+
+        Each model must implement this method to handle its specific
+        prediction logic and output format.
 
         Args:
             data: Input data for prediction
@@ -501,58 +509,45 @@ class BaseTSFM(ABC):
         Returns:
             Predictions as numpy array or dictionary with additional info
         """
-        if not self.is_fitted or self.model is None:
-            raise ValueError("Model must be fitted before making predictions")
+        pass
 
-        # Prepare data for prediction
-        data_loader, _, _ = self._prepare_data(data)
+    def evaluate(
+        self, test_data: Any, return_predictions: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Evaluate the model on test data.
 
-        # Set model to evaluation mode
-        self.model.eval()
+        This base implementation calls predict() and computes standard metrics.
+        Child classes can override for model-specific evaluation (e.g., using Trainer).
 
-        predictions = []
-        with torch.no_grad():
-            for batch in data_loader:
-                # Move batch to appropriate device
-                if torch.cuda.is_available() and not self.config.use_cpu:
-                    batch = {
-                        k: v.cuda()
-                        for k, v in batch.items()
-                        if isinstance(v, torch.Tensor)
-                    }
+        Args:
+            test_data: Test dataset (format depends on model's _prepare_data)
+            return_predictions: Whether to include predictions in output
 
-                # Forward pass
-                outputs = self.model(**batch)
-
-                # Extract predictions (implementation depends on model)
-                if hasattr(outputs, "prediction_logits"):
-                    batch_predictions = outputs.prediction_logits
-                elif hasattr(outputs, "logits"):
-                    batch_predictions = outputs.logits
-                else:
-                    batch_predictions = outputs
-
-                predictions.append(batch_predictions.cpu().numpy())
-
-        # Concatenate all predictions
-        predictions = np.concatenate(predictions, axis=0)
-
-        if return_dict:
-            return {
-                "predictions": predictions,
-                "model_config": self.config.to_dict(),
-                "n_samples": len(predictions),
-            }
-
-        return predictions
-
-    def evaluate(self, test_data: Any) -> Dict[str, float]:
-        """Evaluate the model. Models can override this entirely."""
+        Returns:
+            Dictionary containing metrics and optionally predictions
+        """
         if not self.is_fitted:
             raise ValueError("Model must be fitted before evaluation")
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement evaluate() method"
-        )
+
+        # Get predictions using the child's predict implementation
+        predictions = self.predict(test_data)
+
+        # Extract ground truth from test data
+        # Child classes may need to override if their data format differs
+        y_true = self._extract_ground_truth(test_data)
+
+        # Compute metrics using protected method
+        metrics = self._compute_metrics(predictions, y_true)
+
+        if return_predictions:
+            return {
+                "metrics": metrics,
+                "predictions": predictions,
+                "ground_truth": y_true,
+            }
+
+        return metrics
 
     def save_model(
         self, output_dir: str, save_config: bool = True, save_metadata: bool = True
@@ -639,6 +634,72 @@ class BaseTSFM(ABC):
         """Load model weights from directory. Each model implements this."""
         pass
 
+    def _compute_metrics(
+        self, y_pred: np.ndarray, y_true: np.ndarray
+    ) -> Dict[str, float]:
+        """
+        Compute standard evaluation metrics.
+
+        This is a protected method providing common metrics computation.
+        Child classes can override to add model-specific metrics.
+
+        Args:
+            y_pred: Predicted values
+            y_true: Ground truth values
+
+        Returns:
+            Dictionary of metric names to values
+        """
+        # Ensure numpy arrays
+        if not isinstance(y_pred, np.ndarray):
+            y_pred = np.array(y_pred)
+        if not isinstance(y_true, np.ndarray):
+            y_true = np.array(y_true)
+
+        # Flatten if needed for comparison
+        y_pred = y_pred.flatten()
+        y_true = y_true.flatten()
+
+        # Core metrics
+        mse = float(np.mean((y_pred - y_true) ** 2))
+        rmse = float(np.sqrt(mse))
+        mae = float(np.mean(np.abs(y_pred - y_true)))
+
+        # MAPE with zero handling
+        mask = y_true != 0
+        if np.any(mask):
+            mape = float(
+                np.mean(np.abs((y_pred[mask] - y_true[mask]) / y_true[mask])) * 100
+            )
+        else:
+            mape = 0.0
+
+        return {
+            "mse": mse,
+            "rmse": rmse,
+            "mae": mae,
+            "mape": mape,
+        }
+
+    def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
+        """
+        Extract ground truth labels from test data.
+
+        This is a protected method that child classes should override
+        if their data format differs from the default expectation.
+
+        Args:
+            test_data: Test dataset
+
+        Returns:
+            Ground truth values as numpy array
+        """
+        # Default implementation - child classes should override
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement _extract_ground_truth() "
+            "or override evaluate() entirely"
+        )
+
     def _get_early_stopping_config(self) -> Dict[str, Any]:
         """Get early stopping configuration for models that support it."""
         return {
@@ -717,7 +778,7 @@ class BaseTSFM(ABC):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(config={self.config.model_type}, fitted={self.is_fitted})"
-    
+
     def __del__(self):
         """Ensure cleanup happens even if not called explicitly."""
         try:
@@ -725,6 +786,7 @@ class BaseTSFM(ABC):
         except Exception:
             # Don't raise exceptions in destructor
             pass
+
 
 # Utility functions for model management
 

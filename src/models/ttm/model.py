@@ -6,7 +6,7 @@ the base TSFM framework, demonstrating how to integrate existing models.
 """
 
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -454,19 +454,64 @@ class TTMForecaster(BaseTSFM):
             self.model.save_pretrained(output_dir)
             info_print(f"TTM model saved to {output_dir}")
 
-    def _evaluate_model(self, test_data: Any) -> Dict[str, float]:
-        """Evaluate TTM model."""
-        _, _, test_loader = self._prepare_data(None, None, test_data)
+    def predict(
+        self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
+    ) -> Union[np.ndarray, Dict[str, Any]]:
+        """
+        Make predictions on new data.
 
-        # Create a trainer for evaluation
-        training_args = self._create_training_arguments("./temp_eval")
-        trainer = Trainer(
-            model=self.model,
-            args=training_args,
-            compute_metrics=self._compute_metrics,
-        )
+        Args:
+            data: Input data for prediction
+            batch_size: Batch size for prediction (defaults to config.batch_size)
+            return_dict: Whether to return additional information
 
-        return trainer.evaluate(eval_dataset=test_loader.dataset)
+        Returns:
+            Predictions as numpy array or dictionary with additional info
+        """
+        if not self.is_fitted or self.model is None:
+            raise ValueError("Model must be fitted before making predictions")
+
+        # Prepare data for prediction
+        data_loader, _, _ = self._prepare_data(data)
+
+        # Set model to evaluation mode
+        self.model.eval()
+
+        predictions = []
+        with torch.no_grad():
+            for batch in data_loader:
+                # Move batch to appropriate device
+                if torch.cuda.is_available() and not self.config.use_cpu:
+                    batch = {
+                        k: v.cuda()
+                        for k, v in batch.items()
+                        if isinstance(v, torch.Tensor)
+                    }
+
+                # Forward pass
+                outputs = self.model(**batch)
+
+                # Extract predictions (implementation depends on model)
+                if hasattr(outputs, "prediction_logits"):
+                    batch_predictions = outputs.prediction_logits
+                elif hasattr(outputs, "logits"):
+                    batch_predictions = outputs.logits
+                else:
+                    batch_predictions = outputs
+
+                predictions.append(batch_predictions.cpu().numpy())
+
+        # Concatenate all predictions
+        predictions = np.concatenate(predictions, axis=0)
+
+        if return_dict:
+            return {
+                "predictions": predictions,
+                "model_config": self.config.to_dict(),
+                "n_samples": len(predictions),
+            }
+
+        return predictions
 
     def _load_model_weights(self, model_dir: str) -> None:
         """Load TTM model weights from directory."""
