@@ -127,7 +127,7 @@ def check_multi_gpu_setup():
 
     info_print("\n🔗 Related Tools:")
     info_print(
-        "   For detailed hardware specs: python scripts/examples/print_gpu_info.py"
+        "   For detailed hardware specs: python scripts/examples/show_hardware_info.py"
     )
 
 
