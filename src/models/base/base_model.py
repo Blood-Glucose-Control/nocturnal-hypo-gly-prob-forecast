@@ -248,27 +248,61 @@ class BaseTSFM(ABC):
 
         self._distributed_setup_done = True
 
-    def _setup_ddp(self) -> None:
-        """Set up PyTorch Distributed Data Parallel.
-        DDP requires explicit setup before the Trainer, unlike DeepSpeed and FSDP.
-        """
-        if not torch.distributed.is_initialized():
-            torch.distributed.init_process_group(
-                backend=self.distributed_config.backend,
-                world_size=self.distributed_config.world_size,
-                rank=self.distributed_config.local_rank,
-            )
+    def _cleanup_distributed(self) -> None:
+        """Clean up distributed training resources properly."""
+        if (
+            self.distributed_config.enabled
+            and self.distributed_config.strategy == "ddp"
+            and torch.distributed.is_initialized()
+        ):
+            info_print("🧹 Cleaning up distributed training resources...")
+            try:
+                # Synchronize all processes before cleanup
+                torch.distributed.barrier()
+                # Properly destroy the process group
+                torch.distributed.destroy_process_group()
+                info_print(
+                    f"✅ Distributed training cleanup complete for {self.distributed_config.local_rank}"
+                )
+            except Exception as e:
+                # Don't crash if cleanup fails, but warn about it
+                info_print(f"⚠️  Warning: Distributed cleanup failed: {e}")
 
-        if self.model is not None and torch.cuda.is_available():
-            device = torch.device(f"cuda:{self.distributed_config.local_rank}")
-            # Move model to the appropriate device
-            self.model = self.model.to(device)
-            # Wrap with DDP
-            self.model = torch.nn.parallel.DistributedDataParallel(
-                self.model,
-                device_ids=[self.distributed_config.local_rank],
-                output_device=self.distributed_config.local_rank,
-            )
+    def _setup_ddp(self) -> None:
+        """Set up PyTorch Distributed Data Parallel."""
+        if torch.distributed.is_initialized():
+            return  # Already initialized
+            
+        # Check if we have required environment variables
+        master_addr = os.environ.get("MASTER_ADDR")
+        master_port = os.environ.get("MASTER_PORT", "29500")
+
+        if not master_addr:
+            error_print("MASTER_ADDR environment variable not set for distributed training!")
+            error_print("Run with: torchrun --nproc_per_node=N --nnodes=1 script.py")
+            raise ValueError("Distributed training requires MASTER_ADDR environment variable")
+
+        info_print(f"Initializing DDP with MASTER_ADDR={master_addr}:{master_port}")
+
+        # Set the device for this process
+        device_id = None
+        if torch.cuda.is_available() and not self.config.use_cpu:
+            device_id = self.distributed_config.local_rank
+            torch.cuda.set_device(device_id)
+            info_print(f"Set CUDA device to GPU {device_id}")
+
+        torch.distributed.init_process_group(
+            backend=self.distributed_config.backend,
+            world_size=self.distributed_config.world_size,
+            rank=self.distributed_config.local_rank,
+            device_id=device_id,
+        )
+        info_print(
+            f"✅ Initialized DDP process group: rank {self.distributed_config.local_rank}/{self.distributed_config.world_size}"
+        )
+        
+        # NOTE: Don't wrap model with DDP here for Transformers-based models
+        # The Trainer handles that automatically
 
     def _setup_deepspeed(self) -> None:
         """Set up DeepSpeed for large model training."""
@@ -411,8 +445,24 @@ class BaseTSFM(ABC):
         # Enable LoRA if configured and supported
         self.enable_lora()
 
-        # Let each model handle its own training
-        return self._train_model(train_data, val_data, test_data, output_dir, **kwargs)
+        try:
+            # Let each model handle its own training
+            metrics = self._train_model(train_data, val_data, test_data, output_dir, **kwargs)
+            
+            # Post-training state updates
+            self.is_fitted = True
+            self.training_history = metrics.get("train_metrics", metrics)
+            self._save_training_metadata(output_dir, metrics)
+            
+            info_print("🏁 Training complete!")
+            return metrics
+            
+        finally:
+            # Common cleanup that must happen in distributed training scenarios
+            # This can causes serious issues causes GPUs to be locked if not run. 
+            self._cleanup_distributed()
+    
+
 
     @abstractmethod
     def _train_model(
@@ -667,7 +717,14 @@ class BaseTSFM(ABC):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(config={self.config.model_type}, fitted={self.is_fitted})"
-
+    
+    def __del__(self):
+        """Ensure cleanup happens even if not called explicitly."""
+        try:
+            self._cleanup_distributed()
+        except Exception:
+            # Don't raise exceptions in destructor
+            pass
 
 # Utility functions for model management
 
