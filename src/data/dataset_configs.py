@@ -68,6 +68,17 @@ LYNCH_2022_CONFIG: DatasetConfig = DatasetConfig(
     cache_path="lynch_2022",
 )
 
+# Configuration for the Brown 2019 DCLP3 dataset
+# nocturnal-hypo-gly-prob-forecast/cache/data/awesome_cgm/brown_2019/raw/DCLP3 Public Dataset - Release 3 - 2022-08-04
+BROWN_2019_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.AWESOME_CGM,
+    description="Brown 2019 DCLP3 - Closed-Loop Control vs Sensor-Augmented Pump therapy",
+    citation="Brown et al. 2019, NEJM",
+    required_files=["DCLP3 Public Dataset - Release 3 - 2022-08-04"],
+    url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Brown-(2019)",
+    cache_path="awesome_cgm/brown_2019",
+)
+
 
 # Mapping of dataset names to their configurations
 DATASET_CONFIGS = {
@@ -76,6 +87,7 @@ DATASET_CONFIGS = {
     DatasetSourceType.SIMGLUCOSE.value: SIMGLUCOSE_CONFIG,
     DatasetSourceType.ALEPPO.value: ALEPPO_CONFIG,
     DatasetSourceType.LYNCH_2022.value: LYNCH_2022_CONFIG,
+    DatasetSourceType.BROWN_2019.value: BROWN_2019_CONFIG,
 }
 
 

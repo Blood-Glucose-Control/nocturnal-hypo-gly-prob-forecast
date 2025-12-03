@@ -299,7 +299,6 @@ def clean_brown_2019_data(
         p_num_col,
         "period",
         ColumnNames.BG.value,
-        "bg_mgdL",
         ColumnNames.RATE.value,
         ColumnNames.DOSE_UNITS.value,
         "bolus_type",
