@@ -21,7 +21,7 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Dict
 from typing_extensions import deprecated
 
 import pandas as pd

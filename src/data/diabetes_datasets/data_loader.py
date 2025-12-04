@@ -17,6 +17,7 @@ Pleae remember to update the overload signatures in this file
 to match the actual parameters of the data loader classes.
 This ensures that type checking and autocompletion work correctly in IDEs.
 """
+
 from typing import Union, Optional, Dict, Any, overload, Literal
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
@@ -75,6 +76,7 @@ def get_loader(
     max_workers: int = 3,
 ) -> AleppoDataLoader: ...
 
+
 @overload
 def get_loader(
     data_source_name: Literal["tamborlane_2008"],
@@ -87,6 +89,7 @@ def get_loader(
     max_workers: int = 3,
     extract_features: bool = True,
 ) -> Tamborlane2008DataLoader: ...
+
 
 def get_loader(
     data_source_name: str = "kaggle_brisT1D",
@@ -167,7 +170,7 @@ def get_loader(
             dataset_type=dataset_type,
             parallel=parallel,
             max_workers=max_workers,
-            extract_features=config.get('extract_features', True) if config else True,
+            extract_features=config.get("extract_features", True) if config else True,
         )
     else:
         raise ValueError(f"Invalid dataset_name: {data_source_name}.")

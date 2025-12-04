@@ -9,7 +9,9 @@ from src.data.diabetes_datasets.lynch_2022.lynch_2022 import (
     Lynch2022DataLoader,
 )
 from src.data.diabetes_datasets.aleppo.aleppo import AleppoDataLoader
-from src.data.diabetes_datasets.tamborlane_2008.tamborlane_2008 import Tamborlane2008DataLoader
+from src.data.diabetes_datasets.tamborlane_2008.tamborlane_2008 import (
+    Tamborlane2008DataLoader,
+)
 
 # Export anything needed at package level (if applicable)
 __all__ = [
