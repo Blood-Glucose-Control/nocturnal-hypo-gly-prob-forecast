@@ -8,6 +8,9 @@ from src.data.diabetes_datasets.gluroo.gluroo import GlurooDataLoader
 from src.data.diabetes_datasets.lynch_2022.lynch_2022 import (
     Lynch2022DataLoader,
 )
+from src.data.diabetes_datasets.brown_2019.brown_2019 import (
+    Brown2019DataLoader,
+)
 from src.data.diabetes_datasets.aleppo.aleppo import AleppoDataLoader
 
 # Export anything needed at package level (if applicable)
@@ -15,5 +18,6 @@ __all__ = [
     "BrisT1DDataLoader",
     "GlurooDataLoader",
     "Lynch2022DataLoader",
+    "Brown2019DataLoader",
     "AleppoDataLoader",
 ]

@@ -69,6 +69,10 @@ logger = logging.getLogger(__name__)
 
 
 # TODO: We should't really be adding dose_units because each insulin has different activation curves.
+# TODO: Update this method to support different basal delivery methods (e.g., temp, automated, etc.)
+# See https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast/issues/301
+
+
 def rollover_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
     """
     Roll over the basal rate to the next few rows if the rate is not null.
