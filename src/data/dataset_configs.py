@@ -48,27 +48,24 @@ SIMGLUCOSE_CONFIG: DatasetConfig = DatasetConfig(
 )
 
 
-#### Awesome CGM datasets
+# Aleppo dataset
 ALEPPO_CONFIG: DatasetConfig = DatasetConfig(
     source=DatasetSourceType.ALEPPO,
-    cache_path="awesome_cgm/aleppo",
+    cache_path="aleppo",
     description="Aleppo dataset",
     required_files=["Data Tables"],
     url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Aleppo-(2017)",
     citation="Aleppo Dataset",
 )
 
-# Configuration for the Lynch 2022 dataset
-# TODO: This will need to be modified to use the new cache system.
-# It should use cached path instead of source path.
-# Not sure about the namesapced approach or just a simple path like this.
+# Lynch 2022 dataset
 LYNCH_2022_CONFIG: DatasetConfig = DatasetConfig(
     source=DatasetSourceType.LYNCH_2022,
     description="Lynch 2022 IOBP2 RCT dataset",
     citation="Lynch et al. 2022",
     required_files=["IOBP2 RCT Public Dataset"],
     url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Lynch-2022",
-    cache_path="awesome_cgm/lynch_2022",
+    cache_path="lynch_2022",
 )
 
 

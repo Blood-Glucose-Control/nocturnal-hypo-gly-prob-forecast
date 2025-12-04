@@ -717,7 +717,7 @@ See [Data Documentation](https://probabilistic-forecasting-of-nocturnal-hypoglyc
        def validate(self, data): ...
    ```
 3. **Add WATGPU sbatch script.**
-   ```scripts/watgpu/data_processing_scripts/{dataset}_data_processing.sh```
+   ```scripts/watgpu_slurm/data_processing_scripts/{dataset}_data_processing.sh```
 4. **Update documentation**: Add dataset description and usage
 
 ---

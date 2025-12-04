@@ -1,0 +1,55 @@
+# TTM High Performance Configuration
+# Optimized for L40S GPU with larger batch sizes and mixed precision
+
+experiment:
+  name: "ttm_learning_rate_performance_limits_experiment"
+  description: "Assessing optimial learning rates for TTM on L40S GPU with kaggle_brisT1D dataset"
+  tags: ["learning_rate", "mixed_precision"]
+  version: "1.0"
+
+model:
+  path: "ibm-granite/granite-timeseries-ttm-r2"
+  context_length: 512
+  forecast_length: 96
+
+data:
+  source_name: "kaggle_brisT1D"
+  y_feature: ["bg_mM"]
+  x_features: ["steps", "cob", "carb_availability", "insulin_availability", "iob"]
+  timestamp_column: "datetime"
+  resolution_min: 5
+  data_split: [0.90, 0.1]  # Slightly more test data for better evaluation
+  fewshot_percent: 100
+  dataloader_num_workers: 2  # Use 2 workers for data loading
+
+training:
+  batch_size: 1024
+  learning_rate: 0.01  # Slightly higher LR for larger batch
+  num_epochs: 20
+  use_cpu: false
+  loss: "mse"
+  resume_dir: null
+
+hardware:
+  expected_gpu_type: "L40S"
+  expected_memory_gb: 48
+  mixed_precision: true  # Enable mixed precision for faster training
+
+output:
+  save_checkpoints: true
+  checkpoint_frequency: 1000
+  save_best_model: true
+  log_frequency: 50
+
+optimization:
+  scheduler: "exponential"  # Learning rate scheduler type
+  scheduler_params:
+    gamma: 0.99  # Decay factor for exponential scheduler
+  optimizer: "adamw"
+  optimizer_params:
+    weight_decay: 0.01
+
+evaluation:
+  eval_frequency: 1000
+  eval_batch_size: 256
+  metrics: ["mse"]

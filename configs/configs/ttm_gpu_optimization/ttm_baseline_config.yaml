@@ -1,0 +1,63 @@
+# TTM Training Configuration File
+# This file contains all parameters for TTM model training experiments
+
+# Experiment Metadata
+experiment:
+  name: "ttm_baseline_experiment"  # Human-readable experiment name
+  description: "Baseline TTM fine-tuning on kaggle_brisT1D dataset"  # Experiment description
+  tags: ["baseline", "kaggle_brisT1D", "5min"]  # Tags for organization
+  version: "1.0"  # Experiment version
+
+# Model Configuration
+model:
+  path: "ibm-granite/granite-timeseries-ttm-r2"  # Model path or HuggingFace model ID
+  context_length: 512  # Input sequence length
+  forecast_length: 96  # Prediction horizon length
+
+# Data Configuration
+data:
+  source_name: "kaggle_brisT1D"  # Data source identifier
+  y_feature: ["bg_mM"]  # Target features
+  x_features: ["steps", "cob", "carb_availability", "insulin_availability", "iob"]  # Input features
+  timestamp_column: "datetime"  # Timestamp column name
+  resolution_min: 5  # Data resolution in minutes
+  data_split: [0.9, 0.1]  # [train, test] split ratios (validation is derived from train)
+  fewshot_percent: 100  # Percentage of training data to use (for few-shot learning)
+  dataloader_num_workers: 2  # Use 2 workers for data loading
+
+# Training Configuration
+training:
+  batch_size: 128  # Training batch size
+  learning_rate: 0.001  # Learning rate (null for auto-detection)
+  num_epochs: 10  # Number of training epochs
+  use_cpu: false  # Whether to use CPU instead of GPU
+  loss: "mse"  # Loss function
+  resume_dir: null  # Directory to resume training from (null for fresh start)
+
+# Hardware Configuration (will be captured automatically but can be overridden)
+hardware:
+  expected_gpu_type: "L40S"  # Expected GPU type for validation
+  expected_memory_gb: 48  # Expected GPU memory in GB
+  mixed_precision: false  # Whether to use mixed precision training
+
+# Output Configuration
+output:
+  save_checkpoints: true  # Whether to save model checkpoints
+  checkpoint_frequency: 1000  # Save checkpoint every N steps
+  save_best_model: true  # Whether to save the best model
+  log_frequency: 100  # Log metrics every N steps
+
+# Optimization Configuration
+optimization:
+  scheduler: "exponential"  # Learning rate scheduler type
+  scheduler_params:
+    gamma: 0.95  # Decay factor for exponential scheduler
+  optimizer: "adamw"  # Optimizer type
+  optimizer_params:
+    weight_decay: 0.01  # Weight decay for AdamW
+
+# Evaluation Configuration
+evaluation:
+  eval_frequency: 1000  # Evaluate every N steps
+  eval_batch_size: 128  # Evaluation batch size
+  metrics: ["mse", "mae"]  # Evaluation metrics to compute

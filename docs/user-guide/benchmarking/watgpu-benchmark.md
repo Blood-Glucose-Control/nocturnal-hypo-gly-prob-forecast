@@ -54,12 +54,9 @@ pip install -e .
     - Reference: [How to submit a job](https://watgpu.cs.uwaterloo.ca/slurm.html)
 
 ### Project Structure
-All scripts are located at `~/nocturnal-hypo-gly-prob-forecast/scripts/watgpu/`:
+All scripts are located at `~/nocturnal-hypo-gly-prob-forecast/scripts/watgpu_slurm/`:
 
-Key files:
-
-    - `job.sh`: Configure YAML files and run resources
-    - `run_model.py`: Entry point for the benchmark
+Key files:proper resource allocation
 
 ### Job Submission Process
 

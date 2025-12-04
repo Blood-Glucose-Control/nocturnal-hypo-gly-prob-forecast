@@ -11,7 +11,6 @@ class DatasetSourceType(str, Enum):
     LOCAL = "local"
     GLUROO = "gluroo"
     HUGGING_FACE = "hugging_face"
-    AWESOME_CGM = "awesome_cgm"
     ALEPPO = "aleppo"
     LYNCH_2022 = "lynch_2022"
     SIMGLUCOSE = "simglucose"

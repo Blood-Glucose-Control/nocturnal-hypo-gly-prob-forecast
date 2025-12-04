@@ -21,7 +21,7 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, Literal, Optional
+from typing import Literal, Optional
 from typing_extensions import deprecated
 
 import pandas as pd
@@ -34,12 +34,6 @@ from src.data.dataset_configs import (
 from src.utils.os_helper import get_project_root
 
 logger = logging.getLogger(__name__)
-
-# Map dataset keys to subdirectory paths relative to cache root
-# This keeps backward compatibility while allowing namespacing like "awesome_cgm/lynch_2022".
-_DATASET_PATH_OVERRIDES: dict[str, Path] = {
-    "lynch_2022": Path("awesome_cgm") / "lynch_2022",
-}
 
 
 class CacheManager:
@@ -54,24 +48,17 @@ class CacheManager:
     def __init__(
         self,
         cache_root: str = "cache/data",
-        dataset_path_overrides: Optional[Dict[str, Path]] = None,
     ):
         """
         Initialize the cache manager.
 
         Args:
             cache_root (str): Root directory for cache storage (relative to project root)
-            dataset_path_overrides (Optional[Dict[str, Path]]): Optional mapping from dataset_name
-                to a custom subdirectory path (relative to cache_root). If None, defaults to module overrides.
         """
         # Make cache root relative to project root, not current working directory
         project_root = get_project_root()
         self.cache_root = project_root / cache_root
         self.cache_root.mkdir(parents=True, exist_ok=True)
-        # Use provided overrides or defaults
-        self.dataset_path_overrides: Dict[str, Path] = (
-            dataset_path_overrides or _DATASET_PATH_OVERRIDES
-        )
 
     def get_dataset_cache_path(self, dataset_name: str) -> Path:
         """
@@ -83,15 +70,8 @@ class CacheManager:
         Returns:
             Path: Path to the dataset's cache directory
         """
-        # Respect explicit override
-        if dataset_name in self.dataset_path_overrides:
-            subpath = self.dataset_path_overrides[dataset_name]
-        else:
-            # If dataset_name includes a path (e.g., "awesome_cgm/lynch_2022"), treat it as a subdir
-            p = Path(dataset_name)
-            subpath = p if len(p.parts) > 1 else Path(dataset_name)
 
-        return self.cache_root / subpath
+        return self.cache_root / dataset_name
 
     def get_absolute_path_by_type(
         self,
@@ -154,9 +134,8 @@ class CacheManager:
             self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.HUGGING_FACE:
             self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
-        elif source == DatasetSourceType.AWESOME_CGM:
-            self._fetch_awesome_cgm_data(dataset_name, raw_path, dataset_config)
-        # TODO: Not sure if this is needed anymore
+        elif source in (DatasetSourceType.ALEPPO, DatasetSourceType.LYNCH_2022):
+            self._fetch_manual_download_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.LOCAL:
             self._copy_local_data(dataset_name, raw_path, dataset_config)
         else:
@@ -353,24 +332,23 @@ class CacheManager:
                 f"Failed to fetch HuggingFace data for {dataset_name}: {str(e)}"
             )
 
-    def _fetch_awesome_cgm_data(
+    def _fetch_manual_download_data(
         self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
     ):
         """
-        Load data from the cache directory. The data has to be manually downloaded from the source and placed in the correct cache directory.
-        Reason is that the data is guarded by the source.
-        See the README.md in the cache/data/awesome_cgm/aleppo directory for more details.
+        Fetch data for datasets that require manual download.
+        Raises an error with download instructions if data is not present.
         """
-        raw_data_exists = self._raw_data_exists(raw_path, dataset_config)
-        # There is not way to load raw data programmatically from the source.
-        # The only way is to manually download the data and place it in the correct cache directory.
-        if raw_data_exists:
+        if self._raw_data_exists(raw_path, dataset_config):
             return raw_path
-        else:
-            # TODO: Need to give instructions to the user on how to download the data and place it in the correct cache directory
-            raise RuntimeError(
-                f"Raw data for {dataset_name} does not exist in cache. Please download the data and place it in cache/data/awesome_cgm/{dataset_name}/raw."
-            )
+
+        raise RuntimeError(
+            f"Raw data for '{dataset_name}' not found.\n\n"
+            f"Download from: {dataset_config.url}\n"
+            f"Required files/folders: {dataset_config.required_files}\n"
+            f"Place in: {raw_path}\n\n"
+            f"See the dataset's README.md for detailed instructions."
+        )
 
     def _copy_local_data(
         self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig

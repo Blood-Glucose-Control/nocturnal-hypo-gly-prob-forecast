@@ -1,2 +1,0 @@
-/u6/cjrisi/nocturnal/results/runs/model_registry.py:158: FutureWarning: Setting an item of incompatible dtype is deprecated and will raise an error in a future version of pandas. Value 'checkpoint-1000' has dtype incompatible with float64, please explicitly cast to a compatible dtype first.
-  df.loc[mask, key] = value

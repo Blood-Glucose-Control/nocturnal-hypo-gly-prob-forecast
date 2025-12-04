@@ -5,12 +5,17 @@
 # Import existing dataset loaders
 from src.data.diabetes_datasets.kaggle_bris_t1d.bris_t1d import BrisT1DDataLoader
 from src.data.diabetes_datasets.gluroo.gluroo import GlurooDataLoader
-from src.data.diabetes_datasets.awesome_cgm.lynch_2022.lynch_2022 import (
+from src.data.diabetes_datasets.lynch_2022.lynch_2022 import (
     Lynch2022DataLoader,
 )
-from src.data.diabetes_datasets.awesome_cgm.tamborlane_2008 import Tamborlane2008DataLoader
-
-# Add your new dataset import
+from src.data.diabetes_datasets.aleppo.aleppo import AleppoDataLoader
+from src.data.diabetes_datasets.tamborlane_2008.tamborlane_2008 import Tamborlane2008DataLoader
 
 # Export anything needed at package level (if applicable)
-__all__ = ["BrisT1DDataLoader", "GlurooDataLoader", "Lynch2022DataLoader", "Tamborlane2008DataLoader"]
+__all__ = [
+    "BrisT1DDataLoader",
+    "GlurooDataLoader",
+    "Lynch2022DataLoader",
+    "AleppoDataLoader",
+    "Tamborlane2008DataLoader",
+]
