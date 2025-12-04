@@ -31,8 +31,11 @@ Our benchmark pipeline was originally built on the Kaggle Bristol Type 1 Diabete
    - Planned integration from benchmark repo as a package
    - Will provide simulated data for testing and validation
 
-4. AwesomeCGM
-   - WIP...
+4. Aleppo
+   - CGM study with 225 participants
+
+5. Lynch 2022
+   - IOBP2 RCT dataset
 
 ## Data Format Standardization
 
