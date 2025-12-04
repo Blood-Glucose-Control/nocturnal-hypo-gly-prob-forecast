@@ -160,7 +160,7 @@ class TSMixerForecaster(BaseTSFM):
 
     def get_tsmixer_specific_info(self) -> Dict[str, Any]:
         """Get TSMixer-specific model information."""
-        info = self.get_model_info()
+        info = self._get_model_info()
         info.update(
             {
                 "tsmixer_specific": {

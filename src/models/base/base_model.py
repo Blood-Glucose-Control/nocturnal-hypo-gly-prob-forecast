@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact:
+# For commercial licensing, contact: cjrisi/christopher AT uwaterloo/gluroo DOT ca/com
 
 """
 Base model framework for Time Series Foundation Models (TSFMs).
@@ -273,6 +273,49 @@ class BaseTSFM(ABC):
         # Initialize model
         self._initialize_model()
 
+    # Abstract methods that child classes must implement
+    ## Abstract public API methods
+    @abstractmethod
+    def predict(
+        self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
+    ) -> Union[np.ndarray, Dict[str, Any]]:
+        """
+        Make predictions on new data.
+
+        Each model must implement this method to handle its specific
+        prediction logic and output format.
+
+        Args:
+            data: Input data for prediction
+            batch_size: Batch size for prediction (defaults to config.batch_size)
+            return_dict: Whether to return additional information
+
+        Returns:
+            Predictions as numpy array or dictionary with additional info
+        """
+        pass
+
+    @abstractmethod
+    def get_training_strategy(self) -> TrainingStrategy:
+        """
+        Return the training strategy this model uses.
+
+        Returns:
+            TrainingStrategy: The training approach for this model
+        """
+        pass
+
+    @abstractmethod
+    def supports_lora(self) -> bool:
+        """
+        Check if this model architecture supports LoRA fine-tuning.
+
+        Returns:
+            bool: True if the model supports LoRA, False otherwise
+        """
+        pass
+
+    ## Abstract Protected Methods
     @abstractmethod
     def _initialize_model(self) -> None:
         """Initialize the specific model architecture."""
@@ -299,26 +342,279 @@ class BaseTSFM(ABC):
         pass
 
     @abstractmethod
-    def get_training_strategy(self) -> TrainingStrategy:
-        """
-        Return the training strategy this model uses.
-
-        Returns:
-            TrainingStrategy: The training approach for this model
-        """
+    def _save_model_weights(self, output_dir: str) -> None:
+        """Save model weights to directory. Each model implements this."""
         pass
 
     @abstractmethod
-    def supports_lora(self) -> bool:
-        """
-        Check if this model architecture supports LoRA fine-tuning.
-
-        Returns:
-            bool: True if the model supports LoRA, False otherwise
-        """
+    def _load_model_weights(self, model_dir: str) -> None:
+        """Load model weights from directory. Each model implements this."""
         pass
 
-    def setup_distributed(self) -> None:
+    @abstractmethod
+    def _train_model(
+        self,
+        train_data: Any,
+        val_data: Optional[Any],
+        test_data: Optional[Any],
+        output_dir: str,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Model-specific training implementation.
+
+        Args:
+            train_data: Training dataset
+            val_data: Validation dataset (optional)
+            test_data: Test dataset (optional)
+            output_dir: Directory to save outputs
+            **kwargs: Additional arguments
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement _train_model() method"
+        )
+
+    # Public API (fit, predict, evaluate, save_model, load_model, get_model_info...)
+    def fit(
+        self,
+        train_data: Any,
+        val_data: Optional[Any] = None,
+        test_data: Optional[Any] = None,
+        output_dir: str = "./output",
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Fit the model to training data.
+
+        This method orchestrates the complete training pipeline including:
+        - Setting up distributed training (if configured)
+        - Enabling LoRA adapters (if configured)
+        - Calling the model-specific training implementation
+        - Saving training metadata
+        - Cleaning up distributed resources
+
+        Args:
+            train_data: Training dataset. Format depends on the specific model
+                implementation (e.g., DataFrame, Dataset, or data source name).
+            val_data: Validation dataset for monitoring training progress.
+            test_data: Test dataset for final evaluation after training.
+            output_dir: Directory path where model checkpoints, logs, and
+                metadata will be saved.
+            **kwargs: Additional keyword arguments passed to the model-specific
+                training implementation (e.g., resume_from_checkpoint).
+
+        Returns:
+            Dict[str, Any]: Dictionary containing training metrics, including
+                'train_metrics' and optionally 'test_metrics'.
+
+        Raises:
+            Exception: If training fails. Distributed cleanup is guaranteed
+                to run even if training raises an exception.
+        """
+        info_print(f"Starting training for {self.__class__.__name__}")
+        info_print(f"Training strategy: {self.get_training_strategy().value}")
+
+        # Setup distributed training if configured
+        self._setup_distributed()
+
+        # Enable LoRA if configured and supported
+        self._enable_lora()
+
+        try:
+            # Let each model handle its own training
+            metrics = self._train_model(
+                train_data, val_data, test_data, output_dir, **kwargs
+            )
+
+            # Post-training state updates
+            self.is_fitted = True
+            self.training_history = metrics.get("train_metrics", metrics)
+            self._save_training_metadata(output_dir, metrics)
+
+            info_print("🏁 Training complete!")
+            return metrics
+
+        finally:
+            # Common cleanup that must happen in distributed training scenarios
+            # This can causes serious issues causes GPUs to be locked if not run.
+            self._cleanup_distributed()
+
+    def evaluate(
+        self, test_data: Any, return_predictions: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Evaluate the model on test data.
+
+        This base implementation calls predict() and computes standard metrics.
+        Child classes can override for model-specific evaluation (e.g., using Trainer).
+
+        Args:
+            test_data: Test dataset (format depends on model's _prepare_data)
+            return_predictions: Whether to include predictions in output
+
+        Returns:
+            Dictionary containing metrics and optionally predictions
+        """
+        if not self.is_fitted:
+            raise ValueError("Model must be fitted before evaluation")
+
+        # Get predictions using the child's predict implementation
+        predictions = self.predict(test_data)
+
+        # Extract ground truth from test data
+        # Child classes may need to override if their data format differs
+        y_true = self._extract_ground_truth(test_data)
+
+        # Compute metrics using protected method
+        metrics = self._compute_metrics(predictions, y_true)
+
+        if return_predictions:
+            return {
+                "metrics": metrics,
+                "predictions": predictions,
+                "ground_truth": y_true,
+            }
+
+        return metrics
+
+    def save_model(
+        self, output_dir: str, save_config: bool = True, save_metadata: bool = True
+    ) -> None:
+        """Save the model and associated metadata to disk.
+
+        Saves configuration and training metadata to JSON files. Child classes
+        must override this method to implement actual model weight saving.
+
+        Args:
+            output_dir: Directory path where the model will be saved.
+            save_config: Whether to save the model configuration to config.json.
+            save_metadata: Whether to save training metadata to metadata.json.
+
+        Raises:
+            NotImplementedError: Always raised by base class. Child classes
+                must override to save model weights.
+
+        Note:
+            Child classes should call super().save_model() first to save
+            configuration and metadata, then save model-specific weights.
+        """
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Save configuration
+        if save_config:
+            config_path = os.path.join(output_dir, "config.json")
+            with open(config_path, "w") as f:
+                json.dump(self.config.to_dict(), f, indent=2)
+
+        # Save metadata
+        if save_metadata:
+            metadata = {
+                "model_type": self.__class__.__name__,
+                "is_fitted": self.is_fitted,
+                "training_history": self.training_history,
+                "best_metrics": self.best_metrics,
+                "config": self.config.to_dict(),
+                "lora_config": self.lora_config.__dict__,
+                "distributed_config": self.distributed_config.__dict__,
+                "training_strategy": self.get_training_strategy().value,
+            }
+
+            metadata_path = os.path.join(output_dir, "metadata.json")
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+        self._save_model_weights(output_dir)  # <-- This line instead of raising
+        
+        info_print(f"Model saved to {output_dir}")
+
+    @classmethod
+    def load_model(
+        cls, model_dir: str, config: Optional[ModelConfig] = None
+    ) -> "BaseTSFM":
+        """
+        Load a saved model.
+
+        Args:
+            model_dir: Directory containing the saved model
+            config: Optional config override
+
+        Returns:
+            Loaded model instance
+        """
+        # Load config if not provided
+        if config is None:
+            config_path = os.path.join(model_dir, "config.json")
+            if os.path.exists(config_path):
+                with open(config_path, "r") as f:
+                    config_dict = json.load(f)
+                config = ModelConfig.from_dict(config_dict)
+            else:
+                raise ValueError(f"No config found at {config_path}")
+
+        # Create instance
+        instance = cls(config)
+
+        # Load the actual model weights
+        # This is model-specific and should be implemented in subclasses
+        instance._load_model_weights(model_dir)
+
+        # Load metadata
+        metadata_path = os.path.join(model_dir, "metadata.json")
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
+            instance.training_history = metadata.get("training_history", {})
+            instance.best_metrics = metadata.get("best_metrics", {})
+            instance.is_fitted = metadata.get("is_fitted", False)
+
+        info_print(f"Model loaded from {model_dir}")
+        return instance
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get comprehensive information about the model.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing:
+                - model_type: Name of the model class.
+                - config: Full model configuration as dictionary.
+                - is_fitted: Whether the model has been trained.
+                - lora_enabled: Whether LoRA is enabled.
+                - distributed_enabled: Whether distributed training is enabled.
+                - training_strategy: The training framework being used.
+                - total_parameters: Total number of model parameters (if model exists).
+                - trainable_parameters: Number of trainable parameters (if model exists).
+                - trainable_percentage: Percentage of parameters that are trainable.
+        """
+        info = {
+            "model_type": self.__class__.__name__,
+            "config": self.config.to_dict(),
+            "is_fitted": self.is_fitted,
+            "lora_enabled": self.lora_config.enabled,
+            "distributed_enabled": self.distributed_config.enabled,
+            "training_strategy": self.get_training_strategy().value,
+        }
+
+        if self.model is not None:
+            # Count parameters
+            total_params = sum(p.numel() for p in self.model.parameters())
+            trainable_params = sum(
+                p.numel() for p in self.model.parameters() if p.requires_grad
+            )
+
+            info.update(
+                {
+                    "total_parameters": total_params,
+                    "trainable_parameters": trainable_params,
+                    "trainable_percentage": 100 * trainable_params / total_params
+                    if total_params > 0
+                    else 0,
+                }
+            )
+
+        return info
+
+    # Protected Helpers
+    ## Distributed Training Setup
+    def _setup_distributed(self) -> None:
         """Set up distributed training environment if configured.
 
         Initializes the appropriate distributed training backend based on the
@@ -369,7 +665,7 @@ class BaseTSFM(ABC):
 
         Initializes the distributed process group for DDP training. Requires
         MASTER_ADDR environment variable to be set. This method is typically
-        called via setup_distributed() rather than directly.
+        called via _setup_distributed() rather than directly.
 
         Raises:
             ValueError: If MASTER_ADDR environment variable is not set.
@@ -429,7 +725,8 @@ class BaseTSFM(ABC):
         """Set up Fully Sharded Data Parallel."""
         info_print("FSDP will be configured in TrainingArguments")
 
-    def enable_lora(self) -> None:
+    ## LoRA Integration
+    def _enable_lora(self) -> None:
         """Enable LoRA (Low-Rank Adaptation) for memory-efficient fine-tuning.
 
         Applies LoRA adapters to the model's target modules, freezing the original
@@ -543,249 +840,7 @@ class BaseTSFM(ABC):
 
         return target_modules
 
-    def fit(
-        self,
-        train_data: Any,
-        val_data: Optional[Any] = None,
-        test_data: Optional[Any] = None,
-        output_dir: str = "./output",
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """Fit the model to training data.
-
-        This method orchestrates the complete training pipeline including:
-        - Setting up distributed training (if configured)
-        - Enabling LoRA adapters (if configured)
-        - Calling the model-specific training implementation
-        - Saving training metadata
-        - Cleaning up distributed resources
-
-        Args:
-            train_data: Training dataset. Format depends on the specific model
-                implementation (e.g., DataFrame, Dataset, or data source name).
-            val_data: Validation dataset for monitoring training progress.
-            test_data: Test dataset for final evaluation after training.
-            output_dir: Directory path where model checkpoints, logs, and
-                metadata will be saved.
-            **kwargs: Additional keyword arguments passed to the model-specific
-                training implementation (e.g., resume_from_checkpoint).
-
-        Returns:
-            Dict[str, Any]: Dictionary containing training metrics, including
-                'train_metrics' and optionally 'test_metrics'.
-
-        Raises:
-            Exception: If training fails. Distributed cleanup is guaranteed
-                to run even if training raises an exception.
-        """
-        info_print(f"Starting training for {self.__class__.__name__}")
-        info_print(f"Training strategy: {self.get_training_strategy().value}")
-
-        # Setup distributed training if configured
-        self.setup_distributed()
-
-        # Enable LoRA if configured and supported
-        self.enable_lora()
-
-        try:
-            # Let each model handle its own training
-            metrics = self._train_model(
-                train_data, val_data, test_data, output_dir, **kwargs
-            )
-
-            # Post-training state updates
-            self.is_fitted = True
-            self.training_history = metrics.get("train_metrics", metrics)
-            self._save_training_metadata(output_dir, metrics)
-
-            info_print("🏁 Training complete!")
-            return metrics
-
-        finally:
-            # Common cleanup that must happen in distributed training scenarios
-            # This can causes serious issues causes GPUs to be locked if not run.
-            self._cleanup_distributed()
-
-    @abstractmethod
-    def _train_model(
-        self,
-        train_data: Any,
-        val_data: Optional[Any],
-        test_data: Optional[Any],
-        output_dir: str,
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """
-        Model-specific training implementation.
-
-        Args:
-            train_data: Training dataset
-            val_data: Validation dataset (optional)
-            test_data: Test dataset (optional)
-            output_dir: Directory to save outputs
-            **kwargs: Additional arguments
-        """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement _train_model() method"
-        )
-
-    @abstractmethod
-    def predict(
-        self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
-    ) -> Union[np.ndarray, Dict[str, Any]]:
-        """
-        Make predictions on new data.
-
-        Each model must implement this method to handle its specific
-        prediction logic and output format.
-
-        Args:
-            data: Input data for prediction
-            batch_size: Batch size for prediction (defaults to config.batch_size)
-            return_dict: Whether to return additional information
-
-        Returns:
-            Predictions as numpy array or dictionary with additional info
-        """
-        pass
-
-    def evaluate(
-        self, test_data: Any, return_predictions: bool = False
-    ) -> Dict[str, Any]:
-        """
-        Evaluate the model on test data.
-
-        This base implementation calls predict() and computes standard metrics.
-        Child classes can override for model-specific evaluation (e.g., using Trainer).
-
-        Args:
-            test_data: Test dataset (format depends on model's _prepare_data)
-            return_predictions: Whether to include predictions in output
-
-        Returns:
-            Dictionary containing metrics and optionally predictions
-        """
-        if not self.is_fitted:
-            raise ValueError("Model must be fitted before evaluation")
-
-        # Get predictions using the child's predict implementation
-        predictions = self.predict(test_data)
-
-        # Extract ground truth from test data
-        # Child classes may need to override if their data format differs
-        y_true = self._extract_ground_truth(test_data)
-
-        # Compute metrics using protected method
-        metrics = self._compute_metrics(predictions, y_true)
-
-        if return_predictions:
-            return {
-                "metrics": metrics,
-                "predictions": predictions,
-                "ground_truth": y_true,
-            }
-
-        return metrics
-
-    def save_model(
-        self, output_dir: str, save_config: bool = True, save_metadata: bool = True
-    ) -> None:
-        """Save the model and associated metadata to disk.
-
-        Saves configuration and training metadata to JSON files. Child classes
-        must override this method to implement actual model weight saving.
-
-        Args:
-            output_dir: Directory path where the model will be saved.
-            save_config: Whether to save the model configuration to config.json.
-            save_metadata: Whether to save training metadata to metadata.json.
-
-        Raises:
-            NotImplementedError: Always raised by base class. Child classes
-                must override to save model weights.
-
-        Note:
-            Child classes should call super().save_model() first to save
-            configuration and metadata, then save model-specific weights.
-        """
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Save configuration
-        if save_config:
-            config_path = os.path.join(output_dir, "config.json")
-            with open(config_path, "w") as f:
-                json.dump(self.config.to_dict(), f, indent=2)
-
-        # Save metadata
-        if save_metadata:
-            metadata = {
-                "model_type": self.__class__.__name__,
-                "is_fitted": self.is_fitted,
-                "training_history": self.training_history,
-                "best_metrics": self.best_metrics,
-                "config": self.config.to_dict(),
-                "lora_config": self.lora_config.__dict__,
-                "distributed_config": self.distributed_config.__dict__,
-                "training_strategy": self.get_training_strategy().value,
-            }
-
-            metadata_path = os.path.join(output_dir, "metadata.json")
-            with open(metadata_path, "w") as f:
-                json.dump(metadata, f, indent=2)
-
-        # Models should override this to save actual model weights
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must override save_model() to save model weights"
-        )
-
-    @classmethod
-    def load_model(
-        cls, model_dir: str, config: Optional[ModelConfig] = None
-    ) -> "BaseTSFM":
-        """
-        Load a saved model.
-
-        Args:
-            model_dir: Directory containing the saved model
-            config: Optional config override
-
-        Returns:
-            Loaded model instance
-        """
-        # Load config if not provided
-        if config is None:
-            config_path = os.path.join(model_dir, "config.json")
-            if os.path.exists(config_path):
-                with open(config_path, "r") as f:
-                    config_dict = json.load(f)
-                config = ModelConfig.from_dict(config_dict)
-            else:
-                raise ValueError(f"No config found at {config_path}")
-
-        # Create instance
-        instance = cls(config)
-
-        # Load the actual model weights
-        # This is model-specific and should be implemented in subclasses
-        instance._load_model_weights(model_dir)
-
-        # Load metadata
-        metadata_path = os.path.join(model_dir, "metadata.json")
-        if os.path.exists(metadata_path):
-            with open(metadata_path, "r") as f:
-                metadata = json.load(f)
-            instance.training_history = metadata.get("training_history", {})
-            instance.best_metrics = metadata.get("best_metrics", {})
-            instance.is_fitted = metadata.get("is_fitted", False)
-
-        info_print(f"Model loaded from {model_dir}")
-        return instance
-
-    @abstractmethod
-    def _load_model_weights(self, model_dir: str) -> None:
-        """Load model weights from directory. Each model implements this."""
-        pass
-
+    ## Metrics Computation
     def _compute_metrics(
         self, y_pred: np.ndarray, y_true: np.ndarray
     ) -> Dict[str, float]:
@@ -852,6 +907,7 @@ class BaseTSFM(ABC):
             "or override evaluate() entirely"
         )
 
+    ## Training Metadata
     def _get_early_stopping_config(self) -> Dict[str, Any]:
         """Get early stopping configuration for models that support it.
 
@@ -916,49 +972,7 @@ class BaseTSFM(ABC):
 
         info_print(f"Training metadata saved to {metadata_file}")
 
-    def get_model_info(self) -> Dict[str, Any]:
-        """Get comprehensive information about the model.
-
-        Returns:
-            Dict[str, Any]: Dictionary containing:
-                - model_type: Name of the model class.
-                - config: Full model configuration as dictionary.
-                - is_fitted: Whether the model has been trained.
-                - lora_enabled: Whether LoRA is enabled.
-                - distributed_enabled: Whether distributed training is enabled.
-                - training_strategy: The training framework being used.
-                - total_parameters: Total number of model parameters (if model exists).
-                - trainable_parameters: Number of trainable parameters (if model exists).
-                - trainable_percentage: Percentage of parameters that are trainable.
-        """
-        info = {
-            "model_type": self.__class__.__name__,
-            "config": self.config.to_dict(),
-            "is_fitted": self.is_fitted,
-            "lora_enabled": self.lora_config.enabled,
-            "distributed_enabled": self.distributed_config.enabled,
-            "training_strategy": self.get_training_strategy().value,
-        }
-
-        if self.model is not None:
-            # Count parameters
-            total_params = sum(p.numel() for p in self.model.parameters())
-            trainable_params = sum(
-                p.numel() for p in self.model.parameters() if p.requires_grad
-            )
-
-            info.update(
-                {
-                    "total_parameters": total_params,
-                    "trainable_parameters": trainable_params,
-                    "trainable_percentage": 100 * trainable_params / total_params
-                    if total_params > 0
-                    else 0,
-                }
-            )
-
-        return info
-
+    # Dunder methods
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(config={self.config.model_type}, fitted={self.is_fitted})"
 
@@ -972,8 +986,6 @@ class BaseTSFM(ABC):
 
 
 # Utility functions for model management
-
-
 def create_model_from_config(config_path: str) -> BaseTSFM:
     """
     Factory function to create a model from a configuration file.
@@ -1008,41 +1020,3 @@ def create_model_from_config(config_path: str) -> BaseTSFM:
     # Add other model types as needed
     else:
         raise ValueError(f"Unknown model type: {model_type}")
-
-
-def compare_models(
-    models: List[BaseTSFM], test_data: Any, metrics: Optional[List[str]] = None
-) -> Dict[str, Dict[str, float]]:
-    """Compare multiple models on the same test dataset.
-
-    Evaluates each fitted model on the provided test data and collects
-    their performance metrics for comparison.
-
-    Args:
-        models: List of fitted BaseTSFM instances to compare.
-        test_data: Test dataset compatible with all models' _prepare_data methods.
-        metrics: List of metric names to include in results. Currently unused;
-            all computed metrics are returned.
-
-    Returns:
-        Dict[str, Dict[str, float]]: Dictionary mapping model class names to
-            their evaluation metrics dictionaries.
-
-    Note:
-        Models that are not fitted will be skipped with a warning message.
-    """
-    results = {}
-
-    for model in models:
-        if not model.is_fitted:
-            error_print(f"Model {model.__class__.__name__} is not fitted, skipping")
-            continue
-
-        # Prepare test data
-        _, _, test_loader = model._prepare_data(None, None, test_data)
-
-        # Evaluate model
-        model_metrics = model.evaluate(test_loader)
-        results[model.__class__.__name__] = model_metrics
-
-    return results

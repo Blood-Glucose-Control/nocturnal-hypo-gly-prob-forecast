@@ -12,7 +12,6 @@ from .base_model import (
     DistributedConfig,
     TrainingStrategy,
     create_model_from_config,
-    compare_models,
 )
 
 from .distributed import (
@@ -46,7 +45,6 @@ __all__ = [
     "TrainingStrategy",
     # Factory functions
     "create_model_from_config",
-    "compare_models",
     # Distributed training
     "DistributedManager",
     "setup_deepspeed_config",

@@ -100,6 +100,86 @@ class TTMForecaster(BaseTSFM):
         self.preprocessor = None
         self.column_specifiers = None
 
+    # Abstract method implementations
+    ## Abstract implemented public methods
+    def predict(
+        self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
+    ) -> Union[np.ndarray, Dict[str, Any]]:
+        """
+        Make predictions on new data.
+
+        Args:
+            data: Input data for prediction
+            batch_size: Batch size for prediction (defaults to config.batch_size)
+            return_dict: Whether to return additional information
+
+        Returns:
+            Predictions as numpy array or dictionary with additional info
+        """
+        if not self.is_fitted or self.model is None:
+            raise ValueError("Model must be fitted before making predictions")
+
+        # Prepare data for prediction
+        data_loader, _, _ = self._prepare_data(data)
+
+        # Set model to evaluation mode
+        self.model.eval()
+
+        predictions = []
+        with torch.no_grad():
+            for batch in data_loader:
+                # Move batch to appropriate device
+                if torch.cuda.is_available() and not self.config.use_cpu:
+                    batch = {
+                        k: v.cuda()
+                        for k, v in batch.items()
+                        if isinstance(v, torch.Tensor)
+                    }
+
+                # Forward pass
+                outputs = self.model(**batch)
+
+                # Extract predictions (implementation depends on model)
+                if hasattr(outputs, "prediction_logits"):
+                    batch_predictions = outputs.prediction_logits
+                elif hasattr(outputs, "logits"):
+                    batch_predictions = outputs.logits
+                else:
+                    batch_predictions = outputs
+
+                predictions.append(batch_predictions.cpu().numpy())
+
+        # Concatenate all predictions
+        predictions = np.concatenate(predictions, axis=0)
+
+        if return_dict:
+            return {
+                "predictions": predictions,
+                "model_config": self.config.to_dict(),
+                "n_samples": len(predictions),
+            }
+
+        return predictions
+
+    def get_training_strategy(self) -> TrainingStrategy:
+        """Return the training strategy used by TTM.
+
+        Returns:
+            TrainingStrategy: Always returns TrainingStrategy.TRANSFORMERS as
+                TTM uses the HuggingFace Transformers Trainer for training.
+        """
+        return TrainingStrategy.TRANSFORMERS
+
+    def supports_lora(self) -> bool:
+        """Check if TTM supports LoRA fine-tuning.
+
+        Returns:
+            bool: Always returns False. TTM is an MLP-based (Mixer) architecture
+                that lacks transformer attention layers required for LoRA.
+        """
+        return False
+
+    ## Abstract implemented private methods
     def _initialize_model(self) -> None:
         """Initialize the TTM model architecture.
 
@@ -278,6 +358,175 @@ class TTMForecaster(BaseTSFM):
             error_print(f"Failed to prepare data: {str(e)}")
             raise
 
+    def _save_model_weights(self, output_dir: str) -> None:
+        """Save TTM model weights using HuggingFace format.
+
+        Args:
+            output_dir: Directory path where model weights will be saved.
+
+        Note:
+            Uses save_pretrained() for HuggingFace-compatible format that
+            can be loaded with AutoModel.from_pretrained().
+        """
+        if self.model is not None:
+            self.model.save_pretrained(output_dir)
+            info_print(f"TTM model saved to {output_dir}")
+
+    def _load_model_weights(self, model_dir: str) -> None:
+        """Load TTM model weights from a directory.
+
+        Args:
+            model_dir: Directory containing saved model weights in
+                HuggingFace format.
+
+        Raises:
+            Exception: If loading fails (e.g., corrupted files, incompatible
+                model version, or missing files).
+        """
+        try:
+            # TTM models can be loaded using the transformers library
+            from transformers import AutoModel
+
+            self.model = AutoModel.from_pretrained(model_dir)
+            info_print(f"TTM model weights loaded from {model_dir}")
+
+        except Exception as e:
+            error_print(f"Failed to load model weights: {str(e)}")
+            raise
+
+    def _train_model(
+        self,
+        train_data: Any,
+        val_data: Optional[Any] = None,
+        test_data: Optional[Any] = None,
+        output_dir: str = "./output",
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Execute TTM training using the HuggingFace Trainer.
+
+        Implements the model-specific training loop using Transformers Trainer
+        with configured callbacks, metrics, and distributed training support.
+
+        Args:
+            train_data: Training data (see _prepare_data for supported formats).
+            val_data: Validation data (currently unused, split from train_data).
+            test_data: Test data (currently unused, split from train_data).
+            output_dir: Directory for saving model checkpoints and logs.
+            **kwargs: Additional arguments:
+                - resume_from_checkpoint: Path to checkpoint to resume from.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing:
+                - train_metrics: Metrics from training (loss, runtime, etc.)
+                - test_metrics: Metrics from test evaluation (if test data provided)
+        """
+        # Prepare data loaders
+        train_loader, val_loader, test_loader = self._prepare_data(
+            train_data, val_data, test_data
+        )
+
+        # Create training arguments
+        training_args = self._create_training_arguments(output_dir)
+
+        # Create trainer
+        trainer = Trainer(
+            model=self.model,
+            args=training_args,
+            train_dataset=train_loader.dataset if train_loader else None,
+            eval_dataset=val_loader.dataset if val_loader else None,
+            compute_metrics=self._compute_trainer_metrics,
+            callbacks=self._get_callbacks(),
+        )
+
+        # Train the model
+        resume_from_checkpoint = kwargs.get("resume_from_checkpoint", None)
+        if resume_from_checkpoint:
+            info_print(f"Resuming training from {resume_from_checkpoint}")
+            train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        else:
+            train_result = trainer.train()
+
+        # Save the model
+        trainer.save_model()
+
+        # Evaluate on test set if provided
+        test_metrics = {}
+        if test_loader is not None:
+            test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
+            info_print(f"Test metrics: {test_metrics}")
+
+        return {
+            "train_metrics": train_result.metrics,
+            "test_metrics": test_metrics,
+        }
+
+    # TTM-specific public methods
+    def predict_zero_shot(
+        self,
+        data: Any,
+        batch_size: Optional[int] = None,
+    ) -> np.ndarray:
+        """Make zero-shot predictions without fine-tuning.
+
+        Temporarily sets the fit strategy to 'zero_shot' and generates
+        predictions using the pre-trained model weights.
+
+        Args:
+            data: Input data for prediction (see _prepare_data for formats).
+            batch_size: Batch size for prediction. If None, uses config default.
+
+        Returns:
+            np.ndarray: Model predictions with shape (n_samples, forecast_length).
+
+        Note:
+            This method temporarily overrides is_fitted check. The original
+            fit_strategy is restored after prediction.
+        """
+        info_print("Making zero-shot predictions with TTM")
+
+        # Temporarily override fit strategy
+        original_strategy = self.config.fit_strategy
+        self.config.fit_strategy = "zero_shot"
+
+        try:
+            predictions = self.predict(data, batch_size)
+            return predictions
+        finally:
+            # Restore original strategy
+            self.config.fit_strategy = original_strategy
+
+    def get_ttm_specific_info(self) -> Dict[str, Any]:
+        """Get TTM-specific model information.
+
+        Extends the base get_model_info() with TTM-specific details.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing base model info plus
+                'ttm_specific' key with:
+                - model_path: HuggingFace model path
+                - context_length: Input sequence length
+                - forecast_length: Prediction horizon
+                - num_input_channels: Number of input features
+                - num_output_channels: Number of output features
+                - freeze_backbone: Whether backbone is frozen
+                - scaler_type: Data normalization method
+        """
+        base_info = self.get_model_info()
+
+        ttm_info = {
+            "model_path": self.config.model_path,
+            "context_length": self.config.context_length,
+            "forecast_length": self.config.forecast_length,
+            "num_input_channels": self.config.num_input_channels,
+            "num_output_channels": self.config.num_output_channels,
+            "freeze_backbone": self.config.freeze_backbone,
+            "scaler_type": self.config.scaler_type,
+        }
+
+        base_info.update({"ttm_specific": ttm_info})
+        return base_info
+
+    # TTM-specific private methods
     def _create_column_specifiers(self, data: pd.DataFrame) -> Dict[str, List[str]]:
         """Create column specifiers based on available data columns.
 
@@ -436,24 +685,6 @@ class TTMForecaster(BaseTSFM):
             error_print(f"Error computing metrics: {str(e)}")
             return {"custom_error": str(e)}
 
-    def get_training_strategy(self) -> TrainingStrategy:
-        """Return the training strategy used by TTM.
-
-        Returns:
-            TrainingStrategy: Always returns TrainingStrategy.TRANSFORMERS as
-                TTM uses the HuggingFace Transformers Trainer for training.
-        """
-        return TrainingStrategy.TRANSFORMERS
-
-    def supports_lora(self) -> bool:
-        """Check if TTM supports LoRA fine-tuning.
-
-        Returns:
-            bool: Always returns False. TTM is an MLP-based (Mixer) architecture
-                that lacks transformer attention layers required for LoRA.
-        """
-        return False
-
     def _get_callbacks(self) -> List:
         """Get training callbacks for the HuggingFace Trainer.
 
@@ -519,232 +750,6 @@ class TTMForecaster(BaseTSFM):
         base_args.update(distributed_args)
 
         return TrainingArguments(**base_args)
-
-    def _train_model(
-        self,
-        train_data: Any,
-        val_data: Optional[Any] = None,
-        test_data: Optional[Any] = None,
-        output_dir: str = "./output",
-        **kwargs,
-    ) -> Dict[str, Any]:
-        """Execute TTM training using the HuggingFace Trainer.
-
-        Implements the model-specific training loop using Transformers Trainer
-        with configured callbacks, metrics, and distributed training support.
-
-        Args:
-            train_data: Training data (see _prepare_data for supported formats).
-            val_data: Validation data (currently unused, split from train_data).
-            test_data: Test data (currently unused, split from train_data).
-            output_dir: Directory for saving model checkpoints and logs.
-            **kwargs: Additional arguments:
-                - resume_from_checkpoint: Path to checkpoint to resume from.
-
-        Returns:
-            Dict[str, Any]: Dictionary containing:
-                - train_metrics: Metrics from training (loss, runtime, etc.)
-                - test_metrics: Metrics from test evaluation (if test data provided)
-        """
-        # Prepare data loaders
-        train_loader, val_loader, test_loader = self._prepare_data(
-            train_data, val_data, test_data
-        )
-
-        # Create training arguments
-        training_args = self._create_training_arguments(output_dir)
-
-        # Create trainer
-        trainer = Trainer(
-            model=self.model,
-            args=training_args,
-            train_dataset=train_loader.dataset if train_loader else None,
-            eval_dataset=val_loader.dataset if val_loader else None,
-            compute_metrics=self._compute_trainer_metrics,
-            callbacks=self._get_callbacks(),
-        )
-
-        # Train the model
-        resume_from_checkpoint = kwargs.get("resume_from_checkpoint", None)
-        if resume_from_checkpoint:
-            info_print(f"Resuming training from {resume_from_checkpoint}")
-            train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
-        else:
-            train_result = trainer.train()
-
-        # Save the model
-        trainer.save_model()
-
-        # Evaluate on test set if provided
-        test_metrics = {}
-        if test_loader is not None:
-            test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
-            info_print(f"Test metrics: {test_metrics}")
-
-        return {
-            "train_metrics": train_result.metrics,
-            "test_metrics": test_metrics,
-        }
-
-    def _save_model_weights(self, output_dir: str) -> None:
-        """Save TTM model weights using HuggingFace format.
-
-        Args:
-            output_dir: Directory path where model weights will be saved.
-
-        Note:
-            Uses save_pretrained() for HuggingFace-compatible format that
-            can be loaded with AutoModel.from_pretrained().
-        """
-        if self.model is not None:
-            self.model.save_pretrained(output_dir)
-            info_print(f"TTM model saved to {output_dir}")
-
-    def predict(
-        self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
-    ) -> Union[np.ndarray, Dict[str, Any]]:
-        """
-        Make predictions on new data.
-
-        Args:
-            data: Input data for prediction
-            batch_size: Batch size for prediction (defaults to config.batch_size)
-            return_dict: Whether to return additional information
-
-        Returns:
-            Predictions as numpy array or dictionary with additional info
-        """
-        if not self.is_fitted or self.model is None:
-            raise ValueError("Model must be fitted before making predictions")
-
-        # Prepare data for prediction
-        data_loader, _, _ = self._prepare_data(data)
-
-        # Set model to evaluation mode
-        self.model.eval()
-
-        predictions = []
-        with torch.no_grad():
-            for batch in data_loader:
-                # Move batch to appropriate device
-                if torch.cuda.is_available() and not self.config.use_cpu:
-                    batch = {
-                        k: v.cuda()
-                        for k, v in batch.items()
-                        if isinstance(v, torch.Tensor)
-                    }
-
-                # Forward pass
-                outputs = self.model(**batch)
-
-                # Extract predictions (implementation depends on model)
-                if hasattr(outputs, "prediction_logits"):
-                    batch_predictions = outputs.prediction_logits
-                elif hasattr(outputs, "logits"):
-                    batch_predictions = outputs.logits
-                else:
-                    batch_predictions = outputs
-
-                predictions.append(batch_predictions.cpu().numpy())
-
-        # Concatenate all predictions
-        predictions = np.concatenate(predictions, axis=0)
-
-        if return_dict:
-            return {
-                "predictions": predictions,
-                "model_config": self.config.to_dict(),
-                "n_samples": len(predictions),
-            }
-
-        return predictions
-
-    def _load_model_weights(self, model_dir: str) -> None:
-        """Load TTM model weights from a directory.
-
-        Args:
-            model_dir: Directory containing saved model weights in
-                HuggingFace format.
-
-        Raises:
-            Exception: If loading fails (e.g., corrupted files, incompatible
-                model version, or missing files).
-        """
-        try:
-            # TTM models can be loaded using the transformers library
-            from transformers import AutoModel
-
-            self.model = AutoModel.from_pretrained(model_dir)
-            info_print(f"TTM model weights loaded from {model_dir}")
-
-        except Exception as e:
-            error_print(f"Failed to load model weights: {str(e)}")
-            raise
-
-    def predict_zero_shot(
-        self,
-        data: Any,
-        batch_size: Optional[int] = None,
-    ) -> np.ndarray:
-        """Make zero-shot predictions without fine-tuning.
-
-        Temporarily sets the fit strategy to 'zero_shot' and generates
-        predictions using the pre-trained model weights.
-
-        Args:
-            data: Input data for prediction (see _prepare_data for formats).
-            batch_size: Batch size for prediction. If None, uses config default.
-
-        Returns:
-            np.ndarray: Model predictions with shape (n_samples, forecast_length).
-
-        Note:
-            This method temporarily overrides is_fitted check. The original
-            fit_strategy is restored after prediction.
-        """
-        info_print("Making zero-shot predictions with TTM")
-
-        # Temporarily override fit strategy
-        original_strategy = self.config.fit_strategy
-        self.config.fit_strategy = "zero_shot"
-
-        try:
-            predictions = self.predict(data, batch_size)
-            return predictions
-        finally:
-            # Restore original strategy
-            self.config.fit_strategy = original_strategy
-
-    def get_ttm_specific_info(self) -> Dict[str, Any]:
-        """Get TTM-specific model information.
-
-        Extends the base get_model_info() with TTM-specific details.
-
-        Returns:
-            Dict[str, Any]: Dictionary containing base model info plus
-                'ttm_specific' key with:
-                - model_path: HuggingFace model path
-                - context_length: Input sequence length
-                - forecast_length: Prediction horizon
-                - num_input_channels: Number of input features
-                - num_output_channels: Number of output features
-                - freeze_backbone: Whether backbone is frozen
-                - scaler_type: Data normalization method
-        """
-        base_info = self.get_model_info()
-
-        ttm_info = {
-            "model_path": self.config.model_path,
-            "context_length": self.config.context_length,
-            "forecast_length": self.config.forecast_length,
-            "num_input_channels": self.config.num_input_channels,
-            "num_output_channels": self.config.num_output_channels,
-            "freeze_backbone": self.config.freeze_backbone,
-            "scaler_type": self.config.scaler_type,
-        }
-
-        base_info.update({"ttm_specific": ttm_info})
-        return base_info
 
 
 # Factory function for creating TTM models
