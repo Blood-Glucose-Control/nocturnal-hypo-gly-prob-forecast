@@ -28,19 +28,13 @@ from src.data.preprocessing.time_processing import (
     get_train_validation_split_by_percentage,
 )
 
-from .data_cleaner import (
+from src.data.diabetes_datasets.brown_2019.data_cleaner import (
     DATA_DIR,
     clean_brown_2019_data,
     load_raw_brown_2019_data,
-    process_single_patient,
 )
 
 logger = logging.getLogger(__name__)
-
-# Total patients in dataset
-TOTAL_PATIENTS = 168
-PATIENTS_WITH_PUMP = 125
-PATIENTS_WITHOUT_PUMP = 43
 
 
 class Brown2019DataLoader(DatasetBase):
@@ -50,14 +44,12 @@ class Brown2019DataLoader(DatasetBase):
     This loader handles the complete pipeline:
     1. Load raw data (CGM, basal, bolus)
     2. Clean and merge into single DataFrame
-    3. Optionally run through preprocessing pipeline for IOB
+    3. Run preprocessing pipeline for IOB calculation
     4. Split into train/validation sets
 
     Args:
         use_cached: Use cached processed data if available.
         train_percentage: Percentage of data for training (0.0-1.0).
-        include_patients_without_pump: Include 43 patients with CGM only.
-        run_preprocessing_pipeline: Run preprocessing_pipeline for IOB calculation.
         keep_columns: List of columns to keep (None = keep all).
 
     Example:
@@ -72,15 +64,11 @@ class Brown2019DataLoader(DatasetBase):
         self,
         use_cached: bool = True,
         train_percentage: float = 0.9,
-        include_patients_without_pump: bool = True,
-        run_preprocessing_pipeline: bool = True,
         keep_columns: list[str] | None = None,
     ):
         super().__init__()
         self.use_cached = use_cached
         self.train_percentage = train_percentage
-        self.include_patients_without_pump = include_patients_without_pump
-        self.run_preprocessing_pipeline = run_preprocessing_pipeline
         self.keep_columns = keep_columns
 
         self.cache_manager = get_cache_manager()
@@ -138,9 +126,7 @@ class Brown2019DataLoader(DatasetBase):
         need_to_process = True
 
         if self.use_cached:
-            cached_data = self.cache_manager.load_processed_data(
-                self.dataset_name, file_format="parquet"
-            )
+            cached_data = self.cache_manager.load_full_processed_data(self.dataset_name)
             if cached_data is not None:
                 logger.info(f"Loaded {len(cached_data)} patients from cache")
                 self.processed_data = cached_data
@@ -148,10 +134,6 @@ class Brown2019DataLoader(DatasetBase):
 
         if need_to_process:
             self._process_and_cache_data()
-
-        # Filter out patients without pump data if requested
-        if not self.include_patients_without_pump:
-            self._filter_patients_without_pump()
 
         # Split into train/validation
         self.train_data, self.validation_data = self._split_train_validation()
@@ -167,18 +149,12 @@ class Brown2019DataLoader(DatasetBase):
         # Load and clean raw data
         self.processed_data = self._process_raw_data()
 
-        # Save to cache
-        processed_path = self.cache_manager.get_absolute_path_by_type(
-            self.dataset_name, "processed"
+        # Save to cache using cache manager's paired save/load methods
+        self.cache_manager.save_full_processed_data(
+            self.dataset_name, self.processed_data
         )
-        processed_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Save each patient as separate parquet file
-        for patient_id, patient_df in self.processed_data.items():
-            patient_path = processed_path / f"{patient_id}.parquet"
-            patient_df.to_parquet(patient_path)
-
-        logger.info(f"Cached {len(self.processed_data)} patients to {processed_path}")
+        logger.info(f"Cached {len(self.processed_data)} patients")
 
     def _process_raw_data(self) -> dict[str, pd.DataFrame]:
         """
@@ -196,16 +172,17 @@ class Brown2019DataLoader(DatasetBase):
         # Split into per-patient dict
         patient_dict = {}
         for patient_id, group in cleaned_df.groupby(ColumnNames.P_NUM.value):
-            patient_df = group.drop(columns=[ColumnNames.P_NUM.value])
+            patient_df = group.copy()
 
-            # Optionally run through preprocessing pipeline for IOB
-            if self.run_preprocessing_pipeline:
-                try:
-                    patient_df = process_single_patient(patient_df, str(patient_id))
-                except Exception as e:
-                    logger.warning(
-                        f"Patient {patient_id} preprocessing failed: {e}. Using cleaned data."
-                    )
+            # TODO: Re-enable preprocessing once rollover_basal_rate supports automated basal
+            # Brown 2019 uses Control-IQ (automated basal) which doesn't have basal_duration_mins.
+            # See: https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast/issues/301
+            # try:
+            #     patient_df = process_single_patient(patient_df, str(patient_id))
+            # except Exception as e:
+            #     logger.warning(
+            #         f"Patient {patient_id} preprocessing failed: {e}. Using cleaned data."
+            #     )
 
             # Filter columns if requested
             if self.keep_columns is not None:
@@ -218,26 +195,6 @@ class Brown2019DataLoader(DatasetBase):
 
         logger.info(f"Processed {len(patient_dict)} patients")
         return patient_dict
-
-    def _filter_patients_without_pump(self):
-        """
-        Remove patients who have no pump data (all NaN for basal rate).
-        """
-        filtered = {}
-        removed = 0
-
-        for patient_id, patient_df in self.processed_data.items():
-            if ColumnNames.RATE.value in patient_df.columns:
-                if patient_df[ColumnNames.RATE.value].notna().any():
-                    filtered[patient_id] = patient_df
-                else:
-                    removed += 1
-            else:
-                # If rate column doesn't exist, keep the patient
-                filtered[patient_id] = patient_df
-
-        logger.info(f"Filtered out {removed} patients without pump data")
-        self.processed_data = filtered
 
     def _split_train_validation(
         self,
@@ -311,8 +268,6 @@ if __name__ == "__main__":
     loader = Brown2019DataLoader(
         use_cached=False,
         train_percentage=0.9,
-        include_patients_without_pump=True,
-        run_preprocessing_pipeline=False,  # Skip for faster testing
     )
 
     print("\n=== Results ===")

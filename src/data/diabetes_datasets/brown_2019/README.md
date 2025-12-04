@@ -56,12 +56,8 @@ print(f"Patients: {loader.num_patients}")
 train_data = loader.train_data      # dict[patient_id, DataFrame]
 val_data = loader.validation_data
 
-# Load without preprocessing pipeline (faster)
-loader = Brown2019DataLoader(
-    use_cached=False,
-    run_preprocessing_pipeline=False,
-    include_patients_without_pump=False,  # Exclude 43 CGM-only patients
-)
+# Load fresh (ignore cache)
+loader = Brown2019DataLoader(use_cached=False)
 ```
 
 ## Output Columns
