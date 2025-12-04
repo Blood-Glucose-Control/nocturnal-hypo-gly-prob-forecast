@@ -4,7 +4,6 @@
 
 import argparse
 import glob
-import inspect
 import os
 import sys
 from pathlib import Path
@@ -25,9 +24,11 @@ from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
 
 from src.data.cache_manager import get_cache_manager
-from src.tuning.benchmark import impute_missing_values
+from src.data.preprocessing.split_or_combine_patients import (
+    reduce_features_multi_patient,
+)
 from src.utils.os_helper import get_project_root
-from src.utils.time_series_helper import get_interval_minutes
+from src.utils.logging_helper import info_print, debug_print
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96
@@ -35,40 +36,6 @@ PREDICTION_LENGTH = 96
 # Debug configuration - set to False for production runs
 # To enable debug mode, set environment variable: export TTM_DEBUG=true
 DEBUG_MODE = os.getenv("TTM_DEBUG", "false").lower() == "true"
-
-
-def debug_print(*args, **kwargs):
-    """Print debug messages only if DEBUG_MODE is enabled, and to stderr"""
-    if DEBUG_MODE:
-        print("DEBUG:", *args, **kwargs, file=sys.stderr, flush=True)
-
-
-def info_print(*args, **kwargs):
-    """Print informational messages to stderr with function name (so they show up in slurm error file)"""
-    # Get the calling function name
-    frame = inspect.currentframe()
-    try:
-        caller_frame = frame.f_back
-        if caller_frame:
-            caller_name = caller_frame.f_code.co_name
-            if caller_name not in [
-                "<module>",
-                "wrapper",
-            ]:  # Don't show <module> or decorator wrapper
-                print(
-                    "INFO:",
-                    f"[{caller_name}]",
-                    *args,
-                    **kwargs,
-                    file=sys.stderr,
-                    flush=True,
-                )
-            else:
-                print("INFO:", *args, **kwargs, file=sys.stderr, flush=True)
-        else:
-            print("INFO:", *args, **kwargs, file=sys.stderr, flush=True)
-    finally:
-        del frame
 
 
 def load_config(config_path):
@@ -326,32 +293,6 @@ def load_processed_data_from_cache(data_source_name):
 
     info_print(f"Successfully loaded {len(data_dict)} patients")
     return data_dict
-
-
-def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_feature):
-    """
-    1. Select patients with the correct resolution
-    2. Remove all unnecessary columns
-    3. Impute missing values
-    4. Add patient id
-    5. Concatenate all patients
-    """
-    processed_patients = []
-
-    for patient_id, df in patients_dict.items():
-        # Check if patient has the correct interval
-        if get_interval_minutes(df) == resolution_min:
-            info_print(f"Processing patient {patient_id}...")
-            # Process each patient individually
-            p_df = df.iloc[:]
-            p_df = p_df[x_features + y_feature]
-            # Impute missing values for this patient
-            p_df = impute_missing_values(p_df, columns=x_features)
-            p_df = impute_missing_values(p_df, columns=y_feature)
-            p_df["id"] = patient_id
-            processed_patients.append(p_df)
-
-    return pd.concat(processed_patients)
 
 
 def _get_finetune_trainer(

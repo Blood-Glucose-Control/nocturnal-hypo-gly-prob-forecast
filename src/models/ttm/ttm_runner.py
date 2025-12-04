@@ -14,13 +14,13 @@ import json
 import sys
 import threading
 from pathlib import Path
-
+from src.utils.logging_helper import info_print
 import yaml
 
 # Add the parent directory to path so we can import from src
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from src.train.ttm import finetune_ttm, load_config
+from src.training.ttm import finetune_ttm, load_config
 # Import our thread-safe info_print (defined above) instead of the one from ttm
 
 
@@ -52,25 +52,6 @@ def function_logger(func):
                     delattr(_function_context, "function_name")
 
     return wrapper
-
-
-def info_print(*args, **kwargs):
-    """Thread-safe info_print that includes function name from thread-local context"""
-    from src.train.ttm import info_print as original_info_print
-
-    # Get function name from thread-local storage
-    function_name = getattr(_function_context, "function_name", None)
-
-    if function_name:
-        # Prepend function name to the first argument
-        if args:
-            new_args = (f"[{function_name}]", *args)
-        else:
-            new_args = (f"[{function_name}]",)
-        return original_info_print(*new_args, **kwargs)
-    else:
-        # No function context, call original
-        return original_info_print(*args, **kwargs)
 
 
 @function_logger
