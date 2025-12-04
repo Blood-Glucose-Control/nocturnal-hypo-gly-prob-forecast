@@ -6,17 +6,18 @@ import pandas as pd
 from src.models.base import BaseTSFM
 from src.utils.logging import error_print
 
+
 class ModelEvaluator:
     """Handles evaluation and comparison of TSFM models."""
-    
+
     def __init__(self, metrics: Optional[List[str]] = None):
         """Initialize evaluator with metric configuration."""
         self.metrics = metrics or ["mse", "mae", "rmse"]
-    
+
     def evaluate(self, model: BaseTSFM, test_data: pd.DataFrame) -> Dict[str, float]:
         """Evaluate a single model on test data."""
         return model.evaluate(test_data)
-    
+
     def compare_models(
         self,
         models: Dict[str, BaseTSFM],
@@ -24,12 +25,12 @@ class ModelEvaluator:
         metrics: Optional[List[str]] = None,
     ) -> pd.DataFrame:
         """Compare multiple models on the same test data.
-        
+
         Args:
             models: Dictionary mapping model names to model instances.
             test_data: Test dataset for evaluation.
             metrics: Specific metrics to compare (uses self.metrics if None).
-            
+
         Returns:
             DataFrame with models as rows and metrics as columns.
         """
@@ -37,6 +38,7 @@ class ModelEvaluator:
         for name, model in models.items():
             results[name] = model.evaluate(test_data)
         return pd.DataFrame(results).T
+
 
 def compare_models(
     models: List[BaseTSFM], test_data: Any, metrics: Optional[List[str]] = None

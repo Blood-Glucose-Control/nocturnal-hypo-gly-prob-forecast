@@ -523,7 +523,7 @@ class BaseTSFM(ABC):
                 json.dump(metadata, f, indent=2)
 
         self._save_model_weights(output_dir)  # <-- This line instead of raising
-        
+
         info_print(f"Model saved to {output_dir}")
 
     @classmethod
