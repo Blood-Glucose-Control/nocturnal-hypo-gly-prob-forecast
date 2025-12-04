@@ -41,28 +41,11 @@ try:
     from src.data.preprocessing.data_splitting import split_multipatient_dataframe
     from src.data.preprocessing.time_processing import get_train_validation_split
 except ImportError:
-    # Simplified imports for standalone use
-    class DatasetBase:
-        """Simplified base class for standalone use."""
-
-        pass
-
-    def get_cache_manager():
-        """Mock cache manager for standalone use."""
-        return None
-
-    def get_dataset_config(name):
-        """Mock config getter for standalone use."""
-        return {}
-
-    def split_multipatient_dataframe(df, col):
-        """Simple patient data splitter."""
-        return {patient: group for patient, group in df.groupby(col)}
-
-    def get_train_validation_split(data, num_validation_days):
-        """Simple train/validation splitter."""
-        split_idx = len(data) - (num_validation_days * 288)  # 288 = 24h * 60min / 5min
-        return data.iloc[:split_idx], data.iloc[split_idx:], None
+    from data.cache_manager import get_cache_manager
+    from data.dataset_configs import get_dataset_config
+    from data.diabetes_datasets.dataset_base import DatasetBase
+    from data.preprocessing.data_splitting import split_multipatient_dataframe
+    from data.preprocessing.time_processing import get_train_validation_split
 
 
 logger = logging.getLogger(__name__)
