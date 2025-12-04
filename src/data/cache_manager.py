@@ -134,7 +134,11 @@ class CacheManager:
             self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.HUGGING_FACE:
             self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
-        elif source in (DatasetSourceType.ALEPPO, DatasetSourceType.LYNCH_2022):
+        elif source in (
+            DatasetSourceType.ALEPPO,
+            DatasetSourceType.LYNCH_2022,
+            DatasetSourceType.BROWN_2019,
+        ):
             self._fetch_manual_download_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.LOCAL:
             self._copy_local_data(dataset_name, raw_path, dataset_config)
@@ -600,6 +604,7 @@ class CacheManager:
         sorted_params = json.dumps(split_params, sort_keys=True)
         return hashlib.md5(sorted_params.encode()).hexdigest()[:8]
 
+    # TODO: Consolidate this with load_full_processed_data
     def load_processed_data(
         self,
         dataset_name: str,

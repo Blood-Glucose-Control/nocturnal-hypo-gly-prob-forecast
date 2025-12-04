@@ -8,7 +8,7 @@ from src.data.diabetes_datasets.gluroo.gluroo import GlurooDataLoader
 from src.data.diabetes_datasets.lynch_2022.lynch_2022 import (
     Lynch2022DataLoader,
 )
-from src.data.diabetes_datasets.awesome_cgm.brown_2019.brown_2019 import (
+from src.data.diabetes_datasets.brown_2019.brown_2019 import (
     Brown2019DataLoader,
 )
 from src.data.diabetes_datasets.aleppo.aleppo import AleppoDataLoader

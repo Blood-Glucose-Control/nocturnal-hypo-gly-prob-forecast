@@ -13,11 +13,11 @@ The DCLP3 study compared Closed-Loop Control (Control-IQ) vs Sensor-Augmented Pu
 
 1. Download from https://public.jaeb.org/datasets/diabetes
 2. Look for "DCLP3 Public Dataset"
-3. Extract to `cache/data/awesome_cgm/brown_2019/raw/`
+3. Extract to `cache/data/brown_2019/raw/`
 
 Expected structure:
 ```
-cache/data/awesome_cgm/brown_2019/raw/
+cache/data/brown_2019/raw/
     DCLP3 Public Dataset - Release 3 - 2022-08-04/
         Data Files/
             cgm.txt
@@ -56,12 +56,8 @@ print(f"Patients: {loader.num_patients}")
 train_data = loader.train_data      # dict[patient_id, DataFrame]
 val_data = loader.validation_data
 
-# Load without preprocessing pipeline (faster)
-loader = Brown2019DataLoader(
-    use_cached=False,
-    run_preprocessing_pipeline=False,
-    include_patients_without_pump=False,  # Exclude 43 CGM-only patients
-)
+# Load fresh (ignore cache)
+loader = Brown2019DataLoader(use_cached=False)
 ```
 
 ## Output Columns

@@ -38,7 +38,7 @@ from src.utils.os_helper import get_project_root
 
 logger = logging.getLogger(__name__)
 
-CACHE_DIR = get_project_root() / "cache" / "data" / "awesome_cgm" / "brown_2019"
+CACHE_DIR = get_project_root() / "cache" / "data" / "brown_2019"
 DATA_DIR = (
     CACHE_DIR / "raw" / "DCLP3 Public Dataset - Release 3 - 2022-08-04" / "Data Files"
 )

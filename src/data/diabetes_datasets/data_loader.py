@@ -19,6 +19,7 @@ This ensures that type checking and autocompletion work correctly in IDEs.
 """
 
 from typing import Union, Optional, Dict, Any, overload, Literal
+from src.data.diabetes_datasets import Brown2019DataLoader
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
@@ -37,6 +38,19 @@ def get_loader(
     parallel: bool = True,
     max_workers: int = 3,
 ) -> Lynch2022DataLoader: ...
+
+
+@overload
+def get_loader(
+    data_source_name: Literal["brown_2019"],
+    dataset_type: str = "train",
+    keep_columns: Optional[list[str]] = None,
+    use_cached: bool = False,
+    num_validation_days: int = 20,
+    config: Optional[Dict[str, Any]] = None,
+    parallel: bool = True,
+    max_workers: int = 3,
+) -> Brown2019DataLoader: ...
 
 
 @overload
@@ -86,7 +100,13 @@ def get_loader(
     config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
-) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader, AleppoDataLoader]:
+) -> Union[
+    BrisT1DDataLoader,
+    GlurooDataLoader,
+    Lynch2022DataLoader,
+    AleppoDataLoader,
+    Brown2019DataLoader,
+]:
     """
     Factory function to create and return the appropriate data loader instance.
 
@@ -146,6 +166,11 @@ def get_loader(
             dataset_type=dataset_type,
             parallel=parallel,
             max_workers=max_workers,
+        )
+    elif data_source_name == "brown_2019":
+        return Brown2019DataLoader(
+            keep_columns=keep_columns,
+            use_cached=use_cached,
         )
     else:
         raise ValueError(f"Invalid dataset_name: {data_source_name}.")
