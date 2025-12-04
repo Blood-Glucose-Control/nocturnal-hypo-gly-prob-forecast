@@ -38,15 +38,45 @@ from src.utils.logging_helper import info_print, debug_print, error_print
 
 
 class TTMForecaster(BaseTSFM):
-    """
-    TTM (TinyTimeMixer) forecaster implementation using the base TSFM framework.
+    """TTM (TinyTimeMixer) forecaster implementation using the base TSFM framework.
 
-    This class demonstrates how to integrate an existing model (TTM) into the
+    TinyTimeMixer is an MLP-based time series foundation model that uses mixing
+    layers instead of attention mechanisms. This class integrates TTM with the
     unified base framework while preserving all existing functionality.
+
+    Attributes:
+        config: TTM-specific configuration (TTMConfig instance).
+        preprocessor: TimeSeriesPreprocessor for data normalization and windowing.
+        column_specifiers: Dictionary mapping data columns to their roles
+            (id, timestamp, target, control, etc.).
+
+    Note:
+        TTM does NOT support LoRA fine-tuning as it lacks transformer attention
+        layers. The supports_lora() method returns False.
+
+    Example:
+        >>> config = TTMConfig(model_path="ibm-granite/granite-timeseries-ttm-r2")
+        >>> model = TTMForecaster(config)
+        >>> model.fit(train_data="kaggle_brist1d")
+        >>> predictions = model.predict(test_data)
     """
 
     def __init__(self, config: TTMConfig, lora_config=None, distributed_config=None):
-        """Initialize TTM forecaster."""
+        """Initialize the TTM forecaster.
+
+        Args:
+            config: TTM configuration object. If a non-TTMConfig is passed,
+                it will be converted using essential parameters.
+            lora_config: LoRA configuration (ignored for TTM as it doesn't
+                support LoRA fine-tuning).
+            distributed_config: Configuration for distributed training
+                (DDP, DeepSpeed, or FSDP).
+
+        Note:
+            The model is initialized during construction via _initialize_model().
+            The preprocessor and column_specifiers are initialized lazily during
+            the first call to _prepare_data().
+        """
         # Use the config as-is if it's already a TTMConfig
         # Only convert if we receive a different type
         if not isinstance(config, TTMConfig):
@@ -71,7 +101,17 @@ class TTMForecaster(BaseTSFM):
         self.column_specifiers = None
 
     def _initialize_model(self) -> None:
-        """Initialize the TTM model architecture."""
+        """Initialize the TTM model architecture.
+
+        Loads the pre-trained TTM model from the configured model_path and
+        configures parameter gradients based on the fit_strategy:
+        - 'zero_shot': All parameters frozen (no training)
+        - 'fine_tune' or 'from_scratch': All parameters trainable
+
+        Raises:
+            Exception: If model initialization fails (e.g., invalid model_path,
+                network issues, or incompatible configuration).
+        """
         try:
             info_print(f"Initializing TTM model from {self.config.model_path}")
 
@@ -118,10 +158,29 @@ class TTMForecaster(BaseTSFM):
         val_data: Optional[Any] = None,
         test_data: Optional[Any] = None,
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
-        """
-        Prepare data loaders for TTM training.
+        """Prepare data loaders for TTM training, validation, and testing.
 
-        This method integrates with your existing data loading pipeline.
+        Handles multiple input formats and integrates with the existing data
+        loading pipeline. Creates TimeSeriesPreprocessor for normalization
+        and windowing on first call.
+
+        Args:
+            train_data: Training data in one of the following formats:
+                - str: Data source name (e.g., "kaggle_brist1d") to load via get_loader
+                - pd.DataFrame: Pre-loaded DataFrame with time series data
+                - dict: Multi-patient dictionary to be converted to DataFrame
+            val_data: Validation data (currently unused, split from train_data).
+            test_data: Test data (currently unused, split from train_data).
+
+        Returns:
+            Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
+                - train_loader: DataLoader for training data
+                - val_loader: DataLoader for validation data (or None)
+                - test_loader: DataLoader for test data (or None)
+
+        Raises:
+            ValueError: If train_data is not a supported type.
+            Exception: If data preprocessing or dataset creation fails.
         """
         info_print("Preparing data for TTM training...")
 
@@ -217,15 +276,25 @@ class TTMForecaster(BaseTSFM):
 
         except Exception as e:
             error_print(f"Failed to prepare data: {str(e)}")
-            error_print(f"Failed to prepare data: {str(e)}")
             raise
 
     def _create_column_specifiers(self, data: pd.DataFrame) -> Dict[str, List[str]]:
-        """
-        Create column specifiers based on data structure.
+        """Create column specifiers based on available data columns.
 
-        This method maps your data columns to the expected format.
-        Adapt this based on your actual column naming conventions.
+        Maps data columns to the roles expected by TimeSeriesPreprocessor:
+        id, timestamp, target, control, observable, conditional, and
+        static categorical columns.
+
+        Args:
+            data: DataFrame containing the time series data.
+
+        Returns:
+            Dict[str, List[str]]: Dictionary mapping column roles to lists of
+                column names. Only includes columns that exist in the data.
+
+        Note:
+            Default mappings use ColumnNames enum values. Modify this method
+            if your data uses different column naming conventions.
         """
         # Default mappings - adapt these to your data structure
         column_specifiers = {
@@ -256,7 +325,16 @@ class TTMForecaster(BaseTSFM):
         return column_specifiers
 
     def _get_distributed_training_args(self) -> Dict[str, Any]:
-        """Get distributed training arguments for TrainingArguments."""
+        """Get distributed training arguments for HuggingFace TrainingArguments.
+
+        Builds a dictionary of distributed training parameters based on the
+        configured strategy (DDP, DeepSpeed, or FSDP).
+
+        Returns:
+            Dict[str, Any]: Dictionary of distributed training arguments to be
+                merged into TrainingArguments. Returns empty dict if distributed
+                training is not enabled.
+        """
         if not self.distributed_config.enabled:
             return {}
 
@@ -286,11 +364,27 @@ class TTMForecaster(BaseTSFM):
 
         return args
 
-    def _compute_metrics(self, eval_pred) -> Dict[str, float]:
-        """
-        Compute evaluation metrics for TTM.
+    def _compute_trainer_metrics(self, eval_pred) -> Dict[str, float]:
+        """Compute evaluation metrics for the HuggingFace Trainer.
 
-        This uses your existing custom metrics computation logic.
+        This method is passed to Trainer's compute_metrics parameter and handles
+        the EvalPrediction object format used by the Transformers library.
+
+        Args:
+            eval_pred: EvalPrediction object from HuggingFace Trainer containing:
+                - predictions: Model predictions (may be nested)
+                - label_ids: Ground truth labels (may be nested)
+
+        Returns:
+            Dict[str, float]: Dictionary containing computed metrics:
+                - mse: Mean Squared Error
+                - rmse: Root Mean Squared Error
+                - mae: Mean Absolute Error
+                - mape: Mean Absolute Percentage Error
+
+        Note:
+            This is separate from BaseTSFM._compute_metrics() because the
+            Trainer passes EvalPrediction objects rather than raw arrays.
         """
         try:
             # Extract predictions and labels (handle TTM's output format)
@@ -343,15 +437,32 @@ class TTMForecaster(BaseTSFM):
             return {"custom_error": str(e)}
 
     def get_training_strategy(self) -> TrainingStrategy:
-        """TTM uses Transformers library for training."""
+        """Return the training strategy used by TTM.
+
+        Returns:
+            TrainingStrategy: Always returns TrainingStrategy.TRANSFORMERS as
+                TTM uses the HuggingFace Transformers Trainer for training.
+        """
         return TrainingStrategy.TRANSFORMERS
 
     def supports_lora(self) -> bool:
-        """TTM is MLP-based (Mixer architecture) and does NOT support LoRA fine-tuning."""
+        """Check if TTM supports LoRA fine-tuning.
+
+        Returns:
+            bool: Always returns False. TTM is an MLP-based (Mixer) architecture
+                that lacks transformer attention layers required for LoRA.
+        """
         return False
 
     def _get_callbacks(self) -> List:
-        """Get training callbacks for TTM."""
+        """Get training callbacks for the HuggingFace Trainer.
+
+        Creates callbacks based on the model configuration, including
+        early stopping if patience > 0.
+
+        Returns:
+            List[TrainerCallback]: List of callback instances to pass to Trainer.
+        """
 
         callbacks = []
 
@@ -367,7 +478,19 @@ class TTMForecaster(BaseTSFM):
         return callbacks
 
     def _create_training_arguments(self, output_dir: str) -> TrainingArguments:
-        """Create TTM-specific training arguments with distributed support."""
+        """Create HuggingFace TrainingArguments for TTM training.
+
+        Builds TrainingArguments from the model configuration, including
+        distributed training settings if enabled.
+
+        Args:
+            output_dir: Directory path for saving checkpoints, logs, and
+                the final trained model.
+
+        Returns:
+            TrainingArguments: Configured training arguments for the
+                HuggingFace Trainer.
+        """
         # Base training arguments
         base_args = {
             "output_dir": output_dir,
@@ -405,8 +528,23 @@ class TTMForecaster(BaseTSFM):
         output_dir: str = "./output",
         **kwargs,
     ) -> Dict[str, Any]:
-        """
-        TTM-specific training implementation using Transformers Trainer.
+        """Execute TTM training using the HuggingFace Trainer.
+
+        Implements the model-specific training loop using Transformers Trainer
+        with configured callbacks, metrics, and distributed training support.
+
+        Args:
+            train_data: Training data (see _prepare_data for supported formats).
+            val_data: Validation data (currently unused, split from train_data).
+            test_data: Test data (currently unused, split from train_data).
+            output_dir: Directory for saving model checkpoints and logs.
+            **kwargs: Additional arguments:
+                - resume_from_checkpoint: Path to checkpoint to resume from.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing:
+                - train_metrics: Metrics from training (loss, runtime, etc.)
+                - test_metrics: Metrics from test evaluation (if test data provided)
         """
         # Prepare data loaders
         train_loader, val_loader, test_loader = self._prepare_data(
@@ -422,7 +560,7 @@ class TTMForecaster(BaseTSFM):
             args=training_args,
             train_dataset=train_loader.dataset if train_loader else None,
             eval_dataset=val_loader.dataset if val_loader else None,
-            compute_metrics=self._compute_metrics,
+            compute_metrics=self._compute_trainer_metrics,
             callbacks=self._get_callbacks(),
         )
 
@@ -449,7 +587,15 @@ class TTMForecaster(BaseTSFM):
         }
 
     def _save_model_weights(self, output_dir: str) -> None:
-        """Save TTM model using Transformers format."""
+        """Save TTM model weights using HuggingFace format.
+
+        Args:
+            output_dir: Directory path where model weights will be saved.
+
+        Note:
+            Uses save_pretrained() for HuggingFace-compatible format that
+            can be loaded with AutoModel.from_pretrained().
+        """
         if self.model is not None:
             self.model.save_pretrained(output_dir)
             info_print(f"TTM model saved to {output_dir}")
@@ -514,7 +660,16 @@ class TTMForecaster(BaseTSFM):
         return predictions
 
     def _load_model_weights(self, model_dir: str) -> None:
-        """Load TTM model weights from directory."""
+        """Load TTM model weights from a directory.
+
+        Args:
+            model_dir: Directory containing saved model weights in
+                HuggingFace format.
+
+        Raises:
+            Exception: If loading fails (e.g., corrupted files, incompatible
+                model version, or missing files).
+        """
         try:
             # TTM models can be loaded using the transformers library
             from transformers import AutoModel
@@ -531,10 +686,21 @@ class TTMForecaster(BaseTSFM):
         data: Any,
         batch_size: Optional[int] = None,
     ) -> np.ndarray:
-        """
-        Make zero-shot predictions (no fine-tuning).
+        """Make zero-shot predictions without fine-tuning.
 
-        This method allows using pre-trained TTM without fine-tuning.
+        Temporarily sets the fit strategy to 'zero_shot' and generates
+        predictions using the pre-trained model weights.
+
+        Args:
+            data: Input data for prediction (see _prepare_data for formats).
+            batch_size: Batch size for prediction. If None, uses config default.
+
+        Returns:
+            np.ndarray: Model predictions with shape (n_samples, forecast_length).
+
+        Note:
+            This method temporarily overrides is_fitted check. The original
+            fit_strategy is restored after prediction.
         """
         info_print("Making zero-shot predictions with TTM")
 
@@ -550,7 +716,21 @@ class TTMForecaster(BaseTSFM):
             self.config.fit_strategy = original_strategy
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
-        """Get TTM-specific model information."""
+        """Get TTM-specific model information.
+
+        Extends the base get_model_info() with TTM-specific details.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing base model info plus
+                'ttm_specific' key with:
+                - model_path: HuggingFace model path
+                - context_length: Input sequence length
+                - forecast_length: Prediction horizon
+                - num_input_channels: Number of input features
+                - num_output_channels: Number of output features
+                - freeze_backbone: Whether backbone is frozen
+                - scaler_type: Data normalization method
+        """
         base_info = self.get_model_info()
 
         ttm_info = {

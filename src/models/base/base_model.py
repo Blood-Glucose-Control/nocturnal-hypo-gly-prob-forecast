@@ -36,7 +36,41 @@ class TrainingStrategy(Enum):
 
 @dataclass
 class ModelConfig:
-    """Configuration class for model architecture and training parameters."""
+    """Configuration class for model architecture and training parameters.
+
+    This dataclass holds all configuration parameters needed to initialize,
+    train, and evaluate a time series foundation model.
+
+    Attributes:
+        model_type: Identifier for the model type (e.g., "ttm", "chronos").
+        model_path: Path to pre-trained model weights or HuggingFace model ID.
+        context_length: Number of historical time steps used as input.
+        forecast_length: Number of future time steps to predict.
+        d_model: Dimension of the model's hidden representations.
+        n_heads: Number of attention heads (for transformer-based models).
+        n_layers: Number of transformer/encoder layers.
+        dropout: Dropout probability for regularization.
+        fit_strategy: Training approach - "zero_shot", "fine_tune", or "from_scratch".
+        freeze_backbone: Whether to freeze pre-trained weights during fine-tuning.
+        learning_rate: Learning rate for the optimizer.
+        batch_size: Number of samples per training batch.
+        num_epochs: Number of training epochs.
+        warmup_steps: Number of warmup steps for learning rate scheduler.
+        weight_decay: L2 regularization coefficient.
+        gradient_clip_val: Maximum gradient norm for clipping.
+        eval_strategy: When to evaluate - "steps" or "epoch".
+        eval_steps: Number of steps between evaluations (if eval_strategy="steps").
+        save_steps: Number of steps between checkpoint saves.
+        logging_steps: Number of steps between logging updates.
+        early_stopping_patience: Epochs without improvement before stopping.
+        metric_for_best_model: Metric to monitor for best model selection.
+        greater_is_better: Whether higher metric values are better.
+        fp16: Whether to use mixed precision (FP16) training.
+        dataloader_num_workers: Number of worker processes for data loading.
+        use_cpu: Force CPU usage even if GPU is available.
+        training_strategy: The training framework to use (Transformers, PyTorch, etc.).
+        loss_function: Loss function for training - "mse", "mae", "huber", or "pinball".
+    """
 
     # Model architecture
     model_type: str = "base"
@@ -81,7 +115,15 @@ class ModelConfig:
     loss_function: str = "mse"  # "mse", "mae", "huber", "pinball"
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert config to dictionary."""
+        """Convert configuration to a dictionary.
+
+        Converts all configuration attributes to a dictionary format suitable
+        for JSON serialization. Enum values are converted to their string
+        representations.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing all configuration parameters.
+        """
         result = {}
         for k, v in self.__dict__.items():
             # Handle enum values by converting to their string representation
@@ -93,13 +135,41 @@ class ModelConfig:
 
     @classmethod
     def from_dict(cls, config_dict: Dict[str, Any]) -> "ModelConfig":
-        """Create config from dictionary."""
+        """Create a configuration instance from a dictionary.
+
+        Args:
+            config_dict: Dictionary containing configuration parameters.
+                Keys should match the attribute names of ModelConfig.
+
+        Returns:
+            ModelConfig: New configuration instance with values from the dictionary.
+
+        Raises:
+            TypeError: If config_dict contains keys that are not valid attributes.
+        """
         return cls(**config_dict)
 
 
 @dataclass
 class LoRAConfig:
-    """Configuration for LoRA (Low-Rank Adaptation) fine-tuning."""
+    """Configuration for LoRA (Low-Rank Adaptation) fine-tuning.
+
+    LoRA enables memory-efficient fine-tuning by adding trainable low-rank
+    decomposition matrices to transformer layers while keeping the original
+    weights frozen.
+
+    Attributes:
+        enabled: Whether to enable LoRA fine-tuning.
+        rank: Rank of the low-rank decomposition matrices. Lower values use
+            less memory but may reduce model capacity.
+        alpha: Scaling factor for LoRA updates. Higher values increase the
+            influence of LoRA adaptations.
+        dropout: Dropout probability applied to LoRA layers.
+        target_modules: List of module names to apply LoRA to (e.g., ["q_proj", "v_proj"]).
+        bias: How to handle bias terms - "none", "all", or "lora_only".
+        auto_detect_modules: Whether to automatically detect suitable target modules
+            based on the model architecture.
+    """
 
     enabled: bool = False
     rank: int = 16
@@ -114,7 +184,25 @@ class LoRAConfig:
 
 @dataclass
 class DistributedConfig:
-    """Configuration for distributed training."""
+    """Configuration for distributed training across multiple GPUs or nodes.
+
+    Supports various distributed training strategies including DDP (Distributed
+    Data Parallel), DeepSpeed, and FSDP (Fully Sharded Data Parallel).
+
+    Attributes:
+        enabled: Whether to enable distributed training.
+        strategy: Distributed training strategy - "ddp", "deepspeed", or "fsdp".
+        world_size: Total number of processes participating in training.
+        local_rank: Rank of this process on the local node (0-indexed).
+        backend: Communication backend - "nccl" (GPU) or "gloo" (CPU).
+        find_unused_parameters: Whether DDP should find unused parameters. Set to
+            False for better performance with static computation graphs.
+        gradient_as_bucket_view: Enable memory-efficient gradient bucketing in DDP.
+        deepspeed_config: DeepSpeed configuration dictionary for ZeRO optimization,
+            mixed precision, and other DeepSpeed-specific settings.
+        fsdp_config: FSDP configuration dictionary for sharding policy,
+            CPU offloading, and other FSDP-specific settings.
+    """
 
     enabled: bool = False
     strategy: str = "ddp"  # "ddp", "deepspeed", "fsdp"
@@ -231,7 +319,15 @@ class BaseTSFM(ABC):
         pass
 
     def setup_distributed(self) -> None:
-        """Set up distributed training if configured."""
+        """Set up distributed training environment if configured.
+
+        Initializes the appropriate distributed training backend based on the
+        configured strategy (DDP, DeepSpeed, or FSDP). This method is idempotent
+        and will skip setup if already initialized.
+
+        Raises:
+            ValueError: If an unknown distributed strategy is specified.
+        """
         if not self.distributed_config.enabled or self._distributed_setup_done:
             return
 
@@ -269,7 +365,15 @@ class BaseTSFM(ABC):
                 info_print(f"⚠️  Warning: Distributed cleanup failed: {e}")
 
     def _setup_ddp(self) -> None:
-        """Set up PyTorch Distributed Data Parallel."""
+        """Set up PyTorch Distributed Data Parallel (DDP).
+
+        Initializes the distributed process group for DDP training. Requires
+        MASTER_ADDR environment variable to be set. This method is typically
+        called via setup_distributed() rather than directly.
+
+        Raises:
+            ValueError: If MASTER_ADDR environment variable is not set.
+        """
         if torch.distributed.is_initialized():
             return  # Already initialized
 
@@ -326,7 +430,20 @@ class BaseTSFM(ABC):
         info_print("FSDP will be configured in TrainingArguments")
 
     def enable_lora(self) -> None:
-        """Enable LoRA for memory-efficient fine-tuning."""
+        """Enable LoRA (Low-Rank Adaptation) for memory-efficient fine-tuning.
+
+        Applies LoRA adapters to the model's target modules, freezing the original
+        weights and adding trainable low-rank matrices. This significantly reduces
+        memory requirements for fine-tuning large models.
+
+        The method will skip LoRA setup if:
+        - LoRA is not enabled in the configuration
+        - The model is None
+        - The model architecture doesn't support LoRA
+
+        Note:
+            Requires the PEFT library to be installed.
+        """
         if not self.lora_config.enabled or self.model is None:
             return
 
@@ -434,11 +551,32 @@ class BaseTSFM(ABC):
         output_dir: str = "./output",
         **kwargs,
     ) -> Dict[str, Any]:
-        """
-        Fit the model to training data.
+        """Fit the model to training data.
 
-        This is a simple wrapper that just calls the model's specific
-        training implementation. Each model handles its own training strategy.
+        This method orchestrates the complete training pipeline including:
+        - Setting up distributed training (if configured)
+        - Enabling LoRA adapters (if configured)
+        - Calling the model-specific training implementation
+        - Saving training metadata
+        - Cleaning up distributed resources
+
+        Args:
+            train_data: Training dataset. Format depends on the specific model
+                implementation (e.g., DataFrame, Dataset, or data source name).
+            val_data: Validation dataset for monitoring training progress.
+            test_data: Test dataset for final evaluation after training.
+            output_dir: Directory path where model checkpoints, logs, and
+                metadata will be saved.
+            **kwargs: Additional keyword arguments passed to the model-specific
+                training implementation (e.g., resume_from_checkpoint).
+
+        Returns:
+            Dict[str, Any]: Dictionary containing training metrics, including
+                'train_metrics' and optionally 'test_metrics'.
+
+        Raises:
+            Exception: If training fails. Distributed cleanup is guaranteed
+                to run even if training raises an exception.
         """
         info_print(f"Starting training for {self.__class__.__name__}")
         info_print(f"Training strategy: {self.get_training_strategy().value}")
@@ -552,9 +690,23 @@ class BaseTSFM(ABC):
     def save_model(
         self, output_dir: str, save_config: bool = True, save_metadata: bool = True
     ) -> None:
-        """
-        Save the model and associated metadata.
-        Models can override this entirely or call super() for common metadata saving.
+        """Save the model and associated metadata to disk.
+
+        Saves configuration and training metadata to JSON files. Child classes
+        must override this method to implement actual model weight saving.
+
+        Args:
+            output_dir: Directory path where the model will be saved.
+            save_config: Whether to save the model configuration to config.json.
+            save_metadata: Whether to save training metadata to metadata.json.
+
+        Raises:
+            NotImplementedError: Always raised by base class. Child classes
+                must override to save model weights.
+
+        Note:
+            Child classes should call super().save_model() first to save
+            configuration and metadata, then save model-specific weights.
         """
         os.makedirs(output_dir, exist_ok=True)
 
@@ -701,7 +853,15 @@ class BaseTSFM(ABC):
         )
 
     def _get_early_stopping_config(self) -> Dict[str, Any]:
-        """Get early stopping configuration for models that support it."""
+        """Get early stopping configuration for models that support it.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing early stopping parameters:
+                - patience: Number of epochs without improvement before stopping.
+                - threshold: Minimum change to qualify as an improvement.
+                - metric: The metric to monitor for improvements.
+                - greater_is_better: Whether higher metric values are better.
+        """
         return {
             "patience": self.config.early_stopping_patience,
             "threshold": 0.0,
@@ -710,11 +870,21 @@ class BaseTSFM(ABC):
         }
 
     def _save_training_metadata(self, output_dir: str, metrics: Dict[str, Any]) -> None:
-        """Save comprehensive training metadata.
-        1) Supports the experiment tracking system
-        2) Enables the model registry to have rich metadata about each trained model
-        3) Facilitates reproducibility by capturing the exact state when training occurred
-        4) Helps with debugging by recording all relevant configuration and environment details
+        """Save comprehensive training metadata to a JSON file.
+
+        Captures detailed information about the training run to support:
+        - Experiment tracking and comparison
+        - Model registry with rich metadata
+        - Reproducibility via configuration and git state capture
+        - Debugging with complete environment details
+
+        Args:
+            output_dir: Directory where training_metadata.json will be saved.
+            metrics: Dictionary of training and evaluation metrics to record.
+
+        Note:
+            Git information (commit, branch, dirty state) is captured if
+            GitPython is installed and the code is in a git repository.
         """
         metadata_file = os.path.join(output_dir, "training_metadata.json")
 
@@ -747,7 +917,20 @@ class BaseTSFM(ABC):
         info_print(f"Training metadata saved to {metadata_file}")
 
     def get_model_info(self) -> Dict[str, Any]:
-        """Get comprehensive model information."""
+        """Get comprehensive information about the model.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing:
+                - model_type: Name of the model class.
+                - config: Full model configuration as dictionary.
+                - is_fitted: Whether the model has been trained.
+                - lora_enabled: Whether LoRA is enabled.
+                - distributed_enabled: Whether distributed training is enabled.
+                - training_strategy: The training framework being used.
+                - total_parameters: Total number of model parameters (if model exists).
+                - trainable_parameters: Number of trainable parameters (if model exists).
+                - trainable_percentage: Percentage of parameters that are trainable.
+        """
         info = {
             "model_type": self.__class__.__name__,
             "config": self.config.to_dict(),
@@ -830,16 +1013,23 @@ def create_model_from_config(config_path: str) -> BaseTSFM:
 def compare_models(
     models: List[BaseTSFM], test_data: Any, metrics: Optional[List[str]] = None
 ) -> Dict[str, Dict[str, float]]:
-    """
-    Compare multiple models on the same test dataset.
+    """Compare multiple models on the same test dataset.
+
+    Evaluates each fitted model on the provided test data and collects
+    their performance metrics for comparison.
 
     Args:
-        models: List of fitted models to compare
-        test_data: Test dataset
-        metrics: List of metrics to compute
+        models: List of fitted BaseTSFM instances to compare.
+        test_data: Test dataset compatible with all models' _prepare_data methods.
+        metrics: List of metric names to include in results. Currently unused;
+            all computed metrics are returned.
 
     Returns:
-        Dictionary mapping model names to their metrics
+        Dict[str, Dict[str, float]]: Dictionary mapping model class names to
+            their evaluation metrics dictionaries.
+
+    Note:
+        Models that are not fitted will be skipped with a warning message.
     """
     results = {}
 

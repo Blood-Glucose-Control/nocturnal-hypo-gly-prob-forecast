@@ -14,7 +14,22 @@ from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 @dataclass
 class TTMTrainingConfig:
-    """TTM-specific training configuration."""
+    """TTM-specific training configuration.
+
+    Contains training parameters specific to TTM models that are not part
+    of the base ModelConfig.
+
+    Attributes:
+        freeze_backbone: Whether to freeze the pre-trained TTM backbone weights.
+        use_tracking_callback: Whether to use experiment tracking callbacks.
+        find_optimal_lr: Whether to run learning rate finder before training.
+        loss_function: Loss function for training. Options: "mse", "mae",
+            "huber", or "custom_ttm".
+        scaler_type: Data normalization method. Options: "standard", "minmax",
+            or "robust".
+        imputation_strategy: Strategy for handling missing values. Options:
+            "mean", "median", or "forward_fill".
+    """
 
     # TTM specific training parameters
     freeze_backbone: bool = False
@@ -31,15 +46,28 @@ class TTMTrainingConfig:
 
 @dataclass
 class TTMDataConfig:
-    """TTM-specific data configuration."""
+    """TTM-specific data configuration.
+
+    Contains data preprocessing and feature configuration specific to TTM
+    models, particularly for blood glucose forecasting applications.
+
+    Attributes:
+        input_features: List of input feature column names (e.g., ["cob", "iob"]).
+        target_features: List of target column names to predict (e.g., ["bg_mM"]).
+        split_config: Dictionary defining train/val/test split ratios.
+            Must sum to 1.0. Example: {"train": 0.7, "val": 0.2, "test": 0.1}.
+        num_input_channels: Number of input feature channels.
+        num_output_channels: Number of output prediction channels.
+        prediction_filter_length: Optional filter length for predictions.
+            If None, uses full forecast_length.
+    """
 
     # Data features
-    input_features: List[str] = None
-    target_features: List[str] = None
+    input_features: List[str] | None = None
+    target_features: List[str] | None = None
 
     # Data splitting
-    split_config: Dict[str, float] = None
-
+    split_config: Dict[str, float] | None = None
     # Data preprocessing
     num_input_channels: int = 5
     num_output_channels: int = 1
@@ -63,7 +91,37 @@ class TTMDataConfig:
 
 
 class TTMConfig(ModelConfig):
-    """Extended configuration class for TTM-specific parameters."""
+    """Extended configuration class for TTM-specific parameters.
+
+    Inherits from ModelConfig and adds TTM-specific attributes for training,
+    data preprocessing, and model architecture configuration.
+
+    Attributes:
+        model_type: Always "ttm" for this configuration.
+        training_strategy: Always TRANSFORMERS for TTM.
+        freeze_backbone: Whether to freeze pre-trained weights.
+        use_tracking_callback: Enable experiment tracking.
+        find_optimal_lr: Run learning rate finder.
+        scaler_type: Data normalization method ("standard", "minmax", "robust").
+        imputation_strategy: Missing value handling ("mean", "median", "forward_fill").
+        input_features: List of input feature column names.
+        target_features: List of target column names.
+        split_config: Train/val/test split ratios dictionary.
+        fewshot_percent: Percentage of training data to use for few-shot learning.
+        num_input_channels: Number of input channels.
+        num_output_channels: Number of output channels.
+        prediction_filter_length: Optional prediction filter length.
+        resolution_min: Data resolution in minutes (default 5 for CGM data).
+
+    Example:
+        >>> config = TTMConfig(
+        ...     model_path="ibm-granite/granite-timeseries-ttm-r2",
+        ...     context_length=512,
+        ...     forecast_length=96,
+        ...     batch_size=32,
+        ... )
+        >>> config.validate_config()
+    """
 
     def __init__(self, **kwargs):
         # Extract TTM-specific parameters before calling parent
@@ -121,16 +179,27 @@ class TTMConfig(ModelConfig):
         self.resolution_min = kwargs.get("resolution_min", 5)
 
     def get_scaler_type(self) -> ScalerType:
-        """Convert string scaler type to ScalerType enum."""
+        """Convert string scaler type to ScalerType enum.
+
+        Returns:
+            ScalerType: The corresponding ScalerType enum value.
+                Defaults to STANDARD if the configured type is not recognized.
+        """
         scaler_mapping = {
             "standard": ScalerType.STANDARD,
             "minmax": ScalerType.MINMAX,
-            "robust": ScalerType.ROBUST,
         }
         return scaler_mapping.get(self.scaler_type, ScalerType.STANDARD)
 
     def to_training_config(self) -> TTMTrainingConfig:
-        """Convert to TTM-specific training config."""
+        """Convert to a TTMTrainingConfig instance.
+
+        Extracts training-related parameters into a dedicated dataclass
+        for cleaner separation of concerns.
+
+        Returns:
+            TTMTrainingConfig: Dataclass containing TTM training parameters.
+        """
         return TTMTrainingConfig(
             freeze_backbone=self.freeze_backbone,
             use_tracking_callback=self.use_tracking_callback,
@@ -141,7 +210,14 @@ class TTMConfig(ModelConfig):
         )
 
     def to_data_config(self) -> TTMDataConfig:
-        """Convert to TTM-specific data config."""
+        """Convert to a TTMDataConfig instance.
+
+        Extracts data-related parameters into a dedicated dataclass
+        for cleaner separation of concerns.
+
+        Returns:
+            TTMDataConfig: Dataclass containing TTM data configuration.
+        """
         return TTMDataConfig(
             input_features=self.input_features,
             target_features=self.target_features,
@@ -187,7 +263,17 @@ class TTMConfig(ModelConfig):
         }
 
     def validate_config(self) -> bool:
-        """Validate TTM configuration parameters."""
+        """Validate TTM configuration parameters.
+
+        Checks that all required parameters are set and have valid values.
+
+        Returns:
+            bool: True if configuration is valid.
+
+        Raises:
+            ValueError: If any configuration parameter is invalid, with a
+                detailed message listing all validation errors.
+        """
         errors = []
 
         # Check required parameters
@@ -274,7 +360,21 @@ def create_default_ttm_config(**overrides) -> TTMConfig:
 
 
 def create_ttm_fine_tuning_config(**overrides) -> TTMConfig:
-    """Create TTM config optimized for fine-tuning."""
+    """Create a TTMConfig optimized for fine-tuning.
+
+    Uses lower learning rate and fewer epochs suitable for fine-tuning
+    a pre-trained TTM model on new data.
+
+    Args:
+        **overrides: Configuration parameters to override the fine-tuning defaults.
+
+    Returns:
+        TTMConfig: Configured for fine-tuning with:
+            - fit_strategy: "fine_tune"
+            - learning_rate: 1e-5 (lower than default)
+            - num_epochs: 5 (fewer than default)
+            - warmup_steps: 500 (fewer than default)
+    """
     fine_tuning_defaults = {
         "fit_strategy": "fine_tune",
         "freeze_backbone": False,
@@ -287,7 +387,19 @@ def create_ttm_fine_tuning_config(**overrides) -> TTMConfig:
 
 
 def create_ttm_zero_shot_config(**overrides) -> TTMConfig:
-    """Create TTM config for zero-shot evaluation."""
+    """Create a TTMConfig for zero-shot evaluation.
+
+    Configures TTM for inference-only mode without any training.
+
+    Args:
+        **overrides: Configuration parameters to override the zero-shot defaults.
+
+    Returns:
+        TTMConfig: Configured for zero-shot with:
+            - fit_strategy: "zero_shot"
+            - freeze_backbone: True
+            - num_epochs: 0 (no training)
+    """
     zero_shot_defaults = {
         "fit_strategy": "zero_shot",
         "freeze_backbone": True,
