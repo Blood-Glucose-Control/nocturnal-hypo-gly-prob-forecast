@@ -22,7 +22,7 @@ from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
 from src.data.diabetes_datasets import AleppoDataLoader
-from src.data.diabetes_datasets.tamborlane_2008.tamborlane_2008 import Tamborlane2008DataLoader
+from src.data.diabetes_datasets import Tamborlane2008DataLoader
 
 
 # TODO: Add train_percentage parameter
