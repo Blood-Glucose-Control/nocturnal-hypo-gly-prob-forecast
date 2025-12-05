@@ -89,16 +89,9 @@ class DatasetBase(ABC):
         self.processed_data = None
         self.raw_data = None
 
-    @abstractmethod
-    def load_raw(self):
-        """Load the raw dataset without any processing.
-
-        Returns:
-            pd.DataFrame or pd.Series: The raw dataset
-        """
-        raise NotImplementedError("load_raw must be implemented by subclass")
-
+    # Properties
     @property
+    @abstractmethod
     def dataset_name(self):
         """Get the name of the dataset.
 
@@ -107,6 +100,7 @@ class DatasetBase(ABC):
         """
         raise NotImplementedError("get_dataset_name must be implemented by subclass")
 
+    # Public Abstract Methods
     @abstractmethod
     def load_data(self):
         """Load the processed dataset.
@@ -119,31 +113,16 @@ class DatasetBase(ABC):
         """
         raise NotImplementedError("load_data must be implemented by subclass")
 
-    def _process_raw_data(self):
-        """Process the raw data.
+    @abstractmethod
+    def load_raw(self):
+        """Load the raw dataset without any processing.
 
         Returns:
-            pd.DataFrame or pd.Series
+            pd.DataFrame or pd.Series: The raw dataset
         """
-        raise NotImplementedError("_process_raw_data must be implemented by subclass")
+        raise NotImplementedError("load_raw must be implemented by subclass")
 
-    def _validate_data(self, data):
-        """Validate the loaded data.
-
-        Args:
-            data (pd.DataFrame or pd.Series): Data to validate
-
-        Returns:
-            bool:True if data is valid, raises exception otherwise
-        """
-        if not isinstance(data, (pd.DataFrame, pd.Series)):
-            raise TypeError("Data must be a pandas DataFrame or Series")
-        if data.empty:
-            raise ValueError("Dataset is empty")
-        return True
-
-    ## Everything concerning the validation table is below ---------------------------------------
-
+    # Public Methods
     def create_validation_table(self):
         """Create a validation table for the dataset.
 
@@ -227,6 +206,32 @@ class DatasetBase(ABC):
                     validation_rows.append(row)
 
         return pd.DataFrame(validation_rows)
+
+    # Protected Abstract Methods
+    @abstractmethod
+    def _process_raw_data(self):
+        """Process the raw data.
+
+        Returns:
+            pd.DataFrame or pd.Series
+        """
+        raise NotImplementedError("_process_raw_data must be implemented by subclass")
+
+    # Protected Methods
+    def _validate_data(self, data):
+        """Validate the loaded data.
+
+        Args:
+            data (pd.DataFrame or pd.Series): Data to validate
+
+        Returns:
+            bool:True if data is valid, raises exception otherwise
+        """
+        if not isinstance(data, (pd.DataFrame, pd.Series)):
+            raise TypeError("Data must be a pandas DataFrame or Series")
+        if data.empty:
+            raise ValueError("Dataset is empty")
+        return True
 
     def _determine_date_type(self, patient_df: pd.DataFrame) -> str:
         """

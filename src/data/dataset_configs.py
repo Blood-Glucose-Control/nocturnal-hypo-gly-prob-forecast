@@ -69,6 +69,16 @@ LYNCH_2022_CONFIG: DatasetConfig = DatasetConfig(
 )
 
 
+# Configuration for the Tamborlane 2008 dataset
+TAMBORLANE_2008_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.TAMBORLANE_2008,
+    description="Tamborlane 2008 dataset",
+    citation="Tamborlane et al. 2008",
+    required_files=["JDRF Continuous Glucose Monitoring (JDRF CGM RCT)"],
+    url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Tamborlane-(2008)",
+    cache_path="tamborlane_2008",
+)
+
 # Mapping of dataset names to their configurations
 DATASET_CONFIGS = {
     DatasetSourceType.KAGGLE_BRIS_T1D.value: KAGGLE_BRIST1D_CONFIG,
@@ -76,6 +86,7 @@ DATASET_CONFIGS = {
     DatasetSourceType.SIMGLUCOSE.value: SIMGLUCOSE_CONFIG,
     DatasetSourceType.ALEPPO.value: ALEPPO_CONFIG,
     DatasetSourceType.LYNCH_2022.value: LYNCH_2022_CONFIG,
+    DatasetSourceType.TAMBORLANE_2008.value: TAMBORLANE_2008_CONFIG,
 }
 
 

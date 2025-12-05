@@ -14,6 +14,7 @@ class DatasetSourceType(str, Enum):
     ALEPPO = "aleppo"
     LYNCH_2022 = "lynch_2022"
     SIMGLUCOSE = "simglucose"
+    TAMBORLANE_2008 = "tamborlane_2008"
 
 
 # TODO: Add to the mean_cols list in sampling.py / ensure_regular_time_intervals_with_aggregation if the column is describing rate of change.

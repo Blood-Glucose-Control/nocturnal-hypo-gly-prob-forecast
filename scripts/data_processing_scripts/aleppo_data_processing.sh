@@ -6,8 +6,8 @@
 #SBATCH --mem-per-cpu=1GB
 #SBATCH --partition=HI
 ##SBATCH --gres=gpu:1
-#SBATCH -o cache/data/awesome_cgm/aleppo/data_processing_job_output/slurm-%j.out
-#SBATCH -e cache/data/awesome_cgm/aleppo/data_processing_job_output/slurm-%j.err
+#SBATCH -o cache/data/aleppo/data_processing_job_output/slurm-%j.out
+#SBATCH -e cache/data/aleppo/data_processing_job_output/slurm-%j.err
 #SBATCH --mail-user=cjrisi@uwaterloo.ca,t3chan@uwaterloo.ca
 #SBATCH --mail-type=ALL
 
@@ -29,4 +29,4 @@ loader = get_loader(
 echo "Aleppo data processing completed"
 
 
-## Run sbatch sbatch aleppo_data_processing.sh
+## Run sbatch: sbatch scripts/data_processing_scripts/aleppo_data_processing.sh
