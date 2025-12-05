@@ -29,9 +29,11 @@ class AleppoDataLoader(DatasetBase):
     def __init__(
         self,
         keep_columns: list[str] | None = None,
+        dataset_type: str = "train",
         num_validation_days: int = 20,
         use_cached: bool = True,
         train_percentage: float = 0.9,
+        config: dict | None = None,
         parallel: bool = True,
         max_workers: int = 10,
     ):
@@ -44,12 +46,20 @@ class AleppoDataLoader(DatasetBase):
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
         self.train_percentage = train_percentage
+        self.dataset_type = dataset_type
         self.cache_manager = get_cache_manager()
         self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
         self.raw_data_path = None
         self.use_cached = use_cached
         self.parallel = parallel
         self.max_workers = max_workers
+
+        logger.info(
+            f"Initializing AleppoDataLoader with use_cached={use_cached} and dataset_type={dataset_type}"
+        )
+        logger.info(
+            f"Currently not used: dataset_type: {dataset_type}, config: {config}"
+        )
         self.load_data()
 
     @property

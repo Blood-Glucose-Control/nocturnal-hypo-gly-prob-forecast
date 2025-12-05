@@ -42,9 +42,11 @@ class Lynch2022DataLoader(DatasetBase):
     def __init__(
         self,
         keep_columns: list[str] | None = None,
-        num_validation_days: int = 20,
         use_cached: bool = True,
+        num_validation_days: int = 20,
+        train_percentage: float = 0.9,
         dataset_type: str = "train",
+        config: dict | None = None,
         parallel: bool = True,
         generic_patient_start_date: pd.Timestamp = pd.Timestamp("2024-01-01"),
         max_workers: int = 3,
@@ -79,6 +81,13 @@ class Lynch2022DataLoader(DatasetBase):
         self.num_train_days = None
 
         # Preload data
+        logger.info("Initializing Lynch 2022 Data Loader...")
+        logger.info(
+            f"Use of train_percentage parameter is currently not implemented: {train_percentage}"
+        )
+        logger.info(
+            f"Use of configuration parameter is currently not implemented: {config}"
+        )
         self.load_data()
 
     @property

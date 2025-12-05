@@ -7,7 +7,7 @@ The data format includes columns like RecID, PtID, DeviceDate, DeviceTime, Gluco
 
 import logging
 import pandas as pd
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Any
 
 logger = logging.getLogger(__name__)
 
@@ -268,7 +268,7 @@ def extract_cgm_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def validate_tamborlane_data(df: pd.DataFrame) -> Dict[str, any]:
+def validate_tamborlane_data(df: pd.DataFrame) -> Dict[str, Any]:
     """
     Validate the cleaned Tamborlane dataset and return quality metrics.
 

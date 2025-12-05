@@ -11,7 +11,6 @@ and GlucoseDisplayTime based on the actual CGM export format.
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Union, List, Tuple, Any
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pandas as pd
@@ -89,7 +88,7 @@ class Tamborlane2008DataLoader(DatasetBase):
 
     def __init__(
         self,
-        keep_columns: Optional[List[str]] = None,
+        keep_columns: list[str] | None = None,
         num_validation_days: int = 7,  # Shorter validation for CGM data
         train_percentage: float = 0.9,
         use_cached: bool = True,
@@ -98,7 +97,7 @@ class Tamborlane2008DataLoader(DatasetBase):
         generic_patient_start_date: pd.Timestamp = pd.Timestamp("2008-01-01"),
         max_workers: int = 3,
         extract_features: bool = True,
-        raw_data_path: Optional[Union[str, Path]] = None,
+        raw_data_path: str | Path | None = None,
     ):
         """
         Initialize the Tamborlane 2008 data loader.
@@ -115,6 +114,8 @@ class Tamborlane2008DataLoader(DatasetBase):
             extract_features: Whether to extract CGM-specific features
             raw_data_path: Path to raw data files (optional)
         """
+        super().__init__()
+
         # Ensure required columns are included
         if keep_columns is not None:
             required_cols = ["datetime", "bg_mM", "p_num", "bg_mg_dl"]
@@ -142,9 +143,8 @@ class Tamborlane2008DataLoader(DatasetBase):
             self.cache_manager = None
             self.dataset_config = {}
 
-        # Data containers
-        self.raw_data = None
-        self.processed_data: Dict[str, pd.DataFrame] | None = {}
+        # Data containers (raw_data and processed_data initialized by base class)
+        self.processed_data: dict[str, pd.DataFrame] | None = {}
         self.train_data = None
         self.validation_data = None
         self.data_metrics = {}
@@ -183,22 +183,22 @@ class Tamborlane2008DataLoader(DatasetBase):
         return len(self.processed_data)
 
     @property
-    def patient_ids(self) -> List[str]:
+    def patient_ids(self) -> list[str]:
         """Get list of patient IDs in the dataset.
 
         Returns:
-            List[str]: List of patient ID strings, or empty list if no data.
+            list[str]: List of patient ID strings, or empty list if no data.
         """
         if self.processed_data is None:
             return []
         return list(self.processed_data.keys())
 
     @property
-    def train_data_shape_summary(self) -> Dict[str, Tuple[int, int]]:
+    def train_data_shape_summary(self) -> dict[str, tuple[int, int]]:
         """Get shape summary for each patient's processed data.
 
         Returns:
-            Dict[str, Tuple[int, int]]: Dictionary mapping patient IDs to their
+            dict[str, tuple[int, int]]: Dictionary mapping patient IDs to their
                 DataFrame shape as (num_rows, num_columns). Returns empty dict
                 if processed_data is not available.
         """
@@ -212,11 +212,11 @@ class Tamborlane2008DataLoader(DatasetBase):
         return shape_summary
 
     @property
-    def dataset_info(self) -> Dict[str, Any]:
+    def dataset_info(self) -> dict[str, object]:
         """Get comprehensive information about the dataset.
 
         Returns:
-            Dict[str, Any]: Dictionary containing dataset statistics and metadata
+            dict[str, object]: Dictionary containing dataset statistics and metadata
                 including dataset_name, num_patients, patient_ids, dataset_type,
                 num_validation_days, extract_features, and optionally train_shapes,
                 validation_shapes, and metrics.
@@ -406,14 +406,14 @@ class Tamborlane2008DataLoader(DatasetBase):
         return combined_df
 
     # Public Methods
-    def get_patient_data(self, patient_id: str) -> Optional[pd.DataFrame]:
+    def get_patient_data(self, patient_id: str) -> pd.DataFrame | None:
         """Get processed data for a specific patient.
 
         Args:
             patient_id: The patient identifier string (e.g., 'p01', 'p02').
 
         Returns:
-            Optional[pd.DataFrame]: DataFrame containing the patient's CGM data,
+            pd.DataFrame | None: DataFrame containing the patient's CGM data,
                 or None if the patient is not found or no data is loaded.
         """
         if self.processed_data is None:
@@ -459,7 +459,7 @@ class Tamborlane2008DataLoader(DatasetBase):
             return pd.DataFrame()
 
     def save_processed_data(
-        self, output_path: Union[str, Path], file_format: str = "csv"
+        self, output_path: str | Path, file_format: str = "csv"
     ) -> None:
         """Save processed data to files, one file per patient.
 
@@ -493,7 +493,7 @@ class Tamborlane2008DataLoader(DatasetBase):
         logger.info(f"Saved {num_patients} patient files to {output_path}")
 
     # Protected Abstract Method Implementations
-    def _process_raw_data(self) -> Dict[str, pd.DataFrame]:
+    def _process_raw_data(self) -> dict[str, pd.DataFrame]:
         """Process raw data with cleaning and feature extraction.
 
         Cleans the raw CGM data, splits by patient, processes each patient's
@@ -568,8 +568,8 @@ class Tamborlane2008DataLoader(DatasetBase):
 
     # Protected Methods
     def _process_patients_parallel(
-        self, multipatient_data_dict: Dict[str, pd.DataFrame]
-    ) -> Dict[str, pd.DataFrame]:
+        self, multipatient_data_dict: dict[str, pd.DataFrame]
+    ) -> dict[str, pd.DataFrame]:
         """Process multiple patients' data in parallel using ProcessPoolExecutor.
 
         Args:
@@ -577,7 +577,7 @@ class Tamborlane2008DataLoader(DatasetBase):
                 raw DataFrames.
 
         Returns:
-            Dict[str, pd.DataFrame]: Dictionary mapping patient IDs to their
+            dict[str, pd.DataFrame]: Dictionary mapping patient IDs to their
                 processed DataFrames. Patients that fail processing are logged
                 but excluded from the result.
         """
@@ -611,8 +611,8 @@ class Tamborlane2008DataLoader(DatasetBase):
         return processed_results
 
     def _process_patients_sequential(
-        self, multipatient_data_dict: Dict[str, pd.DataFrame]
-    ) -> Dict[str, pd.DataFrame]:
+        self, multipatient_data_dict: dict[str, pd.DataFrame]
+    ) -> dict[str, pd.DataFrame]:
         """Process multiple patients' data sequentially.
 
         Args:
@@ -620,7 +620,7 @@ class Tamborlane2008DataLoader(DatasetBase):
                 raw DataFrames.
 
         Returns:
-            Dict[str, pd.DataFrame]: Dictionary mapping patient IDs to their
+            dict[str, pd.DataFrame]: Dictionary mapping patient IDs to their
                 processed DataFrames.
         """
         processed_results = {}
@@ -759,7 +759,7 @@ class Tamborlane2008DataLoader(DatasetBase):
                     f"  Time above range: {self.data_metrics['time_above_range']:.1f}%"
                 )
 
-    def _load_from_cache(self, cached_data: Dict[str, pd.DataFrame]) -> None:
+    def _load_from_cache(self, cached_data: dict[str, pd.DataFrame]) -> None:
         """Load and filter processed data from cache.
 
         Loads cached data into self.processed_data and optionally filters

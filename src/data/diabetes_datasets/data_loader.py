@@ -13,12 +13,24 @@ to include any new dataset loaders you create, so they can be accessed
 through the unified interface.
 This allows for easy extensibility and maintainability of the data loading
 process across different datasets.
-Pleae remember to update the overload signatures in this file
+Please remember to update the overload signatures in this file
 to match the actual parameters of the data loader classes.
 This ensures that type checking and autocompletion work correctly in IDEs.
+Overloads facilitate type narrowing:
+
+When to Use @overload
+Return type depends on a literal input value (like our case)
+Return type depends on presence/absence of parameters
+Different parameter types produce different return types
+
+Key Rules for @overload
+Parameter order must match exactly between all overloads and the implementation
+Parameter names must match exactly
+All parameters should be present in each overload (use ... for defaults)
+The implementation signature must be a superset of all overload signatures
 """
 
-from typing import Union, Optional, Dict, Any, overload, Literal
+from typing import overload, Literal
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
@@ -31,10 +43,11 @@ from src.data.diabetes_datasets import Tamborlane2008DataLoader
 def get_loader(
     data_source_name: Literal["lynch_2022"],
     dataset_type: str = "train",
-    keep_columns: Optional[list[str]] = None,
+    keep_columns: list[str] | None = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
-    config: Optional[Dict[str, Any]] = None,
+    train_percentage: float = ...,
+    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
 ) -> Lynch2022DataLoader: ...
@@ -44,10 +57,11 @@ def get_loader(
 def get_loader(
     data_source_name: Literal["kaggle_brisT1D"],
     dataset_type: str = "train",
-    keep_columns: Optional[list[str]] = None,
+    keep_columns: list[str] | None = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
-    config: Optional[Dict[str, Any]] = None,
+    train_percentage: float = ...,
+    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
 ) -> BrisT1DDataLoader: ...
@@ -57,10 +71,11 @@ def get_loader(
 def get_loader(
     data_source_name: Literal["gluroo"],
     dataset_type: str = "train",
-    keep_columns: Optional[list[str]] = None,
+    keep_columns: list[str] | None = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
-    config: Optional[Dict[str, Any]] = None,
+    train_percentage: float = ...,
+    config: dict | None = None,
     parallel: bool = True,
 ) -> GlurooDataLoader: ...
 
@@ -68,10 +83,12 @@ def get_loader(
 @overload
 def get_loader(
     data_source_name: Literal["aleppo"],
-    keep_columns: Optional[list[str]] = None,
+    dataset_type: str = "train",
+    keep_columns: list[str] | None = None,
     use_cached: bool = False,
-    # config: Optional[Dict[str, Any]] = None,
-    train_percentage: float = 0.9,
+    num_validation_days: int = 20,
+    train_percentage: float = ...,
+    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
 ) -> AleppoDataLoader: ...
@@ -81,13 +98,13 @@ def get_loader(
 def get_loader(
     data_source_name: Literal["tamborlane_2008"],
     dataset_type: str = "train",
-    keep_columns: Optional[list[str]] = None,
+    keep_columns: list[str] | None = None,
     use_cached: bool = False,
     num_validation_days: int = 7,
-    config: Optional[Dict[str, Any]] = None,
+    train_percentage: float = ...,
+    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
-    extract_features: bool = True,
 ) -> Tamborlane2008DataLoader: ...
 
 
@@ -101,7 +118,13 @@ def get_loader(
     config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
-) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader]:
+) -> (
+    BrisT1DDataLoader
+    | GlurooDataLoader
+    | Lynch2022DataLoader
+    | AleppoDataLoader
+    | Tamborlane2008DataLoader
+):
     """
     Factory function to create and return the appropriate data loader instance.
 
