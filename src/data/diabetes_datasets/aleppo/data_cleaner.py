@@ -178,7 +178,9 @@ def process_one_patient(
         logger.info(f"Number of rows with bolus: {len(bolus)}")
 
     # Resampling to constant interval, rollover basal rate and derive cob and iob
-    df = preprocessing_pipeline(pid, df, use_aggregation=True)
+    df = preprocessing_pipeline(
+        pid, df, use_aggregation=True, basal_delivery_type="temp"
+    )
 
     # Drop days with more than 6 hours of consecutive NaN values
     freq_mins = get_most_common_time_interval(df)
