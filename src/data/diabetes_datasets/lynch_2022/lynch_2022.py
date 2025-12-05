@@ -150,6 +150,7 @@ class Lynch2022DataLoader(DatasetBase):
         # Case 1: processed_data is patient_id -> DataFrame
         if all(isinstance(v, pd.DataFrame) for v in self.processed_data.values()):
             for pid, df in self.processed_data.items():
+                assert isinstance(df, pd.DataFrame)  # Type guard for Pylance
                 tmp = df.copy()
                 # move datetime index into column if present as index
                 if (
@@ -406,6 +407,7 @@ class Lynch2022DataLoader(DatasetBase):
             Dictionary mapping patient IDs to their processed DataFrames
         """
         logger.info("Cleaning Lynch 2022 train data...")
+        assert self.raw_data is not None, "Raw data not loaded. Call load_raw() first."
         pre_processed_data = clean_lynch2022_train_data(self.raw_data)
 
         logger.info("Running preprocessing pipeline on Lynch 2022 train data...")
@@ -656,6 +658,9 @@ class Lynch2022DataLoader(DatasetBase):
                         )
 
                 # Calculate number of unique days for this patient
+                assert isinstance(
+                    patient_data.index, pd.DatetimeIndex
+                ), "Index must be a DatetimeIndex"
                 unique_days = patient_data.index.normalize().nunique()
 
                 # Skip patients with insufficient data
@@ -725,6 +730,9 @@ class Lynch2022DataLoader(DatasetBase):
             all_train_dates = set()
             for patient_train_df in train_data_dict.values():
                 # Use index instead of datetime column
+                assert isinstance(
+                    patient_train_df.index, pd.DatetimeIndex
+                ), "Index must be a DatetimeIndex"
                 patient_dates = patient_train_df.index.date
                 all_train_dates.update(patient_dates)
             self.num_train_days = len(all_train_dates)

@@ -506,10 +506,9 @@ class Tamborlane2008DataLoader(DatasetBase):
                 extracted features.
 
         Raises:
-            ValueError: If raw_data is None (load_raw() not called first).
+            AssertionError: If raw_data is None (load_raw() not called first).
         """
-        if self.raw_data is None:
-            raise ValueError("Raw data not loaded. Call load_raw() first.")
+        assert self.raw_data is not None, "Raw data not loaded. Call load_raw() first."
 
         logger.info("Processing Tamborlane 2008 raw data...")
 
