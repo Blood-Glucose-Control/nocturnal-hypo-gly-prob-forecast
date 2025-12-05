@@ -53,6 +53,7 @@ Notes:
 """
 
 import logging
+from typing import Literal
 
 import pandas as pd
 
@@ -78,7 +79,10 @@ OPTIONAL_COLUMNS = [
 
 
 def preprocessing_pipeline(
-    p_num: str, df: pd.DataFrame, use_aggregation: bool = False
+    p_num: str,
+    df: pd.DataFrame,
+    use_aggregation: bool = False,
+    basal_delivery_type: Literal["temp", "automated"] | None = None,
 ) -> pd.DataFrame:
     """
     Preprocesses patient data through feature engineering pipeline.
@@ -94,11 +98,17 @@ def preprocessing_pipeline(
         use_aggregation (bool, optional): Whether to use aggregation to ensure regular time intervals.
                                           If True, will consider all rows within the same regular time interval.
                                           If False, will only consider the first row within the regular time interval.
+        basal_delivery_type: Type of basal delivery for rollover calculation.
+                            Required if 'rate' column is present. Options:
+                            - "temp": User-initiated temp basal with explicit duration
+                            - "automated": Algorithm-driven basal (Control-IQ, Loop, OpenAPS)
+
     Returns:
         pd.DataFrame: Processed DataFrame with original data plus derived features
 
     Raises:
         ValueError: If required columns are missing from the input DataFrame
+        ValueError: If 'rate' column exists but basal_delivery_type is not provided
     """
     # TODO: Create an option for both serial and parallel processing of the multipatient files.
     logger.info("==============================")
@@ -119,6 +129,8 @@ def preprocessing_pipeline(
 
     patient_df = df.copy(deep=True)
     processed_df = create_physiological_features(
-        patient_df, use_aggregation=use_aggregation
+        patient_df,
+        use_aggregation=use_aggregation,
+        basal_delivery_type=basal_delivery_type,
     )
     return processed_df

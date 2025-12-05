@@ -104,7 +104,7 @@ class TestRolloverBasalRate:
 
     def test_basic_rollover_functionality(self, sample_data_with_rate):
         """Test that basal rate gets rolled over to next rows."""
-        result = rollover_basal_rate(sample_data_with_rate.copy())
+        result = rollover_basal_rate(sample_data_with_rate.copy(), delivery_type="temp")
 
         # Check that dose_units has been added
         assert (result["dose_units"] > 0).any(), "Should have added dose_units"
@@ -116,7 +116,7 @@ class TestRolloverBasalRate:
 
     def test_correct_dose_per_row(self, sample_data_with_rate):
         """Test that dose per row is calculated correctly."""
-        result = rollover_basal_rate(sample_data_with_rate.copy())
+        result = rollover_basal_rate(sample_data_with_rate.copy(), delivery_type="temp")
 
         # With 5-minute intervals and rate of 1.2 units/hr
         # Expected dose per row: 1.2 / 12 = 0.1 units
@@ -133,7 +133,7 @@ class TestRolloverBasalRate:
 
     def test_rate_change_handling(self, sample_data_with_rate):
         """Test that rate changes are handled correctly."""
-        result = rollover_basal_rate(sample_data_with_rate.copy())
+        result = rollover_basal_rate(sample_data_with_rate.copy(), delivery_type="temp")
 
         # First rate: 1.2 units/hr at 00:00 with 60 mins duration, applies to next 12 rows (00:05 to 00:55)
         # Second rate: 0.8 units/hr at 01:00 with 30 mins duration, applies to next 6 rows (01:05 onwards)
@@ -152,7 +152,9 @@ class TestRolloverBasalRate:
 
     def test_adds_to_existing_dose_units(self, sample_data_with_bolus):
         """Test that basal dose is added to existing bolus doses."""
-        result = rollover_basal_rate(sample_data_with_bolus.copy())
+        result = rollover_basal_rate(
+            sample_data_with_bolus.copy(), delivery_type="temp"
+        )
 
         # Row with existing bolus dose
         row_00_00 = result.loc["2024-01-01 00:00:00"]
@@ -169,7 +171,9 @@ class TestRolloverBasalRate:
 
     def test_different_time_intervals(self, sample_data_15min_intervals):
         """Test that function works with different time intervals (15 minutes)."""
-        result = rollover_basal_rate(sample_data_15min_intervals.copy())
+        result = rollover_basal_rate(
+            sample_data_15min_intervals.copy(), delivery_type="temp"
+        )
 
         # With 15-minute intervals, rows_per_hour = 4
         # Rate of 1.2 units/hr should add 1.2/4 = 0.3 units per row
@@ -192,7 +196,8 @@ class TestRolloverBasalRate:
             index=pd.date_range("2024-01-01", periods=1),
         )
 
-        result = rollover_basal_rate(df)
+        # When there's no rate column, delivery_type doesn't matter - function returns early
+        result = rollover_basal_rate(df, delivery_type="temp")
 
         # Should return original dataframe unchanged
         assert len(result) == len(df)
@@ -215,7 +220,7 @@ class TestRolloverBasalRate:
         df = pd.DataFrame(data, index=datetime_index)
         df.index.name = "datetime"
 
-        result = rollover_basal_rate(df)
+        result = rollover_basal_rate(df, delivery_type="temp")
 
         # All dose_units should remain 0
         assert all(result["dose_units"] == 0.0)
@@ -246,7 +251,7 @@ class TestRolloverBasalRate:
         df.loc["2024-01-01 00:30:00", ColumnNames.RATE.value] = 1.0
         df.loc["2024-01-01 00:30:00", ColumnNames.BASAL_DURATION_MINS.value] = 30
 
-        result = rollover_basal_rate(df)
+        result = rollover_basal_rate(df, delivery_type="temp")
 
         # Check that each rate applies to subsequent rows based on duration
         # First rate (1.2): applies to rows starting at 00:00 with 60 min duration

@@ -47,6 +47,7 @@ Notes:
 """
 
 import logging
+from typing import Literal
 
 import pandas as pd
 import numpy as np
@@ -69,44 +70,73 @@ logger = logging.getLogger(__name__)
 
 
 # TODO: We should't really be adding dose_units because each insulin has different activation curves.
-def rollover_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
+# NOTE: Adding basal to dose_units is appropriate for pump therapy since both basal and bolus
+# use the same rapid-acting insulin (Humalog, Novolog, etc.) with identical pharmacokinetics.
+# OpenAPS uses netIOB (basal + bolus combined) for BG prediction.
+# This would NOT be appropriate for MDI therapy where long-acting basal (e.g., Lantus ~24hr)
+# has different pharmacokinetics than rapid-acting bolus (~5hr).
+# See: https://openaps.readthedocs.io/en/latest/docs/While%20You%20Wait%20For%20Gear/understanding-insulin-on-board-calculations.html
+# See: https://developer.tidepool.org/data-model/device-data/types/basal/
+def rollover_basal_rate(
+    df: pd.DataFrame,
+    delivery_type: Literal["temp", "automated"],
+) -> pd.DataFrame:
     """
-    Roll over the basal rate to the next few rows if the rate is not null.
-    The rollover is based on the duration of the basal rate in minutes.
-    For example, if a row has a basal rate of 1 unit/hr and the interval is 5 minutes for a basal duration of one hour,
-    then the next 12 rows (one hour) will have a dose of 1/12 units.
+    Roll over the basal rate to add basal insulin doses to dose_units column.
+
+    Supports two delivery types based on Tidepool data model:
+    - temp: User-initiated temporary basal with explicit duration (basal_duration_mins column)
+    - automated: Algorithm-driven basal (Control-IQ, Loop, OpenAPS) where duration is
+                 calculated from event sequence (rate applies until next rate change)
 
     Args:
         df (pd.DataFrame): Input DataFrame with datetime index and constant interval (e.g. 5 minutes)
-                          ColumnNames.RATE.value (basal rate units/hr)
-                          ColumnNames.BASAL_DURATION_MINS.value (basal duration in minutes)
+                          Required: ColumnNames.RATE.value (basal rate units/hr)
+                          Required for temp: ColumnNames.BASAL_DURATION_MINS.value (duration in minutes)
+        delivery_type: Type of basal delivery - "temp" or "automated" (required, no default)
+
     Returns:
-        pd.DataFrame: Enhanced DataFrame with basal rate added to dose_units
+        pd.DataFrame: DataFrame with basal rate converted to doses and added to dose_units
     """
-    if (
-        ColumnNames.RATE.value not in df.columns
-        or ColumnNames.BASAL_DURATION_MINS.value not in df.columns
-    ):
+    if ColumnNames.RATE.value not in df.columns:
         logger.warning(
-            f"No {ColumnNames.RATE.value} or {ColumnNames.BASAL_DURATION_MINS.value} column found. Returning original dataframe."
+            f"No {ColumnNames.RATE.value} column found. Returning original dataframe."
         )
         return df
 
     if ColumnNames.DOSE_UNITS.value not in df.columns:
-        # We should always have dose_units column.
         raise ValueError(
             f"ROLLOVER_BASAL_RATE function: DataFrame must contain {ColumnNames.DOSE_UNITS.value} column"
         )
 
+    if delivery_type == "temp":
+        if ColumnNames.BASAL_DURATION_MINS.value not in df.columns:
+            raise ValueError(
+                f"delivery_type='temp' requires {ColumnNames.BASAL_DURATION_MINS.value} column"
+            )
+        return _rollover_basal_temp(df)
+    elif delivery_type == "automated":
+        return _rollover_basal_automated(df)
+    else:
+        raise ValueError(
+            f"Unknown delivery_type: {delivery_type}. Must be 'temp' or 'automated'"
+        )
+
+
+def _rollover_basal_temp(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Handle temp basal with explicit duration from basal_duration_mins column.
+    """
     df = df.copy()
     freq = get_most_common_time_interval(df)
-
-    # Calculate rows per hour (e.g., 12 rows for 5-minute intervals)
     rows_per_hour = 60 // freq
+
     for i in range(len(df)):
         if pd.notna(df[ColumnNames.RATE.value].iloc[i]):
             rate = df[ColumnNames.RATE.value].iloc[i]
             duration_mins = df[ColumnNames.BASAL_DURATION_MINS.value].iloc[i]
+            if pd.isna(duration_mins):
+                continue  # Skip if duration is missing
             dose_per_row = rate / rows_per_hour
             rows_to_rollover = int(duration_mins / freq)
 
@@ -125,9 +155,31 @@ def rollover_basal_rate(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _rollover_basal_automated(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Handle automated basal (Control-IQ, Loop, OpenAPS) where duration is calculated
+    from event sequence - rate applies until next rate change event.
+
+    Uses forward-fill to propagate rates, then converts to dose per interval.
+    """
+    df = df.copy()
+    freq = get_most_common_time_interval(df)
+    rows_per_hour = 60 // freq
+
+    # Forward-fill rate: each rate persists until the next rate change
+    filled_rate = df[ColumnNames.RATE.value].ffill()
+
+    # Convert rate (U/hr) to dose per interval and add to dose_units
+    dose_per_row = filled_rate / rows_per_hour
+    df[ColumnNames.DOSE_UNITS.value] += dose_per_row.fillna(0)
+
+    return df
+
+
 def create_physiological_features(
     df: pd.DataFrame,
     use_aggregation: bool = False,
+    basal_delivery_type: Literal["temp", "automated"] | None = None,
 ) -> pd.DataFrame:
     """
     Derives physiological features from patient glucose monitoring data.
@@ -146,6 +198,10 @@ def create_physiological_features(
         use_aggregation (bool, optional): Whether to use aggregation to ensure regular time intervals.
                                           If True, will consider all rows within the same regular time interval.
                                           If False, will only consider the first row within the regular time interval.
+        basal_delivery_type: Type of basal delivery for rollover calculation.
+                            Required if 'rate' column is present. Options:
+                            - "temp": User-initiated temp basal with explicit duration
+                            - "automated": Algorithm-driven basal (Control-IQ, Loop, OpenAPS)
 
     Returns:
         pd.DataFrame: Enhanced DataFrame with original data plus derived physiological
@@ -153,6 +209,7 @@ def create_physiological_features(
 
     Raises:
         ValueError: If the DataFrame does not have a datetime index
+        ValueError: If 'rate' column exists but basal_delivery_type is not provided
     """
     if not isinstance(df.index, pd.DatetimeIndex):
         raise ValueError("DataFrame must have a datetime index")
@@ -170,8 +227,14 @@ def create_physiological_features(
         ColumnNames.DOSE_UNITS.value in df.columns
         and ColumnNames.RATE.value in df.columns
     ):
-        logger.info("\tRollover basal rate...")
-        df = rollover_basal_rate(df)
+        if basal_delivery_type is None:
+            raise ValueError(
+                "basal_delivery_type must be specified when 'rate' column is present. "
+                "Use 'temp' for user-initiated temp basals with explicit duration, "
+                "or 'automated' for algorithm-driven basals (Control-IQ, Loop, OpenAPS)."
+            )
+        logger.info(f"\tRollover basal rate (delivery_type={basal_delivery_type})...")
+        df = rollover_basal_rate(df, delivery_type=basal_delivery_type)
     else:
         logger.info("\tSkipping basal rollover (missing dose_units or rate column)")
 
