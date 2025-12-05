@@ -76,7 +76,7 @@ TAMBORLANE_2008_CONFIG: DatasetConfig = DatasetConfig(
     citation="Tamborlane et al. 2008",
     required_files=["JDRF Continuous Glucose Monitoring (JDRF CGM RCT)"],
     url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Tamborlane-(2008)",
-    cache_path="awesome_cgm/tamborlane_2008",
+    cache_path="tamborlane_2008",
 )
 
 # Mapping of dataset names to their configurations

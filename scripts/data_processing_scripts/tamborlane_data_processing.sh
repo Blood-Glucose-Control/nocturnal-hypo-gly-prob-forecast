@@ -15,7 +15,7 @@
 source $HOME/nocturnal/.noctprob-venv/bin/activate
 
 
-# Inline Python code to process the aleppo data (not the best practice but the task is simple enough)
+# Inline Python code to process the tamborlane_2008 data (not the best practice but the task is simple enough)
 echo "Starting Tamborlane data processing"
 python -c "
 from src.data.diabetes_datasets.data_loader import get_loader
@@ -27,4 +27,4 @@ loader = get_loader(
 )"
 echo "Tamborlane data processing completed"
 
-## Run sbatch: sbatch scripts/data_processing_scripts/tamborlane_data_processing.sh 
+## Run sbatch: sbatch scripts/data_processing_scripts/tamborlane_data_processing.sh

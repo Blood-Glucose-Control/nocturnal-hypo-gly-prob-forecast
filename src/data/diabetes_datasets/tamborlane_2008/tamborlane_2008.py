@@ -11,7 +11,7 @@ and GlucoseDisplayTime based on the actual CGM export format.
 
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Union, List, Tuple
+from typing import Dict, Optional, Union, List, Tuple, Any
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pandas as pd
@@ -39,14 +39,17 @@ try:
     from src.data.dataset_configs import get_dataset_config
     from src.data.diabetes_datasets.dataset_base import DatasetBase
     from src.data.preprocessing.data_splitting import split_multipatient_dataframe
-    from src.data.preprocessing.time_processing import get_train_validation_split
+    from src.data.preprocessing.time_processing import (
+        get_train_validation_split_by_percentage,
+    )
 except ImportError:
     from data.cache_manager import get_cache_manager
     from data.dataset_configs import get_dataset_config
     from data.diabetes_datasets.dataset_base import DatasetBase
     from data.preprocessing.data_splitting import split_multipatient_dataframe
-    from data.preprocessing.time_processing import get_train_validation_split
-
+    from data.preprocessing.time_processing import (
+        get_train_validation_split_by_percentage,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +91,7 @@ class Tamborlane2008DataLoader(DatasetBase):
         self,
         keep_columns: Optional[List[str]] = None,
         num_validation_days: int = 7,  # Shorter validation for CGM data
+        train_percentage: float = 0.9,
         use_cached: bool = True,
         dataset_type: str = "train",
         parallel: bool = True,
@@ -102,6 +106,7 @@ class Tamborlane2008DataLoader(DatasetBase):
         Args:
             keep_columns: Specific columns to load from the dataset
             num_validation_days: Number of days to use for validation (default 7)
+            train_percentage: Percentage of data to use for training (default 0.9)
             use_cached: Whether to use cached processed data if available
             dataset_type: Type of dataset to load ('train' or 'test')
             parallel: Whether to use parallel processing
@@ -119,6 +124,7 @@ class Tamborlane2008DataLoader(DatasetBase):
 
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
+        self.train_percentage = train_percentage
         self.use_cached = use_cached
         self.dataset_type = dataset_type
         self.parallel = parallel
@@ -138,7 +144,7 @@ class Tamborlane2008DataLoader(DatasetBase):
 
         # Data containers
         self.raw_data = None
-        self.processed_data = {}
+        self.processed_data: Dict[str, pd.DataFrame] | None = {}
         self.train_data = None
         self.validation_data = None
         self.data_metrics = {}
@@ -155,30 +161,46 @@ class Tamborlane2008DataLoader(DatasetBase):
         if self.processed_data:
             self._validate_dataset()
 
+    # Properties
     @property
     def dataset_name(self) -> str:
-        """Return the dataset name."""
+        """Return the dataset name.
+
+        Returns:
+            str: The name identifier for this dataset ('tamborlane_2008').
+        """
         return "tamborlane_2008"
 
     @property
     def num_patients(self) -> int:
-        """Get the number of patients in the dataset."""
+        """Get the number of patients in the dataset.
+
+        Returns:
+            int: The count of patients, or 0 if no data is loaded.
+        """
         if self.processed_data is None:
             return 0
         return len(self.processed_data)
 
     @property
     def patient_ids(self) -> List[str]:
-        """Get list of patient IDs in the dataset."""
+        """Get list of patient IDs in the dataset.
+
+        Returns:
+            List[str]: List of patient ID strings, or empty list if no data.
+        """
         if self.processed_data is None:
             return []
         return list(self.processed_data.keys())
 
     @property
     def train_data_shape_summary(self) -> Dict[str, Tuple[int, int]]:
-        """
-        Get shape summary for each patient's data.
-        Returns a dict mapping patient_id to shape tuple.
+        """Get shape summary for each patient's processed data.
+
+        Returns:
+            Dict[str, Tuple[int, int]]: Dictionary mapping patient IDs to their
+                DataFrame shape as (num_rows, num_columns). Returns empty dict
+                if processed_data is not available.
         """
         if not isinstance(self.processed_data, dict):
             return {}
@@ -190,12 +212,14 @@ class Tamborlane2008DataLoader(DatasetBase):
         return shape_summary
 
     @property
-    def dataset_info(self) -> Dict[str, any]:
-        """
-        Get comprehensive information about the dataset.
+    def dataset_info(self) -> Dict[str, Any]:
+        """Get comprehensive information about the dataset.
 
         Returns:
-            Dictionary containing dataset statistics and metadata
+            Dict[str, Any]: Dictionary containing dataset statistics and metadata
+                including dataset_name, num_patients, patient_ids, dataset_type,
+                num_validation_days, extract_features, and optionally train_shapes,
+                validation_shapes, and metrics.
         """
         info = {
             "dataset_name": self.dataset_name,
@@ -222,10 +246,17 @@ class Tamborlane2008DataLoader(DatasetBase):
 
         return info
 
-    def load_data(self):
-        """
-        Load processed data from cache or process raw data and save to cache.
-        Then split train/validation data.
+    # Public Abstract Method Implementations
+    def load_data(self) -> None:
+        """Load processed data from cache or process raw data and cache it.
+
+        Attempts to load data from cache first if use_cached is True. If cache
+        is not available or use_cached is False, processes raw data and saves
+        to cache. After loading, splits data into train/validation sets if
+        dataset_type is 'train'.
+
+        Side Effects:
+            Sets self.processed_data, self.train_data, and self.validation_data.
         """
         logger.info("=" * 60)
         logger.info("Beginning Tamborlane 2008 data loading process:")
@@ -272,26 +303,32 @@ class Tamborlane2008DataLoader(DatasetBase):
 
         # Split train/validation data
         if self.dataset_type == "train" and isinstance(self.processed_data, dict):
-            self._split_train_validation()
+            self.train_data, self.validation_data = self._split_train_validation()
 
-    def load_raw(self):
-        """
-        Load raw data from CSV files.
-        Searches in subdirectories if no files found in root.
-        Handles the actual CGM data format with RecID, PtID, DeviceDate, etc.
+    def load_raw(self) -> pd.DataFrame:
+        """Load raw CGM data from CSV files.
+
+        Searches for CSV files containing 'DataRTCGM' in the filename within
+        the raw data directory and its subdirectories. Handles the CGM data
+        format with columns: RecID, PtID, DeviceDate, DeviceTime, GlucoseValue.
+
+        Returns:
+            pd.DataFrame: Combined raw data from all found CSV files.
+
+        Raises:
+            FileNotFoundError: If the raw data path does not exist or no
+                data files are found.
+            ValueError: If no data could be loaded from any files.
         """
         # Determine the raw data path
         if self.raw_data_path:
             raw_data_path = self.raw_data_path
         else:
             # Try default cache location
-            raw_data_path = Path("cache/data/awesome_cgm/tamborlane_2008/raw")
+            raw_data_path = Path("cache/data/tamborlane_2008/raw")
             if not raw_data_path.exists():
                 # Try alternative paths
                 for alt_path in [
-                    Path(
-                        "/Users/kirby/BCG-WatAI/nocturnal-hypo-gly-prob-forecast/cache/data/awesome_cgm/tamborlane_2008/raw"
-                    ),
                     Path("./raw"),
                     Path("./data/raw"),
                 ]:
@@ -305,12 +342,10 @@ class Tamborlane2008DataLoader(DatasetBase):
         logger.info(f"Loading raw data from: {raw_data_path}")
 
         # Search for CSV and Excel files recursively
-        csv_files = list(raw_data_path.rglob("*.csv"))
-        excel_files = list(raw_data_path.rglob("*.xlsx")) + list(
-            raw_data_path.rglob("*.xls")
-        )
-
-        all_files = csv_files + excel_files
+        csv_files = [
+            f for f in raw_data_path.rglob("*.csv") if "DataRTCGM" in f.name
+        ]  # Only include relevant files
+        all_files = csv_files  # Don't need: + excel_files
 
         if not all_files:
             raise FileNotFoundError(f"No data files found in {raw_data_path}")
@@ -370,56 +405,108 @@ class Tamborlane2008DataLoader(DatasetBase):
 
         return combined_df
 
-    def _load_from_cache(self, cached_data: Dict[str, pd.DataFrame]):
-        """
-        Load processed data from cache.
+    # Public Methods
+    def get_patient_data(self, patient_id: str) -> Optional[pd.DataFrame]:
+        """Get processed data for a specific patient.
 
         Args:
-            cached_data: Dictionary mapping patient IDs to DataFrames
-        """
-        logger.info("Loading processed data from cache...")
-
-        if not isinstance(cached_data, dict):
-            raise TypeError(f"Expected dict for cached data, got {type(cached_data)}")
-
-        self.processed_data = cached_data
-
-        # Apply column filtering if needed
-        if self.keep_columns:
-            filtered_data = {}
-            for patient_id, patient_df in cached_data.items():
-                columns_to_keep = [
-                    col for col in self.keep_columns if col != "datetime"
-                ]
-
-                # Check column availability
-                available_cols = [
-                    col for col in columns_to_keep if col in patient_df.columns
-                ]
-                if len(available_cols) < len(columns_to_keep):
-                    missing = set(columns_to_keep) - set(available_cols)
-                    logger.warning(f"Patient {patient_id}: Missing columns {missing}")
-
-                if available_cols:
-                    filtered_data[patient_id] = patient_df[available_cols]
-                else:
-                    filtered_data[patient_id] = patient_df
-
-            self.processed_data = filtered_data
-
-    def _process_and_cache_data(self):
-        """
-        Process raw data and save to cache.
-        """
-        self.raw_data = self.load_raw()
-        self.processed_data = self._process_raw_data()
-
-    def _process_raw_data(self) -> Dict[str, pd.DataFrame]:
-        """
-        Process raw data with cleaning and feature extraction.
+            patient_id: The patient identifier string (e.g., 'p01', 'p02').
 
         Returns:
-            Dictionary mapping patient IDs to processed DataFrames
+            Optional[pd.DataFrame]: DataFrame containing the patient's CGM data,
+                or None if the patient is not found or no data is loaded.
+        """
+        if self.processed_data is None:
+            return None
+        return self.processed_data.get(patient_id)
+
+    def get_combined_data(self, data_type: str = "all") -> pd.DataFrame:
+        """Get all patients' data combined into a single DataFrame.
+
+        Args:
+            data_type: Which data subset to return. Options are:
+                - 'all': All processed data (default)
+                - 'train': Only training data
+                - 'validation': Only validation data
+
+        Returns:
+            pd.DataFrame: Combined DataFrame with all patients' data. Each
+                patient's data includes a 'p_num' column identifying the patient.
+                Returns empty DataFrame if no data is available.
+        """
+        if data_type == "train" and self.train_data:
+            data_dict = self.train_data
+        elif data_type == "validation" and self.validation_data:
+            data_dict = self.validation_data
+        else:
+            data_dict = self.processed_data
+
+        if not data_dict:
+            return pd.DataFrame()
+
+        # Combine all patient DataFrames
+        all_dfs = []
+        for patient_id, patient_df in data_dict.items():
+            if isinstance(patient_df, pd.DataFrame):
+                df_copy = patient_df.copy()
+                if "p_num" not in df_copy.columns:
+                    df_copy["p_num"] = patient_id
+                all_dfs.append(df_copy)
+
+        if all_dfs:
+            return pd.concat(all_dfs, ignore_index=False)
+        else:
+            return pd.DataFrame()
+
+    def save_processed_data(
+        self, output_path: Union[str, Path], file_format: str = "csv"
+    ) -> None:
+        """Save processed data to files, one file per patient.
+
+        Args:
+            output_path: Directory path where files will be saved. Created if
+                it does not exist.
+            file_format: Output file format. Supported values are:
+                - 'csv': Comma-separated values (default)
+                - 'parquet': Apache Parquet columnar format
+
+        Raises:
+            ValueError: If an unsupported file format is specified.
+        """
+        output_path = Path(output_path)
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        if self.processed_data is None:
+            logger.warning("No processed data to save")
+            return
+
+        for patient_id, patient_df in self.processed_data.items():
+            if file_format == "csv":
+                file_path = output_path / f"patient_{patient_id}.csv"
+                patient_df.to_csv(file_path)
+            elif file_format == "parquet":
+                file_path = output_path / f"patient_{patient_id}.parquet"
+                patient_df.to_parquet(file_path)
+            else:
+                raise ValueError(f"Unsupported format: {file_format}")
+        num_patients = len(self.processed_data) if self.processed_data else 0
+        logger.info(f"Saved {num_patients} patient files to {output_path}")
+
+    # Protected Abstract Method Implementations
+    def _process_raw_data(self) -> Dict[str, pd.DataFrame]:
+        """Process raw data with cleaning and feature extraction.
+
+        Cleans the raw CGM data, splits by patient, processes each patient's
+        data (in parallel or sequentially based on self.parallel), extracts
+        CGM features if enabled, and caches the results.
+
+        Returns:
+            Dict[str, pd.DataFrame]: Dictionary mapping patient IDs to their
+                processed DataFrames with cleaned glucose values and optional
+                extracted features.
+
+        Raises:
+            ValueError: If raw_data is None (load_raw() not called first).
         """
         if self.raw_data is None:
             raise ValueError("Raw data not loaded. Call load_raw() first.")
@@ -479,15 +566,20 @@ class Tamborlane2008DataLoader(DatasetBase):
 
         return processed_results
 
-    def _process_patients_parallel(self, multipatient_data_dict: Dict) -> Dict:
-        """
-        Process patients in parallel.
+    # Protected Methods
+    def _process_patients_parallel(
+        self, multipatient_data_dict: Dict[str, pd.DataFrame]
+    ) -> Dict[str, pd.DataFrame]:
+        """Process multiple patients' data in parallel using ProcessPoolExecutor.
 
         Args:
-            multipatient_data_dict: Dictionary of patient data
+            multipatient_data_dict: Dictionary mapping patient IDs to their
+                raw DataFrames.
 
         Returns:
-            Dictionary of processed patient data
+            Dict[str, pd.DataFrame]: Dictionary mapping patient IDs to their
+                processed DataFrames. Patients that fail processing are logged
+                but excluded from the result.
         """
         processed_results = {}
 
@@ -518,15 +610,18 @@ class Tamborlane2008DataLoader(DatasetBase):
 
         return processed_results
 
-    def _process_patients_sequential(self, multipatient_data_dict: Dict) -> Dict:
-        """
-        Process patients sequentially.
+    def _process_patients_sequential(
+        self, multipatient_data_dict: Dict[str, pd.DataFrame]
+    ) -> Dict[str, pd.DataFrame]:
+        """Process multiple patients' data sequentially.
 
         Args:
-            multipatient_data_dict: Dictionary of patient data
+            multipatient_data_dict: Dictionary mapping patient IDs to their
+                raw DataFrames.
 
         Returns:
-            Dictionary of processed patient data
+            Dict[str, pd.DataFrame]: Dictionary mapping patient IDs to their
+                processed DataFrames.
         """
         processed_results = {}
 
@@ -540,108 +635,85 @@ class Tamborlane2008DataLoader(DatasetBase):
 
         return processed_results
 
-    def _split_train_validation(self):
+    def _split_train_validation(
+        self,
+    ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
+        """Split processed data into train and validation sets per patient.
+
+        Uses self.train_percentage to determine the split ratio. Patients with
+        insufficient data (less than 2 days) or missing datetime columns are
+        skipped with a warning.
+
+        Returns:
+            tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]: A tuple
+                containing (train_dict, val_dict) where each dict maps patient
+                IDs to their respective train/validation DataFrames.
         """
-        Split processed data into training and validation sets.
-        """
+        train_dict: dict[str, pd.DataFrame] = {}
+        val_dict: dict[str, pd.DataFrame] = {}
+
         if not isinstance(self.processed_data, dict):
-            raise TypeError("Cannot split data: processed_data must be a dictionary")
+            return {}, {}
 
-        # Define split parameters
-        split_params = {
-            "num_validation_days": self.num_validation_days,
-            "split_method": "get_train_validation_split",
-            "dataset_type": self.dataset_type,
-        }
-
-        # Try to load cached split if cache manager available
-        cached_split_data = None
-        if self.cache_manager:
+        for patient_id, df in self.processed_data.items():
+            records = 0
+            span_days = 0
             try:
-                cached_split_data = self.cache_manager.load_split_data(
-                    self.dataset_name, split_params
-                )
-            except (FileNotFoundError, KeyError, ValueError) as e:
-                logger.debug(f"No cached split data available: {e}")
+                patient_df = df.copy()
 
-        if cached_split_data is not None:
-            train_data_dict, validation_data_dict = cached_split_data
-            logger.info(
-                f"Loaded cached train/validation split for {len(train_data_dict)} patients"
-            )
-        else:
-            logger.info(
-                f"Creating new train/validation split with {self.num_validation_days} validation days"
-            )
-
-            train_data_dict = {}
-            validation_data_dict = {}
-
-            for patient_id, patient_df in self.processed_data.items():
-                if not isinstance(patient_df, pd.DataFrame):
-                    logger.warning(f"Skipping patient {patient_id}: not a DataFrame")
-                    continue
-
-                # Ensure datetime index
-                patient_data = patient_df.copy()
-                if not isinstance(patient_data.index, pd.DatetimeIndex):
-                    if "datetime" in patient_data.columns:
-                        patient_data = patient_data.set_index("datetime")
+                # Ensure DatetimeIndex as required by the splitter
+                if isinstance(patient_df.index, pd.DatetimeIndex):
+                    patient_df = patient_df.sort_index()
+                else:
+                    if "datetime" in patient_df.columns:
+                        patient_df = patient_df.sort_values("datetime").set_index(
+                            "datetime"
+                        )
                     else:
-                        logger.warning(f"No datetime index for patient {patient_id}")
+                        logger.warning(
+                            f"Patient {patient_id} skipped: missing 'datetime' column; records={len(patient_df)}"
+                        )
                         continue
 
-                # Ensure p_num column for compatibility
-                if "p_num" not in patient_data.columns:
-                    patient_data["p_num"] = patient_id
-
-                # Split the data
-                patient_train, patient_validation, _ = get_train_validation_split(
-                    patient_data, num_validation_days=self.num_validation_days
+                # Basic span/records info for logging
+                records = len(patient_df)
+                span_days = max(
+                    0, (patient_df.index.max() - patient_df.index.min()).days
                 )
 
-                train_data_dict[patient_id] = patient_train
-                validation_data_dict[patient_id] = patient_validation
+                # Attempt split
+                train_df, val_df, _ = get_train_validation_split_by_percentage(
+                    patient_df, train_percentage=self.train_percentage
+                )
 
-            # Save to cache if cache manager available
-            if self.cache_manager:
-                try:
-                    self.cache_manager.save_split_data(
-                        self.dataset_name,
-                        train_data_dict,
-                        validation_data_dict,
-                        split_params,
-                    )
-                    logger.info(
-                        f"Cached train/validation split for {len(train_data_dict)} patients"
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to cache split data: {e}")
+                train_dict[patient_id] = train_df
+                val_dict[patient_id] = val_df
 
-        self.train_data = train_data_dict
-        self.validation_data = validation_data_dict
+            except (ValueError, TypeError) as e:
+                # p81 should be the only patient with insufficient data.
+                logger.warning(
+                    f"Patient {patient_id} skipped due to insufficient/invalid data: "
+                    f"{e}; records={records}, span_days={span_days}"
+                )
+                continue
+            except Exception as e:
+                logger.warning(
+                    f"Patient {patient_id} skipped due to unexpected error: {e}; "
+                    f"records={records if 'records' in locals() else 'unknown'}"
+                )
+                continue
 
-        # Calculate metadata
-        if validation_data_dict:
-            first_val_df = next(iter(validation_data_dict.values()))
-            self.val_dt_col_type = first_val_df.index.dtype
+        return train_dict, val_dict
 
-        if train_data_dict:
-            first_train_df = next(iter(train_data_dict.values()))
-            self.train_dt_col_type = first_train_df.index.dtype
+    def _validate_dataset(self) -> None:
+        """Validate the loaded dataset and compute quality metrics.
 
-            # Calculate total training days
-            all_train_dates = set()
-            for patient_train_df in train_data_dict.values():
-                if isinstance(patient_train_df.index, pd.DatetimeIndex):
-                    datetime_index = pd.DatetimeIndex(patient_train_df.index)
-                    patient_dates = datetime_index.date
-                    all_train_dates.update(patient_dates)
-            self.num_train_days = len(all_train_dates) if all_train_dates else 0
+        Combines all patient data and computes validation metrics including
+        total rows, unique patients, glucose statistics, and time-in-range
+        percentages. Results are stored in self.data_metrics and logged.
 
-    def _validate_dataset(self):
-        """
-        Validate the loaded dataset and compute quality metrics.
+        Side Effects:
+            Sets self.data_metrics with computed validation metrics.
         """
         if not self.processed_data:
             logger.warning("No data to validate")
@@ -687,74 +759,65 @@ class Tamborlane2008DataLoader(DatasetBase):
                     f"  Time above range: {self.data_metrics['time_above_range']:.1f}%"
                 )
 
-    def get_patient_data(self, patient_id: str) -> Optional[pd.DataFrame]:
-        """
-        Get data for a specific patient.
+    def _load_from_cache(self, cached_data: Dict[str, pd.DataFrame]) -> None:
+        """Load and filter processed data from cache.
+
+        Loads cached data into self.processed_data and optionally filters
+        columns based on self.keep_columns.
 
         Args:
-            patient_id: The patient identifier
+            cached_data: Dictionary mapping patient IDs to their cached
+                DataFrames.
 
-        Returns:
-            DataFrame for the patient or None if not found
+        Raises:
+            TypeError: If cached_data is not a dictionary.
+
+        Side Effects:
+            Sets self.processed_data with the loaded (and optionally filtered)
+            data.
         """
-        return self.processed_data.get(patient_id)
+        logger.info("Loading processed data from cache...")
 
-    def get_combined_data(self, data_type: str = "all") -> pd.DataFrame:
+        if not isinstance(cached_data, dict):
+            raise TypeError(f"Expected dict for cached data, got {type(cached_data)}")
+
+        self.processed_data = cached_data
+
+        # Apply column filtering if needed
+        if self.keep_columns:
+            filtered_data = {}
+            for patient_id, patient_df in cached_data.items():
+                columns_to_keep = [
+                    col for col in self.keep_columns if col != "datetime"
+                ]
+
+                # Check column availability
+                available_cols = [
+                    col for col in columns_to_keep if col in patient_df.columns
+                ]
+                if len(available_cols) < len(columns_to_keep):
+                    missing = set(columns_to_keep) - set(available_cols)
+                    logger.warning(f"Patient {patient_id}: Missing columns {missing}")
+
+                if available_cols:
+                    filtered_data[patient_id] = patient_df[available_cols]
+                else:
+                    filtered_data[patient_id] = patient_df
+
+            self.processed_data = filtered_data
+
+    def _process_and_cache_data(self) -> None:
+        """Process raw data and cache the results.
+
+        Loads raw data via load_raw(), processes it via _process_raw_data(),
+        and stores results in self.processed_data. Caching is handled within
+        _process_raw_data().
+
+        Side Effects:
+            Sets self.raw_data and self.processed_data.
         """
-        Get all data combined into a single DataFrame.
-
-        Args:
-            data_type: Which data to return ('all', 'train', or 'validation')
-
-        Returns:
-            Combined DataFrame with all patients' data
-        """
-        if data_type == "train" and self.train_data:
-            data_dict = self.train_data
-        elif data_type == "validation" and self.validation_data:
-            data_dict = self.validation_data
-        else:
-            data_dict = self.processed_data
-
-        if not data_dict:
-            return pd.DataFrame()
-
-        # Combine all patient DataFrames
-        all_dfs = []
-        for patient_id, patient_df in data_dict.items():
-            if isinstance(patient_df, pd.DataFrame):
-                df_copy = patient_df.copy()
-                if "p_num" not in df_copy.columns:
-                    df_copy["p_num"] = patient_id
-                all_dfs.append(df_copy)
-
-        if all_dfs:
-            return pd.concat(all_dfs, ignore_index=False)
-        else:
-            return pd.DataFrame()
-
-    def save_processed_data(self, output_path: Union[str, Path], format: str = "csv"):
-        """
-        Save processed data to files.
-
-        Args:
-            output_path: Directory to save files
-            format: File format ('csv' or 'parquet')
-        """
-        output_path = Path(output_path)
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        for patient_id, patient_df in self.processed_data.items():
-            if format == "csv":
-                file_path = output_path / f"patient_{patient_id}.csv"
-                patient_df.to_csv(file_path)
-            elif format == "parquet":
-                file_path = output_path / f"patient_{patient_id}.parquet"
-                patient_df.to_parquet(file_path)
-            else:
-                raise ValueError(f"Unsupported format: {format}")
-
-        logger.info(f"Saved {len(self.processed_data)} patient files to {output_path}")
+        self.raw_data = self.load_raw()
+        self.processed_data = self._process_raw_data()
 
 
 # Example usage and testing
@@ -787,11 +850,13 @@ if __name__ == "__main__":
         sample_patient_id = loader.patient_ids[0]
         sample_data = loader.get_patient_data(sample_patient_id)
 
-        print(f"\nSample data for patient {sample_patient_id}:")
-        print(f"  Shape: {sample_data.shape}")
-        print(f"  Columns: {list(sample_data.columns)}")
-        print(f"  Date range: {sample_data.index.min()} to {sample_data.index.max()}")
-
-        # Show first few rows
-        print("\nFirst 5 rows:")
-        print(sample_data.head())
+        if sample_data is not None:
+            print(f"\nSample data for patient {sample_patient_id}:")
+            print(f"  Shape: {sample_data.shape}")
+            print(f"  Columns: {list(sample_data.columns)}")
+            print(
+                f"  Date range: {sample_data.index.min()} to {sample_data.index.max()}"
+            )
+            # Show first few rows
+            print("\nFirst 5 rows:")
+            print(sample_data.head())

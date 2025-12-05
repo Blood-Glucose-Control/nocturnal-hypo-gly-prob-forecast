@@ -102,15 +102,6 @@ class DatasetBase(ABC):
 
     # Public Abstract Methods
     @abstractmethod
-    def load_raw(self):
-        """Load the raw dataset without any processing.
-
-        Returns:
-            pd.DataFrame or pd.Series: The raw dataset
-        """
-        raise NotImplementedError("load_raw must be implemented by subclass")
-
-    @abstractmethod
     def load_data(self):
         """Load the processed dataset.
 
@@ -121,6 +112,15 @@ class DatasetBase(ABC):
             pd.DataFrame or pd.Series: The processed dataset ready for use
         """
         raise NotImplementedError("load_data must be implemented by subclass")
+
+    @abstractmethod
+    def load_raw(self):
+        """Load the raw dataset without any processing.
+
+        Returns:
+            pd.DataFrame or pd.Series: The raw dataset
+        """
+        raise NotImplementedError("load_raw must be implemented by subclass")
 
     # Public Methods
     def create_validation_table(self):
@@ -217,6 +217,7 @@ class DatasetBase(ABC):
         """
         raise NotImplementedError("_process_raw_data must be implemented by subclass")
 
+    # Protected Methods
     def _validate_data(self, data):
         """Validate the loaded data.
 
