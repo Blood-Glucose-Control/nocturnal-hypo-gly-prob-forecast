@@ -29,6 +29,7 @@ Functions:
     get_most_common_time_interval: Determine the most frequent sampling interval
     ensure_regular_time_intervals: Normalize data to have consistent time intervals
     split_patient_data_by_day: Split patient data into daily segments based on 6am transitions
+    get_daytime_nocturnal_splits: Split patient data into daytime (6am-12am) and nocturnal (12am-6am) periods
     get_train_validation_split: Create robust train and validation sets for a single patient with DatetimeIndex requirement for optimal performance
 """
 
@@ -179,6 +180,72 @@ def split_patient_data_by_day(patients_dfs: pd.DataFrame, patient_id: str) -> di
         daily_dfs[key] = daily_df
 
     return daily_dfs
+
+
+def get_daytime_nocturnal_splits(
+    patient_df: pd.DataFrame,
+    datetime_col: str = "datetime",
+) -> Generator[tuple[pd.DataFrame, pd.DataFrame], None, None]:
+    """
+    Split patient data into daytime (6am-12am) and nocturnal (12am-6am) periods.
+
+    For each day, yields a tuple of:
+    - Daytime data: 6am-12am of the current day (context for prediction)
+    - Nocturnal data: 12am-6am of the following day (target to predict)
+
+    This is useful for nocturnal hypoglycemia prediction tasks where models
+    use daytime data to predict overnight glucose values.
+
+    Args:
+        patient_df: DataFrame for a single patient. Can have either:
+            - DatetimeIndex, or
+            - A datetime column specified by datetime_col
+        datetime_col: Name of datetime column if not using DatetimeIndex.
+            Default: "datetime"
+
+    Yields:
+        tuple[pd.DataFrame, pd.DataFrame]: (daytime_df, nocturnal_df) where
+            daytime_df has data from 6am-12am of current day
+            nocturnal_df has data from 12am-6am of following day
+
+    Example:
+        >>> for daytime, nocturnal in get_daytime_nocturnal_splits(patient_df):
+        ...     context = daytime["bg_mM"].values
+        ...     target = nocturnal["bg_mM"].values
+        ...     # Train/predict using context -> target
+    """
+    df = patient_df.copy()
+
+    # Handle DatetimeIndex or datetime column
+    if isinstance(df.index, pd.DatetimeIndex):
+        df = df.reset_index()
+        df.rename(columns={df.columns[0]: datetime_col}, inplace=True)
+
+    if datetime_col not in df.columns:
+        raise ValueError(
+            f"DataFrame must have DatetimeIndex or '{datetime_col}' column"
+        )
+
+    df[datetime_col] = pd.to_datetime(df[datetime_col])
+    df = df.sort_values(datetime_col)
+
+    # Group by date and extract daytime/nocturnal splits (sort=True ensures chronological order)
+    for date, day_data in df.groupby(df[datetime_col].dt.date, sort=True):  # type: ignore[union-attr]
+        # Daytime: 6am-12am (hour >= 6)
+        daytime_df = day_data[day_data[datetime_col].dt.hour >= 6].copy()  # type: ignore[union-attr]
+
+        # Nocturnal: 12am-6am next day (hour < 6)
+        next_date = date + pd.Timedelta(days=1)
+        nocturnal_df = df[
+            (df[datetime_col].dt.date == next_date)  # type: ignore[union-attr]
+            & (df[datetime_col].dt.hour < 6)  # type: ignore[union-attr]
+        ].copy()
+
+        if len(daytime_df) > 0 and len(nocturnal_df) > 0:
+            # Set datetime as index for consistency
+            daytime_df.set_index(datetime_col, inplace=True)
+            nocturnal_df.set_index(datetime_col, inplace=True)
+            yield daytime_df, nocturnal_df
 
 
 @deprecated(

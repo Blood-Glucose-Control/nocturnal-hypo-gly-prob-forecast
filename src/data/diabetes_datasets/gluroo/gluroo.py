@@ -24,7 +24,10 @@ import pandas as pd
 from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.diabetes_datasets.gluroo.data_cleaner import data_translation
 from src.data.preprocessing.pipeline import preprocessing_pipeline
-from src.data.preprocessing.time_processing import get_train_validation_split
+from src.data.preprocessing.time_processing import (
+    get_train_validation_split,
+    get_daytime_nocturnal_splits,
+)
 
 
 # TODO: Maybe need to return the test set too.
@@ -242,23 +245,4 @@ class GlurooDataLoader(DatasetBase):
                   current_day_data is from 6am-12am of the current day
                   next_day_data is from 12am-6am of the following day
         """
-
-        patient_data.loc[:, "datetime"] = pd.to_datetime(patient_data["datetime"])
-
-        # Ensure data is sorted by datetime
-        patient_data = patient_data.sort_values("datetime")
-
-        # Group by date
-        for date, day_data in patient_data.groupby(patient_data["datetime"].dt.date):
-            # Get next day's early morning data (12am-6am)
-            next_date = date + pd.Timedelta(days=1)
-            next_day_data = patient_data[
-                (patient_data["datetime"].dt.date == next_date)
-                & (patient_data["datetime"].dt.hour < 6)
-            ]
-
-            # Get current day's data (6am-12am)
-            current_day_data = day_data[day_data["datetime"].dt.hour >= 6]
-
-            if len(next_day_data) > 0 and len(current_day_data) > 0:
-                yield current_day_data, next_day_data
+        yield from get_daytime_nocturnal_splits(patient_data, datetime_col="datetime")
