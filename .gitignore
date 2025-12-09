@@ -67,6 +67,7 @@ cache/**/*.csv
 cache/**/*.txt
 cache/**/*.json
 cache/**/*.pkl
+cache/data/brown_2019/*
 cache/data/lynch_2022/*
 cache/data/tamborlane_2008/*
 cache/data/aleppo/*
