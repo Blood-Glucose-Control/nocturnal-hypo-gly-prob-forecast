@@ -35,6 +35,7 @@ from src.data.preprocessing.sampling import (
     ensure_regular_time_intervals_with_aggregation,
 )
 from src.utils.os_helper import get_project_root
+from src.utils.unit import mg_dl_to_mmol_l
 
 logger = logging.getLogger(__name__)
 
@@ -280,7 +281,7 @@ def clean_brown_2019_data(
     # ========== STEP 8: Final rename to standard schema ==========
     # Convert BG from mg/dL to mmol/L
     merged["bg_mgdL"] = merged[RAW_COLS["cgm_value"]]
-    merged[ColumnNames.BG.value] = (merged["bg_mgdL"] / 18.0).round(2)
+    merged[ColumnNames.BG.value] = mg_dl_to_mmol_l(merged, "bg_mgdL")
 
     # Rename to standard column names
     merged = merged.rename(
