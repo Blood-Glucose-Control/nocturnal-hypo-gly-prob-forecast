@@ -133,7 +133,14 @@ def get_loader(
     config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
-) -> Union[BrisT1DDataLoader, GlurooDataLoader, Lynch2022DataLoader, AleppoDataLoader, Brown2019DataLoader, Tamborlane2008DataLoader]:
+) -> Union[
+    BrisT1DDataLoader,
+    GlurooDataLoader,
+    Lynch2022DataLoader,
+    AleppoDataLoader,
+    Brown2019DataLoader,
+    Tamborlane2008DataLoader,
+]:
     """
     Factory function to create and return the appropriate data loader instance.
 
