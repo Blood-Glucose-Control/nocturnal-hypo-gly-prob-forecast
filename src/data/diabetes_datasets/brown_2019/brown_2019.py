@@ -17,13 +17,16 @@ Data Sources:
 """
 
 import logging
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pandas as pd
+from tqdm import tqdm
 
 from src.data.cache_manager import get_cache_manager
 from src.data.dataset_configs import DatasetConfig, get_dataset_config
 from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.models import ColumnNames, DatasetSourceType
+from src.data.preprocessing.pipeline import preprocessing_pipeline
 from src.data.preprocessing.time_processing import (
     get_train_validation_split_by_percentage,
 )
@@ -35,6 +38,41 @@ from src.data.diabetes_datasets.brown_2019.data_cleaner import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _process_single_patient(args: tuple) -> tuple[str, pd.DataFrame]:
+    """
+    Process a single patient's data through the preprocessing pipeline.
+
+    This is a module-level function (required for pickling in ProcessPoolExecutor).
+
+    Args:
+        args: Tuple of (patient_id, patient_df, use_aggregation, basal_delivery_type)
+
+    Returns:
+        Tuple of (patient_id_str, processed_df)
+    """
+    patient_id, patient_df, use_aggregation, basal_delivery_type = args
+
+    # Preserve original bolus before basal is added to dose_units
+    patient_df[ColumnNames.BOLUS.value] = patient_df[
+        ColumnNames.DOSE_UNITS.value
+    ].copy()
+
+    # Run preprocessing pipeline (basal rollover, IOB/COB calculation)
+    try:
+        patient_df = preprocessing_pipeline(
+            str(patient_id),
+            patient_df,
+            use_aggregation=use_aggregation,
+            basal_delivery_type=basal_delivery_type,
+        )
+    except Exception as e:
+        logger.warning(
+            f"Patient {patient_id} preprocessing failed: {e}. Using cleaned data."
+        )
+
+    return str(int(patient_id)), patient_df
 
 
 class Brown2019DataLoader(DatasetBase):
@@ -51,6 +89,8 @@ class Brown2019DataLoader(DatasetBase):
         use_cached: Use cached processed data if available.
         train_percentage: Percentage of data for training (0.0-1.0).
         keep_columns: List of columns to keep (None = keep all).
+        parallel: Use parallel processing for patient preprocessing.
+        max_workers: Number of parallel workers (default 3).
 
     Example:
         ```python
@@ -65,11 +105,15 @@ class Brown2019DataLoader(DatasetBase):
         use_cached: bool = True,
         train_percentage: float = 0.9,
         keep_columns: list[str] | None = None,
+        parallel: bool = True,
+        max_workers: int = 3,
     ):
         super().__init__()
         self.use_cached = use_cached
         self.train_percentage = train_percentage
         self.keep_columns = keep_columns
+        self.parallel = parallel
+        self.max_workers = max_workers
 
         self.cache_manager = get_cache_manager()
         self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
@@ -160,6 +204,8 @@ class Brown2019DataLoader(DatasetBase):
         """
         Process raw data into cleaned, per-patient DataFrames.
 
+        Uses parallel processing if self.parallel=True.
+
         Returns:
             Dict mapping patient_id -> DataFrame.
         """
@@ -169,29 +215,63 @@ class Brown2019DataLoader(DatasetBase):
         # Clean and merge
         cleaned_df = clean_brown_2019_data(cgm_df, basal_df, bolus_df)
 
-        # Split into per-patient dict
+        # Prepare patient data tuples for processing
+        # Brown 2019 uses Control-IQ (automated basal) - rate persists until next change
+        # use_aggregation=False because data_cleaner already produces regularized 5-min data
+        patient_tuples = [
+            (patient_id, group.copy(), False, "automated")
+            for patient_id, group in cleaned_df.groupby(ColumnNames.P_NUM.value)
+        ]
+
         patient_dict = {}
-        for patient_id, group in cleaned_df.groupby(ColumnNames.P_NUM.value):
-            patient_df = group.copy()
 
-            # TODO: Re-enable preprocessing once rollover_basal_rate supports automated basal
-            # Brown 2019 uses Control-IQ (automated basal) which doesn't have basal_duration_mins.
-            # See: https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast/issues/301
-            # try:
-            #     patient_df = process_single_patient(patient_df, str(patient_id))
-            # except Exception as e:
-            #     logger.warning(
-            #         f"Patient {patient_id} preprocessing failed: {e}. Using cleaned data."
-            #     )
+        if self.parallel and len(patient_tuples) > 1:
+            # Parallel processing
+            logger.info(
+                f"Processing {len(patient_tuples)} patients in parallel "
+                f"(max_workers={self.max_workers})"
+            )
+            with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = {
+                    executor.submit(_process_single_patient, pt): pt[0]
+                    for pt in patient_tuples
+                }
+                for future in tqdm(
+                    as_completed(futures),
+                    total=len(futures),
+                    desc="Processing patients",
+                ):
+                    patient_id = futures[future]
+                    try:
+                        pid, patient_df = future.result()
 
-            # Filter columns if requested
-            if self.keep_columns is not None:
-                available_cols = [
-                    c for c in self.keep_columns if c in patient_df.columns
-                ]
-                patient_df = patient_df[available_cols]
+                        # Filter columns if requested
+                        if self.keep_columns is not None:
+                            available_cols = [
+                                c for c in self.keep_columns if c in patient_df.columns
+                            ]
+                            patient_df = patient_df[available_cols]
 
-            patient_dict[str(int(patient_id))] = patient_df
+                        patient_dict[pid] = patient_df
+                    except Exception as e:
+                        logger.error(f"Patient {patient_id} failed: {e}")
+        else:
+            # Sequential processing (for debugging or single patient)
+            logger.info(f"Processing {len(patient_tuples)} patients sequentially")
+            for patient_tuple in tqdm(patient_tuples, desc="Processing patients"):
+                try:
+                    pid, patient_df = _process_single_patient(patient_tuple)
+
+                    # Filter columns if requested
+                    if self.keep_columns is not None:
+                        available_cols = [
+                            c for c in self.keep_columns if c in patient_df.columns
+                        ]
+                        patient_df = patient_df[available_cols]
+
+                    patient_dict[pid] = patient_df
+                except Exception as e:
+                    logger.error(f"Patient {patient_tuple[0]} failed: {e}")
 
         logger.info(f"Processed {len(patient_dict)} patients")
         return patient_dict

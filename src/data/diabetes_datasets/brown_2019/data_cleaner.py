@@ -257,11 +257,10 @@ def clean_brown_2019_data(
     # Bolus: no bolus = 0 units
     merged[RAW_COLS["bolus_amount"]] = merged[RAW_COLS["bolus_amount"]].fillna(0)
 
-    # Basal: forward fill per patient (rate persists until next change)
+    # Basal: Keep SPARSE (only rate-change events)
+    # The preprocessing pipeline's _rollover_basal_automated() will handle forward-fill
+    # and conversion to dose_units during IOB calculation
     merged = merged.sort_values([p_num_col, dt_col])
-    merged[RAW_COLS["basal_rate"]] = merged.groupby(p_num_col)[
-        RAW_COLS["basal_rate"]
-    ].ffill()
 
     # Log NaN analysis
     patients_with_pump = set(basal_agg[p_num_col].unique())
@@ -341,7 +340,12 @@ def process_single_patient(
         if dt_col in patient_df.columns:
             patient_df = patient_df.set_index(dt_col)
 
-    processed_df = preprocessing_pipeline(p_num, patient_df, use_aggregation=True)
+    processed_df = preprocessing_pipeline(
+        p_num,
+        patient_df,
+        use_aggregation=True,
+        basal_delivery_type="automated",
+    )
 
     return processed_df
 

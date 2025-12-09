@@ -24,6 +24,7 @@ class ColumnNames(str, Enum):
     DATETIME = "datetime"
     P_NUM = "p_num"
     DOSE_UNITS = "dose_units"
+    BOLUS = "bolus"
     FOOD_G = "food_g"
     MSG_TYPE = "msg_type"
     COB = "cob"
