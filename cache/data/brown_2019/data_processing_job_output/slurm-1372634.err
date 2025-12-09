@@ -12,1181 +12,1181 @@
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 1 
-			 - old index length: 57016, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 1
+			 - old index length: 57016,
 			 - new index length: 58465
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 2 
-			 - old index length: 53500, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 2
+			 - old index length: 53500,
 			 - new index length: 58269
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 3 
-			 - old index length: 57564, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 3
+			 - old index length: 57564,
 			 - new index length: 58752
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 4 
-			 - old index length: 48772, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 4
+			 - old index length: 48772,
 			 - new index length: 56301
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 5 
-			 - old index length: 57114, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 5
+			 - old index length: 57114,
 			 - new index length: 58465
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 6 
-			 - old index length: 55176, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 6
+			 - old index length: 55176,
 			 - new index length: 56738
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 7 
-			 - old index length: 54957, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 7
+			 - old index length: 54957,
 			 - new index length: 57889
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 8 
-			 - old index length: 51515, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 8
+			 - old index length: 51515,
 			 - new index length: 52888
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 9 
-			 - old index length: 44897, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 9
+			 - old index length: 44897,
 			 - new index length: 56517
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 10 
-			 - old index length: 55870, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 10
+			 - old index length: 55870,
 			 - new index length: 57313
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 12 
-			 - old index length: 55049, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 12
+			 - old index length: 55049,
 			 - new index length: 56611
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 13 
-			 - old index length: 56636, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 13
+			 - old index length: 56636,
 			 - new index length: 57889
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 14 
-			 - old index length: 53630, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 14
+			 - old index length: 53630,
 			 - new index length: 55009
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 15 
-			 - old index length: 53802, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 15
+			 - old index length: 53802,
 			 - new index length: 55873
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 16 
-			 - old index length: 51282, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 16
+			 - old index length: 51282,
 			 - new index length: 55441
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 17 
-			 - old index length: 53100, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 17
+			 - old index length: 53100,
 			 - new index length: 56345
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 18 
-			 - old index length: 51775, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 18
+			 - old index length: 51775,
 			 - new index length: 56737
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 19 
-			 - old index length: 56503, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 19
+			 - old index length: 56503,
 			 - new index length: 58465
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 20 
-			 - old index length: 50944, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 20
+			 - old index length: 50944,
 			 - new index length: 56263
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 21 
-			 - old index length: 52399, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 21
+			 - old index length: 52399,
 			 - new index length: 57373
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 22 
-			 - old index length: 57629, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 22
+			 - old index length: 57629,
 			 - new index length: 58634
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 23 
-			 - old index length: 56541, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 23
+			 - old index length: 56541,
 			 - new index length: 58740
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 24 
-			 - old index length: 54144, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 24
+			 - old index length: 54144,
 			 - new index length: 56403
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 25 
-			 - old index length: 54656, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 25
+			 - old index length: 54656,
 			 - new index length: 56160
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 26 
-			 - old index length: 54387, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 26
+			 - old index length: 54387,
 			 - new index length: 56335
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 27 
-			 - old index length: 54987, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 27
+			 - old index length: 54987,
 			 - new index length: 56160
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 28 
-			 - old index length: 55911, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 28
+			 - old index length: 55911,
 			 - new index length: 58082
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 29 
-			 - old index length: 53809, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 29
+			 - old index length: 53809,
 			 - new index length: 56160
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 30 
-			 - old index length: 51781, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 30
+			 - old index length: 51781,
 			 - new index length: 58327
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 31 
-			 - old index length: 52694, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 31
+			 - old index length: 52694,
 			 - new index length: 55584
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 32 
-			 - old index length: 55263, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 32
+			 - old index length: 55263,
 			 - new index length: 57888
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 34 
-			 - old index length: 55499, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 34
+			 - old index length: 55499,
 			 - new index length: 57487
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 35 
-			 - old index length: 50556, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 35
+			 - old index length: 50556,
 			 - new index length: 56449
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 36 
-			 - old index length: 52284, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 36
+			 - old index length: 52284,
 			 - new index length: 58272
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 37 
-			 - old index length: 57054, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 37
+			 - old index length: 57054,
 			 - new index length: 58464
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 38 
-			 - old index length: 56440, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 38
+			 - old index length: 56440,
 			 - new index length: 58176
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 39 
-			 - old index length: 53991, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 39
+			 - old index length: 53991,
 			 - new index length: 56763
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 40 
-			 - old index length: 47676, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 40
+			 - old index length: 47676,
 			 - new index length: 55795
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 41 
-			 - old index length: 53995, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 41
+			 - old index length: 53995,
 			 - new index length: 56448
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 42 
-			 - old index length: 53533, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 42
+			 - old index length: 53533,
 			 - new index length: 54720
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 43 
-			 - old index length: 55828, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 43
+			 - old index length: 55828,
 			 - new index length: 57526
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 44 
-			 - old index length: 54012, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 44
+			 - old index length: 54012,
 			 - new index length: 56448
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 45 
-			 - old index length: 46122, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 45
+			 - old index length: 46122,
 			 - new index length: 57097
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 46 
-			 - old index length: 50750, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 46
+			 - old index length: 50750,
 			 - new index length: 55828
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 47 
-			 - old index length: 56346, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 47
+			 - old index length: 56346,
 			 - new index length: 57601
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 48 
-			 - old index length: 56363, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 48
+			 - old index length: 56363,
 			 - new index length: 58017
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 49 
-			 - old index length: 55087, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 49
+			 - old index length: 55087,
 			 - new index length: 58186
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 50 
-			 - old index length: 51810, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 50
+			 - old index length: 51810,
 			 - new index length: 56167
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 51 
-			 - old index length: 53553, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 51
+			 - old index length: 53553,
 			 - new index length: 55753
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 52 
-			 - old index length: 53284, 
+2025-12-09T05:30:26 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 52
+			 - old index length: 53284,
 			 - new index length: 54720
 2025-12-09T05:30:26 -   Processed 50/168 patients...
 2025-12-09T05:30:26 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:26 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:26 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 53 
-			 - old index length: 51416, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 53
+			 - old index length: 51416,
 			 - new index length: 55386
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 54 
-			 - old index length: 55897, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 54
+			 - old index length: 55897,
 			 - new index length: 57600
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 55 
-			 - old index length: 53050, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 55
+			 - old index length: 53050,
 			 - new index length: 55584
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 56 
-			 - old index length: 53367, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 56
+			 - old index length: 53367,
 			 - new index length: 58310
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 57 
-			 - old index length: 56926, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 57
+			 - old index length: 56926,
 			 - new index length: 58464
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 58 
-			 - old index length: 54043, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 58
+			 - old index length: 54043,
 			 - new index length: 55301
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 59 
-			 - old index length: 54892, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 59
+			 - old index length: 54892,
 			 - new index length: 58464
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 60 
-			 - old index length: 54924, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 60
+			 - old index length: 54924,
 			 - new index length: 56592
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 61 
-			 - old index length: 49944, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 61
+			 - old index length: 49944,
 			 - new index length: 56831
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 62 
-			 - old index length: 56576, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 62
+			 - old index length: 56576,
 			 - new index length: 58464
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 63 
-			 - old index length: 55165, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 63
+			 - old index length: 55165,
 			 - new index length: 56736
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 64 
-			 - old index length: 55358, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 64
+			 - old index length: 55358,
 			 - new index length: 56737
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 65 
-			 - old index length: 56369, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 65
+			 - old index length: 56369,
 			 - new index length: 58464
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 66 
-			 - old index length: 54605, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 66
+			 - old index length: 54605,
 			 - new index length: 56281
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 67 
-			 - old index length: 51284, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 67
+			 - old index length: 51284,
 			 - new index length: 55739
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 68 
-			 - old index length: 54675, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 68
+			 - old index length: 54675,
 			 - new index length: 243936
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 69 
-			 - old index length: 55710, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 69
+			 - old index length: 55710,
 			 - new index length: 56737
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 70 
-			 - old index length: 56503, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 70
+			 - old index length: 56503,
 			 - new index length: 58752
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 71 
-			 - old index length: 55154, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 71
+			 - old index length: 55154,
 			 - new index length: 57712
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 72 
-			 - old index length: 56646, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 72
+			 - old index length: 56646,
 			 - new index length: 58464
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 73 
-			 - old index length: 52875, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 73
+			 - old index length: 52875,
 			 - new index length: 55601
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 74 
-			 - old index length: 55228, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 74
+			 - old index length: 55228,
 			 - new index length: 58562
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 75 
-			 - old index length: 57337, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 75
+			 - old index length: 57337,
 			 - new index length: 58465
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 76 
-			 - old index length: 48921, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 76
+			 - old index length: 48921,
 			 - new index length: 54233
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 77 
-			 - old index length: 55206, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 77
+			 - old index length: 55206,
 			 - new index length: 57426
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 78 
-			 - old index length: 52984, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 78
+			 - old index length: 52984,
 			 - new index length: 57025
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 79 
-			 - old index length: 53101, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 79
+			 - old index length: 53101,
 			 - new index length: 57593
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 80 
-			 - old index length: 55511, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 80
+			 - old index length: 55511,
 			 - new index length: 58176
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 81 
-			 - old index length: 54447, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 81
+			 - old index length: 54447,
 			 - new index length: 56492
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 82 
-			 - old index length: 45987, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 82
+			 - old index length: 45987,
 			 - new index length: 56308
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 83 
-			 - old index length: 52960, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 83
+			 - old index length: 52960,
 			 - new index length: 56161
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 85 
-			 - old index length: 52610, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 85
+			 - old index length: 52610,
 			 - new index length: 54885
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 86 
-			 - old index length: 54041, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 86
+			 - old index length: 54041,
 			 - new index length: 56736
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 87 
-			 - old index length: 55451, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 87
+			 - old index length: 55451,
 			 - new index length: 56160
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 88 
-			 - old index length: 54424, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 88
+			 - old index length: 54424,
 			 - new index length: 56336
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 89 
-			 - old index length: 47349, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 89
+			 - old index length: 47349,
 			 - new index length: 57888
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 90 
-			 - old index length: 55143, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 90
+			 - old index length: 55143,
 			 - new index length: 56449
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 91 
-			 - old index length: 56493, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 91
+			 - old index length: 56493,
 			 - new index length: 57312
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 92 
-			 - old index length: 54184, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 92
+			 - old index length: 54184,
 			 - new index length: 55925
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 93 
-			 - old index length: 52338, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 93
+			 - old index length: 52338,
 			 - new index length: 55008
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 94 
-			 - old index length: 56874, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 94
+			 - old index length: 56874,
 			 - new index length: 58766
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 95 
-			 - old index length: 54702, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 95
+			 - old index length: 54702,
 			 - new index length: 56515
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 96 
-			 - old index length: 51287, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 96
+			 - old index length: 51287,
 			 - new index length: 55296
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 97 
-			 - old index length: 52574, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 97
+			 - old index length: 52574,
 			 - new index length: 57020
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 98 
-			 - old index length: 56522, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 98
+			 - old index length: 56522,
 			 - new index length: 57457
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 99 
-			 - old index length: 54736, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 99
+			 - old index length: 54736,
 			 - new index length: 56737
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 100 
-			 - old index length: 54851, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 100
+			 - old index length: 54851,
 			 - new index length: 55751
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 101 
-			 - old index length: 53053, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 101
+			 - old index length: 53053,
 			 - new index length: 55120
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 102 
-			 - old index length: 56782, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 102
+			 - old index length: 56782,
 			 - new index length: 58465
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 103 
-			 - old index length: 53195, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 103
+			 - old index length: 53195,
 			 - new index length: 56506
 2025-12-09T05:30:27 -   Processed 100/168 patients...
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 104 
-			 - old index length: 52279, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 104
+			 - old index length: 52279,
 			 - new index length: 55413
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 105 
-			 - old index length: 50605, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 105
+			 - old index length: 50605,
 			 - new index length: 55008
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 106 
-			 - old index length: 55391, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 106
+			 - old index length: 55391,
 			 - new index length: 56449
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 107 
-			 - old index length: 53059, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 107
+			 - old index length: 53059,
 			 - new index length: 55584
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 108 
-			 - old index length: 55015, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 108
+			 - old index length: 55015,
 			 - new index length: 56244
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 109 
-			 - old index length: 55326, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 109
+			 - old index length: 55326,
 			 - new index length: 56027
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 110 
-			 - old index length: 55360, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 110
+			 - old index length: 55360,
 			 - new index length: 58753
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 111 
-			 - old index length: 56386, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 111
+			 - old index length: 56386,
 			 - new index length: 58289
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 112 
-			 - old index length: 47954, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 112
+			 - old index length: 47954,
 			 - new index length: 55991
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 113 
-			 - old index length: 54796, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 113
+			 - old index length: 54796,
 			 - new index length: 57032
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 114 
-			 - old index length: 50959, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 114
+			 - old index length: 50959,
 			 - new index length: 55391
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 115 
-			 - old index length: 55238, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 115
+			 - old index length: 55238,
 			 - new index length: 58177
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 116 
-			 - old index length: 52314, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 116
+			 - old index length: 52314,
 			 - new index length: 56736
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 117 
-			 - old index length: 56555, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 117
+			 - old index length: 56555,
 			 - new index length: 58176
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 118 
-			 - old index length: 53845, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 118
+			 - old index length: 53845,
 			 - new index length: 55296
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 119 
-			 - old index length: 57753, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 119
+			 - old index length: 57753,
 			 - new index length: 58753
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 120 
-			 - old index length: 56067, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 120
+			 - old index length: 56067,
 			 - new index length: 58176
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 121 
-			 - old index length: 52665, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 121
+			 - old index length: 52665,
 			 - new index length: 56400
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 122 
-			 - old index length: 53347, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 122
+			 - old index length: 53347,
 			 - new index length: 56444
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 123 
-			 - old index length: 53486, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 123
+			 - old index length: 53486,
 			 - new index length: 54720
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 124 
-			 - old index length: 48701, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 124
+			 - old index length: 48701,
 			 - new index length: 58267
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 125 
-			 - old index length: 51361, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 125
+			 - old index length: 51361,
 			 - new index length: 54191
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 126 
-			 - old index length: 55800, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 126
+			 - old index length: 55800,
 			 - new index length: 56858
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 127 
-			 - old index length: 39300, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 127
+			 - old index length: 39300,
 			 - new index length: 58464
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 128 
-			 - old index length: 54691, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 128
+			 - old index length: 54691,
 			 - new index length: 56632
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 129 
-			 - old index length: 52960, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 129
+			 - old index length: 52960,
 			 - new index length: 57024
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 130 
-			 - old index length: 55078, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 130
+			 - old index length: 55078,
 			 - new index length: 56544
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 131 
-			 - old index length: 55423, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 131
+			 - old index length: 55423,
 			 - new index length: 58257
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 132 
-			 - old index length: 54988, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 132
+			 - old index length: 54988,
 			 - new index length: 56343
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 133 
-			 - old index length: 56130, 
+2025-12-09T05:30:27 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 133
+			 - old index length: 56130,
 			 - new index length: 57312
 2025-12-09T05:30:27 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:27 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:27 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 134 
-			 - old index length: 56777, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 134
+			 - old index length: 56777,
 			 - new index length: 58434
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 135 
-			 - old index length: 54909, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 135
+			 - old index length: 54909,
 			 - new index length: 56290
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 136 
-			 - old index length: 50596, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 136
+			 - old index length: 50596,
 			 - new index length: 56302
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 137 
-			 - old index length: 55685, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 137
+			 - old index length: 55685,
 			 - new index length: 56736
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 138 
-			 - old index length: 54351, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 138
+			 - old index length: 54351,
 			 - new index length: 56486
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 139 
-			 - old index length: 53546, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 139
+			 - old index length: 53546,
 			 - new index length: 56530
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 140 
-			 - old index length: 55674, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 140
+			 - old index length: 55674,
 			 - new index length: 58242
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 141 
-			 - old index length: 50673, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 141
+			 - old index length: 50673,
 			 - new index length: 56441
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 142 
-			 - old index length: 56115, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 142
+			 - old index length: 56115,
 			 - new index length: 57600
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 143 
-			 - old index length: 54714, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 143
+			 - old index length: 54714,
 			 - new index length: 56712
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 144 
-			 - old index length: 52765, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 144
+			 - old index length: 52765,
 			 - new index length: 54982
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 145 
-			 - old index length: 57485, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 145
+			 - old index length: 57485,
 			 - new index length: 58752
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 146 
-			 - old index length: 36148, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 146
+			 - old index length: 36148,
 			 - new index length: 58263
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 147 
-			 - old index length: 56829, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 147
+			 - old index length: 56829,
 			 - new index length: 58753
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 148 
-			 - old index length: 55827, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 148
+			 - old index length: 55827,
 			 - new index length: 57312
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 149 
-			 - old index length: 52767, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 149
+			 - old index length: 52767,
 			 - new index length: 56772
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 150 
-			 - old index length: 51007, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 150
+			 - old index length: 51007,
 			 - new index length: 54178
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 151 
-			 - old index length: 56567, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 151
+			 - old index length: 56567,
 			 - new index length: 58011
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 152 
-			 - old index length: 50055, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 152
+			 - old index length: 50055,
 			 - new index length: 55053
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 153 
-			 - old index length: 54920, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 153
+			 - old index length: 54920,
 			 - new index length: 56160
 2025-12-09T05:30:28 -   Processed 150/168 patients...
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 154 
-			 - old index length: 53919, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 154
+			 - old index length: 53919,
 			 - new index length: 56648
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 155 
-			 - old index length: 55219, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 155
+			 - old index length: 55219,
 			 - new index length: 57025
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 156 
-			 - old index length: 54578, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 156
+			 - old index length: 54578,
 			 - new index length: 56585
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 157 
-			 - old index length: 51994, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 157
+			 - old index length: 51994,
 			 - new index length: 56312
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 158 
-			 - old index length: 52490, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 158
+			 - old index length: 52490,
 			 - new index length: 54432
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 159 
-			 - old index length: 54564, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 159
+			 - old index length: 54564,
 			 - new index length: 55872
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 160 
-			 - old index length: 48859, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 160
+			 - old index length: 48859,
 			 - new index length: 56736
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 161 
-			 - old index length: 54603, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 161
+			 - old index length: 54603,
 			 - new index length: 58025
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 162 
-			 - old index length: 53889, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 162
+			 - old index length: 53889,
 			 - new index length: 56736
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 163 
-			 - old index length: 53130, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 163
+			 - old index length: 53130,
 			 - new index length: 56737
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 164 
-			 - old index length: 52903, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 164
+			 - old index length: 52903,
 			 - new index length: 57657
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 165 
-			 - old index length: 53108, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 165
+			 - old index length: 53108,
 			 - new index length: 56160
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 166 
-			 - old index length: 55648, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 166
+			 - old index length: 55648,
 			 - new index length: 57515
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 167 
-			 - old index length: 54919, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 167
+			 - old index length: 54919,
 			 - new index length: 56448
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 168 
-			 - old index length: 56014, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 168
+			 - old index length: 56014,
 			 - new index length: 57883
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 169 
-			 - old index length: 57526, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 169
+			 - old index length: 57526,
 			 - new index length: 58464
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 170 
-			 - old index length: 46282, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 170
+			 - old index length: 46282,
 			 - new index length: 57484
 2025-12-09T05:30:28 - ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation...
 2025-12-09T05:30:28 - 	Most common time interval: 5 minutes
 2025-12-09T05:30:28 - 	Aggregation strategy: {'p_num': 'first', 'CGM': 'sum', 'Period': 'first'}
-2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation(): 
-			Patient 171 
-			 - old index length: 54977, 
+2025-12-09T05:30:28 - Post-ensure_regular_time_intervals_with_aggregation():
+			Patient 171
+			 - old index length: 54977,
 			 - new index length: 57711
 2025-12-09T05:30:28 - Regular grid created: 9,742,311 rows (added 716,291 gap rows)
 2025-12-09T05:30:32 - After merge: 9,742,311 rows, 218,186 with bolus, 2,599,420 with basal
@@ -1212,9 +1212,9 @@
 2025-12-09T05:30:37 - create_physiological_features(): Deriving features...
 2025-12-09T05:30:37 - 	Ensuring regular time intervals...
 2025-12-09T05:30:37 - ensure_regular_time_intervals(): Ensuring regular time intervals...
-2025-12-09T05:30:37 - Post-ensure_regular_time_intervals(): 
-			Patient 1.0 
-			 - old index length: 58465, 
+2025-12-09T05:30:37 - Post-ensure_regular_time_intervals():
+			Patient 1.0
+			 - old index length: 58465,
 			 - new index length: 58465
 2025-12-09T05:30:37 - 	Rollover basal rate (delivery_type=automated)...
 2025-12-09T05:30:37 - 	Most common time interval: 5 minutes
@@ -1232,9 +1232,9 @@
 2025-12-09T05:30:37 - create_physiological_features(): Deriving features...
 2025-12-09T05:30:37 - 	Ensuring regular time intervals...
 2025-12-09T05:30:37 - ensure_regular_time_intervals(): Ensuring regular time intervals...
-2025-12-09T05:30:37 - Post-ensure_regular_time_intervals(): 
-			Patient 2.0 
-			 - old index length: 58269, 
+2025-12-09T05:30:37 - Post-ensure_regular_time_intervals():
+			Patient 2.0
+			 - old index length: 58269,
 			 - new index length: 58269
 2025-12-09T05:30:37 - 	Rollover basal rate (delivery_type=automated)...
 2025-12-09T05:30:37 - 	Most common time interval: 5 minutes
@@ -1246,9 +1246,9 @@
 2025-12-09T05:30:37 - 	Processing insulin dynamics: 0 rows with dose_units > 0
 2025-12-09T05:30:37 - 		No positive dose_units found! dose_units stats: min=0.0, max=0.0, non-zero count=0
 2025-12-09T05:30:37 - 	Reducing floating point precision...
-2025-12-09T05:30:37 - Post-ensure_regular_time_intervals(): 
-			Patient 3.0 
-			 - old index length: 58752, 
+2025-12-09T05:30:37 - Post-ensure_regular_time_intervals():
+			Patient 3.0
+			 - old index length: 58752,
 			 - new index length: 58752
 2025-12-09T05:30:37 - 	Rollover basal rate (delivery_type=automated)...
 2025-12-09T05:30:37 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
@@ -1275,18 +1275,18 @@
 2025-12-09T05:30:37 - 	Ensuring regular time intervals...
 2025-12-09T05:30:37 - ensure_regular_time_intervals(): Ensuring regular time intervals...
 2025-12-09T05:30:37 - 	Most common time interval: 5 minutes
-2025-12-09T05:30:37 - Post-ensure_regular_time_intervals(): 
-			Patient 4.0 
-			 - old index length: 56301, 
+2025-12-09T05:30:37 - Post-ensure_regular_time_intervals():
+			Patient 4.0
+			 - old index length: 56301,
 			 - new index length: 56301
 2025-12-09T05:30:37 - 	Rollover basal rate (delivery_type=automated)...
 2025-12-09T05:30:37 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
 2025-12-09T05:30:37 - 	Skipping COB (no food_g column or all NaN) - setting to NaN
 2025-12-09T05:30:37 - 	Creating IOB and insulin availability columns...
 2025-12-09T05:30:37 - 	Processing insulin dynamics: 55424 rows with dose_units > 0
-2025-12-09T05:30:37 - Post-ensure_regular_time_intervals(): 
-			Patient 5.0 
-			 - old index length: 58465, 
+2025-12-09T05:30:37 - Post-ensure_regular_time_intervals():
+			Patient 5.0
+			 - old index length: 58465,
 			 - new index length: 58465
 2025-12-09T05:30:37 - 	Rollover basal rate (delivery_type=automated)...
 2025-12-09T05:30:37 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
@@ -1305,9 +1305,9 @@
 2025-12-09T05:31:37 - 	Ensuring regular time intervals...
 2025-12-09T05:31:37 - ensure_regular_time_intervals(): Ensuring regular time intervals...
 2025-12-09T05:31:37 - 	Most common time interval: 5 minutes
-2025-12-09T05:31:37 - Post-ensure_regular_time_intervals(): 
-			Patient 6.0 
-			 - old index length: 56738, 
+2025-12-09T05:31:37 - Post-ensure_regular_time_intervals():
+			Patient 6.0
+			 - old index length: 56738,
 			 - new index length: 56738
 2025-12-09T05:31:37 - 	Rollover basal rate (delivery_type=automated)...
 2025-12-09T05:31:37 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
@@ -1326,9 +1326,9 @@
 2025-12-09T05:31:45 - 	Ensuring regular time intervals...
 2025-12-09T05:31:45 - ensure_regular_time_intervals(): Ensuring regular time intervals...
 2025-12-09T05:31:45 - 	Most common time interval: 5 minutes
-2025-12-09T05:31:45 - Post-ensure_regular_time_intervals(): 
-			Patient 7.0 
-			 - old index length: 57889, 
+2025-12-09T05:31:45 - Post-ensure_regular_time_intervals():
+			Patient 7.0
+			 - old index length: 57889,
 			 - new index length: 57889
 2025-12-09T05:31:45 - 	Rollover basal rate (delivery_type=automated)...
 Processing patients:   2%|▏         | 4/168 [01:07<46:56, 17.17s/it]  2025-12-09T05:31:45 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
@@ -1347,9 +1347,9 @@
 2025-12-09T05:31:45 - 	Ensuring regular time intervals...
 2025-12-09T05:31:45 - ensure_regular_time_intervals(): Ensuring regular time intervals...
 2025-12-09T05:31:45 - 	Most common time interval: 5 minutes
-2025-12-09T05:31:45 - Post-ensure_regular_time_intervals(): 
-			Patient 8.0 
-			 - old index length: 52888, 
+2025-12-09T05:31:45 - Post-ensure_regular_time_intervals():
+			Patient 8.0
+			 - old index length: 52888,
 			 - new index length: 52888
 2025-12-09T05:31:45 - 	Rollover basal rate (delivery_type=automated)...
 Processing patients:   3%|▎         | 5/168 [01:08<31:43, 11.68s/it]2025-12-09T05:31:45 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
@@ -1368,9 +1368,9 @@
 2025-12-09T05:32:38 - 	Ensuring regular time intervals...
 2025-12-09T05:32:38 - ensure_regular_time_intervals(): Ensuring regular time intervals...
 2025-12-09T05:32:38 - 	Most common time interval: 5 minutes
-2025-12-09T05:32:38 - Post-ensure_regular_time_intervals(): 
-			Patient 9.0 
-			 - old index length: 56517, 
+2025-12-09T05:32:38 - Post-ensure_regular_time_intervals():
+			Patient 9.0
+			 - old index length: 56517,
 			 - new index length: 56517
 2025-12-09T05:32:38 - 	Rollover basal rate (delivery_type=automated)...
 2025-12-09T05:32:38 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
@@ -1390,9 +1390,9 @@
 2025-12-09T05:32:38 - 	Ensuring regular time intervals...
 2025-12-09T05:32:38 - ensure_regular_time_intervals(): Ensuring regular time intervals...
 2025-12-09T05:32:38 - 	Most common time interval: 5 minutes
-2025-12-09T05:32:38 - Post-ensure_regular_time_intervals(): 
-			Patient 10.0 
-			 - old index length: 57313, 
+2025-12-09T05:32:38 - Post-ensure_regular_time_intervals():
+			Patient 10.0
+			 - old index length: 57313,
 			 - new index length: 57313
 2025-12-09T05:32:38 - 	Rollover basal rate (delivery_type=automated)...
 2025-12-09T05:32:38 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
@@ -1411,9 +1411,9 @@
 2025-12-09T05:32:39 - 	Ensuring regular time intervals...
 2025-12-09T05:32:39 - ensure_regular_time_intervals(): Ensuring regular time intervals...
 2025-12-09T05:32:39 - 	Most common time interval: 5 minutes
-2025-12-09T05:32:39 - Post-ensure_regular_time_intervals(): 
-			Patient 12.0 
-			 - old index length: 56611, 
+2025-12-09T05:32:39 - Post-ensure_regular_time_intervals():
+			Patient 12.0
+			 - old index length: 56611,
 			 - new index length: 56611
 2025-12-09T05:32:39 - 	Rollover basal rate (delivery_type=automated)...
 2025-12-09T05:32:39 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
@@ -1432,9 +1432,9 @@
 2025-12-09T05:32:41 - 	Ensuring regular time intervals...
 2025-12-09T05:32:41 - ensure_regular_time_intervals(): Ensuring regular time intervals...
 2025-12-09T05:32:41 - 	Most common time interval: 5 minutes
-2025-12-09T05:32:41 - Post-ensure_regular_time_intervals(): 
-			Patient 13.0 
-			 - old index length: 57889, 
+2025-12-09T05:32:41 - Post-ensure_regular_time_intervals():
+			Patient 13.0
+			 - old index length: 57889,
 			 - new index length: 57889
 2025-12-09T05:32:41 - 	Rollover basal rate (delivery_type=automated)...
 2025-12-09T05:32:41 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
@@ -1453,12 +1453,139 @@
 2025-12-09T05:33:35 - 	Ensuring regular time intervals...
 2025-12-09T05:33:35 - ensure_regular_time_intervals(): Ensuring regular time intervals...
 2025-12-09T05:33:35 - 	Most common time interval: 5 minutes
-2025-12-09T05:33:35 - Post-ensure_regular_time_intervals(): 
-			Patient 14.0 
-			 - old index length: 55009, 
+2025-12-09T05:33:35 - Post-ensure_regular_time_intervals():
+			Patient 14.0
+			 - old index length: 55009,
 			 - new index length: 55009
 2025-12-09T05:33:35 - 	Rollover basal rate (delivery_type=automated)...
 Processing patients:   6%|▌         | 10/168 [02:58<58:17, 22.13s/it]2025-12-09T05:33:35 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
 2025-12-09T05:33:35 - 	Skipping COB (no food_g column or all NaN) - setting to NaN
 2025-12-09T05:33:35 - 	Creating IOB and insulin availability columns...
 2025-12-09T05:33:35 - 	Processing insulin dynamics: 52576 rows with dose_units > 0
+2025-12-09T05:33:43 - 	Reducing floating point precision...
+2025-12-09T05:33:43 - 	Done deriving features.
+
+2025-12-09T05:33:43 - ==============================
+2025-12-09T05:33:43 - Preprocessing patient 15.0
+2025-12-09T05:33:43 - ==============================
+2025-12-09T05:33:43 - Optional columns present: ['dose_units', 'rate']
+2025-12-09T05:33:43 - Optional columns missing (features will be skipped): ['msg_type', 'food_g']
+2025-12-09T05:33:43 - create_physiological_features(): Deriving features...
+2025-12-09T05:33:43 - 	Ensuring regular time intervals...
+2025-12-09T05:33:43 - ensure_regular_time_intervals(): Ensuring regular time intervals...
+2025-12-09T05:33:43 - 	Most common time interval: 5 minutes
+Processing patients:   7%|▋         | 11/168 [03:05<47:17, 18.08s/it]2025-12-09T05:33:43 - Post-ensure_regular_time_intervals():
+			Patient 15.0
+			 - old index length: 55873,
+			 - new index length: 55873
+2025-12-09T05:33:43 - 	Rollover basal rate (delivery_type=automated)...
+2025-12-09T05:33:43 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
+2025-12-09T05:33:43 - 	Skipping COB (no food_g column or all NaN) - setting to NaN
+2025-12-09T05:33:43 - 	Creating IOB and insulin availability columns...
+2025-12-09T05:33:43 - 	Processing insulin dynamics: 38174 rows with dose_units > 0
+2025-12-09T05:33:45 - 	Reducing floating point precision...
+2025-12-09T05:33:45 - 	Done deriving features.
+
+2025-12-09T05:33:45 - ==============================
+2025-12-09T05:33:45 - Preprocessing patient 16.0
+2025-12-09T05:33:45 - ==============================
+2025-12-09T05:33:45 - Optional columns present: ['dose_units', 'rate']
+2025-12-09T05:33:45 - Optional columns missing (features will be skipped): ['msg_type', 'food_g']
+2025-12-09T05:33:45 - create_physiological_features(): Deriving features...
+2025-12-09T05:33:45 - 	Ensuring regular time intervals...
+2025-12-09T05:33:45 - ensure_regular_time_intervals(): Ensuring regular time intervals...
+2025-12-09T05:33:45 - 	Most common time interval: 5 minutes
+2025-12-09T05:33:45 - Post-ensure_regular_time_intervals():
+			Patient 16.0
+			 - old index length: 55441,
+			 - new index length: 55441
+2025-12-09T05:33:45 - 	Rollover basal rate (delivery_type=automated)...
+Processing patients:   7%|▋         | 12/168 [03:07<35:11, 13.54s/it]2025-12-09T05:33:45 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
+2025-12-09T05:33:45 - 	Skipping COB (no food_g column or all NaN) - setting to NaN
+2025-12-09T05:33:45 - 	Creating IOB and insulin availability columns...
+2025-12-09T05:33:45 - 	Processing insulin dynamics: 0 rows with dose_units > 0
+2025-12-09T05:33:45 - 		No positive dose_units found! dose_units stats: min=0.0, max=0.0, non-zero count=0
+2025-12-09T05:33:45 - 	Reducing floating point precision...
+2025-12-09T05:33:45 - 	Done deriving features.
+
+2025-12-09T05:33:45 - ==============================
+2025-12-09T05:33:45 - Preprocessing patient 17.0
+2025-12-09T05:33:45 - ==============================
+2025-12-09T05:33:45 - Optional columns present: ['dose_units', 'rate']
+2025-12-09T05:33:45 - Optional columns missing (features will be skipped): ['msg_type', 'food_g']
+2025-12-09T05:33:45 - create_physiological_features(): Deriving features...
+2025-12-09T05:33:45 - 	Ensuring regular time intervals...
+2025-12-09T05:33:45 - ensure_regular_time_intervals(): Ensuring regular time intervals...
+2025-12-09T05:33:45 - 	Most common time interval: 5 minutes
+2025-12-09T05:33:45 - Post-ensure_regular_time_intervals():
+			Patient 17.0
+			 - old index length: 56345,
+			 - new index length: 56345
+2025-12-09T05:33:45 - 	Rollover basal rate (delivery_type=automated)...
+2025-12-09T05:33:45 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
+2025-12-09T05:33:45 - 	Skipping COB (no food_g column or all NaN) - setting to NaN
+2025-12-09T05:33:45 - 	Creating IOB and insulin availability columns...
+2025-12-09T05:33:45 - 	Processing insulin dynamics: 47331 rows with dose_units > 0
+2025-12-09T05:34:28 - 	Reducing floating point precision...
+2025-12-09T05:34:28 - 	Done deriving features.
+
+2025-12-09T05:34:28 - ==============================
+2025-12-09T05:34:28 - Preprocessing patient 18.0
+2025-12-09T05:34:28 - ==============================
+2025-12-09T05:34:28 - Optional columns present: ['dose_units', 'rate']
+2025-12-09T05:34:28 - Optional columns missing (features will be skipped): ['msg_type', 'food_g']
+2025-12-09T05:34:28 - create_physiological_features(): Deriving features...
+2025-12-09T05:34:28 - 	Ensuring regular time intervals...
+2025-12-09T05:34:28 - ensure_regular_time_intervals(): Ensuring regular time intervals...
+Processing patients:   8%|▊         | 14/168 [03:51<44:09, 17.21s/it]2025-12-09T05:34:28 - 	Most common time interval: 5 minutes
+2025-12-09T05:34:28 - Post-ensure_regular_time_intervals():
+			Patient 18.0
+			 - old index length: 56737,
+			 - new index length: 56737
+2025-12-09T05:34:28 - 	Rollover basal rate (delivery_type=automated)...
+2025-12-09T05:34:28 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
+2025-12-09T05:34:28 - 	Skipping COB (no food_g column or all NaN) - setting to NaN
+2025-12-09T05:34:28 - 	Creating IOB and insulin availability columns...
+2025-12-09T05:34:28 - 	Processing insulin dynamics: 50032 rows with dose_units > 0
+2025-12-09T05:34:38 - 	Reducing floating point precision...
+2025-12-09T05:34:38 - 	Done deriving features.
+
+2025-12-09T05:34:38 - ==============================
+2025-12-09T05:34:38 - Preprocessing patient 19.0
+2025-12-09T05:34:38 - ==============================
+2025-12-09T05:34:38 - Optional columns present: ['dose_units', 'rate']
+2025-12-09T05:34:38 - Optional columns missing (features will be skipped): ['msg_type', 'food_g']
+2025-12-09T05:34:38 - create_physiological_features(): Deriving features...
+2025-12-09T05:34:38 - 	Ensuring regular time intervals...
+2025-12-09T05:34:38 - ensure_regular_time_intervals(): Ensuring regular time intervals...
+2025-12-09T05:34:38 - 	Most common time interval: 5 minutes
+2025-12-09T05:34:38 - Post-ensure_regular_time_intervals():
+			Patient 19.0
+			 - old index length: 58465,
+			 - new index length: 58465
+2025-12-09T05:34:38 - 	Rollover basal rate (delivery_type=automated)...
+2025-12-09T05:34:38 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
+2025-12-09T05:34:38 - 	Skipping COB (no food_g column or all NaN) - setting to NaN
+2025-12-09T05:34:38 - 	Creating IOB and insulin availability columns...
+2025-12-09T05:34:38 - 	Processing insulin dynamics: 48194 rows with dose_units > 0
+Processing patients:   9%|▉         | 15/168 [04:01<39:27, 15.48s/it]2025-12-09T05:34:42 - 	Reducing floating point precision...
+2025-12-09T05:34:42 - 	Done deriving features.
+
+Processing patients:  10%|▉         | 16/168 [04:04<31:21, 12.38s/it]2025-12-09T05:34:42 - ==============================
+2025-12-09T05:34:42 - Preprocessing patient 20.0
+2025-12-09T05:34:42 - ==============================
+2025-12-09T05:34:42 - Optional columns present: ['dose_units', 'rate']
+2025-12-09T05:34:42 - Optional columns missing (features will be skipped): ['msg_type', 'food_g']
+2025-12-09T05:34:42 - create_physiological_features(): Deriving features...
+2025-12-09T05:34:42 - 	Ensuring regular time intervals...
+2025-12-09T05:34:42 - ensure_regular_time_intervals(): Ensuring regular time intervals...
+2025-12-09T05:34:42 - 	Most common time interval: 5 minutes
+2025-12-09T05:34:42 - Post-ensure_regular_time_intervals():
+			Patient 20.0
+			 - old index length: 56263,
+			 - new index length: 56263
+2025-12-09T05:34:42 - 	Rollover basal rate (delivery_type=automated)...
+2025-12-09T05:34:42 - 	Creating COB/IOB and availability columns. This may take a while depending on the size of the data.
+2025-12-09T05:34:42 - 	Skipping COB (no food_g column or all NaN) - setting to NaN
+2025-12-09T05:34:42 - 	Creating IOB and insulin availability columns...
+2025-12-09T05:34:42 - 	Processing insulin dynamics: 30060 rows with dose_units > 0
