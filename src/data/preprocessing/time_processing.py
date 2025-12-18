@@ -29,6 +29,8 @@ Functions:
     get_most_common_time_interval: Determine the most frequent sampling interval
     ensure_regular_time_intervals: Normalize data to have consistent time intervals
     split_patient_data_by_day: Split patient data into daily segments based on 6am transitions
+    iter_daily_context_forecast_splits: Split each day's data into context and forecast periods
+    iter_patient_context_forecast_splits: Iterate over patients and yield context/forecast splits
     get_train_validation_split: Create robust train and validation sets for a single patient with DatetimeIndex requirement for optimal performance
 """
 
