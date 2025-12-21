@@ -122,15 +122,31 @@ class Brown2019DataLoader(DatasetBase):
         self.train_data: dict[str, pd.DataFrame] = {}
         self.validation_data: dict[str, pd.DataFrame] = {}
 
+        # Metadata tracking
+        self.data_metrics: dict = {}
+        self.train_dt_col_type: str | None = None
+        self.val_dt_col_type: str | None = None
+        self.num_train_days: int | None = None
+
         # Load data on init
         self.load_data()
 
     @property
     def dataset_name(self) -> str:
+        """Return the dataset name.
+
+        Returns:
+            str: The name identifier for this dataset ('brown_2019').
+        """
         return DatasetSourceType.BROWN_2019.value
 
     @property
     def description(self) -> str:
+        """Return a description of the dataset.
+
+        Returns:
+            str: Human-readable description of the Brown 2019 DCLP3 study.
+        """
         return """
         Brown 2019 DCLP3 Study: A randomized trial comparing Closed-Loop Control (Control-IQ)
         vs Sensor-Augmented Pump therapy in adults with Type 1 diabetes.
@@ -181,6 +197,9 @@ class Brown2019DataLoader(DatasetBase):
 
         # Split into train/validation
         self.train_data, self.validation_data = self._split_train_validation()
+
+        # Compute validation metrics
+        self._validate_dataset()
 
         return self.processed_data
 
@@ -325,17 +344,166 @@ class Brown2019DataLoader(DatasetBase):
         logger.info(
             f"Split complete: {len(train_dict)} train patients, {len(val_dict)} validation patients"
         )
+
+        # Track metadata
+        if train_dict:
+            first_train = next(iter(train_dict.values()))
+            self.train_dt_col_type = str(first_train.index.dtype)
+            self.num_train_days = sum(
+                df.index.normalize().nunique() for df in train_dict.values()
+            )
+        if val_dict:
+            first_val = next(iter(val_dict.values()))
+            self.val_dt_col_type = str(first_val.index.dtype)
+
         return train_dict, val_dict
+
+    def _validate_dataset(self) -> None:
+        """Compute and store validation metrics for the dataset."""
+        if not self.processed_data:
+            self.data_metrics = {}
+            return
+
+        # Combine all data for statistics
+        all_data = pd.concat(self.processed_data.values())
+
+        self.data_metrics = {
+            "total_rows": len(all_data),
+            "unique_patients": len(self.processed_data),
+            "patients_with_insulin": sum(
+                1
+                for df in self.processed_data.values()
+                if ColumnNames.IOB.value in df.columns
+                and df[ColumnNames.IOB.value].notna().any()
+            ),
+            "patients_cgm_only": sum(
+                1
+                for df in self.processed_data.values()
+                if ColumnNames.IOB.value not in df.columns
+                or df[ColumnNames.IOB.value].isna().all()
+            ),
+        }
+
+        # Glucose statistics
+        if ColumnNames.BG.value in all_data.columns:
+            bg = all_data[ColumnNames.BG.value].dropna()
+            self.data_metrics.update(
+                {
+                    "glucose_mean_mmol": round(bg.mean(), 2),
+                    "glucose_std_mmol": round(bg.std(), 2),
+                    "glucose_min_mmol": round(bg.min(), 2),
+                    "glucose_max_mmol": round(bg.max(), 2),
+                }
+            )
+
+        logger.info(f"Dataset validation: {self.data_metrics}")
 
     @property
     def num_patients(self) -> int:
-        """Number of patients in processed data."""
+        """Get the number of patients in the dataset.
+
+        Returns:
+            int: The count of patients, or 0 if no data is loaded.
+        """
         return len(self.processed_data) if self.processed_data else 0
 
     @property
     def patient_ids(self) -> list[str]:
-        """List of patient IDs in processed data."""
+        """Get list of patient IDs in the dataset.
+
+        Returns:
+            list[str]: List of patient ID strings, or empty list if no data.
+        """
         return list(self.processed_data.keys()) if self.processed_data else []
+
+    @property
+    def train_data_shape_summary(self) -> dict[str, tuple[int, int]]:
+        """Get shape summary for each patient's training data.
+
+        Returns:
+            dict[str, tuple[int, int]]: Dictionary mapping patient IDs to their
+                DataFrame shape as (num_rows, num_columns). Returns empty dict
+                if train_data is not available.
+        """
+        if not self.train_data:
+            return {}
+        return {
+            patient_id: df.shape
+            for patient_id, df in self.train_data.items()
+            if isinstance(df, pd.DataFrame)
+        }
+
+    @property
+    def dataset_info(self) -> dict[str, object]:
+        """Get comprehensive information about the dataset.
+
+        Returns:
+            dict[str, object]: Dictionary containing dataset statistics and metadata
+                including dataset_name, num_patients, patient_ids, train_percentage,
+                parallel, max_workers, and optionally train_shapes, num_train_patients,
+                num_validation_patients, and metrics.
+        """
+        info = {
+            "dataset_name": self.dataset_name,
+            "num_patients": self.num_patients,
+            "patient_ids": self.patient_ids,
+            "train_percentage": self.train_percentage,
+            "parallel": self.parallel,
+            "max_workers": self.max_workers,
+        }
+        if self.train_data:
+            info["train_shapes"] = self.train_data_shape_summary
+            info["num_train_patients"] = len(self.train_data)
+        if self.validation_data:
+            info["num_validation_patients"] = len(self.validation_data)
+        if self.data_metrics:
+            info["metrics"] = self.data_metrics
+        return info
+
+    # ==================== Public Methods ====================
+
+    def get_patient_data(self, patient_id: str) -> pd.DataFrame | None:
+        """Get processed data for a specific patient.
+
+        Args:
+            patient_id: Patient identifier string.
+
+        Returns:
+            DataFrame for the patient, or None if not found.
+        """
+        if self.processed_data is None:
+            return None
+        return self.processed_data.get(patient_id)
+
+    def get_combined_data(self, data_type: str = "all") -> pd.DataFrame:
+        """Combine all patients' data into a single DataFrame.
+
+        Args:
+            data_type: One of 'all', 'train', 'validation'.
+
+        Returns:
+            Combined DataFrame with patient data indexed by (patient_id, datetime).
+
+        Raises:
+            ValueError: If invalid data_type or no data available.
+        """
+        if data_type == "all":
+            data_dict = self.processed_data
+        elif data_type == "train":
+            data_dict = self.train_data
+        elif data_type == "validation":
+            data_dict = self.validation_data
+        else:
+            raise ValueError(
+                f"Invalid data_type: {data_type}. Use 'all', 'train', or 'validation'."
+            )
+
+        if not data_dict:
+            raise ValueError(f"No {data_type} data available.")
+
+        return pd.concat(
+            data_dict.values(), keys=data_dict.keys(), names=["patient_id"]
+        )
 
 
 if __name__ == "__main__":
