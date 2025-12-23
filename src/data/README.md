@@ -37,6 +37,11 @@ Our benchmark pipeline was originally built on the Kaggle Bristol Type 1 Diabete
 5. Lynch 2022
    - IOBP2 RCT dataset
 
+6. Tamborlane 2008
+
+7. Brown 2019
+
+
 ## Data Format Standardization
 
 All datasets are transformed into a standardized format for our benchmark pipeline. The following sections detail the required columns and dataset-specific features.

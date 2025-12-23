@@ -69,7 +69,6 @@ from src.data.preprocessing.time_processing import get_most_common_time_interval
 logger = logging.getLogger(__name__)
 
 
-# TODO: We shouldn't really be adding dose_units because each insulin has different activation curves.
 # NOTE: Adding basal to dose_units is appropriate for pump therapy since both basal and bolus
 # use the same rapid-acting insulin (Humalog, Novolog, etc.) with identical pharmacokinetics.
 # OpenAPS uses netIOB (basal + bolus combined) for BG prediction.

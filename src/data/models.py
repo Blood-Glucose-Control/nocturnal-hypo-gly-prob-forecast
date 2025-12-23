@@ -13,6 +13,7 @@ class DatasetSourceType(str, Enum):
     HUGGING_FACE = "hugging_face"
     ALEPPO = "aleppo"
     LYNCH_2022 = "lynch_2022"
+    BROWN_2019 = "brown_2019"
     SIMGLUCOSE = "simglucose"
     TAMBORLANE_2008 = "tamborlane_2008"
 
@@ -23,6 +24,7 @@ class ColumnNames(str, Enum):
     DATETIME = "datetime"
     P_NUM = "p_num"
     DOSE_UNITS = "dose_units"
+    BOLUS = "bolus"
     FOOD_G = "food_g"
     MSG_TYPE = "msg_type"
     COB = "cob"
