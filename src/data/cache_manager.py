@@ -500,7 +500,9 @@ class CacheManager:
                 FULL_SUFFIX = "_full"
                 patient_id = csv_file.stem[: -len(FULL_SUFFIX)]  # Remove "_full" suffix
                 # Load the CSV with datetime index (first column is the index)
-                df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+                df = pd.read_csv(
+                    csv_file, index_col=0, parse_dates=True, low_memory=False
+                )
                 result[patient_id] = df
 
             return result if result else None
