@@ -350,7 +350,8 @@ class Brown2019DataLoader(DatasetBase):
             first_train = next(iter(train_dict.values()))
             self.train_dt_col_type = str(first_train.index.dtype)
             self.num_train_days = sum(
-                df.index.normalize().nunique() for df in train_dict.values()
+                pd.DatetimeIndex(df.index).normalize().nunique()
+                for df in train_dict.values()
             )
         if val_dict:
             first_val = next(iter(val_dict.values()))
@@ -471,7 +472,7 @@ class Brown2019DataLoader(DatasetBase):
         Returns:
             DataFrame for the patient, or None if not found.
         """
-        if self.processed_data is None:
+        if not self.processed_data:
             return None
         return self.processed_data.get(patient_id)
 
