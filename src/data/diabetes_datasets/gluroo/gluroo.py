@@ -24,7 +24,10 @@ import pandas as pd
 from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.diabetes_datasets.gluroo.data_cleaner import data_translation
 from src.data.preprocessing.pipeline import preprocessing_pipeline
-from src.data.preprocessing.time_processing import get_train_validation_split
+from src.data.preprocessing.time_processing import (
+    get_train_validation_split,
+    iter_daily_context_forecast_splits,
+)
 
 
 # TODO: Maybe need to return the test set too.
@@ -224,41 +227,35 @@ class GlurooDataLoader(DatasetBase):
         """
         return data_translation(raw_data)
 
-    # TODO Add parameters that allow you to adjust the day split time and number of hours.
-    def _get_day_splits(self, patient_data: pd.DataFrame):
+    def _get_day_splits(
+        self,
+        patient_data: pd.DataFrame,
+        context_period: tuple[int, int] = (6, 24),
+        forecast_horizon: tuple[int, int] = (0, 6),
+    ):
         """
-        Split each day's data into training period (6am-12am) and test period (12am-6am next day).
+        Split each day's data into context period and forecast horizon.
 
         This method implements the actual day-by-day splitting logic used by
-        get_validation_day_splits. It divides each day's data into a daytime
-        portion for training and the following overnight period for testing.
+        get_validation_day_splits. By default, it divides each day's data into a daytime
+        portion (6am-midnight) for context and the following overnight period (midnight-6am)
+        for forecasting.
 
         Args:
             patient_data (pd.DataFrame): Data for a single patient, must include
-                                        'datetime' column.
+                                        'datetime' column or DatetimeIndex.
+            context_period (tuple[int, int]): Start and end hours for context period.
+                Default: (6, 24) for 6am-midnight.
+            forecast_horizon (tuple[int, int]): Start and end hours for forecast period.
+                Default: (0, 6) for midnight-6am next day.
 
         Yields:
-            tuple: (current_day_data, next_day_data) where
-                  current_day_data is from 6am-12am of the current day
-                  next_day_data is from 12am-6am of the following day
+            tuple: (context_data, forecast_data) where
+                  context_data is from the context period of the current day
+                  forecast_data is from the forecast horizon of the following day
         """
-
-        patient_data.loc[:, "datetime"] = pd.to_datetime(patient_data["datetime"])
-
-        # Ensure data is sorted by datetime
-        patient_data = patient_data.sort_values("datetime")
-
-        # Group by date
-        for date, day_data in patient_data.groupby(patient_data["datetime"].dt.date):
-            # Get next day's early morning data (12am-6am)
-            next_date = date + pd.Timedelta(days=1)
-            next_day_data = patient_data[
-                (patient_data["datetime"].dt.date == next_date)
-                & (patient_data["datetime"].dt.hour < 6)
-            ]
-
-            # Get current day's data (6am-12am)
-            current_day_data = day_data[day_data["datetime"].dt.hour >= 6]
-
-            if len(next_day_data) > 0 and len(current_day_data) > 0:
-                yield current_day_data, next_day_data
+        yield from iter_daily_context_forecast_splits(
+            patient_data,
+            context_period=context_period,
+            forecast_horizon=forecast_horizon,
+        )
