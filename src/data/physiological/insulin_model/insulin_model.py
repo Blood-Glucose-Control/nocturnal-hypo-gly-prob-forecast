@@ -114,10 +114,23 @@ def create_iob_and_ins_availability_cols(df: pd.DataFrame, ts_min: int) -> pd.Da
         raise ValueError("DataFrame must have a datetime index")
 
     # Single patient processing only
-    logger.info("\tProcessing insulin dynamics")
-    for ins_time in result_df.index[
-        (result_df["dose_units"].notna()) & (result_df["dose_units"] > 0)
-    ]:
+    dose_positive_mask = (result_df["dose_units"].notna()) & (
+        result_df["dose_units"] > 0
+    )
+    num_positive_doses = dose_positive_mask.sum()
+    logger.info(
+        f"\tProcessing insulin dynamics: {num_positive_doses} rows with dose_units > 0"
+    )
+
+    if num_positive_doses == 0:
+        logger.warning(
+            f"\t\tNo positive dose_units found! dose_units stats: "
+            f"min={result_df['dose_units'].min()}, max={result_df['dose_units'].max()}, "
+            f"non-zero count={(result_df['dose_units'] != 0).sum()}"
+        )
+        return result_df
+
+    for ins_time in result_df.index[dose_positive_mask]:
         insulin_dose = result_df.loc[ins_time, "dose_units"]
         # Simulate insulin dynamics
         ins_avail, iob, _, _, _ = (

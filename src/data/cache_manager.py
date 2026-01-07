@@ -118,7 +118,7 @@ class CacheManager:
             RuntimeError: If data fetching fails
         """
         # Absolute raw data path thtat should contain the raw data
-        raw_path = self.get_raw_data_path(dataset_name)
+        raw_path = self.get_absolute_path_by_type(dataset_name, "raw")
 
         # Check if raw data already exists
         if self._raw_data_exists(raw_path, dataset_config):
@@ -134,7 +134,11 @@ class CacheManager:
             self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.HUGGING_FACE:
             self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
-        elif source in (DatasetSourceType.ALEPPO, DatasetSourceType.LYNCH_2022):
+        elif source in (
+            DatasetSourceType.ALEPPO,
+            DatasetSourceType.LYNCH_2022,
+            DatasetSourceType.BROWN_2019,
+        ):
             self._fetch_manual_download_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.LOCAL:
             self._copy_local_data(dataset_name, raw_path, dataset_config)
@@ -459,7 +463,7 @@ class CacheManager:
             dataset_name (str): Name of the dataset
             data (dict[str, pd.DataFrame]): Dictionary mapping patient_id -> DataFrame
         """
-        processed_path = self.get_processed_data_path(dataset_name)
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
         processed_path.mkdir(parents=True, exist_ok=True)
 
         for patient_id, patient_df in data.items():
@@ -482,7 +486,7 @@ class CacheManager:
         Returns:
             Dictionary with patient IDs as keys and DataFrames as values, or None if not found
         """
-        processed_path = self.get_processed_data_path(dataset_name)
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
 
         if processed_path.exists():
             result = {}
@@ -496,7 +500,9 @@ class CacheManager:
                 FULL_SUFFIX = "_full"
                 patient_id = csv_file.stem[: -len(FULL_SUFFIX)]  # Remove "_full" suffix
                 # Load the CSV with datetime index (first column is the index)
-                df = pd.read_csv(csv_file, index_col=0, parse_dates=True)
+                df = pd.read_csv(
+                    csv_file, index_col=0, parse_dates=True, low_memory=False
+                )
                 result[patient_id] = df
 
             return result if result else None
@@ -600,6 +606,7 @@ class CacheManager:
         sorted_params = json.dumps(split_params, sort_keys=True)
         return hashlib.md5(sorted_params.encode()).hexdigest()[:8]
 
+    # TODO: Consolidate this with load_full_processed_data
     def load_processed_data(
         self,
         dataset_name: str,
@@ -626,7 +633,7 @@ class CacheManager:
             return None
 
         # We do the split at the code level not the cache level so we no longer need dataset_type here.
-        processed_path = self.get_processed_data_path(dataset_name)
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
 
         if file_format == "csv":
             if processed_path.exists():

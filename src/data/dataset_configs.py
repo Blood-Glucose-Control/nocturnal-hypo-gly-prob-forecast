@@ -68,6 +68,17 @@ LYNCH_2022_CONFIG: DatasetConfig = DatasetConfig(
     cache_path="lynch_2022",
 )
 
+# Configuration for the Brown 2019 DCLP3 dataset
+# nocturnal-hypo-gly-prob-forecast/cache/data/brown_2019/raw/DCLP3 Public Dataset - Release 3 - 2022-08-04
+BROWN_2019_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.BROWN_2019,
+    description="Brown 2019 DCLP3 - Closed-Loop Control vs Sensor-Augmented Pump therapy",
+    citation="Brown et al. 2019, NEJM",
+    required_files=["DCLP3 Public Dataset - Release 3 - 2022-08-04"],
+    url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Brown-(2019)",
+    cache_path="brown_2019",
+)
+
 
 # Configuration for the Tamborlane 2008 dataset
 TAMBORLANE_2008_CONFIG: DatasetConfig = DatasetConfig(
@@ -87,6 +98,7 @@ DATASET_CONFIGS = {
     DatasetSourceType.ALEPPO.value: ALEPPO_CONFIG,
     DatasetSourceType.LYNCH_2022.value: LYNCH_2022_CONFIG,
     DatasetSourceType.TAMBORLANE_2008.value: TAMBORLANE_2008_CONFIG,
+    DatasetSourceType.BROWN_2019.value: BROWN_2019_CONFIG,
 }
 
 

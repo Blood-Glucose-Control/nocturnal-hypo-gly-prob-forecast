@@ -46,17 +46,34 @@ All datasets are transformed into a standardized format for our benchmark pipeli
 
 ### Core Columns (Required for All Datasets)
 
-| Column                 | Type                   | Description                                 | Source                      | Required?              |
-| ---------------------- | ---------------------- | ------------------------------------------- | --------------------------- | ---------------------- |
-| `datetime`             | `pd.Timestamp` (INDEX) | Primary timestamp for data manipulation     | Created during processing   | Required               |
-| `p_num`                | `str`                  | Patient identifier                          | Original dataset            | Required               |
-| `bg-0:00`              | `float`                | Blood glucose measurement in mg/dL (70-120) | Original dataset            | Required               |
-| `insulin-0:00`         | `float`                | Insulin dose in units                       | Original dataset            | Preferred              |
-| `carbs-0:00`           | `float`                | Carbohydrate intake in grams                | Original dataset            | Preferred              |
-| `cob`                  | `float`                | Carbohydrates on board in grams             | Derived from `carbs-0:00`   | Preferred              |
-| `carb_availability`    | `float`                | Estimated total carbohydrates in blood      | Derived from `carbs-0:00`   | Preferred              |
-| `iob`                  | `float`                | Insulin on board in units                   | Derived from `insulin-0:00` | Preferred              |
-| `insulin_availability` | `float`                | Insulin in plasma                           | Derived from `insulin-0:00` | Preferred              |
+| Column     | Type                   | Description                                 | Source                    | Required?    |
+| ---------- | ---------------------- | ------------------------------------------- | ------------------------- | ------------ |
+| `datetime` | `pd.Timestamp` (INDEX) | Primary timestamp for data manipulation     | Created during processing | **Required** |
+| `p_num`    | `str`                  | Patient identifier                          | Original dataset          | **Required** |
+| `bg_mM`    | `float`                | Blood glucose measurement in mmol/L         | Original dataset          | **Required** |
+
+### Optional Columns (Enhance Features but Don't Block Processing)
+
+| Column       | Type    | Description                                       | Source           | Notes                    |
+| ------------ | ------- | ------------------------------------------------- | ---------------- | ------------------------ |
+| `dose_units` | `float` | Insulin dose in units                             | Original dataset | Enables IOB calculation  |
+| `food_g`     | `float` | Carbohydrate intake in grams                      | Original dataset | Enables COB calculation  |
+| `msg_type`   | `str`   | Message type indicator ('ANNOUNCE_MEAL' or empty) | Derived          | -                        |
+| `rate`       | `float` | Basal insulin rate in U/hr                        | Original dataset | Enables basal rollover   |
+
+### Derived Physiological Features
+
+These columns are computed by the preprocessing pipeline. If the source column is missing or all NaN, these will be set to NaN.
+
+| Column                 | Type    | Description                              | Source                    |
+| ---------------------- | ------- | ---------------------------------------- | ------------------------- |
+| `cob`                  | `float` | Carbohydrates on board in grams          | Derived from `food_g`     |
+| `carb_availability`    | `float` | Estimated total carbohydrates in blood   | Derived from `food_g`     |
+| `iob`                  | `float` | Insulin on board in units                | Derived from `dose_units` |
+| `insulin_availability` | `float` | Insulin in plasma                        | Derived from `dose_units` |
+
+!!! note "CGM-Only Datasets"
+    CGM-only datasets (e.g., some Type 2 diabetes patients, pre-training scenarios) are supported. The pipeline will skip COB/IOB calculations and set those features to NaN if the source columns are missing.
 
 ### Optional Activity Metrics
 These columns are available but not typically used in statistical models:
