@@ -54,12 +54,28 @@ echo ""
 # module load cuda/11.8
 # module load python/3.10
 
-# Activate virtual environment
-echo "Activating environment..."
-source /u6/cjrisi/nocturnal/.noctprob-venv/bin/activate
+# Determine project root (script is in scripts/training/slurm/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+
+echo "Project root: $PROJECT_ROOT"
 
 # Navigate to project root
-cd /u6/cjrisi/nocturnal
+cd "$PROJECT_ROOT"
+
+# Activate virtual environment (check common locations)
+echo "Activating environment..."
+if [ -f ".noctprob-venv/bin/activate" ]; then
+    source .noctprob-venv/bin/activate
+elif [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+elif [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+elif [ -n "$VIRTUAL_ENV" ]; then
+    echo "Using existing virtual environment: $VIRTUAL_ENV"
+else
+    echo "⚠️  WARNING: No virtual environment found, using system Python"
+fi
 
 # =============================================================================
 # HARDWARE VERIFICATION
