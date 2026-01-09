@@ -117,7 +117,7 @@ python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
    ```bash
    # Find your cluster's GPU partition
    sinfo
-   
+
    # Update in scripts - change 'gpu' to your partition name
    #SBATCH --partition=your_partition_name
    ```

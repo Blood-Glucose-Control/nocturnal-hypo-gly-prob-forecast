@@ -13,11 +13,11 @@ from src.models.base import ModelConfig
 @dataclass
 class TimesFMConfig(ModelConfig):
     """Configuration for TimesFM model.
-    
+
     TimesFM is a pretrained time series foundation model developed by Google Research.
     It uses a decoder-only transformer architecture trained on a large corpus of
     time series data.
-    
+
     Attributes:
         model_name: Name of the model (default: "timesfm")
         model_type: Type of model architecture (default: "timesfm")
@@ -42,76 +42,86 @@ class TimesFMConfig(ModelConfig):
         learning_rate: Learning rate (for adapter training)
         use_lora: Whether to use LoRA (reserved for future adapter support)
     """
-    
+
     model_name: str = "timesfm"
     model_type: str = "timesfm"
-    
+
     # Model path/checkpoint (both aliases for compatibility)
     model_path: Optional[str] = None
     checkpoint_path: Optional[str] = None
-    
+
     # Sequence lengths (with aliases for compatibility)
     context_length: int = 512
     forecast_length: int = 128  # Alias for horizon_length
     horizon_length: int = 128
-    
+
     # Model architecture parameters
     input_patch_len: int = 32
     output_patch_len: int = 128
     num_layers: int = 20
     model_dims: int = 1280
-    
+
     # Inference parameters
     backend: str = "cpu"  # Options: 'cpu', 'gpu', 'tpu'
     per_core_batch_size: int = 32
     batch_size: int = 32  # Alias for per_core_batch_size
     quantiles: List[float] = field(default_factory=lambda: [0.1, 0.5, 0.9])
-    
+
     # System parameters
     use_cached_model: bool = True
     device: str = "cpu"
     use_cpu: bool = False
-    
+
     # Training parameters (for future adapter support)
     output_dir: Optional[str] = None
     num_epochs: int = 10
     learning_rate: float = 1e-4
     use_lora: bool = False
-    
+
     def __post_init__(self):
         """Validate configuration after initialization."""
         super().__post_init__()
-        
+
         # Synchronize aliases
         if self.model_path and not self.checkpoint_path:
             self.checkpoint_path = self.model_path
         elif self.checkpoint_path and not self.model_path:
             self.model_path = self.checkpoint_path
-            
+
         if self.forecast_length != self.horizon_length:
             # If they differ, use forecast_length as the source of truth
             self.horizon_length = self.forecast_length
-            
+
         if self.batch_size != self.per_core_batch_size:
             # If they differ, use batch_size as the source of truth
             self.per_core_batch_size = self.batch_size
-        
+
         # Set use_cpu based on device
         if self.device == "cpu":
             self.use_cpu = True
-        
+
         # Validation
         if self.context_length <= 0:
-            raise ValueError(f"context_length must be positive, got {self.context_length}")
-        
+            raise ValueError(
+                f"context_length must be positive, got {self.context_length}"
+            )
+
         if self.horizon_length <= 0:
-            raise ValueError(f"horizon_length must be positive, got {self.horizon_length}")
-        
+            raise ValueError(
+                f"horizon_length must be positive, got {self.horizon_length}"
+            )
+
         if self.backend not in ["cpu", "gpu", "tpu"]:
-            raise ValueError(f"backend must be one of ['cpu', 'gpu', 'tpu'], got {self.backend}")
-        
+            raise ValueError(
+                f"backend must be one of ['cpu', 'gpu', 'tpu'], got {self.backend}"
+            )
+
         if self.per_core_batch_size <= 0:
-            raise ValueError(f"per_core_batch_size must be positive, got {self.per_core_batch_size}")
-        
+            raise ValueError(
+                f"per_core_batch_size must be positive, got {self.per_core_batch_size}"
+            )
+
         if not all(0 <= q <= 1 for q in self.quantiles):
-            raise ValueError(f"All quantiles must be between 0 and 1, got {self.quantiles}")
+            raise ValueError(
+                f"All quantiles must be between 0 and 1, got {self.quantiles}"
+            )

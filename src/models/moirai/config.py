@@ -157,9 +157,7 @@ class MoiraiConfig(ModelConfig):
         self.dropout = kwargs.get("dropout", 0.1)
 
         # Initialize Moirai-specific configs
-        self.training_config = kwargs.get(
-            "training_config", MoiraiTrainingConfig()
-        )
+        self.training_config = kwargs.get("training_config", MoiraiTrainingConfig())
         self.data_config = kwargs.get("data_config", MoiraiDataConfig())
 
     def supports_lora(self) -> bool:

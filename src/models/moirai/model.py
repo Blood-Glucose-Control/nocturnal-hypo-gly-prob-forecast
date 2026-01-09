@@ -6,22 +6,19 @@ the base TSFM framework, demonstrating how to integrate foundation models.
 """
 
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
-import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from transformers import (
     TrainingArguments,
-    Trainer,
-    EarlyStoppingCallback,
 )
 
 # Local imports
-from src.models.base import BaseTSFM, TrainingStrategy
+from src.models.base import BaseTSFM
 from src.models.moirai.config import MoiraiConfig
-from src.utils.logging_helper import info_print, debug_print, error_print
+from src.utils.logging_helper import info_print, error_print
 
 
 class MoiraiForecaster(BaseTSFM):
@@ -63,7 +60,9 @@ class MoiraiForecaster(BaseTSFM):
         if not isinstance(config, MoiraiConfig):
             # Create a basic MoiraiConfig from the essential parameters
             essential_params = {
-                "model_path": getattr(config, "model_path", "Salesforce/moirai-1.0-R-small"),
+                "model_path": getattr(
+                    config, "model_path", "Salesforce/moirai-1.0-R-small"
+                ),
                 "context_length": getattr(config, "context_length", 512),
                 "forecast_length": getattr(config, "forecast_length", 96),
                 "learning_rate": getattr(config, "learning_rate", 1e-4),
@@ -161,15 +160,13 @@ class MoiraiForecaster(BaseTSFM):
         if not self.config.model_path:
             raise ValueError("model_path must be specified in config")
 
-        info_print(
-            f"Initializing Moirai model from {self.config.model_path}"
-        )
+        info_print(f"Initializing Moirai model from {self.config.model_path}")
 
         try:
             # TODO: Implement actual Moirai model loading
             # This will depend on how Moirai models are distributed
             # For now, this is a placeholder
-            
+
             # Example structure (to be implemented):
             # from moirai import MoiraiModel
             # model = MoiraiModel.from_pretrained(
@@ -177,7 +174,7 @@ class MoiraiForecaster(BaseTSFM):
             #     context_length=self.config.context_length,
             #     forecast_length=self.config.forecast_length,
             # )
-            
+
             raise NotImplementedError(
                 "Moirai model loading not yet implemented. "
                 "Please implement model initialization in _initialize_model()."
@@ -201,7 +198,7 @@ class MoiraiForecaster(BaseTSFM):
         """
         # TODO: Implement data preparation logic
         # This should handle various input formats and create appropriate DataLoaders
-        
+
         raise NotImplementedError(
             "Data preparation for Moirai not yet implemented. "
             "Please implement data preprocessing in _prepare_data()."

@@ -134,23 +134,23 @@ case $STRATEGY in
             --use_cpu \
             2>&1 | tee "logs/train_${SLURM_JOB_ID}.log"
         ;;
-    
+
     single_gpu)
         echo "Running single GPU training..."
         python scripts/examples/example_single_gpu_ttm.py \
             --output_dir "$OUTPUT_DIR/$EXPERIMENT_NAME" \
             2>&1 | tee "logs/train_${SLURM_JOB_ID}.log"
         ;;
-    
+
     multi_gpu_ddp|multi_gpu_ddp_optimized)
         echo "Running distributed training with torchrun..."
         echo "Command: torchrun --nproc_per_node=$NUM_GPUS"
-        
+
         # NCCL optimizations
         export NCCL_DEBUG=INFO
         export NCCL_IB_DISABLE=0
         export NCCL_SOCKET_IFNAME=^docker0,lo
-        
+
         torchrun \
             --nproc_per_node=$NUM_GPUS \
             --nnodes=1 \
@@ -161,7 +161,7 @@ case $STRATEGY in
             --output_dir "$OUTPUT_DIR/$EXPERIMENT_NAME" \
             2>&1 | tee "logs/train_${SLURM_JOB_ID}.log"
         ;;
-    
+
     *)
         echo "❌ ERROR: Unknown strategy: $STRATEGY"
         exit 1
@@ -185,7 +185,7 @@ echo "========================================="
 if [ $exit_code -eq 0 ]; then
     echo "✅ SUCCESS: Model saved to $OUTPUT_DIR/$EXPERIMENT_NAME"
     echo ""
-    
+
     # Calculate efficiency metrics
     if [ "$NUM_GPUS" -gt 0 ]; then
         duration_hours=$(echo "scale=2; $SECONDS / 3600" | bc)

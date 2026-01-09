@@ -7,22 +7,19 @@ TimesFM is a pretrained decoder-only foundation model from Google Research.
 """
 
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
-import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from transformers import (
     TrainingArguments,
-    Trainer,
-    EarlyStoppingCallback,
 )
 
 # Local imports
-from src.models.base import BaseTSFM, TrainingStrategy
+from src.models.base import BaseTSFM
 from src.models.timesfm.config import TimesFMConfig
-from src.utils.logging_helper import info_print, debug_print, error_print
+from src.utils.logging_helper import info_print, error_print
 
 
 class TimesFMForecaster(BaseTSFM):
@@ -48,7 +45,9 @@ class TimesFMForecaster(BaseTSFM):
         >>> predictions = model.predict(test_data)
     """
 
-    def __init__(self, config: TimesFMConfig, lora_config=None, distributed_config=None):
+    def __init__(
+        self, config: TimesFMConfig, lora_config=None, distributed_config=None
+    ):
         """Initialize the TimesFM forecaster.
 
         Args:
@@ -84,7 +83,7 @@ class TimesFMForecaster(BaseTSFM):
         self.preprocessor = None
         self.column_specifiers = None
         self._is_loaded = False
-    
+
     # Abstract method implementations
     def predict(
         self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
@@ -104,10 +103,11 @@ class TimesFMForecaster(BaseTSFM):
             raise ValueError("Model must be fitted before making predictions")
 
         # Prepare data for prediction
-        data_loader, _, _ = self._prepare_data(data)
+        data_loader, _, _ = self._prepare_data(data, None, None)
 
         # Set model to evaluation mode
-        self.model.eval()
+        if hasattr(self.model, "eval"):
+            self.model.eval()
 
         predictions = []
         with torch.no_grad():
@@ -126,27 +126,129 @@ class TimesFMForecaster(BaseTSFM):
 
                 # Convert to numpy for TimesFM
                 inputs_np = inputs.cpu().numpy()
-                
+
                 # Process each sample in batch
                 batch_predictions = []
                 for i in range(inputs_np.shape[0]):
                     ts = inputs_np[i]  # (seq_len,) or (seq_len, n_features)
-                    
-        _prepare_data(
-        self, data: Any, split: Optional[str] = None
+
+                    # TimesFM expects 1D input, process each feature
+                    if ts.ndim == 2:
+                        # Multi-feature: process each feature separately
+                        feature_preds = []
+                        for feat_idx in range(ts.shape[1]):
+                            forecast = self.model.forecast(
+                                inputs=ts[:, feat_idx], freq=None
+                            )
+                            feature_preds.append(forecast[0])  # Point forecast
+                        pred = np.stack(feature_preds, axis=-1)
+                    else:
+                        # Single feature
+                        forecast = self.model.forecast(inputs=ts, freq=None)
+                        pred = forecast[0]  # Point forecast
+
+                    batch_predictions.append(pred)
+
+                batch_predictions = np.stack(batch_predictions, axis=0)
+                predictions.append(batch_predictions)
+
+        # Concatenate all predictions
+        predictions = np.concatenate(predictions, axis=0)
+
+        if return_dict:
+            return {
+                "predictions": predictions,
+                "model_type": "timesfm",
+                "config": self.config.to_dict(),
+            }
+
+        return predictions
+
+    def supports_lora(self) -> bool:
+        """Check if TimesFM supports LoRA fine-tuning.
+
+        Returns:
+            False by default, but could be True with adapter frameworks like AdaPTS.
+        """
+        # While TimesFM doesn't natively support fine-tuning,
+        # adapter methods could enable this in the future
+        return False
+
+    def _initialize_model(self) -> Any:
+        """Initialize the TimesFM model.
+
+        Returns:
+            Initialized TimesFM model instance.
+
+        Raises:
+            ImportError: If timesfm package is not installed.
+            ValueError: If model fails to load.
+        """
+        if self._is_loaded:
+            return self.model
+
+        info_print("Initializing TimesFM model")
+
+        try:
+            # Import timesfm library
+            import timesfm
+
+            info_print(f"Loading TimesFM with backend: {self.config.backend}")
+
+            # Initialize TimesFM model
+            model = timesfm.TimesFm(
+                context_len=self.config.context_length,
+                horizon_len=self.config.horizon_length,
+                input_patch_len=self.config.input_patch_len,
+                output_patch_len=self.config.output_patch_len,
+                num_layers=self.config.num_layers,
+                model_dims=self.config.model_dims,
+                backend=self.config.backend,
+            )
+
+            # Load checkpoint
+            if self.config.checkpoint_path:
+                info_print(f"Loading checkpoint from: {self.config.checkpoint_path}")
+                model.load_from_checkpoint(repo_id=self.config.checkpoint_path)
+            else:
+                # Use default checkpoint from Hugging Face
+                info_print("Loading default TimesFM checkpoint from Hugging Face")
+                model.load_from_checkpoint(repo_id="google/timesfm-1.0-200m")
+
+            self._is_loaded = True
+            info_print("TimesFM model loaded successfully")
+
+            return model
+
+        except ImportError:
+            error_print(
+                "timesfm package is required but not installed. "
+                "Install it with: pip install timesfm"
+            )
+            raise
+        except Exception as e:
+            error_print(f"Failed to initialize TimesFM model: {str(e)}")
+            raise
+
+    def _prepare_data(
+        self,
+        train_data: Any,
+        val_data: Optional[Any] = None,
+        test_data: Optional[Any] = None,
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
         """Prepare data for training or inference.
 
         Args:
-            data: Input data (can be dataset name, DataFrame, or DataLoader)
-            split: Optional split to use ('train', 'val', 'test')
+            train_data: Training data (can be dataset name, DataFrame, or DataLoader)
+            val_data: Validation data
+            test_data: Test data
 
         Returns:
             Tuple of (train_loader, val_loader, test_loader)
         """
         # TODO: Implement data preparation logic for TimesFM
         # This should handle various input formats and create appropriate DataLoaders
-        
+
         raise NotImplementedError(
             "Data preparation for TimesFM not yet implemented. "
             "Please implement data preprocessing in _prepare_data()."
@@ -168,7 +270,7 @@ class TimesFMForecaster(BaseTSFM):
             num_train_epochs=self.config.num_epochs,
             learning_rate=self.config.learning_rate,
             save_strategy="epoch",
-            evaluation_strategy="epoch",
+            eval_strategy="epoch",
             load_best_model_at_end=True,
             metric_for_best_model="eval_loss",
             greater_is_better=False,
@@ -177,7 +279,7 @@ class TimesFMForecaster(BaseTSFM):
             ),
             logging_steps=10,
             save_total_limit=3,
-            fp16=torch.cuda.is_available() and self.config.device != "cpu",
+            fp16=torch.cuda.is_available() and not self.config.use_cpu,
         )
 
 
@@ -216,100 +318,4 @@ def create_timesfm_model(
         **kwargs,
     )
 
-    return TimesFMForecaster(config) # quantiles shape: (num_quantiles, horizon_length)
-                    feature_quantiles.append(quantiles)
-                
-                # Stack batch quantiles
-                feature_quantiles = np.stack(feature_quantiles, axis=0)
-                quantile_predictions.append(feature_quantiles)
-            
-            # Stack feature quantiles
-            quantile_predictions = np.stack(quantile_predictions, axis=-1)
-            # Shape: (batch_size, num_quantiles, horizon_length, n_features)
-            
-            results['quantiles'] = torch.from_numpy(quantile_predictions).to(x.device).float()
-        
-        return results
-    
-    def fit(
-        self,
-        train_data: Any,
-        val_data: Optional[Any] = None,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """Fit the model (no-op for pretrained TimesFM).
-        
-        TimesFM is a pretrained model and does not require fine-tuning.
-        This method is provided for interface compatibility.
-        
-        Args:
-            train_data: Training data (not used)
-            val_data: Validation data (not used)
-            **kwargs: Additional arguments
-            
-        Returns:
-            Empty training history dictionary
-        """
-        logger.warning(
-            "TimesFM is a pretrained model and does not support fine-tuning. "
-            "The fit() method is a no-op."
-        )
-        
-        if not self._is_loaded:
-            self._load_model()
-        
-        return {"history": {}}
-    
-    def save_checkpoint(self, path: str):
-        """Save model checkpoint.
-        
-        Note: TimesFM is a pretrained model, so we only save configuration.
-        
-        Args:
-            path: Path to save checkpoint
-        """
-        logger.info(f"Saving TimesFM config to {path}")
-        # Save config only, as model is pretrained
-        torch.save({
-            'config': self.config,
-            'model_name': self.config.model_name,
-        }, path)
-    
-    def load_checkpoint(self, path: str):
-        """Load model checkpoint.
-        
-        Args:
-            path: Path to load checkpoint from
-        """
-        logger.info(f"Loading TimesFM checkpoint from {path}")
-        checkpoint = torch.load(path, map_location='cpu')
-        self.config = checkpoint['config']
-        
-        # Reload model with new config
-        self._is_loaded = False
-        self._load_model()
-    
-    @property
-    def device(self) -> torch.device:
-        """Get the device the model is on."""
-        return torch.device(self.config.device)
-    
-    def to(self, device: torch.device):
-        """Move model to specified device.
-        
-        Args:
-            device: Target device
-        """
-        self.config.device = str(device)
-        # Note: TimesFM handles device placement internally
-        return self
-    
-    def train(self, mode: bool = True):
-        """Set model to training mode (no-op for TimesFM)."""
-        # TimesFM is inference-only
-        return self
-    
-    def eval(self):
-        """Set model to evaluation mode (no-op for TimesFM)."""
-        # TimesFM is always in eval mode
-        return self
+    return TimesFMForecaster(config)

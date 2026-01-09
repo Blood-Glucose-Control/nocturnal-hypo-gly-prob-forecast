@@ -157,9 +157,7 @@ class MomentConfig(ModelConfig):
         self.mask_ratio = kwargs.get("mask_ratio", 0.15)
 
         # Initialize Moment-specific configs
-        self.training_config = kwargs.get(
-            "training_config", MomentTrainingConfig()
-        )
+        self.training_config = kwargs.get("training_config", MomentTrainingConfig())
         self.data_config = kwargs.get("data_config", MomentDataConfig())
 
     def supports_lora(self) -> bool:
