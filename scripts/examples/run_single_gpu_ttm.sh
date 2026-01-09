@@ -30,10 +30,14 @@ echo ""
 
 # Activate your virtual environment
 echo "Activating virtual environment..."
-source /u6/cjrisi/nocturnal/.noctprob-venv/bin/activate
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+: "${NOCTURNAL_VENV:=${PROJECT_ROOT}/.noctprob-venv/bin/activate}"
+# shellcheck disable=SC1090
+source "${NOCTURNAL_VENV}"
 
 # Navigate to project root
-cd /u6/cjrisi/nocturnal
+cd "${PROJECT_ROOT}"
 
 # Show GPU info
 echo ""
