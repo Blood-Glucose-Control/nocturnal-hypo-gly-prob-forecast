@@ -28,16 +28,43 @@ echo ""
 # module load cuda/11.8
 # module load python/3.10
 
-# Activate your virtual environment
-echo "Activating virtual environment..."
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-: "${NOCTURNAL_VENV:=${PROJECT_ROOT}/.noctprob-venv/bin/activate}"
-# shellcheck disable=SC1090
-source "${NOCTURNAL_VENV}"
+# Debug: Show SLURM environment
+echo "Debug - SLURM_SUBMIT_DIR: $SLURM_SUBMIT_DIR"
+echo "Debug - PWD: $PWD"
+
+# Determine project root
+# Use SLURM_SUBMIT_DIR if available (when submitted via sbatch)
+# Otherwise fall back to detecting from script location
+if [ -n "$SLURM_SUBMIT_DIR" ]; then
+    PROJECT_ROOT="$SLURM_SUBMIT_DIR"
+    echo "✓ Using SLURM submit directory: $PROJECT_ROOT"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+    echo "✓ Detected project root from script: $PROJECT_ROOT"
+fi
 
 # Navigate to project root
-cd "${PROJECT_ROOT}"
+echo "Changing to project root..."
+cd "${PROJECT_ROOT}" || { echo "❌ Failed to cd to $PROJECT_ROOT"; exit 1; }
+echo "Current directory: $(pwd)"
+
+# Activate virtual environment (check common locations)
+echo "Activating virtual environment..."
+if [ -f ".noctprob-venv/bin/activate" ]; then
+    source .noctprob-venv/bin/activate
+    echo "✓ Activated .noctprob-venv"
+elif [ -f "venv/bin/activate" ]; then
+    source venv/bin/activate
+    echo "✓ Activated venv"
+elif [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+    echo "✓ Activated .venv"
+elif [ -n "$VIRTUAL_ENV" ]; then
+    echo "✓ Using existing virtual environment: $VIRTUAL_ENV"
+else
+    echo "⚠️  WARNING: No virtual environment found, using system Python"
+fi
 
 # Show GPU info
 echo ""

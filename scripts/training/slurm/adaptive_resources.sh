@@ -45,11 +45,17 @@ echo "Started: $(date)"
 echo "========================================="
 echo ""
 
-# Determine project root (script is in scripts/training/slurm/)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-
-echo "Project root: $PROJECT_ROOT"
+# Determine project root
+# Use SLURM_SUBMIT_DIR if available (when submitted via sbatch)
+# Otherwise fall back to detecting from script location
+if [ -n "$SLURM_SUBMIT_DIR" ]; then
+    PROJECT_ROOT="$SLURM_SUBMIT_DIR"
+    echo "Using SLURM submit directory: $PROJECT_ROOT"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+    echo "Detected project root: $PROJECT_ROOT"
+fi
 
 # Navigate to project root
 cd "$PROJECT_ROOT"

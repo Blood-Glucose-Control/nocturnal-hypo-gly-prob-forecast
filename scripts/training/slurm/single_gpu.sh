@@ -54,14 +54,28 @@ echo ""
 # module load cuda/11.8
 # module load python/3.10
 
-# Determine project root (script is in scripts/training/slurm/)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# Debug: Show SLURM environment
+echo "Debug - SLURM_SUBMIT_DIR: $SLURM_SUBMIT_DIR"
+echo "Debug - PWD: $PWD"
+echo "Debug - BASH_SOURCE: ${BASH_SOURCE[0]}"
 
-echo "Project root: $PROJECT_ROOT"
+# Determine project root
+# Use SLURM_SUBMIT_DIR if available (when submitted via sbatch)
+# Otherwise fall back to detecting from script location
+if [ -n "$SLURM_SUBMIT_DIR" ]; then
+    PROJECT_ROOT="$SLURM_SUBMIT_DIR"
+    echo "✓ Using SLURM submit directory: $PROJECT_ROOT"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+    echo "✓ Detected project root from script: $PROJECT_ROOT"
+fi
 
 # Navigate to project root
-cd "$PROJECT_ROOT"
+echo "Changing to project root..."
+cd "$PROJECT_ROOT" || { echo "❌ Failed to cd to $PROJECT_ROOT"; exit 1; }
+echo "Current directory: $(pwd)"
+ls -la | head -20
 
 # Activate virtual environment (check common locations)
 echo "Activating environment..."
