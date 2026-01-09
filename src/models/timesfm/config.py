@@ -90,11 +90,11 @@ class TimesFMConfig(ModelConfig):
 
         if self.forecast_length != self.horizon_length:
             # If they differ, use forecast_length as the source of truth
-            self.horizon_length = self.forecast_length
+            self.horizon_length = self.forecast_length  # TODO: The config synchronization logic contains a potential issue. When forecast_length and horizon_length differ, forecast_length is used as the source of truth. However, if both are explicitly set to different values by the user, this will silently override horizon_length which could lead to unexpected behavior. Consider raising a warning or error when both are set to different values.
 
         if self.batch_size != self.per_core_batch_size:
             # If they differ, use batch_size as the source of truth
-            self.per_core_batch_size = self.batch_size
+            self.per_core_batch_size = self.batch_size  # TODO: The config synchronization logic contains a potential issue. When forecast_length and horizon_length differ, forecast_length is used as the source of truth. However, if both are explicitly set to different values by the user, this will silently override horizon_length which could lead to unexpected behavior. Consider raising a warning or error when both are set to different values.
 
         # Set use_cpu based on device
         if self.device == "cpu":
