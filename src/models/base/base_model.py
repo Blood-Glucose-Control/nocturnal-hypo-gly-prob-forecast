@@ -1007,6 +1007,11 @@ def create_model_from_config(config_path: str) -> BaseTSFM:
 
         config = TTMConfig(**config_dict)
         return TTMForecaster(config)
+    elif model_type == "toto":
+        from src.models.toto import TotoForecaster, TotoConfig
+
+        config = TotoConfig(**config_dict)
+        return TotoForecaster(config)
     elif model_type == "chronos":
         from src.models.chronos.model import ChronosForecaster
 

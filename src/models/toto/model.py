@@ -1,0 +1,870 @@
+"""
+Toto model implementation using the base TSFM framework.
+
+This module provides a concrete implementation of Toto that inherits from
+the base TSFM framework for fine-tuning on blood glucose forecasting.
+"""
+
+import os
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import numpy as np
+import pandas as pd
+import torch
+from torch.utils.data import DataLoader, Dataset
+from transformers import Trainer, TrainingArguments, EarlyStoppingCallback
+
+from toto.model.toto import Toto
+
+from src.models.base import BaseTSFM, TrainingStrategy
+from src.models.toto.config import TotoConfig
+from src.utils.logging_helper import info_print, error_print
+
+
+class TotoDataset(Dataset):
+    """PyTorch Dataset for Toto model training.
+
+    Converts time series data into the format expected by Toto:
+    - inputs: (batch, variates, timesteps)
+    - input_padding_mask: (batch, variates, timesteps) boolean mask
+    - id_mask: (batch, variates, timesteps) float mask for spacewise attention
+
+    Attributes:
+        data: Input data tensor of shape (num_samples, num_variates, context_length)
+        targets: Target data tensor of shape (num_samples, num_variates, forecast_length)
+        padding_mask: Boolean mask for padding positions
+    """
+
+    def __init__(
+        self,
+        data: torch.Tensor,
+        targets: torch.Tensor,
+        padding_mask: Optional[torch.Tensor] = None,
+    ):
+        """Initialize the dataset.
+
+        Args:
+            data: Input tensor of shape (num_samples, num_variates, context_length)
+            targets: Target tensor of shape (num_samples, num_variates, forecast_length)
+            padding_mask: Optional boolean mask for padding positions
+        """
+        self.data = data
+        self.targets = targets
+        self.padding_mask = padding_mask if padding_mask is not None else torch.ones_like(data, dtype=torch.bool)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        item = {
+            "inputs": self.data[idx],
+            "targets": self.targets[idx],
+            "input_padding_mask": self.padding_mask[idx],
+            # id_mask is 1.0 for all variates (no masking for space-wise attention)
+            "id_mask": torch.ones_like(self.data[idx]),
+        }
+        return item
+
+
+class TotoForTrainer(torch.nn.Module):
+    """Wrapper that makes Toto compatible with HuggingFace Trainer.
+
+    HuggingFace Trainer expects model.forward() to return a dict with 'loss'.
+    Toto returns TotoOutput(distribution, loc, scale). This wrapper:
+    1. Concatenates context + targets to form the full sequence
+    2. Runs Toto forward pass
+    3. Computes NLL loss on the forecast portion
+    4. Returns {'loss': loss, 'logits': mean_predictions}
+
+    Attributes:
+        toto: The underlying Toto model
+        forecast_length: Number of timesteps in the forecast horizon
+    """
+
+    def __init__(self, toto_model: Toto, forecast_length: int):
+        """Initialize the wrapper.
+
+        Args:
+            toto_model: The Toto model instance
+            forecast_length: Length of forecast horizon for loss computation
+        """
+        super().__init__()
+        self.toto = toto_model
+        self.forecast_length = forecast_length
+
+    def forward(
+        self,
+        inputs: torch.Tensor,
+        targets: torch.Tensor,
+        input_padding_mask: torch.Tensor,
+        id_mask: torch.Tensor,
+        **kwargs,
+    ) -> Dict[str, torch.Tensor]:
+        """Forward pass that returns loss for Trainer.
+
+        Args:
+            inputs: Context tensor (batch, variates, context_length)
+            targets: Target tensor (batch, variates, forecast_length)
+            input_padding_mask: Mask for padding (batch, variates, context_length)
+            id_mask: Mask for spacewise attention (batch, variates, context_length)
+
+        Returns:
+            Dict with 'loss' (scalar) and 'logits' (mean predictions)
+        """
+        # Concatenate context + targets for full sequence
+        # Toto needs to see the full sequence to predict the forecast portion
+        full_input = torch.cat([inputs, targets], dim=2)
+        full_padding_mask = torch.cat([
+            input_padding_mask,
+            torch.ones_like(targets, dtype=torch.bool)
+        ], dim=2)
+        full_id_mask = torch.cat([
+            id_mask,
+            torch.ones_like(targets)
+        ], dim=2)
+
+        # Forward through Toto backbone
+        output = self.toto.model(
+            inputs=full_input,
+            input_padding_mask=full_padding_mask,
+            id_mask=full_id_mask,
+        )
+
+        # Compute NLL loss on the forecast portion only
+        # output.distribution covers all timesteps, we only penalize forecast
+        log_prob = output.distribution.log_prob(full_input)
+        forecast_log_prob = log_prob[:, :, -self.forecast_length:]
+        loss = -forecast_log_prob.mean()
+
+        # Return mean predictions as logits (for potential metric computation)
+        logits = output.distribution.mean[:, :, -self.forecast_length:]
+
+        return {"loss": loss, "logits": logits}
+
+
+class TotoForecaster(BaseTSFM):
+    """Toto forecaster implementation using the base TSFM framework.
+
+    Toto (Timeseries-Optimized Transformer for Observability) is a transformer-based
+    model for multivariate time series forecasting. It uses patch embeddings, rotary
+    positional encodings, and alternating time-wise/space-wise attention.
+
+    Key features:
+    - Probabilistic outputs (Student-t distribution)
+    - Supports LoRA fine-tuning (transformer-based architecture)
+    - Uses NLL loss for training
+
+    Attributes:
+        config: Toto-specific configuration (TotoConfig instance).
+        model: The Toto model instance.
+
+    Example:
+        >>> config = TotoConfig(
+        ...     model_path="Datadog/Toto-Open-Base-1.0",
+        ...     context_length=1024,
+        ...     forecast_length=72,
+        ... )
+        >>> model = TotoForecaster(config)
+        >>> model.fit(train_data)
+        >>> predictions = model.predict(test_data)
+    """
+
+    def __init__(self, config: TotoConfig, lora_config=None, distributed_config=None):
+        """Initialize the Toto forecaster.
+
+        Args:
+            config: Toto configuration object.
+            lora_config: LoRA configuration for memory-efficient fine-tuning.
+            distributed_config: Configuration for distributed training.
+        """
+        if not isinstance(config, TotoConfig):
+            essential_params = {
+                "model_path": getattr(config, "model_path", "Datadog/Toto-Open-Base-1.0"),
+                "context_length": getattr(config, "context_length", 1024),
+                "forecast_length": getattr(config, "forecast_length", 72),
+                "learning_rate": getattr(config, "learning_rate", 1e-5),
+                "batch_size": getattr(config, "batch_size", 32),
+                "num_epochs": getattr(config, "num_epochs", 10),
+            }
+            config = TotoConfig(**essential_params)
+
+        super().__init__(config, lora_config, distributed_config)
+        self.config: TotoConfig = self.config
+
+    # Abstract method implementations
+    def predict(
+        self,
+        data: Any,
+        batch_size: Optional[int] = None,
+        return_dict: bool = False,
+    ) -> Union[np.ndarray, Dict[str, Any]]:
+        """Make predictions on new data.
+
+        Uses the probabilistic distribution mean for point predictions.
+
+        Args:
+            data: Input data - can be:
+                - pd.DataFrame with time series data
+                - torch.Tensor of shape (batch, variates, timesteps)
+                - TotoDataset instance
+            batch_size: Batch size for prediction (defaults to config.batch_size)
+            return_dict: Whether to return additional information (distribution params)
+
+        Returns:
+            If return_dict=False: numpy array of predictions (distribution means)
+            If return_dict=True: dict with predictions, loc, scale, and distribution samples
+        """
+        if self.model is None:
+            raise ValueError("Model must be initialized before making predictions")
+
+        batch_size = batch_size or self.config.batch_size
+        self.model.eval()
+        device = next(self.model.parameters()).device
+
+        # Prepare data
+        if isinstance(data, pd.DataFrame):
+            data_loader, _, _ = self._prepare_data(data)
+        elif isinstance(data, torch.Tensor):
+            dataset = TotoDataset(
+                data=data,
+                targets=torch.zeros(data.shape[0], data.shape[1], self.config.forecast_length),
+            )
+            data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        elif isinstance(data, DataLoader):
+            data_loader = data
+        else:
+            raise ValueError(f"Unsupported data type: {type(data)}")
+
+        all_predictions = []
+        all_locs = []
+        all_scales = []
+
+        with torch.no_grad():
+            for batch in data_loader:
+                inputs = batch["inputs"].to(device)
+                padding_mask = batch["input_padding_mask"].to(device)
+                id_mask = batch["id_mask"].to(device)
+
+                # Forward pass - Toto returns TotoOutput with distribution, loc, scale
+                output = self.model.model(
+                    inputs=inputs,
+                    input_padding_mask=padding_mask,
+                    id_mask=id_mask,
+                )
+
+                # Get mean predictions from the distribution
+                # The output has timesteps from the full context, we take forecast portion
+                distribution = output.distribution
+                mean_pred = distribution.mean  # (batch, variates, timesteps)
+
+                # Take only the forecast horizon (last forecast_length steps)
+                forecast_pred = mean_pred[:, :, -self.config.forecast_length:]
+
+                all_predictions.append(forecast_pred.cpu().numpy())
+                all_locs.append(output.loc.cpu().numpy())
+                all_scales.append(output.scale.cpu().numpy())
+
+        predictions = np.concatenate(all_predictions, axis=0)
+
+        if return_dict:
+            return {
+                "predictions": predictions,
+                "loc": np.concatenate(all_locs, axis=0),
+                "scale": np.concatenate(all_scales, axis=0),
+                "model_config": self.config.to_dict(),
+                "n_samples": len(predictions),
+            }
+
+        return predictions
+
+    def get_training_strategy(self) -> TrainingStrategy:
+        """Return the training strategy used by Toto.
+
+        Returns:
+            TrainingStrategy: TRANSFORMERS (Toto uses custom PyTorch training
+                with HuggingFace-style components).
+        """
+        return TrainingStrategy.TRANSFORMERS
+
+    def supports_lora(self) -> bool:
+        """Check if Toto supports LoRA fine-tuning.
+
+        Returns:
+            bool: True - Toto is transformer-based and supports LoRA.
+        """
+        return True
+
+    def _initialize_model(self) -> None:
+        """Initialize the Toto model from pretrained weights.
+
+        Loads the model from HuggingFace and configures gradients based on
+        fit_strategy.
+        """
+        try:
+            info_print(f"Initializing Toto model from {self.config.model_path}")
+
+            # Load pretrained Toto model
+            self.model = Toto.from_pretrained(self.config.model_path)
+
+            # Configure gradients
+            if self.config.fit_strategy == "zero_shot":
+                info_print("Freezing all parameters for zero-shot evaluation")
+                for param in self.model.parameters():
+                    param.requires_grad = False
+            else:
+                info_print(f"Enabling gradients ({self.config.fit_strategy} mode)")
+                for param in self.model.parameters():
+                    param.requires_grad = True
+
+            # Move to appropriate device
+            if torch.cuda.is_available() and not self.config.use_cpu:
+                self.model = self.model.cuda()
+                info_print("Moved model to CUDA")
+
+            info_print("Toto model initialized successfully")
+
+        except Exception as e:
+            error_print(f"Failed to initialize Toto model: {str(e)}")
+            raise
+
+    def _prepare_data(
+        self,
+        train_data: Any,
+        val_data: Optional[Any] = None,
+        test_data: Optional[Any] = None,
+    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
+        """Prepare data loaders for Toto training.
+
+        Converts DataFrame to Toto's expected format: (batch, variates, timesteps).
+
+        Args:
+            train_data: Training data as DataFrame or data source name
+            val_data: Validation data (optional)
+            test_data: Test data (optional)
+
+        Returns:
+            Tuple of (train_loader, val_loader, test_loader)
+        """
+        info_print("Preparing data for Toto training...")
+
+        def df_to_dataset(df: pd.DataFrame) -> TotoDataset:
+            """Convert DataFrame to TotoDataset."""
+            # Extract features and create windows
+            features = self.config.input_features
+            context_len = self.config.context_length
+            forecast_len = self.config.forecast_length
+            total_len = context_len + forecast_len
+
+            # Get the feature columns
+            feature_data = df[features].values  # (timesteps, num_features)
+
+            # Create sliding windows
+            num_windows = len(feature_data) - total_len + 1
+            if num_windows <= 0:
+                raise ValueError(
+                    f"Data length ({len(feature_data)}) is too short for "
+                    f"context_length ({context_len}) + forecast_length ({forecast_len})"
+                )
+
+            # Create windows: (num_windows, total_len, num_features)
+            windows = np.array([
+                feature_data[i:i + total_len]
+                for i in range(num_windows)
+            ])
+
+            # Split into context and forecast
+            context = windows[:, :context_len, :]  # (num_windows, context_len, num_features)
+            forecast = windows[:, context_len:, :]  # (num_windows, forecast_len, num_features)
+
+            # Transpose to Toto format: (batch, variates, timesteps)
+            context = np.transpose(context, (0, 2, 1))
+            forecast = np.transpose(forecast, (0, 2, 1))
+
+            # Convert to tensors
+            context_tensor = torch.tensor(context, dtype=torch.float32)
+            forecast_tensor = torch.tensor(forecast, dtype=torch.float32)
+
+            # Create padding mask (True where data is valid, i.e., not NaN)
+            padding_mask = ~torch.isnan(context_tensor)
+
+            # Replace NaNs with 0 for model input
+            context_tensor = torch.nan_to_num(context_tensor, nan=0.0)
+            forecast_tensor = torch.nan_to_num(forecast_tensor, nan=0.0)
+
+            return TotoDataset(
+                data=context_tensor,
+                targets=forecast_tensor,
+                padding_mask=padding_mask,
+            )
+
+        # Handle string data source names
+        if isinstance(train_data, str):
+            from src.data.diabetes_datasets.data_loader import get_loader
+            loader = get_loader(
+                data_source_name=train_data,
+                num_validation_days=20,
+                use_cached=True,
+            )
+            # Get combined data from all patients
+            combined_data = []
+            for patient_id, patient_data in loader.processed_data.items():
+                combined_data.append(patient_data)
+            train_data = pd.concat(combined_data, ignore_index=True)
+
+        # Create datasets
+        train_dataset = df_to_dataset(train_data)
+
+        val_dataset = None
+        if val_data is not None:
+            if isinstance(val_data, str):
+                from src.data.diabetes_datasets.data_loader import get_loader
+                loader = get_loader(data_source_name=val_data, use_cached=True)
+                combined_data = []
+                for patient_id, patient_data in loader.processed_data.items():
+                    combined_data.append(patient_data)
+                val_data = pd.concat(combined_data, ignore_index=True)
+            val_dataset = df_to_dataset(val_data)
+
+        test_dataset = None
+        if test_data is not None:
+            if isinstance(test_data, str):
+                from src.data.diabetes_datasets.data_loader import get_loader
+                loader = get_loader(data_source_name=test_data, use_cached=True)
+                combined_data = []
+                for patient_id, patient_data in loader.processed_data.items():
+                    combined_data.append(patient_data)
+                test_data = pd.concat(combined_data, ignore_index=True)
+            test_dataset = df_to_dataset(test_data)
+
+        # Create data loaders
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=self.config.batch_size,
+            shuffle=True,
+            num_workers=self.config.dataloader_num_workers,
+        )
+
+        val_loader = None
+        if val_dataset is not None:
+            val_loader = DataLoader(
+                val_dataset,
+                batch_size=self.config.batch_size,
+                shuffle=False,
+                num_workers=self.config.dataloader_num_workers,
+            )
+
+        test_loader = None
+        if test_dataset is not None:
+            test_loader = DataLoader(
+                test_dataset,
+                batch_size=self.config.batch_size,
+                shuffle=False,
+                num_workers=self.config.dataloader_num_workers,
+            )
+
+        info_print("Data preparation complete:")
+        info_print(f"  Train samples: {len(train_dataset)}")
+        info_print(f"  Val samples: {len(val_dataset) if val_dataset else 0}")
+        info_print(f"  Test samples: {len(test_dataset) if test_dataset else 0}")
+
+        return train_loader, val_loader, test_loader
+
+    def _save_model_weights(self, output_dir: str) -> None:
+        """Save Toto model weights.
+
+        Args:
+            output_dir: Directory to save model weights.
+        """
+        if self.model is not None:
+            model_path = os.path.join(output_dir, "toto_model")
+            os.makedirs(model_path, exist_ok=True)
+            self.model.save_pretrained(model_path)
+            info_print(f"Toto model saved to {model_path}")
+
+    def _load_model_weights(self, model_dir: str) -> None:
+        """Load Toto model weights.
+
+        Args:
+            model_dir: Directory containing saved model weights.
+        """
+        try:
+            model_path = os.path.join(model_dir, "toto_model")
+            if os.path.exists(model_path):
+                self.model = Toto.from_pretrained(model_path)
+            else:
+                # Try loading directly from model_dir
+                self.model = Toto.from_pretrained(model_dir)
+
+            if torch.cuda.is_available() and not self.config.use_cpu:
+                self.model = self.model.cuda()
+
+            info_print(f"Toto model weights loaded from {model_dir}")
+
+        except Exception as e:
+            error_print(f"Failed to load model weights: {str(e)}")
+            raise
+
+    def _train_model(
+        self,
+        train_data: Any,
+        val_data: Optional[Any] = None,
+        test_data: Optional[Any] = None,
+        output_dir: str = "./output",
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Execute Toto training using HuggingFace Trainer.
+
+        Uses the Trainer class for:
+        - Automatic distributed training support
+        - Checkpointing and logging
+        - Early stopping
+        - Mixed precision (fp16)
+
+        Args:
+            train_data: Training data
+            val_data: Validation data (optional)
+            test_data: Test data (optional)
+            output_dir: Directory for saving checkpoints
+            **kwargs: Additional arguments (e.g., resume_from_checkpoint)
+
+        Returns:
+            Dictionary with training and evaluation metrics.
+        """
+        # Prepare datasets (not loaders - Trainer handles batching)
+        train_loader, val_loader, test_loader = self._prepare_data(
+            train_data, val_data, test_data
+        )
+
+        # Wrap Toto model for Trainer compatibility
+        # TotoForTrainer computes NLL loss internally and returns {'loss': ..., 'logits': ...}
+        trainer_model = TotoForTrainer(self.model, self.config.forecast_length)
+
+        # Create training arguments
+        training_args = self._create_training_arguments(output_dir)
+
+        # Create Trainer
+        trainer = Trainer(
+            model=trainer_model,
+            args=training_args,
+            train_dataset=train_loader.dataset,
+            eval_dataset=val_loader.dataset if val_loader else None,
+            data_collator=self._collate_fn,
+            callbacks=self._get_callbacks(),
+        )
+
+        info_print("Starting training with HuggingFace Trainer")
+        info_print(f"  Train samples: {len(train_loader.dataset)}")
+        info_print(f"  Batch size: {self.config.batch_size}")
+        info_print(f"  Epochs: {self.config.num_epochs}")
+        info_print(f"  Learning rate: {self.config.learning_rate}")
+
+        # Train the model
+        resume_from_checkpoint = kwargs.get("resume_from_checkpoint", None)
+        if resume_from_checkpoint:
+            info_print(f"Resuming from checkpoint: {resume_from_checkpoint}")
+            train_result = trainer.train(resume_from_checkpoint=resume_from_checkpoint)
+        else:
+            train_result = trainer.train()
+
+        # Save the final model
+        trainer.save_model(os.path.join(output_dir, "final_model"))
+
+        # Update self.model with trained weights
+        # The wrapper's toto attribute has the trained weights
+        self.model = trainer_model.toto
+
+        # Test evaluation
+        test_metrics = {}
+        if test_loader is not None:
+            info_print("Evaluating on test set...")
+            test_metrics = self._evaluate_loader(test_loader)
+            info_print(f"Test metrics: {test_metrics}")
+
+        info_print("Training complete!")
+
+        return {
+            "train_metrics": train_result.metrics,
+            "test_metrics": test_metrics,
+        }
+
+    def _collate_fn(self, batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+        """Collate samples into batches for Toto.
+
+        Called by Trainer to combine individual samples into a batch.
+
+        Args:
+            batch: List of samples from TotoDataset.__getitem__()
+
+        Returns:
+            Dictionary with stacked tensors for inputs, targets, masks
+        """
+        return {
+            "inputs": torch.stack([b["inputs"] for b in batch]),
+            "targets": torch.stack([b["targets"] for b in batch]),
+            "input_padding_mask": torch.stack([b["input_padding_mask"] for b in batch]),
+            "id_mask": torch.stack([b["id_mask"] for b in batch]),
+        }
+
+    def _create_training_arguments(self, output_dir: str) -> TrainingArguments:
+        """Create HuggingFace TrainingArguments for Toto training.
+
+        Configures all training hyperparameters including:
+        - Learning rate and scheduling
+        - Batch size and gradient accumulation
+        - Evaluation and logging frequency
+        - Checkpointing and early stopping
+        - Mixed precision (fp16)
+
+        Args:
+            output_dir: Directory for saving checkpoints and logs
+
+        Returns:
+            Configured TrainingArguments instance
+        """
+        # Base training arguments
+        base_args = {
+            "output_dir": output_dir,
+            "learning_rate": self.config.learning_rate,
+            "num_train_epochs": self.config.num_epochs,
+            "per_device_train_batch_size": self.config.batch_size,
+            "per_device_eval_batch_size": self.config.batch_size,
+            "warmup_steps": self.config.warmup_steps,
+            "weight_decay": self.config.weight_decay,
+            "max_grad_norm": self.config.gradient_clip_val,
+            "logging_dir": os.path.join(output_dir, "logs"),
+            "logging_steps": self.config.logging_steps,
+            "eval_strategy": self.config.eval_strategy,
+            "eval_steps": self.config.eval_steps,
+            "save_steps": self.config.save_steps,
+            "save_total_limit": 3,  # Keep only last 3 checkpoints
+            "metric_for_best_model": self.config.metric_for_best_model,
+            "greater_is_better": self.config.greater_is_better,
+            "load_best_model_at_end": True,
+            "fp16": self.config.fp16 and torch.cuda.is_available(),
+            "dataloader_num_workers": self.config.dataloader_num_workers,
+            "remove_unused_columns": False,  # Keep all columns for Toto
+            "report_to": "none",  # Disable wandb/tensorboard by default
+        }
+
+        # Add distributed training arguments if configured
+        distributed_args = self._get_distributed_training_args()
+        base_args.update(distributed_args)
+
+        return TrainingArguments(**base_args)
+
+    def _get_distributed_training_args(self) -> Dict[str, Any]:
+        """Get distributed training arguments for TrainingArguments.
+
+        Configures DDP, DeepSpeed, or FSDP based on distributed_config.
+
+        Returns:
+            Dictionary of distributed training arguments
+        """
+        if not self.distributed_config.enabled:
+            return {}
+
+        args = {}
+
+        if self.distributed_config.strategy == "ddp":
+            args["ddp_backend"] = self.distributed_config.backend
+            args["ddp_find_unused_parameters"] = self.distributed_config.find_unused_parameters
+            args["ddp_bucket_cap_mb"] = 25
+
+        elif self.distributed_config.strategy == "deepspeed":
+            if self.distributed_config.deepspeed_config:
+                args["deepspeed"] = self.distributed_config.deepspeed_config
+
+        elif self.distributed_config.strategy == "fsdp":
+            if self.distributed_config.fsdp_config:
+                args.update(self.distributed_config.fsdp_config)
+
+        return args
+
+    def _get_callbacks(self) -> List:
+        """Get training callbacks for Trainer.
+
+        Returns:
+            List of callback instances (e.g., EarlyStoppingCallback)
+        """
+        callbacks = []
+
+        # Early stopping if patience > 0
+        if self.config.early_stopping_patience > 0:
+            callbacks.append(
+                EarlyStoppingCallback(
+                    early_stopping_patience=self.config.early_stopping_patience,
+                    early_stopping_threshold=0.0,
+                )
+            )
+
+        return callbacks
+
+    def _evaluate_loader(self, data_loader: DataLoader) -> Dict[str, float]:
+        """Evaluate model on a data loader.
+
+        Args:
+            data_loader: DataLoader to evaluate on.
+
+        Returns:
+            Dictionary of metrics.
+        """
+        self.model.eval()
+        device = next(self.model.parameters()).device
+
+        all_preds = []
+        all_targets = []
+
+        with torch.no_grad():
+            for batch in data_loader:
+                inputs = batch["inputs"].to(device)
+                targets = batch["targets"].to(device)
+                padding_mask = batch["input_padding_mask"].to(device)
+                id_mask = batch["id_mask"].to(device)
+
+                output = self.model.model(
+                    inputs=inputs,
+                    input_padding_mask=padding_mask,
+                    id_mask=id_mask,
+                )
+
+                # Get mean predictions for forecast horizon
+                mean_pred = output.distribution.mean
+                forecast_pred = mean_pred[:, :, -self.config.forecast_length:]
+
+                all_preds.append(forecast_pred.cpu().numpy())
+                all_targets.append(targets.cpu().numpy())
+
+        preds = np.concatenate(all_preds, axis=0).flatten()
+        targets = np.concatenate(all_targets, axis=0).flatten()
+
+        return self._compute_metrics(preds, targets)
+
+    # Toto-specific public methods
+    def predict_distribution(
+        self,
+        data: Any,
+        num_samples: int = 100,
+        batch_size: Optional[int] = None,
+    ) -> Dict[str, np.ndarray]:
+        """Make probabilistic predictions with samples from the distribution.
+
+        Args:
+            data: Input data
+            num_samples: Number of samples to draw from the distribution
+            batch_size: Batch size for prediction
+
+        Returns:
+            Dictionary with:
+                - mean: Distribution mean predictions
+                - samples: Samples from the distribution
+                - std: Standard deviation of samples
+                - quantiles: 5%, 25%, 50%, 75%, 95% quantiles
+        """
+        if self.model is None:
+            raise ValueError("Model must be initialized before making predictions")
+
+        batch_size = batch_size or self.config.batch_size
+        self.model.eval()
+        device = next(self.model.parameters()).device
+
+        # Prepare data
+        if isinstance(data, pd.DataFrame):
+            data_loader, _, _ = self._prepare_data(data)
+        elif isinstance(data, torch.Tensor):
+            dataset = TotoDataset(
+                data=data,
+                targets=torch.zeros(data.shape[0], data.shape[1], self.config.forecast_length),
+            )
+            data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        elif isinstance(data, DataLoader):
+            data_loader = data
+        else:
+            raise ValueError(f"Unsupported data type: {type(data)}")
+
+        all_means = []
+        all_samples = []
+
+        with torch.no_grad():
+            for batch in data_loader:
+                inputs = batch["inputs"].to(device)
+                padding_mask = batch["input_padding_mask"].to(device)
+                id_mask = batch["id_mask"].to(device)
+
+                output = self.model.model(
+                    inputs=inputs,
+                    input_padding_mask=padding_mask,
+                    id_mask=id_mask,
+                )
+
+                distribution = output.distribution
+                mean_pred = distribution.mean[:, :, -self.config.forecast_length:]
+                samples = distribution.sample((num_samples,))
+                samples = samples[:, :, :, -self.config.forecast_length:]
+
+                all_means.append(mean_pred.cpu().numpy())
+                all_samples.append(samples.cpu().numpy())
+
+        means = np.concatenate(all_means, axis=0)
+        samples = np.concatenate(all_samples, axis=1)  # (num_samples, batch, variates, forecast)
+
+        return {
+            "mean": means,
+            "samples": samples,
+            "std": np.std(samples, axis=0),
+            "quantiles": {
+                "q05": np.percentile(samples, 5, axis=0),
+                "q25": np.percentile(samples, 25, axis=0),
+                "q50": np.percentile(samples, 50, axis=0),
+                "q75": np.percentile(samples, 75, axis=0),
+                "q95": np.percentile(samples, 95, axis=0),
+            },
+        }
+
+    def get_toto_specific_info(self) -> Dict[str, Any]:
+        """Get Toto-specific model information.
+
+        Returns:
+            Dictionary with base model info plus Toto-specific details.
+        """
+        base_info = self.get_model_info()
+
+        toto_info = {
+            "model_path": self.config.model_path,
+            "context_length": self.config.context_length,
+            "forecast_length": self.config.forecast_length,
+            "patch_size": self.config.patch_size,
+            "stride": self.config.stride,
+            "freeze_backbone": self.config.freeze_backbone,
+            "use_nll_loss": self.config.use_nll_loss,
+            "supports_lora": self.supports_lora(),
+        }
+
+        base_info["toto_specific"] = toto_info
+        return base_info
+
+
+def create_toto_model(
+    model_path: str = "Datadog/Toto-Open-Base-1.0",
+    context_length: int = 1024,
+    forecast_length: int = 72,
+    **kwargs,
+) -> TotoForecaster:
+    """Factory function to create a Toto model with sensible defaults.
+
+    Args:
+        model_path: HuggingFace model path
+        context_length: Input sequence length
+        forecast_length: Prediction horizon
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        Configured TotoForecaster instance
+    """
+    config = TotoConfig(
+        model_path=model_path,
+        context_length=context_length,
+        forecast_length=forecast_length,
+        **kwargs,
+    )
+
+    return TotoForecaster(config)
