@@ -166,7 +166,7 @@ GPU allocation didn't work.
 
 ### "ModuleNotFoundError"
 Python environment not activated properly.
-- Fix: Verify path in scripts points to your venv: `/u6/cjrisi/nocturnal/.noctprob-venv/bin/activate`
+- Fix: Verify path in scripts points to your venv, e.g.: `/path/to/your/.noctprob-venv/bin/activate`
 
 ### "NCCL error" (multi-GPU only)
 Distributed training communication issue.
