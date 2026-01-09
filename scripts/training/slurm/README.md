@@ -95,7 +95,7 @@ scancel 12345
 If a job fails:
 ```bash
 # Check error log
-cat logs/train_JOBID-err.out
+cat logs/train_*_JOBID.err  # Replace JOBID with your job ID
 
 # Check full output
 cat logs/train_JOBID.out
