@@ -1,0 +1,22 @@
+{
+    "is_fine_tuned": false,
+    "forecast_horizon": 24,
+    "model_name": "Autogluon/chronos-2-small",
+    "context_length": 512,
+    "dataset_name": "Illness",
+    "adapter": "linearlVAE",
+    "data_path": "/u201/y329xie/nocturnal-hypo-gly-prob-forecast/runs/_20260109_234805/results/latest.csv",
+    "seed": 31574,
+    "device": "cuda:0",
+    "logger_name": "AdaPTS",
+    "log_level": "INFO",
+    "log_dir": "logs/latest",
+    "number_n_comp_to_try": 4,
+    "inference_batch_size": 128,
+    "supervised": "True",
+    "use_revin": true,
+    "pca_in_preprocessing": false,
+    "custom_n_comp": false,
+    "n_epochs_fine_tuning": 50,
+    "n_epochs_adapter": 300
+}

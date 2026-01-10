@@ -131,7 +131,8 @@ class CacheManager:
         )
         source = dataset_config.source
         if source == DatasetSourceType.KAGGLE_BRIS_T1D:
-            self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
+            # self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
+            pass
         elif source == DatasetSourceType.HUGGING_FACE:
             self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
         elif source in (

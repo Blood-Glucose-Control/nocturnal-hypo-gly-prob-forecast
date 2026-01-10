@@ -1,0 +1,26 @@
+Training Run: _20260110_000913
+Created: Sat Jan 10 12:09:13 AM UTC 2026
+Configuration: 
+Original config: 
+
+SLURM Settings:
+- Time limit: 01:00:00
+- Memory: 8G
+- CPUs: 4
+- GPU: gpu:1
+- Partition: HI
+
+Directory Structure:
+- Run directory: /u201/y329xie/nocturnal-hypo-gly-prob-forecast/runs/_20260110_000913
+- Logs: /u201/y329xie/nocturnal-hypo-gly-prob-forecast/runs/_20260110_000913/logs/
+- Checkpoints: /u201/y329xie/nocturnal-hypo-gly-prob-forecast/runs/_20260110_000913/checkpoints/
+- TensorBoard: /u201/y329xie/nocturnal-hypo-gly-prob-forecast/runs/_20260110_000913/tensorboard/
+- Results: /u201/y329xie/nocturnal-hypo-gly-prob-forecast/runs/_20260110_000913/results/
+- SLURM logs: /u201/y329xie/nocturnal-hypo-gly-prob-forecast/runs/_20260110_000913/slurm/
+
+To monitor the job:
+- squeue -u y329xie
+- tail -f /u201/y329xie/nocturnal-hypo-gly-prob-forecast/runs/_20260110_000913/slurm/slurm-*.out
+
+To view TensorBoard:
+- tensorboard --logdir /u201/y329xie/nocturnal-hypo-gly-prob-forecast/runs/_20260110_000913/tensorboard/
