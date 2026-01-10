@@ -123,6 +123,14 @@ class TotoForTrainer(torch.nn.Module):
             torch.ones_like(targets)
         ], dim=2)
 
+        # Check for NaN/Inf in inputs (helps debug data issues)
+        if torch.isnan(full_input).any() or torch.isinf(full_input).any():
+            raise ValueError(
+                f"NaN or Inf detected in input data. "
+                f"NaN count: {torch.isnan(full_input).sum()}, "
+                f"Inf count: {torch.isinf(full_input).sum()}"
+            )
+
         # Forward through Toto backbone
         output = self.toto.model(
             inputs=full_input,
@@ -135,6 +143,16 @@ class TotoForTrainer(torch.nn.Module):
         log_prob = output.distribution.log_prob(full_input)
         forecast_log_prob = log_prob[:, :, -self.forecast_length:]
         loss = -forecast_log_prob.mean()
+
+        # Check for NaN in loss (indicates numerical instability)
+        if torch.isnan(loss) or torch.isinf(loss):
+            raise ValueError(
+                f"NaN or Inf loss detected. This usually indicates:\n"
+                f"1. Learning rate too high\n"
+                f"2. Numerical instability (try disabling fp16)\n"
+                f"3. Data preprocessing issues\n"
+                f"Loss value: {loss.item()}"
+            )
 
         # Return mean predictions as logits (for potential metric computation)
         logits = output.distribution.mean[:, :, -self.forecast_length:]
@@ -387,9 +405,14 @@ class TotoForecaster(BaseTSFM):
             # Create padding mask (True where data is valid, i.e., not NaN)
             padding_mask = ~torch.isnan(context_tensor)
 
-            # Replace NaNs with 0 for model input
-            context_tensor = torch.nan_to_num(context_tensor, nan=0.0)
-            forecast_tensor = torch.nan_to_num(forecast_tensor, nan=0.0)
+            # Replace NaNs and clip extreme values for numerical stability
+            # Blood glucose typically ranges 2-25 mM, clip to reasonable bounds
+            context_tensor = torch.nan_to_num(context_tensor, nan=0.0, posinf=50.0, neginf=0.0)
+            forecast_tensor = torch.nan_to_num(forecast_tensor, nan=0.0, posinf=50.0, neginf=0.0)
+
+            # Clip to prevent extreme outliers that could cause numerical instability
+            context_tensor = torch.clamp(context_tensor, min=0.0, max=50.0)
+            forecast_tensor = torch.clamp(forecast_tensor, min=0.0, max=50.0)
 
             return TotoDataset(
                 data=context_tensor,
@@ -540,16 +563,18 @@ class TotoForecaster(BaseTSFM):
         trainer_model = TotoForTrainer(self.model, self.config.forecast_length)
 
         # Create training arguments
-        training_args = self._create_training_arguments(output_dir)
+        has_val_data = val_loader is not None
+        training_args = self._create_training_arguments(output_dir, has_val_data=has_val_data)
 
         # Create Trainer
+        # Note: We don't specify data_collator - the default collator handles
+        # dict-of-tensors correctly (stacks each tensor in the batch)
         trainer = Trainer(
             model=trainer_model,
             args=training_args,
             train_dataset=train_loader.dataset,
             eval_dataset=val_loader.dataset if val_loader else None,
-            data_collator=self._collate_fn,
-            callbacks=self._get_callbacks(),
+            callbacks=self._get_callbacks(has_val_data=has_val_data),
         )
 
         info_print("Starting training with HuggingFace Trainer")
@@ -605,7 +630,7 @@ class TotoForecaster(BaseTSFM):
             "id_mask": torch.stack([b["id_mask"] for b in batch]),
         }
 
-    def _create_training_arguments(self, output_dir: str) -> TrainingArguments:
+    def _create_training_arguments(self, output_dir: str, has_val_data: bool = False) -> TrainingArguments:
         """Create HuggingFace TrainingArguments for Toto training.
 
         Configures all training hyperparameters including:
@@ -617,10 +642,14 @@ class TotoForecaster(BaseTSFM):
 
         Args:
             output_dir: Directory for saving checkpoints and logs
+            has_val_data: Whether validation data is available
 
         Returns:
             Configured TrainingArguments instance
         """
+        # Determine evaluation strategy based on validation data availability
+        eval_strategy = self.config.eval_strategy if has_val_data else "no"
+
         # Base training arguments
         base_args = {
             "output_dir": output_dir,
@@ -633,13 +662,13 @@ class TotoForecaster(BaseTSFM):
             "max_grad_norm": self.config.gradient_clip_val,
             "logging_dir": os.path.join(output_dir, "logs"),
             "logging_steps": self.config.logging_steps,
-            "eval_strategy": self.config.eval_strategy,
-            "eval_steps": self.config.eval_steps,
+            "eval_strategy": eval_strategy,
+            "eval_steps": self.config.eval_steps if has_val_data else None,
             "save_steps": self.config.save_steps,
             "save_total_limit": 3,  # Keep only last 3 checkpoints
-            "metric_for_best_model": self.config.metric_for_best_model,
-            "greater_is_better": self.config.greater_is_better,
-            "load_best_model_at_end": True,
+            "metric_for_best_model": self.config.metric_for_best_model if has_val_data else None,
+            "greater_is_better": self.config.greater_is_better if has_val_data else None,
+            "load_best_model_at_end": has_val_data,  # Only load best model if we have validation data
             "fp16": self.config.fp16 and torch.cuda.is_available(),
             "dataloader_num_workers": self.config.dataloader_num_workers,
             "remove_unused_columns": False,  # Keep all columns for Toto
@@ -680,16 +709,20 @@ class TotoForecaster(BaseTSFM):
 
         return args
 
-    def _get_callbacks(self) -> List:
+    def _get_callbacks(self, has_val_data: bool = False) -> List:
         """Get training callbacks for Trainer.
+
+        Args:
+            has_val_data: Whether validation data is available
 
         Returns:
             List of callback instances (e.g., EarlyStoppingCallback)
         """
         callbacks = []
 
-        # Early stopping if patience > 0
-        if self.config.early_stopping_patience > 0:
+        # Early stopping if patience > 0 and we have validation data
+        # Early stopping requires validation metrics to monitor
+        if self.config.early_stopping_patience > 0 and has_val_data:
             callbacks.append(
                 EarlyStoppingCallback(
                     early_stopping_patience=self.config.early_stopping_patience,

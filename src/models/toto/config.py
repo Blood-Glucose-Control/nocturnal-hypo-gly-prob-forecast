@@ -115,8 +115,9 @@ class TotoConfig(ModelConfig):
             self.model_path = "Datadog/Toto-Open-Base-1.0"
 
         # Toto architecture parameters (from pretrained model)
-        self.patch_size = kwargs.get("patch_size", 8)
-        self.stride = kwargs.get("stride", 8)
+        # Datadog/Toto-Open-Base-1.0 uses patch_size=64 and stride=64
+        self.patch_size = kwargs.get("patch_size", 64)
+        self.stride = kwargs.get("stride", 64)
 
         # Toto Training Configuration
         self.freeze_backbone = kwargs.get("freeze_backbone", False)
@@ -188,11 +189,16 @@ class TotoConfig(ModelConfig):
         if abs(split_sum - 1.0) > 1e-6:
             errors.append(f"Data split ratios must sum to 1.0, got {split_sum}")
 
-        # Check patch alignment
-        if self.context_length % self.patch_size != 0:
+        # Check patch alignment - REQUIRED for Toto
+        # Toto requires the total sequence length (context + forecast) to be divisible by patch_size
+        total_length = self.context_length + self.forecast_length
+        if total_length % self.patch_size != 0:
             errors.append(
-                f"context_length ({self.context_length}) should be divisible by "
-                f"patch_size ({self.patch_size}) for optimal performance"
+                f"Total sequence length (context_length + forecast_length = "
+                f"{self.context_length} + {self.forecast_length} = {total_length}) "
+                f"must be divisible by patch_size ({self.patch_size}). "
+                f"Adjust forecast_length to {self.forecast_length - (total_length % self.patch_size)} "
+                f"or {self.forecast_length + (self.patch_size - (total_length % self.patch_size))}"
             )
 
         if errors:
@@ -216,17 +222,16 @@ def create_default_toto_config(**overrides) -> TotoConfig:
     defaults = {
         # Model configuration
         "model_path": "Datadog/Toto-Open-Base-1.0",
-        "context_length": 1024,  # ~85 hours at 5-min resolution
-        "forecast_length": 72,  # 6 hours at 5-min resolution
+        "context_length": 1024,  # ~85 hours at 5-min resolution (16 patches of 64)
+        "forecast_length": 64,  # ~5.3 hours at 5-min resolution (1 patch of 64)
+        # Total: 1024 + 64 = 1088 timesteps = 17 patches (divisible by patch_size=64)
         # Training configuration
         "batch_size": 32,
         "learning_rate": 1e-5,
         "num_epochs": 10,
         "warmup_steps": 500,
         "weight_decay": 0.01,
-        # Toto-specific
-        "patch_size": 8,
-        "stride": 8,
+        # Toto-specific (patch_size and stride default to 64 in __init__)
         "freeze_backbone": False,
         "use_nll_loss": True,
         # Data configuration

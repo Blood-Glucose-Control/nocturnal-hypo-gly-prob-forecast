@@ -58,7 +58,7 @@ def main():
 
     try:
         # Train the model
-        results = model.fit(train_data="kaggle_brisT1D", output_dir=output_dir)
+        results = model.fit(train_data="eval", output_dir=output_dir)
 
         info_print("🏁 Training completed successfully!")
         info_print(f"📊 Results: {list(results.keys())}")
