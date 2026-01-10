@@ -39,7 +39,7 @@ nvidia-smi
 # 4. Run Toto Finetuning
 # Note: Toto uses "MaskedTimeseries" objects and needs specific context lengths.
 echo "Starting Toto finetuning pipeline..."
-python scripts/examples/example_single_gpu_toto.py
+python -m scripts.examples.example_single_gpu_toto_optimized
 
 # Capture exit code
 exit_code=$?

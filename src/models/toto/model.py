@@ -428,11 +428,18 @@ class TotoForecaster(BaseTSFM):
                 num_validation_days=20,
                 use_cached=True,
             )
-            # Get combined data from all patients
-            combined_data = []
-            for patient_id, patient_data in loader.processed_data.items():
-                combined_data.append(patient_data)
-            train_data = pd.concat(combined_data, ignore_index=True)
+            # Get training data from the loader's train split
+            combined_train = []
+            for patient_id, patient_data in loader.train_data.items():
+                combined_train.append(patient_data)
+            train_data = pd.concat(combined_train, ignore_index=True)
+
+            # Get validation data from the loader's validation split
+            if loader.validation_data and len(loader.validation_data) > 0:
+                combined_val = []
+                for patient_id, patient_data in loader.validation_data.items():
+                    combined_val.append(patient_data)
+                val_data = pd.concat(combined_val, ignore_index=True)
 
         # Create datasets
         train_dataset = df_to_dataset(train_data)
@@ -666,13 +673,17 @@ class TotoForecaster(BaseTSFM):
             "eval_steps": self.config.eval_steps if has_val_data else None,
             "save_steps": self.config.save_steps,
             "save_total_limit": 3,  # Keep only last 3 checkpoints
-            "metric_for_best_model": self.config.metric_for_best_model if has_val_data else None,
-            "greater_is_better": self.config.greater_is_better if has_val_data else None,
             "load_best_model_at_end": has_val_data,  # Only load best model if we have validation data
             "fp16": self.config.fp16 and torch.cuda.is_available(),
             "dataloader_num_workers": self.config.dataloader_num_workers,
             "remove_unused_columns": False,  # Keep all columns for Toto
             "report_to": "none",  # Disable wandb/tensorboard by default
+            # Tell Trainer which keys are labels (needed for evaluation loss computation)
+            "label_names": ["targets", "input_padding_mask", "id_mask"],
+            # Explicitly set metric_for_best_model to None to disable it
+            # The Trainer will automatically track loss without needing this
+            "metric_for_best_model": None,
+            "greater_is_better": None,
         }
 
         # Add distributed training arguments if configured
