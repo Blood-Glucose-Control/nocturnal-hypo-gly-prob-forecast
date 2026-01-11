@@ -7,7 +7,7 @@
 #SBATCH --job-name=finetune_toto_diabetes
 #SBATCH --output=logs/toto_ft_%j.out
 #SBATCH --error=logs/toto_ft_%j.err
-#SBATCH --time=02:00:00            # Increased slightly for Toto's larger params
+#SBATCH --time=07:00:00            # Increased slightly for Toto's larger params
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32GB                 # Toto's 151M params + 4096 context need more RAM
 #SBATCH --gres=gpu:1               # Still using 1 GPU for iteration

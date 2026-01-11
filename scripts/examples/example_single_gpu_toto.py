@@ -38,6 +38,7 @@ def main():
         num_epochs=10,           # Increased from 1 to 10 for better convergence
         use_cpu=use_cpu,
         fp16=False,              # Disabled - Toto's Student-T distribution is sensitive to fp16 NaNs
+        early_stopping_patience=0,  # Disable early stopping to train full 10 epochs
     )
 
     # 3. Model Initialization

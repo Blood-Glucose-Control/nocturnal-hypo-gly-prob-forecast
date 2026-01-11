@@ -41,6 +41,9 @@ def main():
         logging_steps=500,               # Log less frequently
         save_steps=5000,                 # Save less frequently
         dataloader_num_workers=4,        # More workers for faster data loading
+
+        # Disable early stopping to train full 10 epochs
+        early_stopping_patience=0,       # 0 = disabled
     )
 
     # 3. Model Initialization
@@ -61,7 +64,8 @@ def main():
     try:
         results = model.fit(
             train_data="kaggle_brisT1D",
-            output_dir=output_dir
+            output_dir=output_dir,
+            resume_from_checkpoint=True
         )
 
         info_print("🏁 Training completed!")
