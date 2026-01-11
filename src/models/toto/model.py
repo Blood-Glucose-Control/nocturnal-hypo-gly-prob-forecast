@@ -84,20 +84,24 @@ class TotoForTrainer(torch.nn.Module):
     - At inference, use autoregressive generation (Toto's official forecaster API)
 
     Attributes:
-        toto: The underlying Toto model
+        toto: The underlying Toto model (may be PEFT-wrapped for LoRA)
         forecast_length: Number of timesteps in the forecast horizon
+        is_peft_model: Whether the model is wrapped with PEFT (LoRA)
     """
 
-    def __init__(self, toto_model: Toto, forecast_length: int):
+    def __init__(self, toto_model, forecast_length: int):
         """Initialize the wrapper.
 
         Args:
-            toto_model: The Toto model instance
+            toto_model: The Toto model instance (raw Toto or PEFT-wrapped)
             forecast_length: Length of forecast horizon for loss computation
         """
         super().__init__()
         self.toto = toto_model
         self.forecast_length = forecast_length
+
+        # Check if this is a PEFT model (LoRA)
+        self.is_peft_model = hasattr(toto_model, 'base_model')
 
     def forward(
         self,
@@ -140,11 +144,33 @@ class TotoForTrainer(torch.nn.Module):
             )
 
         # Forward through Toto backbone
-        output = self.toto.model(
-            inputs=full_input,
-            input_padding_mask=full_padding_mask,
-            id_mask=full_id_mask,
-        )
+        # Handle both raw Toto and PEFT-wrapped models
+        if self.is_peft_model:
+            # PEFT wraps the model - get the underlying Toto with LoRA layers injected
+            # PEFT structure: PeftModel.base_model is a wrapper, PeftModel.base_model.model is Toto
+            # The LoRA layers are injected into Toto's backbone (Toto.model)
+            # so calling toto.model() uses the LoRA layers
+            if hasattr(self.toto, 'get_base_model'):
+                # PEFT >= 0.3.0
+                underlying_toto = self.toto.get_base_model()
+            elif hasattr(self.toto, 'base_model') and hasattr(self.toto.base_model, 'model'):
+                underlying_toto = self.toto.base_model.model
+            else:
+                # Fallback - try to use the model directly
+                underlying_toto = self.toto
+
+            output = underlying_toto.model(
+                inputs=full_input,
+                input_padding_mask=full_padding_mask,
+                id_mask=full_id_mask,
+            )
+        else:
+            # Raw Toto model
+            output = self.toto.model(
+                inputs=full_input,
+                input_padding_mask=full_padding_mask,
+                id_mask=full_id_mask,
+            )
 
         # Compute NLL loss on the forecast portion only
         # output.distribution covers all timesteps, we only penalize forecast
@@ -251,9 +277,24 @@ class TotoForecaster(BaseTSFM):
         self.model.eval()
         device = next(self.model.parameters()).device
 
+        # Get the underlying Toto backbone for the official forecaster
+        # Handle both raw Toto and PEFT-wrapped models
+        if hasattr(self.model, 'base_model'):
+            # PEFT-wrapped model - get the underlying Toto
+            if hasattr(self.model, 'get_base_model'):
+                underlying_toto = self.model.get_base_model()
+            else:
+                underlying_toto = self.model.base_model.model
+            toto_backbone = underlying_toto.model
+        elif hasattr(self.model, 'model'):
+            # Raw Toto model
+            toto_backbone = self.model.model
+        else:
+            raise ValueError(f"Cannot extract Toto backbone from model of type {type(self.model)}")
+
         # Create official Toto forecaster for autoregressive inference
         # This is how zero-shot Toto achieves good performance
-        official_forecaster = TotoOfficialForecaster(self.model.toto.model)
+        official_forecaster = TotoOfficialForecaster(toto_backbone)
 
         # Prepare data
         if isinstance(data, pd.DataFrame):
@@ -614,11 +655,22 @@ class TotoForecaster(BaseTSFM):
             callbacks=self._get_callbacks(has_val_data=has_val_data),
         )
 
+        # Log whether LoRA is being used
+        is_lora = trainer_model.is_peft_model
+        if is_lora:
+            info_print("LoRA ENABLED: Training adapter layers only")
+            trainable = sum(p.numel() for p in trainer_model.parameters() if p.requires_grad)
+            total = sum(p.numel() for p in trainer_model.parameters())
+            info_print(f"  Trainable: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)")
+        else:
+            info_print("Full fine-tuning: All parameters trainable")
+
         info_print("Starting training with HuggingFace Trainer")
         info_print(f"  Train samples: {len(train_loader.dataset)}")
         info_print(f"  Batch size: {self.config.batch_size}")
         info_print(f"  Epochs: {self.config.num_epochs}")
         info_print(f"  Learning rate: {self.config.learning_rate}")
+        info_print(f"  LoRA: {is_lora}")
 
         # Train the model
         resume_from_checkpoint = kwargs.get("resume_from_checkpoint", None)
@@ -785,9 +837,24 @@ class TotoForecaster(BaseTSFM):
         self.model.eval()
         device = next(self.model.parameters()).device
 
+        # Get the underlying Toto backbone for the official forecaster
+        # Handle both raw Toto and PEFT-wrapped models
+        if hasattr(self.model, 'base_model'):
+            # PEFT-wrapped model - get the underlying Toto
+            if hasattr(self.model, 'get_base_model'):
+                underlying_toto = self.model.get_base_model()
+            else:
+                underlying_toto = self.model.base_model.model
+            toto_backbone = underlying_toto.model
+        elif hasattr(self.model, 'model'):
+            # Raw Toto model
+            toto_backbone = self.model.model
+        else:
+            raise ValueError(f"Cannot extract Toto backbone from model of type {type(self.model)}")
+
         # Use official Toto forecaster for autoregressive inference
         # This matches how we predict at inference time
-        official_forecaster = TotoOfficialForecaster(self.model.toto.model)
+        official_forecaster = TotoOfficialForecaster(toto_backbone)
 
         all_preds = []
         all_targets = []
