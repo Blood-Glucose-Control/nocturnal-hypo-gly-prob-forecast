@@ -15,6 +15,8 @@ from torch.utils.data import DataLoader, Dataset
 from transformers import Trainer, TrainingArguments, EarlyStoppingCallback
 
 from toto.model.toto import Toto
+from toto.inference.forecaster import TotoForecaster as TotoOfficialForecaster
+from toto.data.util.dataset import MaskedTimeseries
 
 from src.models.base import BaseTSFM, TrainingStrategy
 from src.models.toto.config import TotoConfig
@@ -71,13 +73,15 @@ class TotoForTrainer(torch.nn.Module):
 
     HuggingFace Trainer expects model.forward() to return a dict with 'loss'.
     Toto returns TotoOutput(distribution, loc, scale). This wrapper:
-    1. Concatenates context + zeros (placeholder for forecast) to form full sequence
-    2. Runs Toto forward pass - model predicts without seeing future values
-    3. Computes NLL loss by evaluating predicted distribution at target values
+    1. Concatenates context + targets to form full sequence (teacher forcing)
+    2. Runs Toto forward pass with causal attention (each position sees only past)
+    3. Computes NLL loss on the forecast portion of the predicted distribution
     4. Returns {'loss': loss, 'logits': mean_predictions}
 
-    This approach ensures the model learns P(forecast | context) instead of
-    P(forecast | context + forecast), which is critical for proper forecasting.
+    Teacher forcing is the correct approach for Toto because:
+    - Toto is a decoder-only model trained with causal next-patch prediction
+    - Causal attention ensures each forecast step only sees context + previous steps
+    - At inference, use autoregressive generation (Toto's official forecaster API)
 
     Attributes:
         toto: The underlying Toto model
@@ -114,18 +118,17 @@ class TotoForTrainer(torch.nn.Module):
         Returns:
             Dict with 'loss' (scalar) and 'logits' (mean predictions)
         """
-        # CRITICAL FIX: Concatenate context + ZEROS (not targets) for forecasting
-        # This prevents the model from seeing future values during training
-        # The model must learn P(forecast | context) not P(forecast | context + forecast)
-        forecast_placeholder = torch.zeros_like(targets)
-        full_input = torch.cat([inputs, forecast_placeholder], dim=2)
+        # Teacher forcing: concatenate context + targets for training
+        # Toto uses causal attention, so each position only sees previous positions
+        # This matches how Toto was pretrained (next-patch prediction)
+        full_input = torch.cat([inputs, targets], dim=2)
         full_padding_mask = torch.cat([
             input_padding_mask,
-            torch.ones_like(forecast_placeholder, dtype=torch.bool)
+            torch.ones_like(targets, dtype=torch.bool)
         ], dim=2)
         full_id_mask = torch.cat([
             id_mask,
-            torch.ones_like(forecast_placeholder)
+            torch.ones_like(targets)
         ], dim=2)
 
         # Check for NaN/Inf in inputs (helps debug data issues)
@@ -136,23 +139,16 @@ class TotoForTrainer(torch.nn.Module):
                 f"Inf count: {torch.isinf(full_input).sum()}"
             )
 
-        # Forward through Toto backbone with context + zeros
+        # Forward through Toto backbone
         output = self.toto.model(
             inputs=full_input,
             input_padding_mask=full_padding_mask,
             id_mask=full_id_mask,
         )
 
-        # Extract forecast predictions from the model output
-        # The model predicts a distribution over the full sequence,
-        # we take the forecast portion and compute NLL against actual targets
-        forecast_dist = output.distribution
-
-        # Compute NLL loss: -log P(targets | context)
-        # We evaluate the predicted distribution's log probability at the TARGET values
-        # Create a tensor with context + targets for log_prob evaluation
-        full_sequence_with_targets = torch.cat([inputs, targets], dim=2)
-        log_prob = forecast_dist.log_prob(full_sequence_with_targets)
+        # Compute NLL loss on the forecast portion only
+        # output.distribution covers all timesteps, we only penalize forecast
+        log_prob = output.distribution.log_prob(full_input)
         forecast_log_prob = log_prob[:, :, -self.forecast_length:]
         loss = -forecast_log_prob.mean()
 
@@ -167,8 +163,7 @@ class TotoForTrainer(torch.nn.Module):
             )
 
         # Return mean predictions as logits (for potential metric computation)
-        # Extract forecast predictions from the distribution mean
-        logits = forecast_dist.mean[:, :, -self.forecast_length:]
+        logits = output.distribution.mean[:, :, -self.forecast_length:]
 
         return {"loss": loss, "logits": logits}
 
@@ -228,10 +223,13 @@ class TotoForecaster(BaseTSFM):
         data: Any,
         batch_size: Optional[int] = None,
         return_dict: bool = False,
+        num_samples: int = 100,
     ) -> Union[np.ndarray, Dict[str, Any]]:
-        """Make predictions on new data.
+        """Make predictions on new data using Toto's official autoregressive inference.
 
-        Uses the probabilistic distribution mean for point predictions.
+        Uses Toto's official TotoForecaster API which performs autoregressive
+        generation - matching how Toto was pretrained. This is critical for
+        proper forecasting performance.
 
         Args:
             data: Input data - can be:
@@ -239,11 +237,12 @@ class TotoForecaster(BaseTSFM):
                 - torch.Tensor of shape (batch, variates, timesteps)
                 - TotoDataset instance
             batch_size: Batch size for prediction (defaults to config.batch_size)
-            return_dict: Whether to return additional information (distribution params)
+            return_dict: Whether to return additional information (quantiles, samples)
+            num_samples: Number of samples for probabilistic forecasting (default: 100)
 
         Returns:
-            If return_dict=False: numpy array of predictions (distribution means)
-            If return_dict=True: dict with predictions, loc, scale, and distribution samples
+            If return_dict=False: numpy array of predictions (median forecasts)
+            If return_dict=True: dict with predictions, quantiles, and metadata
         """
         if self.model is None:
             raise ValueError("Model must be initialized before making predictions")
@@ -251,6 +250,10 @@ class TotoForecaster(BaseTSFM):
         batch_size = batch_size or self.config.batch_size
         self.model.eval()
         device = next(self.model.parameters()).device
+
+        # Create official Toto forecaster for autoregressive inference
+        # This is how zero-shot Toto achieves good performance
+        official_forecaster = TotoOfficialForecaster(self.model.toto.model)
 
         # Prepare data
         if isinstance(data, pd.DataFrame):
@@ -267,56 +270,55 @@ class TotoForecaster(BaseTSFM):
             raise ValueError(f"Unsupported data type: {type(data)}")
 
         all_predictions = []
-        all_locs = []
-        all_scales = []
+        all_q10 = []
+        all_q90 = []
 
         with torch.no_grad():
             for batch in data_loader:
                 inputs = batch["inputs"].to(device)
-                targets = batch["targets"].to(device)  # Will be zeros for pure prediction
                 padding_mask = batch["input_padding_mask"].to(device)
                 id_mask = batch["id_mask"].to(device)
 
-                # CRITICAL: Concatenate context + zeros to match training sequence length
-                # During training, we pass context + zero-filled forecast
-                # During inference, we must do the same to maintain consistency
-                forecast_placeholder = torch.zeros_like(targets)
-                full_input = torch.cat([inputs, forecast_placeholder], dim=2)
-                full_padding_mask = torch.cat([
-                    padding_mask,
-                    torch.ones_like(forecast_placeholder, dtype=torch.bool)
-                ], dim=2)
-                full_id_mask = torch.cat([
-                    id_mask,
-                    torch.ones_like(forecast_placeholder)
-                ], dim=2)
+                # Create MaskedTimeseries for official API
+                # Note: timestamp handling is simplified - using dummy timestamps
+                batch_size_actual = inputs.shape[0]
+                context_len = inputs.shape[2]
 
-                # Forward pass - Toto returns TotoOutput with distribution, loc, scale
-                output = self.model.model(
-                    inputs=full_input,
-                    input_padding_mask=full_padding_mask,
-                    id_mask=full_id_mask,
+                # Create dummy timestamps (not critical for forecasting)
+                dummy_ts = torch.arange(context_len, dtype=torch.float32).unsqueeze(0)
+                dummy_ts = dummy_ts.expand(batch_size_actual, -1).to(device) * 300  # 5-min intervals
+
+                masked_inputs = MaskedTimeseries(
+                    series=inputs,
+                    padding_mask=padding_mask,
+                    id_mask=id_mask,
+                    timestamp_seconds=dummy_ts,
+                    time_interval_seconds=torch.tensor([300.0], dtype=torch.float32).to(device),
                 )
 
-                # Get mean predictions from the distribution
-                # The output has timesteps from the full context, we take forecast portion
-                distribution = output.distribution
-                mean_pred = distribution.mean  # (batch, variates, timesteps)
+                # Use official autoregressive forecasting
+                forecast = official_forecaster.forecast(
+                    masked_inputs,
+                    prediction_length=self.config.forecast_length,
+                    num_samples=num_samples,
+                    samples_per_batch=min(50, num_samples),
+                )
 
-                # Take only the forecast horizon (last forecast_length steps)
-                forecast_pred = mean_pred[:, :, -self.config.forecast_length:]
+                # Extract median as point prediction
+                median_pred = forecast.median.cpu().numpy()  # (batch, variates, forecast_len)
+                all_predictions.append(median_pred)
 
-                all_predictions.append(forecast_pred.cpu().numpy())
-                all_locs.append(output.loc.cpu().numpy())
-                all_scales.append(output.scale.cpu().numpy())
+                # Also get quantiles for uncertainty
+                all_q10.append(forecast.quantile(0.1).cpu().numpy())
+                all_q90.append(forecast.quantile(0.9).cpu().numpy())
 
         predictions = np.concatenate(all_predictions, axis=0)
 
         if return_dict:
             return {
                 "predictions": predictions,
-                "loc": np.concatenate(all_locs, axis=0),
-                "scale": np.concatenate(all_scales, axis=0),
+                "q10": np.concatenate(all_q10, axis=0),
+                "q90": np.concatenate(all_q90, axis=0),
                 "model_config": self.config.to_dict(),
                 "n_samples": len(predictions),
             }
@@ -783,6 +785,10 @@ class TotoForecaster(BaseTSFM):
         self.model.eval()
         device = next(self.model.parameters()).device
 
+        # Use official Toto forecaster for autoregressive inference
+        # This matches how we predict at inference time
+        official_forecaster = TotoOfficialForecaster(self.model.toto.model)
+
         all_preds = []
         all_targets = []
 
@@ -793,29 +799,34 @@ class TotoForecaster(BaseTSFM):
                 padding_mask = batch["input_padding_mask"].to(device)
                 id_mask = batch["id_mask"].to(device)
 
-                # Match training: concatenate context + zeros for consistent sequence length
-                forecast_placeholder = torch.zeros_like(targets)
-                full_input = torch.cat([inputs, forecast_placeholder], dim=2)
-                full_padding_mask = torch.cat([
-                    padding_mask,
-                    torch.ones_like(forecast_placeholder, dtype=torch.bool)
-                ], dim=2)
-                full_id_mask = torch.cat([
-                    id_mask,
-                    torch.ones_like(forecast_placeholder)
-                ], dim=2)
+                # Create MaskedTimeseries for official API
+                batch_size_actual = inputs.shape[0]
+                context_len = inputs.shape[2]
 
-                output = self.model.model(
-                    inputs=full_input,
-                    input_padding_mask=full_padding_mask,
-                    id_mask=full_id_mask,
+                # Create dummy timestamps (5-min intervals)
+                dummy_ts = torch.arange(context_len, dtype=torch.float32).unsqueeze(0)
+                dummy_ts = dummy_ts.expand(batch_size_actual, -1).to(device) * 300
+
+                masked_inputs = MaskedTimeseries(
+                    series=inputs,
+                    padding_mask=padding_mask,
+                    id_mask=id_mask,
+                    timestamp_seconds=dummy_ts,
+                    time_interval_seconds=torch.tensor([300.0], dtype=torch.float32).to(device),
                 )
 
-                # Get mean predictions for forecast horizon
-                mean_pred = output.distribution.mean
-                forecast_pred = mean_pred[:, :, -self.config.forecast_length:]
+                # Use official autoregressive forecasting (fewer samples for speed)
+                forecast = official_forecaster.forecast(
+                    masked_inputs,
+                    prediction_length=self.config.forecast_length,
+                    num_samples=20,  # Fewer samples for faster evaluation
+                    samples_per_batch=20,
+                )
 
-                all_preds.append(forecast_pred.cpu().numpy())
+                # Use median as point prediction
+                forecast_pred = forecast.median.cpu().numpy()
+
+                all_preds.append(forecast_pred)
                 all_targets.append(targets.cpu().numpy())
 
         preds = np.concatenate(all_preds, axis=0).flatten()
