@@ -17,6 +17,8 @@ from transformers import (
     Trainer,
     EarlyStoppingCallback,
 )
+from transformers.integrations import TensorBoardCallback
+from transformers.trainer_callback import ProgressCallback
 
 # Import your existing TTM-related modules
 from tsfm_public import (
@@ -420,6 +422,11 @@ class TTMForecaster(BaseTSFM):
                 - train_metrics: Metrics from training (loss, runtime, etc.)
                 - test_metrics: Metrics from test evaluation (if test data provided)
         """
+        # Configure tqdm to update less frequently (every 30 seconds instead of constantly)
+        # This reduces log file bloat while still showing progress
+        import os
+        os.environ['TQDM_MININTERVAL'] = '30'  # Update progress bar every 30 seconds
+        
         # Prepare data loaders
         train_loader, val_loader, test_loader = self._prepare_data(
             train_data, val_data, test_data
@@ -697,14 +704,15 @@ class TTMForecaster(BaseTSFM):
 
         callbacks = []
 
-        # Early stopping
-        if self.config.early_stopping_patience > 0:
-            callbacks.append(
-                EarlyStoppingCallback(
-                    early_stopping_patience=self.config.early_stopping_patience,
-                    early_stopping_threshold=0.0,
-                )
-            )
+        # Early stopping only works if evaluation is enabled
+        # Since we use eval_strategy="no" for speed, skip early stopping
+        # if self.config.early_stopping_patience > 0:
+        #     callbacks.append(
+        #         EarlyStoppingCallback(
+        #             early_stopping_patience=self.config.early_stopping_patience,
+        #             early_stopping_threshold=0.0,
+        #         )
+        #     )
 
         return callbacks
 
@@ -732,17 +740,20 @@ class TTMForecaster(BaseTSFM):
             "warmup_steps": self.config.warmup_steps,
             "weight_decay": self.config.weight_decay,
             "logging_dir": os.path.join(output_dir, "logs"),
-            "logging_steps": self.config.logging_steps,
-            "eval_strategy": self.config.eval_strategy,
-            "eval_steps": self.config.eval_steps,
+            "logging_steps": 1000,  # Log every 1000 steps (reduces log verbosity significantly)
+            "eval_strategy": "no",  # Disable evaluation during training for speed
+            "save_strategy": "epoch",  # Only save at end of epoch
             "save_steps": self.config.save_steps,
             "metric_for_best_model": self.config.metric_for_best_model,
             "greater_is_better": self.config.greater_is_better,
-            "load_best_model_at_end": True,
+            "load_best_model_at_end": False,  # Disabled since eval is off
             "fp16": self.config.fp16,
             "dataloader_num_workers": self.config.dataloader_num_workers,
             "use_cpu": self.config.use_cpu,
             "report_to": "none",  # Disable wandb/tensorboard by default
+            "disable_tqdm": False,  # Keep progress bar enabled
+            "logging_first_step": True,
+            "logging_nan_inf_filter": False,
         }
 
         # Add distributed training arguments

@@ -120,13 +120,16 @@ class GlurooDataLoader(DatasetBase):
             raise ValueError("File path is required")
         return pd.read_csv(self.file_path, usecols=self.keep_columns)
 
-    def load_data(self):
+    def load_data(self) -> None:
         """
         Load and process the raw data, setting up train/validation splits.
 
         If use_cached is True, loads previously processed data from cache.
         Otherwise, loads raw data, processes it, and saves it to cache.
         Then splits the processed data into training and validation sets.
+        
+        Side Effects:
+            Sets self.processed_data, self.train_data, and self.validation_data.
         """
         if self.use_cached:
             cached_data = pd.read_csv("gluroo_cached.csv")

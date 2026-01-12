@@ -192,10 +192,13 @@ class Lynch2022DataLoader(DatasetBase):
             out = out.set_index(["p_num", "sub_id"])
         return out
 
-    def load_data(self):
+    def load_data(self) -> None:
         """
         Load processed data from cache or process raw data and save to cache.
         Then split train/validation data.
+        
+        Side Effects:
+            Sets self.processed_data, self.train_data, and self.validation_data.
         """
         logger.info("============================================================")
         logger.info("Beginning data loading process with the following parameters:")
