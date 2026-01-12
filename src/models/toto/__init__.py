@@ -13,12 +13,7 @@ from src.models.toto.config import (
     create_toto_fine_tuning_config,
     create_toto_zero_shot_config,
 )
-from src.models.toto.model import (
-    TotoForecaster,
-    TotoForTrainer,
-    TotoDataset,
-    create_toto_model,
-)
+from src.models.toto.model import TotoForecaster, TotoDataset
 
 __all__ = [
     # Config
@@ -30,7 +25,5 @@ __all__ = [
     "create_toto_zero_shot_config",
     # Model
     "TotoForecaster",
-    "TotoForTrainer",
     "TotoDataset",
-    "create_toto_model",
 ]

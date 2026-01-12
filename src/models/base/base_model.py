@@ -741,10 +741,7 @@ class BaseTSFM(ABC):
         Note:
             Requires the PEFT library to be installed.
         """
-        info_print(f"[_enable_lora] Checking LoRA config: enabled={self.lora_config.enabled}, model_exists={self.model is not None}")
-
         if not self.lora_config.enabled or self.model is None:
-            info_print(f"[_enable_lora] Skipping LoRA: enabled={self.lora_config.enabled}, model={self.model is not None}")
             return
 
         # Check if this model supports LoRA

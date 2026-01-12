@@ -143,34 +143,24 @@ class TotoForTrainer(torch.nn.Module):
                 f"Inf count: {torch.isinf(full_input).sum()}"
             )
 
-        # Forward through Toto backbone
-        # Handle both raw Toto and PEFT-wrapped models
+        # Forward through Toto backbone (handles both raw and PEFT-wrapped models)
         if self.is_peft_model:
-            # PEFT wraps the model - get the underlying Toto with LoRA layers injected
-            # PEFT structure: PeftModel.base_model is a wrapper, PeftModel.base_model.model is Toto
-            # The LoRA layers are injected into Toto's backbone (Toto.model)
-            # so calling toto.model() uses the LoRA layers
+            # Extract underlying Toto from PEFT wrapper
             if hasattr(self.toto, 'get_base_model'):
-                # PEFT >= 0.3.0
                 underlying_toto = self.toto.get_base_model()
             elif hasattr(self.toto, 'base_model') and hasattr(self.toto.base_model, 'model'):
                 underlying_toto = self.toto.base_model.model
             else:
-                # Fallback - try to use the model directly
                 underlying_toto = self.toto
-
-            output = underlying_toto.model(
-                inputs=full_input,
-                input_padding_mask=full_padding_mask,
-                id_mask=full_id_mask,
-            )
+            toto_backbone = underlying_toto.model
         else:
-            # Raw Toto model
-            output = self.toto.model(
-                inputs=full_input,
-                input_padding_mask=full_padding_mask,
-                id_mask=full_id_mask,
-            )
+            toto_backbone = self.toto.model
+
+        output = toto_backbone(
+            inputs=full_input,
+            input_padding_mask=full_padding_mask,
+            id_mask=full_id_mask,
+        )
 
         # Compute NLL loss on the forecast portion only
         # output.distribution covers all timesteps, we only penalize forecast
@@ -243,6 +233,20 @@ class TotoForecaster(BaseTSFM):
         super().__init__(config, lora_config, distributed_config)
         self.config: TotoConfig = self.config
 
+    def _get_toto_backbone(self):
+        """Extract the Toto backbone model, handling both raw and PEFT-wrapped models."""
+        if hasattr(self.model, 'base_model'):
+            # PEFT-wrapped model
+            if hasattr(self.model, 'get_base_model'):
+                underlying_toto = self.model.get_base_model()
+            else:
+                underlying_toto = self.model.base_model.model
+            return underlying_toto.model
+        elif hasattr(self.model, 'model'):
+            return self.model.model
+        else:
+            raise ValueError(f"Cannot extract Toto backbone from model of type {type(self.model)}")
+
     # Abstract method implementations
     def predict(
         self,
@@ -277,23 +281,8 @@ class TotoForecaster(BaseTSFM):
         self.model.eval()
         device = next(self.model.parameters()).device
 
-        # Get the underlying Toto backbone for the official forecaster
-        # Handle both raw Toto and PEFT-wrapped models
-        if hasattr(self.model, 'base_model'):
-            # PEFT-wrapped model - get the underlying Toto
-            if hasattr(self.model, 'get_base_model'):
-                underlying_toto = self.model.get_base_model()
-            else:
-                underlying_toto = self.model.base_model.model
-            toto_backbone = underlying_toto.model
-        elif hasattr(self.model, 'model'):
-            # Raw Toto model
-            toto_backbone = self.model.model
-        else:
-            raise ValueError(f"Cannot extract Toto backbone from model of type {type(self.model)}")
-
         # Create official Toto forecaster for autoregressive inference
-        # This is how zero-shot Toto achieves good performance
+        toto_backbone = self._get_toto_backbone()
         official_forecaster = TotoOfficialForecaster(toto_backbone)
 
         # Prepare data
@@ -681,7 +670,15 @@ class TotoForecaster(BaseTSFM):
             train_result = trainer.train()
 
         # Save the final model
-        trainer.save_model(os.path.join(output_dir, "final_model"))
+        final_model_dir = os.path.join(output_dir, "final_model")
+        trainer.save_model(final_model_dir)
+
+        # If using LoRA/PEFT, also save in PEFT format for easy loading
+        if trainer_model.is_peft_model:
+            peft_save_dir = os.path.join(output_dir, "peft_adapter")
+            info_print(f"Saving PEFT adapter to {peft_save_dir}")
+            trainer_model.toto.save_pretrained(peft_save_dir)
+            info_print("PEFT adapter saved! Load with: PeftModel.from_pretrained(base_model, peft_save_dir)")
 
         # Update self.model with trained weights
         # The wrapper's toto attribute has the trained weights
@@ -739,6 +736,9 @@ class TotoForecaster(BaseTSFM):
         # Determine evaluation strategy based on validation data availability
         eval_strategy = self.config.eval_strategy if has_val_data else "no"
 
+        # Get LR scheduler type from config (default to cosine for fine-tuning)
+        lr_scheduler_type = getattr(self.config, 'lr_scheduler_type', 'cosine')
+
         # Base training arguments
         base_args = {
             "output_dir": output_dir,
@@ -747,6 +747,8 @@ class TotoForecaster(BaseTSFM):
             "per_device_train_batch_size": self.config.batch_size,
             "per_device_eval_batch_size": self.config.batch_size,
             "warmup_steps": self.config.warmup_steps,
+            "warmup_ratio": getattr(self.config, 'warmup_ratio', 0.0),  # Alternative to warmup_steps
+            "lr_scheduler_type": lr_scheduler_type,  # cosine, linear, constant, etc.
             "weight_decay": self.config.weight_decay,
             "max_grad_norm": self.config.gradient_clip_val,
             "logging_dir": os.path.join(output_dir, "logs"),
@@ -837,23 +839,8 @@ class TotoForecaster(BaseTSFM):
         self.model.eval()
         device = next(self.model.parameters()).device
 
-        # Get the underlying Toto backbone for the official forecaster
-        # Handle both raw Toto and PEFT-wrapped models
-        if hasattr(self.model, 'base_model'):
-            # PEFT-wrapped model - get the underlying Toto
-            if hasattr(self.model, 'get_base_model'):
-                underlying_toto = self.model.get_base_model()
-            else:
-                underlying_toto = self.model.base_model.model
-            toto_backbone = underlying_toto.model
-        elif hasattr(self.model, 'model'):
-            # Raw Toto model
-            toto_backbone = self.model.model
-        else:
-            raise ValueError(f"Cannot extract Toto backbone from model of type {type(self.model)}")
-
         # Use official Toto forecaster for autoregressive inference
-        # This matches how we predict at inference time
+        toto_backbone = self._get_toto_backbone()
         official_forecaster = TotoOfficialForecaster(toto_backbone)
 
         all_preds = []
@@ -900,133 +887,3 @@ class TotoForecaster(BaseTSFM):
         targets = np.concatenate(all_targets, axis=0).flatten()
 
         return self._compute_metrics(preds, targets)
-
-    # Toto-specific public methods
-    def predict_distribution(
-        self,
-        data: Any,
-        num_samples: int = 100,
-        batch_size: Optional[int] = None,
-    ) -> Dict[str, np.ndarray]:
-        """Make probabilistic predictions with samples from the distribution.
-
-        Args:
-            data: Input data
-            num_samples: Number of samples to draw from the distribution
-            batch_size: Batch size for prediction
-
-        Returns:
-            Dictionary with:
-                - mean: Distribution mean predictions
-                - samples: Samples from the distribution
-                - std: Standard deviation of samples
-                - quantiles: 5%, 25%, 50%, 75%, 95% quantiles
-        """
-        if self.model is None:
-            raise ValueError("Model must be initialized before making predictions")
-
-        batch_size = batch_size or self.config.batch_size
-        self.model.eval()
-        device = next(self.model.parameters()).device
-
-        # Prepare data
-        if isinstance(data, pd.DataFrame):
-            data_loader, _, _ = self._prepare_data(data)
-        elif isinstance(data, torch.Tensor):
-            dataset = TotoDataset(
-                data=data,
-                targets=torch.zeros(data.shape[0], data.shape[1], self.config.forecast_length),
-            )
-            data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-        elif isinstance(data, DataLoader):
-            data_loader = data
-        else:
-            raise ValueError(f"Unsupported data type: {type(data)}")
-
-        all_means = []
-        all_samples = []
-
-        with torch.no_grad():
-            for batch in data_loader:
-                inputs = batch["inputs"].to(device)
-                padding_mask = batch["input_padding_mask"].to(device)
-                id_mask = batch["id_mask"].to(device)
-
-                output = self.model.model(
-                    inputs=inputs,
-                    input_padding_mask=padding_mask,
-                    id_mask=id_mask,
-                )
-
-                distribution = output.distribution
-                mean_pred = distribution.mean[:, :, -self.config.forecast_length:]
-                samples = distribution.sample((num_samples,))
-                samples = samples[:, :, :, -self.config.forecast_length:]
-
-                all_means.append(mean_pred.cpu().numpy())
-                all_samples.append(samples.cpu().numpy())
-
-        means = np.concatenate(all_means, axis=0)
-        samples = np.concatenate(all_samples, axis=1)  # (num_samples, batch, variates, forecast)
-
-        return {
-            "mean": means,
-            "samples": samples,
-            "std": np.std(samples, axis=0),
-            "quantiles": {
-                "q05": np.percentile(samples, 5, axis=0),
-                "q25": np.percentile(samples, 25, axis=0),
-                "q50": np.percentile(samples, 50, axis=0),
-                "q75": np.percentile(samples, 75, axis=0),
-                "q95": np.percentile(samples, 95, axis=0),
-            },
-        }
-
-    def get_toto_specific_info(self) -> Dict[str, Any]:
-        """Get Toto-specific model information.
-
-        Returns:
-            Dictionary with base model info plus Toto-specific details.
-        """
-        base_info = self.get_model_info()
-
-        toto_info = {
-            "model_path": self.config.model_path,
-            "context_length": self.config.context_length,
-            "forecast_length": self.config.forecast_length,
-            "patch_size": self.config.patch_size,
-            "stride": self.config.stride,
-            "freeze_backbone": self.config.freeze_backbone,
-            "use_nll_loss": self.config.use_nll_loss,
-            "supports_lora": self.supports_lora(),
-        }
-
-        base_info["toto_specific"] = toto_info
-        return base_info
-
-
-def create_toto_model(
-    model_path: str = "Datadog/Toto-Open-Base-1.0",
-    context_length: int = 1024,
-    forecast_length: int = 72,
-    **kwargs,
-) -> TotoForecaster:
-    """Factory function to create a Toto model with sensible defaults.
-
-    Args:
-        model_path: HuggingFace model path
-        context_length: Input sequence length
-        forecast_length: Prediction horizon
-        **kwargs: Additional configuration parameters
-
-    Returns:
-        Configured TotoForecaster instance
-    """
-    config = TotoConfig(
-        model_path=model_path,
-        context_length=context_length,
-        forecast_length=forecast_length,
-        **kwargs,
-    )
-
-    return TotoForecaster(config)

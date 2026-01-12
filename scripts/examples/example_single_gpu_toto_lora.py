@@ -10,7 +10,6 @@ LoRA is more parameter-efficient than full fine-tuning:
 """
 
 import os
-import torch
 from src.models.base import DistributedConfig, GPUManager, LoRAConfig
 from src.models.toto import TotoForecaster, TotoConfig
 from src.utils.logging_helper import info_print

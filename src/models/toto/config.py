@@ -98,6 +98,8 @@ class TotoConfig(ModelConfig):
             "split_config",
             "use_nll_loss",
             "gradient_accumulation_steps",
+            "lr_scheduler_type",
+            "warmup_ratio",
         }
 
         # Filter out Toto-specific params from kwargs for parent class
@@ -123,6 +125,11 @@ class TotoConfig(ModelConfig):
         self.freeze_backbone = kwargs.get("freeze_backbone", False)
         self.use_nll_loss = kwargs.get("use_nll_loss", True)
         self.gradient_accumulation_steps = kwargs.get("gradient_accumulation_steps", 1)
+
+        # Learning rate scheduler (cosine is best for fine-tuning)
+        # Options: "linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"
+        self.lr_scheduler_type = kwargs.get("lr_scheduler_type", "cosine")
+        self.warmup_ratio = kwargs.get("warmup_ratio", 0.1)  # 10% warmup by default
 
         # Toto Data Configuration
         self.input_features = kwargs.get("input_features", ["bg_mM"])
