@@ -52,7 +52,7 @@ def main():
         context_length=504,      # 42 hours
         forecast_length=72,      # 6 hours
         batch_size=16,
-        learning_rate=1e-4,      # Can use higher LR with LoRA (fewer params to update)
+        learning_rate=1e-4,      # Standard LR for LoRA (higher OK since fewer params)
         num_epochs=10,
         use_cpu=use_cpu,
         fp16=False,

@@ -163,8 +163,20 @@ class TotoForTrainer(torch.nn.Module):
         )
 
         # Compute NLL loss on the forecast portion only
-        # output.distribution covers all timesteps, we only penalize forecast
-        log_prob = output.distribution.log_prob(full_input)
+        # IMPORTANT: Toto's output.distribution is in NORMALIZED space (mean ~0, std ~1)
+        # The model computes loc/scale from input statistics and works internally normalized
+        # We must normalize targets before computing log_prob, and account for the Jacobian
+
+        # Normalize the full input using Toto's computed loc/scale
+        # Avoid division by zero with small epsilon
+        scale_safe = output.scale.clamp(min=1e-6)
+        normalized_input = (full_input - output.loc) / scale_safe
+
+        # Compute log_prob on normalized targets
+        # Note: We compute NLL in normalized space for training - no Jacobian correction needed
+        # (Jacobian would only matter for calibrated uncertainty in original space)
+        log_prob = output.distribution.log_prob(normalized_input)
+
         forecast_log_prob = log_prob[:, :, -self.forecast_length:]
         loss = -forecast_log_prob.mean()
 
@@ -179,7 +191,9 @@ class TotoForTrainer(torch.nn.Module):
             )
 
         # Return mean predictions as logits (for potential metric computation)
-        logits = output.distribution.mean[:, :, -self.forecast_length:]
+        # Denormalize: x = z * scale + loc
+        normalized_mean = output.distribution.mean[:, :, -self.forecast_length:]
+        logits = normalized_mean * output.scale[:, :, -self.forecast_length:] + output.loc[:, :, -self.forecast_length:]
 
         return {"loss": loss, "logits": logits}
 
@@ -247,6 +261,80 @@ class TotoForecaster(BaseTSFM):
         else:
             raise ValueError(f"Cannot extract Toto backbone from model of type {type(self.model)}")
 
+    def _run_inference(
+        self,
+        data_loader: DataLoader,
+        num_samples: int = 100,
+        return_quantiles: bool = False,
+    ) -> Dict[str, np.ndarray]:
+        """Run autoregressive inference on a data loader.
+
+        Args:
+            data_loader: DataLoader with input data
+            num_samples: Number of samples for probabilistic forecasting
+            return_quantiles: Whether to return q10/q90 quantiles
+
+        Returns:
+            Dict with 'predictions' and optionally 'q10', 'q90', 'targets'
+        """
+        self.model.eval()
+        device = next(self.model.parameters()).device
+
+        toto_backbone = self._get_toto_backbone()
+        official_forecaster = TotoOfficialForecaster(toto_backbone)
+
+        all_predictions = []
+        all_q10 = []
+        all_q90 = []
+        all_targets = []
+
+        with torch.no_grad():
+            for batch in data_loader:
+                inputs = batch["inputs"].to(device)
+                padding_mask = batch["input_padding_mask"].to(device)
+                id_mask = batch["id_mask"].to(device)
+
+                # Create MaskedTimeseries with dummy timestamps
+                batch_size_actual = inputs.shape[0]
+                context_len = inputs.shape[2]
+                dummy_ts = torch.arange(context_len, dtype=torch.float32).unsqueeze(0)
+                dummy_ts = dummy_ts.expand(batch_size_actual, -1).to(device) * 300
+
+                masked_inputs = MaskedTimeseries(
+                    series=inputs,
+                    padding_mask=padding_mask,
+                    id_mask=id_mask,
+                    timestamp_seconds=dummy_ts,
+                    time_interval_seconds=torch.tensor([300.0], dtype=torch.float32).to(device),
+                )
+
+                forecast = official_forecaster.forecast(
+                    masked_inputs,
+                    prediction_length=self.config.forecast_length,
+                    num_samples=num_samples,
+                    samples_per_batch=min(50, num_samples),
+                )
+
+                all_predictions.append(forecast.median.cpu().numpy())
+
+                if return_quantiles:
+                    all_q10.append(forecast.quantile(0.1).cpu().numpy())
+                    all_q90.append(forecast.quantile(0.9).cpu().numpy())
+
+                if "targets" in batch:
+                    all_targets.append(batch["targets"].cpu().numpy())
+
+        result = {"predictions": np.concatenate(all_predictions, axis=0)}
+
+        if return_quantiles:
+            result["q10"] = np.concatenate(all_q10, axis=0)
+            result["q90"] = np.concatenate(all_q90, axis=0)
+
+        if all_targets:
+            result["targets"] = np.concatenate(all_targets, axis=0)
+
+        return result
+
     # Abstract method implementations
     def predict(
         self,
@@ -257,15 +345,8 @@ class TotoForecaster(BaseTSFM):
     ) -> Union[np.ndarray, Dict[str, Any]]:
         """Make predictions on new data using Toto's official autoregressive inference.
 
-        Uses Toto's official TotoForecaster API which performs autoregressive
-        generation - matching how Toto was pretrained. This is critical for
-        proper forecasting performance.
-
         Args:
-            data: Input data - can be:
-                - pd.DataFrame with time series data
-                - torch.Tensor of shape (batch, variates, timesteps)
-                - TotoDataset instance
+            data: Input data (DataFrame, Tensor, or DataLoader)
             batch_size: Batch size for prediction (defaults to config.batch_size)
             return_dict: Whether to return additional information (quantiles, samples)
             num_samples: Number of samples for probabilistic forecasting (default: 100)
@@ -278,14 +359,8 @@ class TotoForecaster(BaseTSFM):
             raise ValueError("Model must be initialized before making predictions")
 
         batch_size = batch_size or self.config.batch_size
-        self.model.eval()
-        device = next(self.model.parameters()).device
 
-        # Create official Toto forecaster for autoregressive inference
-        toto_backbone = self._get_toto_backbone()
-        official_forecaster = TotoOfficialForecaster(toto_backbone)
-
-        # Prepare data
+        # Prepare data loader
         if isinstance(data, pd.DataFrame):
             data_loader, _, _ = self._prepare_data(data)
         elif isinstance(data, torch.Tensor):
@@ -299,61 +374,19 @@ class TotoForecaster(BaseTSFM):
         else:
             raise ValueError(f"Unsupported data type: {type(data)}")
 
-        all_predictions = []
-        all_q10 = []
-        all_q90 = []
-
-        with torch.no_grad():
-            for batch in data_loader:
-                inputs = batch["inputs"].to(device)
-                padding_mask = batch["input_padding_mask"].to(device)
-                id_mask = batch["id_mask"].to(device)
-
-                # Create MaskedTimeseries for official API
-                # Note: timestamp handling is simplified - using dummy timestamps
-                batch_size_actual = inputs.shape[0]
-                context_len = inputs.shape[2]
-
-                # Create dummy timestamps (not critical for forecasting)
-                dummy_ts = torch.arange(context_len, dtype=torch.float32).unsqueeze(0)
-                dummy_ts = dummy_ts.expand(batch_size_actual, -1).to(device) * 300  # 5-min intervals
-
-                masked_inputs = MaskedTimeseries(
-                    series=inputs,
-                    padding_mask=padding_mask,
-                    id_mask=id_mask,
-                    timestamp_seconds=dummy_ts,
-                    time_interval_seconds=torch.tensor([300.0], dtype=torch.float32).to(device),
-                )
-
-                # Use official autoregressive forecasting
-                forecast = official_forecaster.forecast(
-                    masked_inputs,
-                    prediction_length=self.config.forecast_length,
-                    num_samples=num_samples,
-                    samples_per_batch=min(50, num_samples),
-                )
-
-                # Extract median as point prediction
-                median_pred = forecast.median.cpu().numpy()  # (batch, variates, forecast_len)
-                all_predictions.append(median_pred)
-
-                # Also get quantiles for uncertainty
-                all_q10.append(forecast.quantile(0.1).cpu().numpy())
-                all_q90.append(forecast.quantile(0.9).cpu().numpy())
-
-        predictions = np.concatenate(all_predictions, axis=0)
+        # Run inference
+        result = self._run_inference(data_loader, num_samples=num_samples, return_quantiles=return_dict)
 
         if return_dict:
             return {
-                "predictions": predictions,
-                "q10": np.concatenate(all_q10, axis=0),
-                "q90": np.concatenate(all_q90, axis=0),
+                "predictions": result["predictions"],
+                "q10": result["q10"],
+                "q90": result["q90"],
                 "model_config": self.config.to_dict(),
-                "n_samples": len(predictions),
+                "n_samples": len(result["predictions"]),
             }
 
-        return predictions
+        return result["predictions"]
 
     def get_training_strategy(self) -> TrainingStrategy:
         """Return the training strategy used by Toto.
@@ -480,51 +513,22 @@ class TotoForecaster(BaseTSFM):
                 padding_mask=padding_mask,
             )
 
-        # Handle string data source names
+        # Load data from source name (e.g., "kaggle_brisT1D") or use DataFrame directly
         if isinstance(train_data, str):
             from src.data.diabetes_datasets.data_loader import get_loader
-            loader = get_loader(
-                data_source_name=train_data,
-                num_validation_days=20,
-                use_cached=True,
-            )
-            # Get training data from the loader's train split
-            combined_train = []
-            for patient_id, patient_data in loader.train_data.items():
-                combined_train.append(patient_data)
-            train_data = pd.concat(combined_train, ignore_index=True)
+            loader = get_loader(data_source_name=train_data, num_validation_days=20, use_cached=True)
+            train_df = pd.concat(list(loader.train_data.values()), ignore_index=True)
+            val_df = pd.concat(list(loader.validation_data.values()), ignore_index=True) if loader.validation_data else None
+        else:
+            train_df = train_data
+            val_df = val_data
 
-            # Get validation data from the loader's validation split
-            if loader.validation_data and len(loader.validation_data) > 0:
-                combined_val = []
-                for patient_id, patient_data in loader.validation_data.items():
-                    combined_val.append(patient_data)
-                val_data = pd.concat(combined_val, ignore_index=True)
+        test_df = test_data  # test_data is always passed as DataFrame or None
 
         # Create datasets
-        train_dataset = df_to_dataset(train_data)
-
-        val_dataset = None
-        if val_data is not None:
-            if isinstance(val_data, str):
-                from src.data.diabetes_datasets.data_loader import get_loader
-                loader = get_loader(data_source_name=val_data, use_cached=True)
-                combined_data = []
-                for patient_id, patient_data in loader.processed_data.items():
-                    combined_data.append(patient_data)
-                val_data = pd.concat(combined_data, ignore_index=True)
-            val_dataset = df_to_dataset(val_data)
-
-        test_dataset = None
-        if test_data is not None:
-            if isinstance(test_data, str):
-                from src.data.diabetes_datasets.data_loader import get_loader
-                loader = get_loader(data_source_name=test_data, use_cached=True)
-                combined_data = []
-                for patient_id, patient_data in loader.processed_data.items():
-                    combined_data.append(patient_data)
-                test_data = pd.concat(combined_data, ignore_index=True)
-            test_dataset = df_to_dataset(test_data)
+        train_dataset = df_to_dataset(train_df)
+        val_dataset = df_to_dataset(val_df) if val_df is not None else None
+        test_dataset = df_to_dataset(test_df) if test_df is not None else None
 
         # Create data loaders
         train_loader = DataLoader(
@@ -566,7 +570,7 @@ class TotoForecaster(BaseTSFM):
             output_dir: Directory to save model weights.
         """
         if self.model is not None:
-            model_path = os.path.join(output_dir, "toto_model")
+            model_path = os.path.join(output_dir, "final_model")
             os.makedirs(model_path, exist_ok=True)
             self.model.save_pretrained(model_path)
             info_print(f"Toto model saved to {model_path}")
@@ -578,11 +582,10 @@ class TotoForecaster(BaseTSFM):
             model_dir: Directory containing saved model weights.
         """
         try:
-            model_path = os.path.join(model_dir, "toto_model")
+            model_path = os.path.join(model_dir, "final_model")
             if os.path.exists(model_path):
                 self.model = Toto.from_pretrained(model_path)
             else:
-                # Try loading directly from model_dir
                 self.model = Toto.from_pretrained(model_dir)
 
             if torch.cuda.is_available() and not self.config.use_cpu:
@@ -696,24 +699,6 @@ class TotoForecaster(BaseTSFM):
         return {
             "train_metrics": train_result.metrics,
             "test_metrics": test_metrics,
-        }
-
-    def _collate_fn(self, batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
-        """Collate samples into batches for Toto.
-
-        Called by Trainer to combine individual samples into a batch.
-
-        Args:
-            batch: List of samples from TotoDataset.__getitem__()
-
-        Returns:
-            Dictionary with stacked tensors for inputs, targets, masks
-        """
-        return {
-            "inputs": torch.stack([b["inputs"] for b in batch]),
-            "targets": torch.stack([b["targets"] for b in batch]),
-            "input_padding_mask": torch.stack([b["input_padding_mask"] for b in batch]),
-            "id_mask": torch.stack([b["id_mask"] for b in batch]),
         }
 
     def _create_training_arguments(self, output_dir: str, has_val_data: bool = False) -> TrainingArguments:
@@ -836,54 +821,7 @@ class TotoForecaster(BaseTSFM):
         Returns:
             Dictionary of metrics.
         """
-        self.model.eval()
-        device = next(self.model.parameters()).device
-
-        # Use official Toto forecaster for autoregressive inference
-        toto_backbone = self._get_toto_backbone()
-        official_forecaster = TotoOfficialForecaster(toto_backbone)
-
-        all_preds = []
-        all_targets = []
-
-        with torch.no_grad():
-            for batch in data_loader:
-                inputs = batch["inputs"].to(device)
-                targets = batch["targets"].to(device)
-                padding_mask = batch["input_padding_mask"].to(device)
-                id_mask = batch["id_mask"].to(device)
-
-                # Create MaskedTimeseries for official API
-                batch_size_actual = inputs.shape[0]
-                context_len = inputs.shape[2]
-
-                # Create dummy timestamps (5-min intervals)
-                dummy_ts = torch.arange(context_len, dtype=torch.float32).unsqueeze(0)
-                dummy_ts = dummy_ts.expand(batch_size_actual, -1).to(device) * 300
-
-                masked_inputs = MaskedTimeseries(
-                    series=inputs,
-                    padding_mask=padding_mask,
-                    id_mask=id_mask,
-                    timestamp_seconds=dummy_ts,
-                    time_interval_seconds=torch.tensor([300.0], dtype=torch.float32).to(device),
-                )
-
-                # Use official autoregressive forecasting (fewer samples for speed)
-                forecast = official_forecaster.forecast(
-                    masked_inputs,
-                    prediction_length=self.config.forecast_length,
-                    num_samples=20,  # Fewer samples for faster evaluation
-                    samples_per_batch=20,
-                )
-
-                # Use median as point prediction
-                forecast_pred = forecast.median.cpu().numpy()
-
-                all_preds.append(forecast_pred)
-                all_targets.append(targets.cpu().numpy())
-
-        preds = np.concatenate(all_preds, axis=0).flatten()
-        targets = np.concatenate(all_targets, axis=0).flatten()
-
+        result = self._run_inference(data_loader, num_samples=20)  # Fewer samples for speed
+        preds = result["predictions"].flatten()
+        targets = result["targets"].flatten()
         return self._compute_metrics(preds, targets)
