@@ -295,8 +295,9 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
+    @property
     @abstractmethod
-    def get_training_strategy(self) -> TrainingStrategy:
+    def training_strategy(self) -> TrainingStrategy:
         """
         Return the training strategy this model uses.
 
@@ -305,6 +306,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
+    @property
     @abstractmethod
     def supports_lora(self) -> bool:
         """
@@ -417,7 +419,7 @@ class BaseTimeSeriesFoundationModel(ABC):
                 to run even if training raises an exception.
         """
         info_print(f"Starting training for {self.__class__.__name__}")
-        info_print(f"Training strategy: {self.get_training_strategy().value}")
+        info_print(f"Training strategy: {self.training_strategy().value}")
 
         # Setup distributed training if configured
         self._setup_distributed()
@@ -483,7 +485,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         return metrics
 
     def save_model(
-        self, output_dir: str, save_config: bool = True, save_metadata: bool = True
+        self, model_path: str, save_config: bool = True, save_metadata: bool = True
     ) -> None:
         """Save the model and associated metadata to disk.
 
@@ -491,7 +493,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         must override this method to implement actual model weight saving.
 
         Args:
-            output_dir: Directory path where the model will be saved.
+            model_path: Directory path where the model will be saved.
             save_config: Whether to save the model configuration to config.json.
             save_metadata: Whether to save training metadata to metadata.json.
 
@@ -503,11 +505,11 @@ class BaseTimeSeriesFoundationModel(ABC):
             Child classes should call super().save_model() first to save
             configuration and metadata, then save model-specific weights.
         """
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(model_path, exist_ok=True)
 
         # Save configuration
         if save_config:
-            config_path = os.path.join(output_dir, "config.json")
+            config_path = os.path.join(model_path, "config.json")
             with open(config_path, "w") as f:
                 json.dump(self.config.to_dict(), f, indent=2)
 
@@ -521,27 +523,27 @@ class BaseTimeSeriesFoundationModel(ABC):
                 "config": self.config.to_dict(),
                 "lora_config": self.lora_config.__dict__,
                 "distributed_config": self.distributed_config.__dict__,
-                "training_strategy": self.get_training_strategy().value,
+                "training_strategy": self.training_strategy().value,
             }
 
-            metadata_path = os.path.join(output_dir, "metadata.json")
+            metadata_path = os.path.join(model_path, "metadata.json")
             with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=2)
 
         # Save model-specific checkpoint files (weights, optimizer state, etc.)
-        self._save_checkpoint(output_dir)
+        self._save_checkpoint(model_path)
 
-        info_print(f"Model saved to {output_dir}")
+        info_print(f"Model saved to {model_path}")
 
     @classmethod
     def load_model(
-        cls, model_dir: str, config: Optional[ModelConfig] = None
+        cls, model_path: str, config: Optional[ModelConfig] = None
     ) -> "BaseTimeSeriesFoundationModel":
         """
         Load a saved model.
 
         Args:
-            model_dir: Directory containing the saved model
+            model_path: Directory containing the saved model
             config: Optional config override
 
         Returns:
@@ -549,7 +551,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         # Load config if not provided
         if config is None:
-            config_path = os.path.join(model_dir, "config.json")
+            config_path = os.path.join(model_path, "config.json")
             if os.path.exists(config_path):
                 with open(config_path, "r") as f:
                     config_dict = json.load(f)
@@ -561,10 +563,10 @@ class BaseTimeSeriesFoundationModel(ABC):
         instance = cls(config)
 
         # Load model-specific checkpoint files (weights, optimizer state, etc.)
-        instance._load_checkpoint(model_dir)
+        instance._load_checkpoint(model_path)
 
         # Load metadata
-        metadata_path = os.path.join(model_dir, "metadata.json")
+        metadata_path = os.path.join(model_path, "metadata.json")
         if os.path.exists(metadata_path):
             with open(metadata_path, "r") as f:
                 metadata = json.load(f)
@@ -572,7 +574,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             instance.best_metrics = metadata.get("best_metrics", {})
             instance.is_fitted = metadata.get("is_fitted", False)
 
-        info_print(f"Model loaded from {model_dir}")
+        info_print(f"Model loaded from {model_path}")
         return instance
 
     def get_model_info(self) -> Dict[str, Any]:
@@ -596,7 +598,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             "is_fitted": self.is_fitted,
             "lora_enabled": self.lora_config.enabled,
             "distributed_enabled": self.distributed_config.enabled,
-            "training_strategy": self.get_training_strategy().value,
+            "training_strategy": self.training_strategy().value,
         }
 
         if self.model is not None:

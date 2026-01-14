@@ -160,7 +160,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         return predictions
 
-    def get_training_strategy(self) -> TrainingStrategy:
+    def training_strategy(self) -> TrainingStrategy:
         """Return the training strategy used by TTM.
 
         Returns:
