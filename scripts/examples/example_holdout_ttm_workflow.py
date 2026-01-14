@@ -14,16 +14,16 @@ This script demonstrates the complete workflow:
 Usage:
     # Run with default settings (combine all 4 datasets, 5% holdout, 1 epoch)
     sbatch scripts/examples/run_holdout_ttm_workflow.sh
-    
+
     # Run with specific datasets combined
     sbatch --export=DATASETS="lynch_2022 aleppo" scripts/examples/run_holdout_ttm_workflow.sh
-    
+
     # Use different config directory
     sbatch --export=DATASETS="lynch_2022 brown_2019",CONFIG_DIR="configs/data/holdout" scripts/examples/run_holdout_ttm_workflow.sh
-    
+
     # Customize number of epochs
     sbatch --export=DATASETS="aleppo brown_2019",EPOCHS=2 scripts/examples/run_holdout_ttm_workflow.sh
-    
+
     # Direct python call (for testing)
     python scripts/examples/example_holdout_ttm_workflow.py --datasets lynch_2022 brown_2019 --config-dir configs/data/holdout_5pct --epochs 1
 """
@@ -35,44 +35,53 @@ from pathlib import Path
 from datetime import datetime
 
 from src.data.versioning.dataset_registry import DatasetRegistry
-from src.data.preprocessing.dataset_combiner import combine_datasets_for_training, print_dataset_column_table
+from src.data.preprocessing.dataset_combiner import (
+    combine_datasets_for_training,
+    print_dataset_column_table,
+)
+from src.data.preprocessing.imputation import impute_missing_values
 from src.models.base import DistributedConfig, GPUManager
 from src.models.ttm import TTMForecaster, TTMConfig
 
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# Suppress verbose logging from data processing modules
-logging.getLogger('src.data').setLevel(logging.WARNING)
-logging.getLogger('src.models').setLevel(logging.WARNING)
-logging.getLogger('src.utils').setLevel(logging.WARNING)
+# Suppress verbose logging from data processing modules (but not versioning)
+logging.getLogger("src.data.preprocessing").setLevel(logging.WARNING)
+logging.getLogger("src.data.diabetes_datasets").setLevel(logging.WARNING)
+logging.getLogger("src.models").setLevel(logging.WARNING)
+logging.getLogger("src.utils").setLevel(logging.WARNING)
 
 
-def step1_generate_holdout_configs(config_dir: str = "configs/data/holdout", output_dir: str = None, datasets: list = None):
+def step1_generate_holdout_configs(
+    config_dir: str = "configs/data/holdout",
+    output_dir: str | None = None,
+    datasets: list | None = None,
+):
     """Step 1: Generate holdout configurations and copy to artifacts directory."""
-    logger.info("\n")
-    logger.info("#"*80)
-    logger.info("### STEP 1: Generate Holdout Configurations")
-    logger.info("#"*80 + "\n")
+    logger.info("=" * 80)
+    logger.info("STEP 1: Generate Holdout Configurations")
+    logger.info("=" * 80)
 
     config_path = Path(config_dir)
-    
+
     if config_path.exists():
         configs = list(config_path.glob("*.yaml"))
         logger.info(f"✓ Holdout configs already exist: {len(configs)} datasets")
         for cfg in configs:
             logger.info(f"  - {cfg.stem}")
-        
+
         # Copy only configs for datasets being used in this run
         if output_dir and datasets:
             artifacts_config_dir = Path(output_dir) / "configs"
             artifacts_config_dir.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Copying configs to artifacts directory: {artifacts_config_dir}")
+            logger.info(
+                f"Copying configs to artifacts directory: \n\t {artifacts_config_dir}"
+            )
             logger.info(f"Datasets in this run: {', '.join(datasets)}")
-            
+
             copied_count = 0
             for cfg in configs:
                 # Only copy if this config matches one of the datasets being used
@@ -81,140 +90,277 @@ def step1_generate_holdout_configs(config_dir: str = "configs/data/holdout", out
                     shutil.copy2(cfg, dest)
                     logger.info(f"  ✓ Copied: {cfg.name}")
                     copied_count += 1
-            
-            logger.info(f"✓ Copied {copied_count}/{len(datasets)} configs to: {artifacts_config_dir}")
-        
+
+            logger.info(
+                f"✓ Copied {copied_count}/{len(datasets)} configs to: \n\t {artifacts_config_dir}"
+            )
+
         return True
     else:
         logger.warning(f"⚠ Config directory does not exist: {config_dir}")
-        logger.info("  Run: python scripts/data_processing_scripts/generate_holdout_configs.py")
+        logger.info(
+            "  Run: python scripts/data_processing_scripts/generate_holdout_configs.py"
+        )
         return False
 
 
-def step2_validate_holdout_configs(dataset_name: str, config_dir: str, index: int):
-    """Step 2: Validate holdout configuration with comprehensive checks."""
-    logger.info("="*80)
-    logger.info(f"STEP 2.{index + 1}: Validate Holdout Configuration")
-    logger.info(f"Validating dataset {index + 1}: {dataset_name}")
-    logger.info("="*80)
-    
-    registry = DatasetRegistry(holdout_config_dir=config_dir)
-    
-    # Get config
-    config = registry.get_holdout_config(dataset_name)
-    if config is None:
-        logger.error(f"✗ No config found for {dataset_name}")
-        return False
-    
-    logger.info(f"✓ Config loaded for {dataset_name}")
-    logger.info(f"  Type: {config.holdout_type.value}")
-    
-    if config.temporal_config:
-        logger.info(f"  Temporal holdout: {config.temporal_config.holdout_percentage*100}%")
-    
-    if config.patient_config:
-        logger.info(f"  Holdout patients: {len(config.patient_config.holdout_patients)}")
-    
-    # Run comprehensive validation from holdout_utils
+def step2_validate_holdout_configs(datasets: list, config_dir: str):
+    """Step 2: Validate holdout configurations for all datasets with comprehensive checks."""
+    logger.info(" ")
+    logger.info("=" * 80)
+    logger.info("STEP 2: Validate Holdout Configurations")
+    logger.info(f"Validating {len(datasets)} dataset(s)")
+    logger.info("=" * 80)
+
     from src.data.versioning import holdout_utils
-    try:
-        results = holdout_utils.validate_holdout_config(dataset_name, registry)
-        
-        # Check results
+
+    registry = DatasetRegistry(holdout_config_dir=config_dir)
+
+    # Validate each dataset and collect results
+    validation_results = []
+    for idx, dataset_name in enumerate(datasets):
+        logger.info(" ")
+        logger.info(f"--- Dataset {idx + 1}/{len(datasets)}: {dataset_name} ---")
+        # Get config info
+        config = registry.get_holdout_config(dataset_name)
+        if config is None:
+            logger.error(f"✗ No config found for {dataset_name}")
+            validation_results.append(
+                {
+                    "dataset_name": dataset_name,
+                    "config_exists": False,
+                    "load_successful": False,
+                    "no_data_leakage": False,
+                    "train_size": 0,
+                    "holdout_size": 0,
+                    "errors": ["No holdout configuration found"],
+                }
+            )
+            continue
+
+        # Log config details
+        logger.info(f"✓ Config loaded: {config.holdout_type.value}")
+        if config.temporal_config:
+            logger.info(
+                f"  Temporal holdout: {config.temporal_config.holdout_percentage*100}%"
+            )
+        if config.patient_config:
+            logger.info(
+                f"  Holdout patients: {len(config.patient_config.holdout_patients)}"
+            )
+
+        # Run comprehensive validation (suppress verbose output, we're logging manually)
+        results = holdout_utils.validate_holdout_config(
+            dataset_name, registry, verbose=False
+        )
+        validation_results.append(results)
+
+        # Log brief status
         if results["errors"]:
-            logger.error(f"✗ Validation failed with {len(results['errors'])} error(s):")
+            logger.error(f"✗ Validation failed with {len(results['errors'])} error(s)")
             for error in results["errors"]:
-                logger.error(f"  - {error}")
-            return False
+                logger.error(f"    - {error}")
         else:
-            logger.info(f"✓ All comprehensive validations passed")
-            return True
-    except Exception as e:
-        logger.error(f"✗ Validation failed: {e}")
+            logger.info("✓ All comprehensive validations passed")
+
+    # Print summary table
+    holdout_utils.print_validation_summary(validation_results, verbose=False)
+
+    # Check if any failed
+    failed_datasets = [r["dataset_name"] for r in validation_results if r["errors"]]
+    if failed_datasets:
+        logger.error(f"\n✗ Validation failed for: {', '.join(failed_datasets)}")
         return False
 
+    logger.info("✓ All datasets validated successfully")
+    return True
 
 
 def step3_load_training_data(dataset_names: list, config_dir: str):
     """Step 3: Load and combine training data from multiple datasets."""
-    logger.info("="*80)
+    logger.info(" ")
+    logger.info("=" * 80)
     logger.info("STEP 3: Load Training Data")
-    logger.info("="*80)
-    
+    logger.info("=" * 80)
+
     registry = DatasetRegistry(holdout_config_dir=config_dir)
-    
+
     # Combine multiple datasets
     combined_data, column_info = combine_datasets_for_training(
-        dataset_names=dataset_names,
-        registry=registry,
-        config_dir=config_dir
+        dataset_names=dataset_names, registry=registry, config_dir=config_dir
     )
     # Print detailed column comparison table
     print_dataset_column_table(column_info, list(combined_data.columns))
-    
-    logger.info(f"✓ Combined training data ready")
+
+    logger.info("✓ Combined training data ready")
     logger.info(f"  Total samples: {len(combined_data):,}")
     logger.info(f"  Total columns: {len(combined_data.columns)}")
     logger.info(f"  First 5 columns: {combined_data.columns[:5].tolist()}")
     logger.info(f"  Datasets: {', '.join(dataset_names)}")
-    
-    if 'p_num' in combined_data.columns or 'id' in combined_data.columns:
-        patient_col = 'p_num' if 'p_num' in combined_data.columns else 'id'
+
+    if "p_num" in combined_data.columns or "id" in combined_data.columns:
+        patient_col = "p_num" if "p_num" in combined_data.columns else "id"
         n_patients = len(combined_data[patient_col].unique())
         logger.info(f"  Total patients: {n_patients}")
-    
+
+    # Data quality checks for potential scaling issues
+    logger.info(" ")
+    logger.info("Data Quality Checks:")
+    logger.info("-" * 80)
+
+    issues_found = False
+    for col in combined_data.columns:
+        # Skip non-numeric columns
+        if combined_data[col].dtype not in [
+            "float64",
+            "float32",
+            "int64",
+            "int32",
+            "float16",
+            "int16",
+        ]:
+            continue
+
+        nan_count = combined_data[col].isna().sum()
+        nan_pct = (nan_count / len(combined_data)) * 100
+
+        # Check for NaN values
+        if nan_count > 0:
+            logger.warning(f"  ⚠ {col}: {nan_count:,} NaN values ({nan_pct:.2f}%)")
+            issues_found = True
+
+        # Check for zero variance (constant columns)
+        non_nan_values = combined_data[col].dropna()
+        if len(non_nan_values) > 0:
+            std_val = non_nan_values.std()
+            if std_val == 0 or (std_val is not None and abs(std_val) < 1e-10):
+                unique_val = (
+                    non_nan_values.iloc[0] if len(non_nan_values) > 0 else "N/A"
+                )
+                logger.warning(
+                    f"  ⚠ {col}: Zero variance (constant value: {unique_val})"
+                )
+                issues_found = True
+
+        # Check for infinite values
+        if combined_data[col].dtype in ["float64", "float32", "float16"]:
+            inf_count = combined_data[col].isin([float("inf"), float("-inf")]).sum()
+            if inf_count > 0:
+                logger.warning(f"  ⚠ {col}: {inf_count:,} infinite values")
+                issues_found = True
+
+    if not issues_found:
+        logger.info("  ✓ No data quality issues detected in numeric columns")
+    else:
+        logger.warning(
+            "  ⚠ Data quality issues detected - may cause scaling warnings during preprocessing"
+        )
+
+    logger.info("-" * 80)
+
+    # Apply imputation to handle NaN values and prepare data for model
+    logger.info(" ")
+    logger.info("Applying data preprocessing:")
+    logger.info("-" * 80)
+
+    # Get numeric columns that need imputation
+    numeric_cols = [
+        col
+        for col in combined_data.columns
+        if combined_data[col].dtype
+        in ["float64", "float32", "int64", "int32", "float16", "int16"]
+    ]
+
+    # Impute missing values
+    logger.info("  Imputing missing values in numeric columns...")
+    for col in numeric_cols:
+        nan_before = combined_data[col].isna().sum()
+        if nan_before > 0:
+            combined_data = impute_missing_values(combined_data, columns=[col])
+            nan_after = combined_data[col].isna().sum()
+            logger.info(f"    • {col}: {nan_before:,} → {nan_after:,} NaN values")
+
+    # Check for zero variance columns after imputation
+    zero_variance_cols = []
+    for col in numeric_cols:
+        non_nan = combined_data[col].dropna()
+        if len(non_nan) > 0 and non_nan.std() == 0:
+            zero_variance_cols.append(col)
+
+    if zero_variance_cols:
+        logger.warning(f"  ⚠ Columns with zero variance detected: {zero_variance_cols}")
+        logger.warning(
+            "    These columns will be dropped as they provide no information"
+        )
+        combined_data = combined_data.drop(columns=zero_variance_cols)
+        logger.info(f"    Dropped {len(zero_variance_cols)} zero-variance columns")
+
+    logger.info("  ✓ Data preprocessing completed")
+    logger.info(f"  Final shape: {combined_data.shape}")
+    logger.info("-" * 80)
+
     return combined_data
 
 
-def step4_train_ttm_model(combined_data, dataset_names: list, output_dir: str, num_epochs: int = 1):
-    """Step 4: Train TTM model on combined dataset."""    
-    logger.info("="*80)
+def step4_train_ttm_model(
+    combined_data, dataset_names: list, output_dir: str, num_epochs: int = 1
+):
+    """Step 4: Train TTM model on combined dataset."""
+    logger.info(" ")
+    logger.info("=" * 80)
     logger.info("STEP 4: Train TTM Model")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info("="*80)
-    
+    logger.info("=" * 80)
+
     # GPU setup
     gpu_info = GPUManager.get_gpu_info()
     logger.info(f"GPU available: {gpu_info['gpu_available']}")
     logger.info(f"GPU count: {gpu_info['gpu_count']}")
-    
+
     # Single GPU training (no distributed)
     distributed_config = DistributedConfig(enabled=False)
     use_cpu = not gpu_info["gpu_available"]
-    
+
+    # Create logging directory path with dataset info
+    # Note: output_dir already includes job ID from the shell script
+    # logging_dir = Path(output_dir) / f"hf_model_training_logs"
+    # logging_dir.mkdir(parents=True, exist_ok=True)
+    # logger.info(f"Creating HF logging directory: \n\t {logging_dir}")
+
     # TTM configuration
     config = TTMConfig(
         model_path="ibm-granite/granite-timeseries-ttm-r2",
         context_length=512,
         forecast_length=96,
-        batch_size=16,
+        batch_size=2048,
         learning_rate=1e-4,
         num_epochs=num_epochs,
         use_cpu=use_cpu,
         fp16=gpu_info["gpu_available"] and not use_cpu,
     )
-    
-    logger.info(f"Model config:")
+
+    logger.info("Model config:")
     logger.info(f"  Context length: {config.context_length}")
     logger.info(f"  Forecast length: {config.forecast_length}")
     logger.info(f"  Batch size: {config.batch_size}")
     logger.info(f"  Epochs: {config.num_epochs}")
-    
+    # logger.info(f"  Logging directory: {logging_dir}")
+
     # Create model
     model = TTMForecaster(config, distributed_config=distributed_config)
     logger.info("✓ TTM model created")
-    
+
     # Train
     print(f"\n>>> Starting training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {output_dir}")
     print(f">>> Training with {num_epochs} epoch(s)...\n")
     logger.info(f"Training on combined datasets: {', '.join(dataset_names)}")
     logger.info(f"Output directory: {output_dir}")
-    
+
     try:
         # Pass the combined DataFrame directly instead of dataset name
         results = model.fit(train_data=combined_data, output_dir=output_dir)
-        print(f"\n>>> Training completed successfully on combined datasets\n")
+        print("\n>>> Training completed successfully on combined datasets\n")
         logger.info("✓ Training completed")
         logger.info(f"  Results: {list(results.keys())}")
         return model, results
@@ -224,15 +370,15 @@ def step4_train_ttm_model(combined_data, dataset_names: list, output_dir: str, n
         raise
 
 
-def step5_save_model(model: TTMForecaster, save_path: str):
+def step5_save_model(model: TTMForecaster, save_path: Path):
     """Step 5: Save trained model."""
-    logger.info("="*80)
+    logger.info("=" * 80)
     logger.info("STEP 5: Save Trained Model")
-    logger.info("="*80)
-    
+    logger.info("=" * 80)
+
     save_path = Path(save_path)
     save_path.parent.mkdir(parents=True, exist_ok=True)
-    
+
     try:
         model.save(str(save_path))
         logger.info(f"✓ Model saved to: {save_path}")
@@ -245,24 +391,21 @@ def step5_save_model(model: TTMForecaster, save_path: str):
 
 def step6_load_model(load_path: str, config: TTMConfig):
     """Step 6: Load trained model."""
-    print("\n" + "#"*80)
-    print("### STEP 6: Load Trained Model")
-    print("#"*80 + "\n")
-    logger.info("\n" + "="*80)
+    logger.info("=" * 80)
     logger.info("STEP 6: Load Trained Model")
-    logger.info("="*80)
-    
+    logger.info("=" * 80)
+
     load_path = Path(load_path)
-    
+
     if not load_path.exists():
         logger.error(f"✗ Model file not found: {load_path}")
         return None
-    
+
     try:
         # Create new model instance with same config
         distributed_config = DistributedConfig(enabled=False)
         model = TTMForecaster(config, distributed_config=distributed_config)
-        
+
         # Load weights
         model.load(str(load_path))
         logger.info(f"✓ Model loaded from: {load_path}")
@@ -274,39 +417,41 @@ def step6_load_model(load_path: str, config: TTMConfig):
 
 def step7_evaluate_on_holdout(model: TTMForecaster, dataset_name: str, config_dir: str):
     """Step 7: Evaluate model on holdout set."""
-    print("\n" + "#"*80)
+    print("\n" + "#" * 80)
     print(f"### STEP 7: Evaluate on Holdout Set for {dataset_name}")
-    print("#"*80 + "\n")
-    logger.info("\n" + "="*80)
+    print("#" * 80 + "\n")
+    logger.info("\n" + "=" * 80)
     logger.info("STEP 7: Evaluate on Holdout Set")
-    logger.info("="*80)
-    
+    logger.info("=" * 80)
+
     registry = DatasetRegistry(holdout_config_dir=config_dir)
-    
+
     # Load holdout data
     holdout_data = registry.load_holdout_data_only(dataset_name)
     logger.info(f"✓ Holdout data loaded: {len(holdout_data):,} samples")
-    
+
     # Evaluate
     try:
         # Note: This is a placeholder - actual evaluation depends on your TTM model's predict method
         logger.info("Running evaluation on holdout set...")
-        
+
         # Example evaluation (you'll need to implement based on your model's API)
         # predictions = model.predict(holdout_data)
         # metrics = calculate_metrics(holdout_data, predictions)
-        
+
         logger.info("✓ Evaluation completed")
         logger.info("  Metrics (placeholder):")
         logger.info("    - MSE: TBD")
         logger.info("    - MAE: TBD")
         logger.info("    - RMSE: TBD")
-        
+
         # Note: Split evaluation by patient if needed
-        if 'p_num' in holdout_data.columns:
-            holdout_patients = holdout_data['p_num'].unique()
-            logger.info(f"\n  Per-patient evaluation available for {len(holdout_patients)} patients")
-        
+        if "p_num" in holdout_data.columns:
+            holdout_patients = holdout_data["p_num"].unique()
+            logger.info(
+                f"\n  Per-patient evaluation available for {len(holdout_patients)} patients"
+            )
+
         return True
     except Exception as e:
         logger.error(f"✗ Evaluation failed: {e}")
@@ -316,116 +461,92 @@ def step7_evaluate_on_holdout(model: TTMForecaster, dataset_name: str, config_di
 def main():
     parser = argparse.ArgumentParser(
         description="End-to-end holdout workflow with TTM training",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
         "--datasets",
         type=str,
-        nargs='+',
+        nargs="+",
         required=True,
-        help="Dataset names to combine (e.g., lynch_2022 aleppo brown_2019)"
+        help="Dataset names to combine (e.g., lynch_2022 aleppo brown_2019)",
     )
     parser.add_argument(
         "--config-dir",
         type=str,
         default="configs/data/holdout_5pct",
-        help="Holdout config directory"
+        help="Holdout config directory",
     )
     parser.add_argument(
-        "--output-dir",
-        type=str,
-        default=None,
-        help="Training output directory"
+        "--output-dir", type=str, default=None, help="Training output directory"
     )
     parser.add_argument(
         "--skip-training",
         action="store_true",
-        help="Skip training (use existing model)"
+        help="Skip training (use existing model)",
     )
     parser.add_argument(
-        "--epochs",
-        type=int,
-        default=1,
-        help="Number of training epochs (default: 1)"
+        "--epochs", type=int, default=1, help="Number of training epochs (default: 1)"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Set output directory
     if args.output_dir is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
         args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_default_dir_holdout_workflow"
-    
+
     model_path = Path(args.output_dir) / "model.pt"
-        
-    logger.info("="*80)
+
+    logger.info("=" * 80)
     logger.info("🚀 HOLDOUT SYSTEM WORKFLOW WITH TTM")
     logger.info("Start of: example_holdout_ttm_workflow.py")
-    logger.info("="*80)
-    logger.info(f"### Datasets: {', '.join(args.datasets)}")
-    logger.info(f"### Config dir: {args.config_dir}")
-    logger.info(f"### Output dir: {args.output_dir}")
-    logger.info(f"### Epochs: {args.epochs}")
-    logger.info("="*80)
-    
+    logger.info("=" * 80)
+    logger.info(f"Datasets: {', '.join(args.datasets)}")
+    logger.info(f"Config dir: {args.config_dir}")
+    logger.info(f"Output dir: {args.output_dir}")
+    logger.info(f"Epochs: {args.epochs}")
+    logger.info("=" * 80)
+
     try:
         # Step 1: Check/generate holdout configs
-        if not step1_generate_holdout_configs(args.config_dir, args.output_dir, args.datasets):
+        if not step1_generate_holdout_configs(
+            args.config_dir, args.output_dir, args.datasets
+        ):
             logger.error("Please generate holdout configs first")
             return
-        
+
         # Step 2: Validate configuration for all datasets
-        logger.info("="*80)
-        logger.info("STEP 2: Validate Holdout Configurations")
-        logger.info(f"Validating {len(args.datasets)} dataset(s)")
-        logger.info("="*80)
-        
-        from src.data.versioning import holdout_utils
-        registry = DatasetRegistry(holdout_config_dir=args.config_dir)
-        
-        # Validate all datasets and collect results (suppress verbose per-dataset logging)
-        validation_results = []
-        for dataset_name in args.datasets:
-            results = holdout_utils.validate_holdout_config(dataset_name, registry, verbose=False)
-            validation_results.append(results)
-            
-            # Log brief status
-            if results["errors"]:
-                logger.error(f"✗ {dataset_name}: {len(results['errors'])} error(s)")
-            else:
-                logger.info(f"✓ {dataset_name}: Validation passed")
-        
-        # Print summary table
-        holdout_utils.print_validation_summary(validation_results, verbose=False)
-        
-        # Check if any failed
-        failed_datasets = [r["dataset_name"] for r in validation_results if r["errors"]]
-        if failed_datasets:
-            logger.error(f"Configuration validation failed for: {', '.join(failed_datasets)}")
+        if not step2_validate_holdout_configs(args.datasets, args.config_dir):
+            logger.error("Configuration validation failed")
             return
-        
+
         # Step 3: Load and combine training data
         combined_train_data = step3_load_training_data(args.datasets, args.config_dir)
-        
+
         if not args.skip_training:
             # Step 4: Train model on combined data
-            model, results = step4_train_ttm_model(combined_train_data, args.datasets, args.output_dir, num_epochs=args.epochs)
-            
+            model, results = step4_train_ttm_model(
+                combined_train_data,
+                args.datasets,
+                args.output_dir,
+                num_epochs=args.epochs,
+            )
+
             # Step 5: Save model
             if not step5_save_model(model, str(model_path)):
                 logger.error("Failed to save model")
                 return
         else:
             # Step 4: Skip training (use existing model)
-            logger.info("="*80)
+            logger.info("=" * 80)
             logger.info("STEP 4: Train TTM Model")
             logger.info("⏭️  Skipping training (using existing model)")
-            logger.info("="*80)
+            logger.info("=" * 80)
             # Step 5: Skip saving model
-            logger.info("="*80)
+            logger.info("=" * 80)
             logger.info("STEP 5: Save Trained Model")
             logger.info("⏭️  Skipping training (No trained model to save)")
-            logger.info("="*80)
+            logger.info("=" * 80)
 
         # Step 6: Load model
         # Recreate config for loading
@@ -437,36 +558,37 @@ def main():
             batch_size=16,
             use_cpu=not gpu_info["gpu_available"],
         )
-        
+
         model = step6_load_model(str(model_path), config)
         if model is None:
             logger.error("Failed to load model")
             return
-        
+
         # Step 7: Evaluate on holdout for each dataset
         for dataset_name in args.datasets:
             logger.info(f"\nEvaluating on holdout set for: {dataset_name}")
             step7_evaluate_on_holdout(model, dataset_name, args.config_dir)
-        
-        print("\n" + "#"*80)
+
+        print("\n" + "#" * 80)
         print("### ✅ WORKFLOW COMPLETED SUCCESSFULLY!")
-        print("#"*80)
+        print("#" * 80)
         print(f"### Model saved at: {model_path}")
         print(f"### Training outputs in: {args.output_dir}")
-        print("#"*80 + "\n")
-        
-        logger.info("\n" + "="*80)
+        print("#" * 80 + "\n")
+
+        logger.info("\n" + "=" * 80)
         logger.info("✅ WORKFLOW COMPLETED SUCCESSFULLY!")
-        logger.info("="*80)
+        logger.info("=" * 80)
         logger.info(f"Model saved at: {model_path}")
         logger.info(f"Training outputs in: {args.output_dir}")
         logger.info("End of : example_holdout_ttm_workflow.py")
-        
+
     except KeyboardInterrupt:
         logger.info("\n\n🛑 Workflow interrupted by user")
     except Exception as e:
         logger.error(f"\n\n❌ Workflow failed: {e}")
         import traceback
+
         traceback.print_exc()
 
 

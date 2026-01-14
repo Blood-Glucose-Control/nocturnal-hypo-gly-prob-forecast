@@ -11,7 +11,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from transformers import TrainingArguments
 
-from src.models.base import BaseTSFM, ModelConfig, TrainingStrategy
+from src.models.base import BaseTimeSeriesFoundationModel, ModelConfig, TrainingStrategy
 from src.utils.logging_helper import info_print, error_print
 
 
@@ -43,7 +43,7 @@ class TSMixerConfig(ModelConfig):
         self.mixing_hidden_dim = kwargs.get("mixing_hidden_dim", 256)
 
 
-class TSMixerForecaster(BaseTSFM):
+class TSMixerForecaster(BaseTimeSeriesFoundationModel):
     """
     TSMixer forecaster implementation.
 

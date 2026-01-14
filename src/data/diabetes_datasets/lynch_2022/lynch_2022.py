@@ -196,7 +196,7 @@ class Lynch2022DataLoader(DatasetBase):
         """
         Load processed data from cache or process raw data and save to cache.
         Then split train/validation data.
-        
+
         Side Effects:
             Sets self.processed_data, self.train_data, and self.validation_data.
         """

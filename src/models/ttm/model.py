@@ -15,10 +15,7 @@ from torch.utils.data import DataLoader
 from transformers import (
     TrainingArguments,
     Trainer,
-    EarlyStoppingCallback,
 )
-from transformers.integrations import TensorBoardCallback
-from transformers.trainer_callback import ProgressCallback
 
 # Import your existing TTM-related modules
 from tsfm_public import (
@@ -29,7 +26,7 @@ from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 # Local imports
-from src.models.base import BaseTSFM, TrainingStrategy
+from src.models.base import BaseTimeSeriesFoundationModel, TrainingStrategy
 from src.models.ttm.config import TTMConfig
 from src.data.diabetes_datasets.data_loader import get_loader
 from src.data.models import ColumnNames
@@ -39,7 +36,7 @@ from src.data.preprocessing.split_or_combine_patients import (
 from src.utils.logging_helper import info_print, debug_print, error_print
 
 
-class TTMForecaster(BaseTSFM):
+class TTMForecaster(BaseTimeSeriesFoundationModel):
     """TTM (TinyTimeMixer) forecaster implementation using the base TSFM framework.
 
     TinyTimeMixer is an MLP-based time series foundation model that uses mixing
@@ -275,7 +272,7 @@ class TTMForecaster(BaseTSFM):
                 data_source_name=data_source_name,
                 num_validation_days=20,  # Adjust as needed
                 use_cached=True,
-            )
+            )  # type: ignore
             data = loader.processed_data
             debug_print(
                 f"Loaded data from source '{data_source_name}' with data.head:\n{data[ next(iter(data))].head()}"
@@ -350,9 +347,9 @@ class TTMForecaster(BaseTSFM):
                 )
 
             info_print("Data preparation complete:")
-            info_print(f"  Train samples: {len(dset_train) if dset_train else 0}")
-            info_print(f"  Val samples: {len(dset_val) if dset_val else 0}")
-            info_print(f"  Test samples: {len(dset_test) if dset_test else 0}")
+            info_print(f"  Train samples: {len(dset_train):,} if dset_train else 0")
+            info_print(f"  Val samples: {len(dset_val):,} if dset_val else 0")
+            info_print(f"  Test samples: {len(dset_test):,} if dset_test else 0")
 
             return train_loader, val_loader, test_loader
 
@@ -360,11 +357,11 @@ class TTMForecaster(BaseTSFM):
             error_print(f"Failed to prepare data: {str(e)}")
             raise
 
-    def _save_model_weights(self, output_dir: str) -> None:
-        """Save TTM model weights using HuggingFace format.
+    def _save_checkpoint(self, output_dir: str) -> None:
+        """Save TTM model checkpoint using HuggingFace format.
 
         Args:
-            output_dir: Directory path where model weights will be saved.
+            output_dir: Directory path where model checkpoint will be saved.
 
         Note:
             Uses save_pretrained() for HuggingFace-compatible format that
@@ -374,11 +371,11 @@ class TTMForecaster(BaseTSFM):
             self.model.save_pretrained(output_dir)
             info_print(f"TTM model saved to {output_dir}")
 
-    def _load_model_weights(self, model_dir: str) -> None:
-        """Load TTM model weights from a directory.
+    def _load_checkpoint(self, model_dir: str) -> None:
+        """Load TTM model checkpoint from a directory.
 
         Args:
-            model_dir: Directory containing saved model weights in
+            model_dir: Directory containing saved model checkpoint in
                 HuggingFace format.
 
         Raises:
@@ -390,10 +387,10 @@ class TTMForecaster(BaseTSFM):
             from transformers import AutoModel
 
             self.model = AutoModel.from_pretrained(model_dir)
-            info_print(f"TTM model weights loaded from {model_dir}")
+            info_print(f"TTM model checkpoint loaded from {model_dir}")
 
         except Exception as e:
-            error_print(f"Failed to load model weights: {str(e)}")
+            error_print(f"Failed to load model checkpoint: {str(e)}")
             raise
 
     def _train_model(
@@ -425,8 +422,9 @@ class TTMForecaster(BaseTSFM):
         # Configure tqdm to update less frequently (every 30 seconds instead of constantly)
         # This reduces log file bloat while still showing progress
         import os
-        os.environ['TQDM_MININTERVAL'] = '30'  # Update progress bar every 30 seconds
-        
+
+        os.environ["TQDM_MININTERVAL"] = "30"  # Update progress bar every 30 seconds
+
         # Prepare data loaders
         train_loader, val_loader, test_loader = self._prepare_data(
             train_data, val_data, test_data
@@ -739,10 +737,13 @@ class TTMForecaster(BaseTSFM):
             "per_device_eval_batch_size": self.config.batch_size,
             "warmup_steps": self.config.warmup_steps,
             "weight_decay": self.config.weight_decay,
-            "logging_dir": os.path.join(output_dir, "logs"),
+            "logging_dir": self.config.logging_dir
+            if self.config.logging_dir
+            else os.path.join(output_dir, "logs"),
             "logging_steps": 1000,  # Log every 1000 steps (reduces log verbosity significantly)
             "eval_strategy": "no",  # Disable evaluation during training for speed
             "save_strategy": "epoch",  # Only save at end of epoch
+            "eval_steps": None,
             "save_steps": self.config.save_steps,
             "metric_for_best_model": self.config.metric_for_best_model,
             "greater_is_better": self.config.greater_is_better,

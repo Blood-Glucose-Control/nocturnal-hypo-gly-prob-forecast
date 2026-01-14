@@ -3,7 +3,7 @@
 from typing import Dict, List, Any, Optional
 import pandas as pd
 
-from src.models.base import BaseTSFM
+from src.models.base import BaseTimeSeriesFoundationModel
 from src.utils.logging import error_print
 
 
@@ -14,13 +14,15 @@ class ModelEvaluator:
         """Initialize evaluator with metric configuration."""
         self.metrics = metrics or ["mse", "mae", "rmse"]
 
-    def evaluate(self, model: BaseTSFM, test_data: pd.DataFrame) -> Dict[str, float]:
+    def evaluate(
+        self, model: BaseTimeSeriesFoundationModel, test_data: pd.DataFrame
+    ) -> Dict[str, float]:
         """Evaluate a single model on test data."""
         return model.evaluate(test_data)
 
     def compare_models(
         self,
-        models: Dict[str, BaseTSFM],
+        models: Dict[str, BaseTimeSeriesFoundationModel],
         test_data: pd.DataFrame,
         metrics: Optional[List[str]] = None,
     ) -> pd.DataFrame:
@@ -41,7 +43,9 @@ class ModelEvaluator:
 
 
 def compare_models(
-    models: List[BaseTSFM], test_data: Any, metrics: Optional[List[str]] = None
+    models: List[BaseTimeSeriesFoundationModel],
+    test_data: Any,
+    metrics: Optional[List[str]] = None,
 ) -> Dict[str, Dict[str, float]]:
     """Compare multiple models on the same test dataset.
 

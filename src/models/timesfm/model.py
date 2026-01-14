@@ -17,12 +17,12 @@ from transformers import (
 )
 
 # Local imports
-from src.models.base import BaseTSFM
+from src.models.base import BaseTimeSeriesFoundationModel
 from src.models.timesfm.config import TimesFMConfig
 from src.utils.logging_helper import info_print, error_print
 
 
-class TimesFMForecaster(BaseTSFM):
+class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     """TimesFM forecaster implementation using the base TSFM framework.
 
     TimesFM is a pretrained time series foundation model developed by Google Research

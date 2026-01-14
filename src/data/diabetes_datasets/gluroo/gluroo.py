@@ -127,7 +127,7 @@ class GlurooDataLoader(DatasetBase):
         If use_cached is True, loads previously processed data from cache.
         Otherwise, loads raw data, processes it, and saves it to cache.
         Then splits the processed data into training and validation sets.
-        
+
         Side Effects:
             Sets self.processed_data, self.train_data, and self.validation_data.
         """

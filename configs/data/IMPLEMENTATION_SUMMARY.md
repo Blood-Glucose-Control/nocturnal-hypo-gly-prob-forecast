@@ -6,11 +6,11 @@ A comprehensive data holdout system has been implemented to ensure reproducible 
 
 ## 🎯 Key Features
 
-✅ **Reproducible Splits**: Fixed patient selections ensure consistency across experiments  
-✅ **Multiple Strategies**: Temporal, patient-based, and hybrid holdout approaches  
-✅ **Zero Data Leakage**: Built-in validation prevents training on holdout data  
-✅ **Simple API**: Easy-to-use functions for loading training and holdout data  
-✅ **Configurable**: YAML-based configurations for each dataset  
+✅ **Reproducible Splits**: Fixed patient selections ensure consistency across experiments
+✅ **Multiple Strategies**: Temporal, patient-based, and hybrid holdout approaches
+✅ **Zero Data Leakage**: Built-in validation prevents training on holdout data
+✅ **Simple API**: Easy-to-use functions for loading training and holdout data
+✅ **Configurable**: YAML-based configurations for each dataset
 ✅ **Well-Documented**: Comprehensive docs, examples, and quick reference
 
 ## 📦 What Was Created
@@ -144,7 +144,7 @@ temporal_config:
   min_train_samples: 50
   min_holdout_samples: 10
 
-# Patient split configuration  
+# Patient split configuration
 patient_config:
   holdout_patients: [p04, p12, p18]  # Fixed holdout patients
   min_train_patients: 2
@@ -332,6 +332,6 @@ When adding new datasets:
 
 ---
 
-**Implementation Date**: 2026-01-09  
-**Version**: 1.0  
+**Implementation Date**: 2026-01-09
+**Version**: 1.0
 **Status**: ✅ Complete and Ready to Use

@@ -223,7 +223,7 @@ class DistributedConfig:
     fsdp_config: Optional[Dict[str, Any]] = None
 
 
-class BaseTSFM(ABC):
+class BaseTimeSeriesFoundationModel(ABC):
     """
     Abstract base class for all Time Series Foundation Models.
 
@@ -342,13 +342,21 @@ class BaseTSFM(ABC):
         pass
 
     @abstractmethod
-    def _save_model_weights(self, output_dir: str) -> None:
-        """Save model weights to directory. Each model implements this."""
+    def _save_checkpoint(self, output_dir: str) -> None:
+        """Save model checkpoint files (weights, optimizer state, etc.) to directory.
+
+        This method should ONLY handle writing checkpoint files. The base class
+        save_model() handles config.json and metadata.json.
+        """
         pass
 
     @abstractmethod
-    def _load_model_weights(self, model_dir: str) -> None:
-        """Load model weights from directory. Each model implements this."""
+    def _load_checkpoint(self, model_dir: str) -> None:
+        """Load model checkpoint files (weights, optimizer state, etc.) from directory.
+
+        This method should ONLY handle reading checkpoint files. The base class
+        load_model() handles config.json and metadata.json.
+        """
         pass
 
     @abstractmethod
@@ -522,14 +530,15 @@ class BaseTSFM(ABC):
             with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=2)
 
-        self._save_model_weights(output_dir)  # <-- This line instead of raising
+        # Save model-specific checkpoint files (weights, optimizer state, etc.)
+        self._save_checkpoint(output_dir)
 
         info_print(f"Model saved to {output_dir}")
 
     @classmethod
     def load_model(
         cls, model_dir: str, config: Optional[ModelConfig] = None
-    ) -> "BaseTSFM":
+    ) -> "BaseTimeSeriesFoundationModel":
         """
         Load a saved model.
 
@@ -553,9 +562,8 @@ class BaseTSFM(ABC):
         # Create instance
         instance = cls(config)
 
-        # Load the actual model weights
-        # This is model-specific and should be implemented in subclasses
-        instance._load_model_weights(model_dir)
+        # Load model-specific checkpoint files (weights, optimizer state, etc.)
+        instance._load_checkpoint(model_dir)
 
         # Load metadata
         metadata_path = os.path.join(model_dir, "metadata.json")
@@ -986,7 +994,7 @@ class BaseTSFM(ABC):
 
 
 # Utility functions for model management
-def create_model_from_config(config_path: str) -> BaseTSFM:
+def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
     """
     Factory function to create a model from a configuration file.
 

@@ -112,6 +112,8 @@ class TTMConfig(ModelConfig):
         num_output_channels: Number of output channels.
         prediction_filter_length: Optional prediction filter length.
         resolution_min: Data resolution in minutes (default 5 for CGM data).
+        logging_dir: Optional directory for TensorBoard logs. If None, defaults to
+            output_dir/logs in TrainingArguments.
 
     Example:
         >>> config = TTMConfig(
@@ -137,6 +139,7 @@ class TTMConfig(ModelConfig):
             "resolution_min",
             "use_tracking_callback",
             "find_optimal_lr",
+            "logging_dir",
         }
 
         # Filter out TTM-specific params from kwargs for parent class
@@ -154,6 +157,7 @@ class TTMConfig(ModelConfig):
         self.freeze_backbone = kwargs.get("freeze_backbone", False)
         self.use_tracking_callback = kwargs.get("use_tracking_callback", True)
         self.find_optimal_lr = kwargs.get("find_optimal_lr", False)
+        self.logging_dir = kwargs.get("logging_dir", None)
 
         # TTM Data Configuration
         self.scaler_type = kwargs.get("scaler_type", "standard")

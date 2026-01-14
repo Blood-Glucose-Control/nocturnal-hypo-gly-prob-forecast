@@ -16,12 +16,12 @@ from transformers import (
 )
 
 # Local imports
-from src.models.base import BaseTSFM
+from src.models.base import BaseTimeSeriesFoundationModel
 from src.models.moment.config import MomentConfig
 from src.utils.logging_helper import info_print, error_print
 
 
-class MomentForecaster(BaseTSFM):
+class MomentForecaster(BaseTimeSeriesFoundationModel):
     """Moment forecaster implementation using the base TSFM framework.
 
     Moment is a time series foundation model developed by Carnegie Mellon University

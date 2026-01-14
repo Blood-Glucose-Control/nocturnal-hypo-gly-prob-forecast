@@ -240,5 +240,5 @@ experiment.log_results(results)
 
 ---
 
-**Last Updated**: 2026-01-09  
+**Last Updated**: 2026-01-09
 **Version**: 1.0

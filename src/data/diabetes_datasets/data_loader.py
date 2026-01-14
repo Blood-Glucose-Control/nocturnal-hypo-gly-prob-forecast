@@ -39,7 +39,6 @@ from src.data.diabetes_datasets import AleppoDataLoader
 from src.data.diabetes_datasets import Tamborlane2008DataLoader
 
 
-# TODO: Add train_percentage parameter
 @overload
 def get_loader(
     data_source_name: Literal["lynch_2022"],
@@ -180,6 +179,7 @@ def get_loader(
     elif data_source_name == "gluroo":
         return GlurooDataLoader(
             keep_columns=keep_columns,
+            use_cached=use_cached,
             num_validation_days=num_validation_days,
             config=config,
             parallel=parallel,

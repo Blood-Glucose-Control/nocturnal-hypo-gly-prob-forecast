@@ -118,9 +118,9 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 overall_exit_code=0
 
 echo ""
-echo "###################################################################"
+echo "==================================================================="
 echo "# Training on combined datasets: $DATASETS"
-echo "###################################################################"
+echo "==================================================================="
 echo ""
 
 # Build command - pass all datasets together
@@ -129,13 +129,23 @@ CMD="$CMD --datasets $DATASETS"
 CMD="$CMD --config-dir $CONFIG_DIR"
 CMD="$CMD --output-dir $OUTPUT_BASE_DIR"
 CMD="$CMD --epochs $EPOCHS"
-
 if [ "$SKIP_TRAINING" = "true" ]; then
     CMD="$CMD --skip-training"
 fi
 
 echo "Running combined workflow..."
-echo "Command: $CMD"
+# Pretty print for logs (display only)
+echo "Command:"
+echo "  python scripts/examples/example_holdout_ttm_workflow.py \\"
+echo "    --datasets $DATASETS \\"
+echo "    --config-dir $CONFIG_DIR \\"
+echo "    --output-dir $OUTPUT_BASE_DIR \\"
+echo "    --epochs $EPOCHS \\"
+if [ "$SKIP_TRAINING" = "true" ]; then
+    echo "    --skip-training"
+else
+    echo ""
+fi
 echo ""
 
 # Run the workflow script with all datasets

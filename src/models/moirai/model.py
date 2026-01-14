@@ -16,12 +16,12 @@ from transformers import (
 )
 
 # Local imports
-from src.models.base import BaseTSFM
+from src.models.base import BaseTimeSeriesFoundationModel
 from src.models.moirai.config import MoiraiConfig
 from src.utils.logging_helper import info_print, error_print
 
 
-class MoiraiForecaster(BaseTSFM):
+class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     """Moirai forecaster implementation using the base TSFM framework.
 
     Moirai is a time series foundation model developed by Salesforce that uses
