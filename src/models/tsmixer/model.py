@@ -71,7 +71,7 @@ class TSMixerForecaster(BaseTimeSeriesFoundationModel):
         """TSMixer is MLP-based and does NOT support LoRA fine-tuning."""
         return False
 
-    def training_strategy(self) -> TrainingBackend:
+    def training_backend(self) -> TrainingBackend:
         """TSMixer uses custom PyTorch training loops."""
         return TrainingBackend.PYTORCH
 

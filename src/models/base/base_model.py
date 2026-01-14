@@ -68,7 +68,7 @@ class ModelConfig:
         fp16: Whether to use mixed precision (FP16) training.
         dataloader_num_workers: Number of worker processes for data loading.
         use_cpu: Force CPU usage even if GPU is available.
-        training_strategy: The training framework to use (Transformers, PyTorch, etc.).
+        training_backend: The training framework to use (Transformers, PyTorch, etc.).
         loss_function: Loss function for training - "mse", "mae", "huber", or "pinball".
     """
 
@@ -109,7 +109,7 @@ class ModelConfig:
     use_cpu: bool = False
 
     # Training strategy
-    training_strategy: TrainingBackend = TrainingBackend.TRANSFORMERS
+    training_backend: TrainingBackend = TrainingBackend.TRANSFORMERS
 
     # Loss function
     loss_function: str = "mse"  # "mse", "mae", "huber", "pinball"
@@ -297,7 +297,7 @@ class BaseTimeSeriesFoundationModel(ABC):
 
     @property
     @abstractmethod
-    def training_strategy(self) -> TrainingBackend:
+    def training_backend(self) -> TrainingBackend:
         """
         Return the training strategy this model uses.
 
@@ -419,7 +419,7 @@ class BaseTimeSeriesFoundationModel(ABC):
                 to run even if training raises an exception.
         """
         info_print(f"Starting training for {self.__class__.__name__}")
-        info_print(f"Training strategy: {self.training_strategy().value}")
+        info_print(f"Training strategy: {self.training_backend().value}")
 
         # Setup distributed training if configured
         self._setup_distributed()
@@ -523,7 +523,7 @@ class BaseTimeSeriesFoundationModel(ABC):
                 "config": self.config.to_dict(),
                 "lora_config": self.lora_config.__dict__,
                 "distributed_config": self.distributed_config.__dict__,
-                "training_strategy": self.training_strategy().value,
+                "training_backend": self.training_backend().value,
             }
 
             metadata_path = os.path.join(model_path, "metadata.json")
@@ -587,7 +587,7 @@ class BaseTimeSeriesFoundationModel(ABC):
                 - is_fitted: Whether the model has been trained.
                 - lora_enabled: Whether LoRA is enabled.
                 - distributed_enabled: Whether distributed training is enabled.
-                - training_strategy: The training framework being used.
+                - training_backend: The training framework being used.
                 - total_parameters: Total number of model parameters (if model exists).
                 - trainable_parameters: Number of trainable parameters (if model exists).
                 - trainable_percentage: Percentage of parameters that are trainable.
@@ -598,7 +598,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             "is_fitted": self.is_fitted,
             "lora_enabled": self.lora_config.enabled,
             "distributed_enabled": self.distributed_config.enabled,
-            "training_strategy": self.training_strategy().value,
+            "training_backend": self.training_backend().value,
         }
 
         if self.model is not None:

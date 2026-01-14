@@ -342,7 +342,7 @@ class ModelRegistry:
         entry = {
             "model_id": f"{model_info.type}_{model_info.timestamp}",
             "model_type": model_info.type,
-            "training_strategy": model_info.strategy,  # fine_tune, from_scratch, etc.
+            "training_backend": model_info.strategy,  # fine_tune, from_scratch, etc.
             "dataset": model_info.dataset,
             "timestamp": model_info.timestamp,
             "artifact_path": model_info.artifact_path,

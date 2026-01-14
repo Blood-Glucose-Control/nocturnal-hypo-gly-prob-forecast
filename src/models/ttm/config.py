@@ -98,7 +98,7 @@ class TTMConfig(ModelConfig):
 
     Attributes:
         model_type: Always "ttm" for this configuration.
-        training_strategy: Always TRANSFORMERS for TTM.
+        training_backend: Always TRANSFORMERS for TTM.
         freeze_backbone: Whether to freeze pre-trained weights.
         use_tracking_callback: Enable experiment tracking.
         find_optimal_lr: Run learning rate finder.
@@ -150,7 +150,7 @@ class TTMConfig(ModelConfig):
 
         # Set TTM-specific defaults
         self.model_type = "ttm"
-        self.training_strategy = TrainingStrategy.TRANSFORMERS
+        self.training_backend = TrainingStrategy.TRANSFORMERS
         # model_path is now handled by the parent class
 
         # TTM Training Configuration

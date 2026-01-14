@@ -224,7 +224,7 @@ def create_moment_fine_tuning_config(**kwargs) -> MomentConfig:
         "model_path": "AutonLab/MOMENT-1-large",
         "context_length": 512,
         "forecast_length": 96,
-        "training_strategy": TrainingBackend.FINE_TUNE,
+        "training_backend": TrainingBackend.FINE_TUNE,
         "use_lora": True,
         "lora_r": 8,
         "lora_alpha": 16,
@@ -251,7 +251,7 @@ def create_moment_zero_shot_config(**kwargs) -> MomentConfig:
         "model_path": "AutonLab/MOMENT-1-large",
         "context_length": 512,
         "forecast_length": 96,
-        "training_strategy": TrainingBackend.ZERO_SHOT,
+        "training_backend": TrainingBackend.ZERO_SHOT,
         "batch_size": 64,
     }
     defaults.update(kwargs)
