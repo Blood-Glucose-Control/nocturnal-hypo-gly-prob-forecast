@@ -31,20 +31,18 @@ def main():
     # Total: 504 + 72 = 576 timesteps = 9 patches (divisible by patch_size=64)
     config = TotoConfig(
         model_path="Datadog/Toto-Open-Base-1.0",
-        context_length=504,      # 42 hours at 5-min resolution
-        forecast_length=72,      # 6 hours at 5-min resolution
+        context_length=504,  # 42 hours at 5-min resolution
+        forecast_length=72,  # 6 hours at 5-min resolution
         batch_size=16,
         learning_rate=1e-5,
         num_epochs=10,
         use_cpu=use_cpu,
-        fp16=False,              # Keep False for numerical stability
-
+        fp16=False,  # Keep False for numerical stability
         # Training settings
         gradient_accumulation_steps=1,
         logging_steps=500,
         save_steps=5000,
         dataloader_num_workers=4,
-
         # Early stopping
         early_stopping_patience=5,
     )
@@ -76,6 +74,7 @@ def main():
     except Exception as e:
         info_print(f"Training failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
 

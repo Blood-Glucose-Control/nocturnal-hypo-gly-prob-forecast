@@ -40,7 +40,11 @@ class TotoDataset(Dataset):
     ):
         self.data = data
         self.targets = targets
-        self.padding_mask = padding_mask if padding_mask is not None else torch.ones_like(data, dtype=torch.bool)
+        self.padding_mask = (
+            padding_mask
+            if padding_mask is not None
+            else torch.ones_like(data, dtype=torch.bool)
+        )
 
     def __len__(self) -> int:
         return len(self.data)
@@ -65,20 +69,28 @@ class TotoForTrainer(torch.nn.Module):
     4. Returns {'loss': loss, 'logits': mean_predictions}
     """
 
-    def __init__(self, toto_model, forecast_length: int, mse_weight: float = 0.1, target_variate_idx: int = 0):
+    def __init__(
+        self,
+        toto_model,
+        forecast_length: int,
+        mse_weight: float = 0.1,
+        target_variate_idx: int = 0,
+    ):
         super().__init__()
         self.toto = toto_model
         self.forecast_length = forecast_length
-        self.is_peft_model = hasattr(toto_model, 'base_model')
+        self.is_peft_model = hasattr(toto_model, "base_model")
         self.mse_weight = mse_weight  # Weight for MSE in composite loss
         self.target_variate_idx = target_variate_idx  # Index of target variate (0 = BG)
 
     def _get_toto_backbone(self):
         """Extract the underlying Toto backbone, handling PEFT-wrapped models."""
         if self.is_peft_model:
-            if hasattr(self.toto, 'get_base_model'):
+            if hasattr(self.toto, "get_base_model"):
                 underlying_toto = self.toto.get_base_model()
-            elif hasattr(self.toto, 'base_model') and hasattr(self.toto.base_model, 'model'):
+            elif hasattr(self.toto, "base_model") and hasattr(
+                self.toto.base_model, "model"
+            ):
                 underlying_toto = self.toto.base_model.model
             else:
                 underlying_toto = self.toto
@@ -97,14 +109,10 @@ class TotoForTrainer(torch.nn.Module):
         """Forward pass that returns loss for Trainer."""
         # Teacher forcing: concatenate context + targets
         full_input = torch.cat([inputs, targets], dim=2)
-        full_padding_mask = torch.cat([
-            input_padding_mask,
-            torch.ones_like(targets, dtype=torch.bool)
-        ], dim=2)
-        full_id_mask = torch.cat([
-            id_mask,
-            torch.ones_like(targets)
-        ], dim=2)
+        full_padding_mask = torch.cat(
+            [input_padding_mask, torch.ones_like(targets, dtype=torch.bool)], dim=2
+        )
+        full_id_mask = torch.cat([id_mask, torch.ones_like(targets)], dim=2)
 
         # Check for NaN/Inf in inputs
         if torch.isnan(full_input).any() or torch.isinf(full_input).any():
@@ -125,23 +133,27 @@ class TotoForTrainer(torch.nn.Module):
         # Compute NLL loss on the forecast portion only
         # CRITICAL: Do NOT normalize inputs before log_prob - Toto handles this internally
         log_prob = output.distribution.log_prob(full_input)
-        forecast_log_prob = log_prob[:, :, -self.forecast_length:]
+        forecast_log_prob = log_prob[:, :, -self.forecast_length :]
 
         # IMPORTANT: Only compute loss on target variate (e.g., BG at index 0)
         # For multivariate input → univariate output, we don't want to train on exogenous features
         target_idx = self.target_variate_idx
-        target_log_prob = forecast_log_prob[:, target_idx, :]  # Shape: (batch, forecast_len)
+        target_log_prob = forecast_log_prob[
+            :, target_idx, :
+        ]  # Shape: (batch, forecast_len)
         nll_loss = -target_log_prob.mean()
 
         # Compute MSE loss to align training with evaluation metric (RMSE)
         # This helps prevent the model from optimizing NLL at the expense of point predictions
-        pred_mean = output.distribution.mean[:, target_idx, -self.forecast_length:]  # Only target variate
+        pred_mean = output.distribution.mean[
+            :, target_idx, -self.forecast_length :
+        ]  # Only target variate
         target_values = targets[:, target_idx, :]  # Only target variate
         mse_loss = torch.nn.functional.mse_loss(pred_mean, target_values)
 
         # Composite loss: NLL for probabilistic calibration + MSE for point accuracy
         # mse_weight controls the balance (0.1 = 10% MSE, 90% NLL)
-        mse_weight = getattr(self, 'mse_weight', 0.1)
+        mse_weight = getattr(self, "mse_weight", 0.1)
         loss = nll_loss + mse_weight * mse_loss
 
         # Check for NaN in loss
@@ -155,7 +167,7 @@ class TotoForTrainer(torch.nn.Module):
             )
 
         # Return mean predictions as logits (only target variate)
-        logits = output.distribution.mean[:, target_idx, -self.forecast_length:]
+        logits = output.distribution.mean[:, target_idx, -self.forecast_length :]
 
         return {"loss": loss, "logits": logits}
 
@@ -170,7 +182,9 @@ class TotoForecaster(BaseTSFM):
     def __init__(self, config: TotoConfig, lora_config=None, distributed_config=None):
         if not isinstance(config, TotoConfig):
             essential_params = {
-                "model_path": getattr(config, "model_path", "Datadog/Toto-Open-Base-1.0"),
+                "model_path": getattr(
+                    config, "model_path", "Datadog/Toto-Open-Base-1.0"
+                ),
                 "context_length": getattr(config, "context_length", 1024),
                 "forecast_length": getattr(config, "forecast_length", 72),
                 "learning_rate": getattr(config, "learning_rate", 1e-5),
@@ -184,16 +198,18 @@ class TotoForecaster(BaseTSFM):
 
     def _get_toto_backbone(self):
         """Extract the Toto backbone model, handling both raw and PEFT-wrapped models."""
-        if hasattr(self.model, 'base_model'):
-            if hasattr(self.model, 'get_base_model'):
+        if hasattr(self.model, "base_model"):
+            if hasattr(self.model, "get_base_model"):
                 underlying_toto = self.model.get_base_model()
             else:
                 underlying_toto = self.model.base_model.model
             return underlying_toto.model
-        elif hasattr(self.model, 'model'):
+        elif hasattr(self.model, "model"):
             return self.model.model
         else:
-            raise ValueError(f"Cannot extract Toto backbone from model of type {type(self.model)}")
+            raise ValueError(
+                f"Cannot extract Toto backbone from model of type {type(self.model)}"
+            )
 
     def _run_inference(
         self,
@@ -229,7 +245,9 @@ class TotoForecaster(BaseTSFM):
                     padding_mask=padding_mask,
                     id_mask=id_mask,
                     timestamp_seconds=dummy_ts,
-                    time_interval_seconds=torch.tensor([300.0], dtype=torch.float32).to(device),
+                    time_interval_seconds=torch.tensor([300.0], dtype=torch.float32).to(
+                        device
+                    ),
                 )
 
                 forecast = official_forecaster.forecast(
@@ -278,7 +296,9 @@ class TotoForecaster(BaseTSFM):
         elif isinstance(data, torch.Tensor):
             dataset = TotoDataset(
                 data=data,
-                targets=torch.zeros(data.shape[0], data.shape[1], self.config.forecast_length),
+                targets=torch.zeros(
+                    data.shape[0], data.shape[1], self.config.forecast_length
+                ),
             )
             data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
         elif isinstance(data, DataLoader):
@@ -286,7 +306,9 @@ class TotoForecaster(BaseTSFM):
         else:
             raise ValueError(f"Unsupported data type: {type(data)}")
 
-        result = self._run_inference(data_loader, num_samples=num_samples, return_quantiles=return_dict)
+        result = self._run_inference(
+            data_loader, num_samples=num_samples, return_quantiles=return_dict
+        )
 
         if return_dict:
             return {
@@ -354,7 +376,9 @@ class TotoForecaster(BaseTSFM):
                     f"context_length ({context_len}) + forecast_length ({forecast_len})"
                 )
 
-            windows = np.array([feature_data[i:i + total_len] for i in range(num_windows)])
+            windows = np.array(
+                [feature_data[i : i + total_len] for i in range(num_windows)]
+            )
             context = np.transpose(windows[:, :context_len, :], (0, 2, 1))
             forecast = np.transpose(windows[:, context_len:, :], (0, 2, 1))
 
@@ -365,31 +389,50 @@ class TotoForecaster(BaseTSFM):
             # Per-feature bounds for proper normalization
             # Toto handles internal normalization, but we clamp extreme outliers
             feature_bounds = {
-                "bg_mM": (0.0, 50.0),       # Blood glucose: 0-50 mM (physiological range)
-                "iob": (0.0, 30.0),          # Insulin on board: 0-30 units
-                "cob": (0.0, 200.0),         # Carbs on board: 0-200 grams
-                "steps": (0.0, 10000.0),     # Steps: 0-10000 per 5-min interval
-                "cals": (0.0, 1000.0),       # Calories: 0-1000 per interval
-                "hr_bpm": (0.0, 250.0),      # Heart rate: 0-250 bpm
-                "activity": (0.0, 100.0),    # Activity level: 0-100
+                "bg_mM": (0.0, 50.0),  # Blood glucose: 0-50 mM (physiological range)
+                "iob": (0.0, 30.0),  # Insulin on board: 0-30 units
+                "cob": (0.0, 200.0),  # Carbs on board: 0-200 grams
+                "steps": (0.0, 10000.0),  # Steps: 0-10000 per 5-min interval
+                "cals": (0.0, 1000.0),  # Calories: 0-1000 per interval
+                "hr_bpm": (0.0, 250.0),  # Heart rate: 0-250 bpm
+                "activity": (0.0, 100.0),  # Activity level: 0-100
             }
 
             # Apply per-feature bounds
             for i, feat in enumerate(features):
-                min_val, max_val = feature_bounds.get(feat, (0.0, 1e6))  # Default wide range
-                context_tensor[:, i, :] = torch.nan_to_num(context_tensor[:, i, :], nan=0.0, posinf=max_val, neginf=0.0)
-                forecast_tensor[:, i, :] = torch.nan_to_num(forecast_tensor[:, i, :], nan=0.0, posinf=max_val, neginf=0.0)
-                context_tensor[:, i, :] = torch.clamp(context_tensor[:, i, :], min=min_val, max=max_val)
-                forecast_tensor[:, i, :] = torch.clamp(forecast_tensor[:, i, :], min=min_val, max=max_val)
+                min_val, max_val = feature_bounds.get(
+                    feat, (0.0, 1e6)
+                )  # Default wide range
+                context_tensor[:, i, :] = torch.nan_to_num(
+                    context_tensor[:, i, :], nan=0.0, posinf=max_val, neginf=0.0
+                )
+                forecast_tensor[:, i, :] = torch.nan_to_num(
+                    forecast_tensor[:, i, :], nan=0.0, posinf=max_val, neginf=0.0
+                )
+                context_tensor[:, i, :] = torch.clamp(
+                    context_tensor[:, i, :], min=min_val, max=max_val
+                )
+                forecast_tensor[:, i, :] = torch.clamp(
+                    forecast_tensor[:, i, :], min=min_val, max=max_val
+                )
 
-            return TotoDataset(data=context_tensor, targets=forecast_tensor, padding_mask=padding_mask)
+            return TotoDataset(
+                data=context_tensor, targets=forecast_tensor, padding_mask=padding_mask
+            )
 
         # Load data from source name or use DataFrame directly
         if isinstance(train_data, str):
             from src.data.diabetes_datasets.data_loader import get_loader
-            loader = get_loader(data_source_name=train_data, num_validation_days=20, use_cached=True)
+
+            loader = get_loader(
+                data_source_name=train_data, num_validation_days=20, use_cached=True
+            )
             train_df = pd.concat(list(loader.train_data.values()), ignore_index=True)
-            val_df = pd.concat(list(loader.validation_data.values()), ignore_index=True) if loader.validation_data else None
+            val_df = (
+                pd.concat(list(loader.validation_data.values()), ignore_index=True)
+                if loader.validation_data
+                else None
+            )
         else:
             train_df = train_data
             val_df = val_data
@@ -467,17 +510,30 @@ class TotoForecaster(BaseTSFM):
         **kwargs,
     ) -> Dict[str, Any]:
         """Execute Toto training using HuggingFace Trainer."""
-        train_loader, val_loader, test_loader = self._prepare_data(train_data, val_data, test_data)
+        train_loader, val_loader, test_loader = self._prepare_data(
+            train_data, val_data, test_data
+        )
 
-        mse_weight = getattr(self.config, 'mse_weight', 0.1)
+        mse_weight = getattr(self.config, "mse_weight", 0.1)
         # Get target variate index (0 = first feature = BG by default)
-        target_feature = getattr(self.config, 'target_feature', 'bg_mM')
-        input_features = getattr(self.config, 'input_features', ['bg_mM'])
-        target_variate_idx = input_features.index(target_feature) if target_feature in input_features else 0
-        trainer_model = TotoForTrainer(self.model, self.config.forecast_length, mse_weight=mse_weight, target_variate_idx=target_variate_idx)
+        target_feature = getattr(self.config, "target_feature", "bg_mM")
+        input_features = getattr(self.config, "input_features", ["bg_mM"])
+        target_variate_idx = (
+            input_features.index(target_feature)
+            if target_feature in input_features
+            else 0
+        )
+        trainer_model = TotoForTrainer(
+            self.model,
+            self.config.forecast_length,
+            mse_weight=mse_weight,
+            target_variate_idx=target_variate_idx,
+        )
 
         has_val_data = val_loader is not None
-        training_args = self._create_training_arguments(output_dir, has_val_data=has_val_data)
+        training_args = self._create_training_arguments(
+            output_dir, has_val_data=has_val_data
+        )
 
         trainer = Trainer(
             model=trainer_model,
@@ -490,9 +546,13 @@ class TotoForecaster(BaseTSFM):
         is_lora = trainer_model.is_peft_model
         if is_lora:
             info_print("LoRA ENABLED: Training adapter layers only")
-            trainable = sum(p.numel() for p in trainer_model.parameters() if p.requires_grad)
+            trainable = sum(
+                p.numel() for p in trainer_model.parameters() if p.requires_grad
+            )
             total = sum(p.numel() for p in trainer_model.parameters())
-            info_print(f"  Trainable: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)")
+            info_print(
+                f"  Trainable: {trainable:,} / {total:,} ({100*trainable/total:.2f}%)"
+            )
         else:
             info_print("Full fine-tuning: All parameters trainable")
 
@@ -535,7 +595,9 @@ class TotoForecaster(BaseTSFM):
             "test_metrics": test_metrics,
         }
 
-    def _create_training_arguments(self, output_dir: str, has_val_data: bool = False) -> TrainingArguments:
+    def _create_training_arguments(
+        self, output_dir: str, has_val_data: bool = False
+    ) -> TrainingArguments:
         """Create HuggingFace TrainingArguments for Toto training."""
         eval_strategy = self.config.eval_strategy if has_val_data else "no"
 
@@ -578,7 +640,9 @@ class TotoForecaster(BaseTSFM):
 
         if self.distributed_config.strategy == "ddp":
             args["ddp_backend"] = self.distributed_config.backend
-            args["ddp_find_unused_parameters"] = self.distributed_config.find_unused_parameters
+            args["ddp_find_unused_parameters"] = (
+                self.distributed_config.find_unused_parameters
+            )
             args["ddp_bucket_cap_mb"] = 25
 
         elif self.distributed_config.strategy == "deepspeed":

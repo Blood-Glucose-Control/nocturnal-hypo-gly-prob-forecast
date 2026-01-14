@@ -5,10 +5,10 @@ Uses larger batch size and gradient accumulation for speed.
 """
 
 import os
-import torch
 from src.models.base import DistributedConfig, GPUManager
 from src.models.toto import TotoForecaster, TotoConfig
 from src.utils.logging_helper import info_print
+
 
 def main():
     """Optimized single-GPU Toto training."""
@@ -28,22 +28,20 @@ def main():
     # Matching zero-shot optimal: 42h context, 6h forecast
     config = TotoConfig(
         model_path="Datadog/Toto-Open-Base-1.0",
-        context_length=504,      # 42 hours (matches optimal zero-shot)
-        forecast_length=72,      # 6 hours (matches optimal zero-shot)
-        batch_size=16,           # INCREASED from 8 for speed (if GPU memory allows)
+        context_length=504,  # 42 hours (matches optimal zero-shot)
+        forecast_length=72,  # 6 hours (matches optimal zero-shot)
+        batch_size=16,  # INCREASED from 8 for speed (if GPU memory allows)
         learning_rate=1e-5,
         num_epochs=10,
         use_cpu=use_cpu,
-        fp16=False,              # Keep False for stability
-
+        fp16=False,  # Keep False for stability
         # Speed optimizations:
         gradient_accumulation_steps=1,  # Set to 2 if batch_size=8
-        logging_steps=500,               # Log less frequently
-        save_steps=5000,                 # Save less frequently
-        dataloader_num_workers=4,        # More workers for faster data loading
-
+        logging_steps=500,  # Log less frequently
+        save_steps=5000,  # Save less frequently
+        dataloader_num_workers=4,  # More workers for faster data loading
         # Early stopping: stop if no improvement for N evaluation steps
-        early_stopping_patience=5,       # Stop after 5 evals with no improvement (0 = disabled)
+        early_stopping_patience=5,  # Stop after 5 evals with no improvement (0 = disabled)
     )
 
     # 3. Model Initialization
@@ -51,7 +49,9 @@ def main():
     info_print("✅ Toto Model created!")
 
     # 4. Output Setup
-    output_dir = "./trained_models/artifacts/_tsfm_testing/output_single_gpu_toto_optimized"
+    output_dir = (
+        "./trained_models/artifacts/_tsfm_testing/output_single_gpu_toto_optimized"
+    )
     os.makedirs(output_dir, exist_ok=True)
     info_print(f"🏋️‍♂️ Training outputs to {output_dir}")
 
@@ -75,8 +75,10 @@ def main():
     except Exception as e:
         info_print(f"❌ Training failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
+
 
 if __name__ == "__main__":
     main()

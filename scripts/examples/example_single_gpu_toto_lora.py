@@ -15,6 +15,7 @@ from src.models.toto import TotoForecaster, TotoConfig
 from src.data.models import ColumnNames
 from src.utils.logging_helper import info_print
 
+
 def main():
     """LoRA fine-tuning for Toto."""
 
@@ -34,12 +35,12 @@ def main():
     # Toto uses wQKV (combined QKV) and wO (output projection) for attention
     lora_config = LoRAConfig(
         enabled=True,
-        rank=16,              # Low rank (8-64 typical). Higher = more capacity but more params
-        alpha=32,             # Scaling factor. Usually 2x rank
-        dropout=0.1,          # Regularization
+        rank=16,  # Low rank (8-64 typical). Higher = more capacity but more params
+        alpha=32,  # Scaling factor. Usually 2x rank
+        dropout=0.1,  # Regularization
         target_modules=["wQKV", "wO"],  # Toto's attention layer names
         auto_detect_modules=False,  # Use explicit target modules
-        bias="none",          # Don't train bias terms
+        bias="none",  # Don't train bias terms
     )
 
     info_print("LoRA Configuration:")
@@ -59,39 +60,32 @@ def main():
 
     config = TotoConfig(
         model_path="Datadog/Toto-Open-Base-1.0",
-        context_length=504,      # 42 hours
-        forecast_length=72,      # 6 hours
+        context_length=504,  # 42 hours
+        forecast_length=72,  # 6 hours
         batch_size=16,
-        learning_rate=1e-5,      # Lower LR for more stable fine-tuning
+        learning_rate=1e-5,  # Lower LR for more stable fine-tuning
         num_epochs=10,
         use_cpu=use_cpu,
         fp16=False,
-
         # Multivariate input features
         input_features=input_features,
         target_feature=ColumnNames.BG.value,  # Still predict BG only
-
         # Training settings
         gradient_accumulation_steps=1,
         logging_steps=500,
         save_steps=2000,
         dataloader_num_workers=4,
-
         # Regularization
         weight_decay=0.01,
-
         # Early stopping - higher patience to find better checkpoint
         early_stopping_patience=10,
-
         # Composite loss: NLL + MSE for better alignment with evaluation metric
         mse_weight=0.1,
     )
 
     # 4. Model Initialization with LoRA
     model = TotoForecaster(
-        config,
-        lora_config=lora_config,
-        distributed_config=distributed_config
+        config, lora_config=lora_config, distributed_config=distributed_config
     )
     info_print("Toto Model with LoRA created!")
 
@@ -121,8 +115,10 @@ def main():
     except Exception as e:
         info_print(f"Training failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
+
 
 if __name__ == "__main__":
     main()

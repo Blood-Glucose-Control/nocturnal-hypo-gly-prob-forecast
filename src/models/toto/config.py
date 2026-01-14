@@ -5,7 +5,7 @@ This module provides configuration classes specific to Toto models,
 extending the base model configuration with Toto-specific parameters.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 from dataclasses import dataclass
 
 from src.models.base import ModelConfig, TrainingStrategy
@@ -126,7 +126,9 @@ class TotoConfig(ModelConfig):
         self.freeze_backbone = kwargs.get("freeze_backbone", False)
         self.use_nll_loss = kwargs.get("use_nll_loss", True)
         self.gradient_accumulation_steps = kwargs.get("gradient_accumulation_steps", 1)
-        self.mse_weight = kwargs.get("mse_weight", 0.1)  # Weight for MSE in composite loss
+        self.mse_weight = kwargs.get(
+            "mse_weight", 0.1
+        )  # Weight for MSE in composite loss
 
         # Toto Data Configuration
         self.input_features = kwargs.get("input_features", ["bg_mM"])
