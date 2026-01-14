@@ -329,7 +329,7 @@ config = TTMConfig(
 # Load pre-trained model without training
 config = TTMConfig(
     model_path="ibm-granite/granite-timeseries-ttm-r2",
-    fit_strategy="zero_shot",
+    training_mode="zero_shot",
     num_epochs=0
 )
 

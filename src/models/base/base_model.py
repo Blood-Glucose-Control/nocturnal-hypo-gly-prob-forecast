@@ -26,7 +26,7 @@ from enum import Enum
 from src.utils.logging_helper import info_print, error_print
 
 
-class TrainingStrategy(Enum):
+class TrainingBackend(Enum):
     """Training strategy options for different model architectures."""
 
     TRANSFORMERS = "transformers"  # Uses transformers.Trainer
@@ -50,7 +50,7 @@ class ModelConfig:
         n_heads: Number of attention heads (for transformer-based models).
         n_layers: Number of transformer/encoder layers.
         dropout: Dropout probability for regularization.
-        fit_strategy: Training approach - "zero_shot", "fine_tune", or "from_scratch".
+        training_mode: Training approach - "zero_shot", "fine_tune", or "from_scratch".
         freeze_backbone: Whether to freeze pre-trained weights during fine-tuning.
         learning_rate: Learning rate for the optimizer.
         batch_size: Number of samples per training batch.
@@ -83,7 +83,7 @@ class ModelConfig:
     dropout: float = 0.1
 
     # Model behavior
-    fit_strategy: str = "fine_tune"  # "zero_shot", "fine_tune", "from_scratch"
+    training_mode: str = "fine_tune"  # "zero_shot", "fine_tune", "from_scratch"
     freeze_backbone: bool = False
 
     # Training configuration
@@ -109,7 +109,7 @@ class ModelConfig:
     use_cpu: bool = False
 
     # Training strategy
-    training_strategy: TrainingStrategy = TrainingStrategy.TRANSFORMERS
+    training_strategy: TrainingBackend = TrainingBackend.TRANSFORMERS
 
     # Loss function
     loss_function: str = "mse"  # "mse", "mae", "huber", "pinball"
@@ -297,7 +297,7 @@ class BaseTimeSeriesFoundationModel(ABC):
 
     @property
     @abstractmethod
-    def training_strategy(self) -> TrainingStrategy:
+    def training_strategy(self) -> TrainingBackend:
         """
         Return the training strategy this model uses.
 

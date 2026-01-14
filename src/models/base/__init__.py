@@ -10,7 +10,7 @@ from .base_model import (
     ModelConfig,
     LoRAConfig,
     DistributedConfig,
-    TrainingStrategy,
+    TrainingBackend,
     create_model_from_config,
 )
 
@@ -42,7 +42,7 @@ __all__ = [
     "ModelConfig",
     "LoRAConfig",
     "DistributedConfig",
-    "TrainingStrategy",
+    "TrainingBackend",
     # Factory functions
     "create_model_from_config",
     # Distributed training

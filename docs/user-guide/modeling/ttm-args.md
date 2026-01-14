@@ -6,7 +6,7 @@ Minimum trainning code
 ```
 forecaster = TinyTimeMixerForecaster(
     model_path=None,
-    fit_strategy="full",
+    training_mode="full",
     config={
             "context_length": 8,
             "prediction_length": 2
@@ -92,7 +92,7 @@ forecaster = TinyTimeMixerForecaster(
           by transformers. In this case, ensure that the directory contains all
           necessary files (e.g., configuration, tokenizer, and model weights).
 
-        - If this parameter is *None*, fit_strategy should be *full* to allow
+        - If this parameter is *None*, training_mode should be *full* to allow
           full fine tuning of the model loaded from pretrained/provided config,
           else ValueError is raised.
 
@@ -143,7 +143,7 @@ forecaster = TinyTimeMixerForecaster(
         on pypi.
         To install the source package, follow the instructions here [4]_.
 
-    fit_strategy : str, default="minimal"
+    training_mode : str, default="minimal"
         Strategy to use for fitting (fine-tuning) the model. This can be one of
         the following:
         - "zero-shot": Uses pre-trained model as it is. If model path is *None*
@@ -188,7 +188,7 @@ forecaster = TinyTimeMixerForecaster(
     >>> # global forecasting on multi-index dataset
     >>> forecaster = TinyTimeMixerForecaster(
     ...     model_path=None,
-    ...     fit_strategy="full",
+    ...     training_mode="full",
     ...     config={
     ...             "context_length": 8,
     ...             "prediction_length": 2

@@ -374,13 +374,13 @@ def create_ttm_fine_tuning_config(**overrides) -> TTMConfig:
 
     Returns:
         TTMConfig: Configured for fine-tuning with:
-            - fit_strategy: "fine_tune"
+            - training_mode: "fine_tune"
             - learning_rate: 1e-5 (lower than default)
             - num_epochs: 5 (fewer than default)
             - warmup_steps: 500 (fewer than default)
     """
     fine_tuning_defaults = {
-        "fit_strategy": "fine_tune",
+        "training_mode": "fine_tune",
         "freeze_backbone": False,
         "learning_rate": 1e-5,  # Lower LR for fine-tuning
         "num_epochs": 5,  # Fewer epochs for fine-tuning
@@ -400,12 +400,12 @@ def create_ttm_zero_shot_config(**overrides) -> TTMConfig:
 
     Returns:
         TTMConfig: Configured for zero-shot with:
-            - fit_strategy: "zero_shot"
+            - training_mode: "zero_shot"
             - freeze_backbone: True
             - num_epochs: 0 (no training)
     """
     zero_shot_defaults = {
-        "fit_strategy": "zero_shot",
+        "training_mode": "zero_shot",
         "freeze_backbone": True,
         "num_epochs": 0,  # No training
     }

@@ -183,7 +183,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         """Initialize the TTM model architecture.
 
         Loads the pre-trained TTM model from the configured model_path and
-        configures parameter gradients based on the fit_strategy:
+        configures parameter gradients based on the training_mode:
         - 'zero_shot': All parameters frozen (no training)
         - 'fine_tune' or 'from_scratch': All parameters trainable
 
@@ -212,14 +212,14 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             ttm_model = get_model(**model_params)
 
             # Configure parameter gradients based on training strategy
-            if self.config.fit_strategy == "zero_shot":
+            if self.config.training_mode == "zero_shot":
                 info_print("Freezing all parameters for zero-shot evaluation")
                 for param in ttm_model.parameters():
                     param.requires_grad = False
             else:
                 # For any training scenario (fine_tune, from_scratch), enable gradients
                 info_print(
-                    f"Enabling gradients for all parameters ({self.config.fit_strategy} mode)"
+                    f"Enabling gradients for all parameters ({self.config.training_mode} mode)"
                 )
                 for param in ttm_model.parameters():
                     param.requires_grad = True
@@ -485,20 +485,20 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         Note:
             This method temporarily overrides is_fitted check. The original
-            fit_strategy is restored after prediction.
+            training_mode is restored after prediction.
         """
         info_print("Making zero-shot predictions with TTM")
 
         # Temporarily override fit strategy
-        original_strategy = self.config.fit_strategy
-        self.config.fit_strategy = "zero_shot"
+        original_strategy = self.config.training_mode
+        self.config.training_mode = "zero_shot"
 
         try:
             predictions = self.predict(data, batch_size)
             return predictions
         finally:
             # Restore original strategy
-            self.config.fit_strategy = original_strategy
+            self.config.training_mode = original_strategy
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.
