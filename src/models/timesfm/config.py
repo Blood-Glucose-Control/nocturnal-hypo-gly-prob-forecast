@@ -21,7 +21,7 @@ class TimesFMConfig(ModelConfig):
     Attributes:
         model_name: Name of the model (default: "timesfm")
         model_type: Type of model architecture (default: "timesfm")
-        model_path: Alias for checkpoint_path for consistency with BaseTSFM
+        model_path: Alias for checkpoint_path for consistency with BaseTimeSeriesFoundationModel
         checkpoint_path: Path to pretrained checkpoint. If None, will download from HF
         context_length: Length of input context window (default: 512)
         forecast_length: Alias for horizon_length for consistency

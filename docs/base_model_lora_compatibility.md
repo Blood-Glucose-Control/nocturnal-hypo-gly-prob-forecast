@@ -29,7 +29,7 @@ You correctly identified a major design flaw in the original base model framewor
 ### 1. Architecture-Aware Base Class
 
 ```python
-class BaseTSFM(ABC):
+class BaseTimeSeriesFoundationModel(ABC):
     @abstractmethod
     def supports_lora(self) -> bool:
         """Check if this model architecture supports LoRA fine-tuning."""
@@ -47,16 +47,16 @@ class BaseTSFM(ABC):
 
 ```python
 # Transformer-based model (EXAMPLE)
-class ChronosForecaster(BaseTSFM):
+class ChronosForecaster(BaseTimeSeriesFoundationModel):
     def supports_lora(self) -> bool:
         return True  # Chronos has transformer attention layers
 
 # MLP-based model
-class TTMForecaster(BaseTSFM):
+class TTMForecaster(BaseTimeSeriesFoundationModel):
     def supports_lora(self) -> bool:
         return False  # TTM uses MLP-Mixer, no attention
 
-class TSMixerForecaster(BaseTSFM):
+class TSMixerForecaster(BaseTimeSeriesFoundationModel):
     def supports_lora(self) -> bool:
         return False  # TSMixer uses MLPs, no attention
 ```

@@ -8,7 +8,7 @@ The base model framework provides a production-ready foundation for implementing
 
 ### 🏗️ **Architecture Components**
 
-1. **`BaseTSFM`** - Abstract base class for all time series foundation models
+1. **`BaseTimeSeriesFoundationModel`** - Abstract base class for all time series foundation models
 2. **`ModelConfig`** - Comprehensive configuration management with 30+ parameters
 3. **`DistributedManager`** - Multi-GPU and multi-node distributed training
 4. **`LoRATrainer`** - Memory-efficient fine-tuning with Low-Rank Adaptation
@@ -18,7 +18,7 @@ The base model framework provides a production-ready foundation for implementing
 
 ### 🚀 **Production-Ready Capabilities**
 
-- **Unified Interface**: All models inherit from `BaseTSFM` for consistent API
+- **Unified Interface**: All models inherit from `BaseTimeSeriesFoundationModel` for consistent API
 - **Distributed Training**: PyTorch DDP, DeepSpeed, FSDP support
 - **Memory Optimization**: LoRA, gradient checkpointing, mixed precision
 - **Model Management**: Save/load, versioning, metadata tracking
@@ -67,7 +67,7 @@ results = model.fit(
 ```
 src/models/base/
 ├── __init__.py           # Exports all framework components
-├── base_model.py         # Core BaseTSFM class (500+ lines)
+├── base_model.py         # Core BaseTimeSeriesFoundationModel class (500+ lines)
 ├── distributed.py        # Distributed training utilities (300+ lines)
 └── lora_utils.py         # LoRA implementation (400+ lines)
 
@@ -82,7 +82,7 @@ src/models/ttm/
 
 **Plan (Document)**:
 ```python
-class BaseTSFM(ABC):
+class BaseTimeSeriesFoundationModel(ABC):
     def __init__(self, config: ModelConfig):
         self.config = config
         self.distributed_strategy = None
@@ -95,7 +95,7 @@ class BaseTSFM(ABC):
 
 **Actual Implementation**:
 ```python
-class BaseTSFM(ABC):
+class BaseTimeSeriesFoundationModel(ABC):
     """1,200+ line comprehensive implementation with:"""
 
     # Configuration management
@@ -131,7 +131,7 @@ class BaseTSFM(ABC):
 The framework integrates with your existing TTM code:
 
 ```python
-class TTMForecaster(BaseTSFM):
+class TTMForecaster(BaseTimeSeriesFoundationModel):
     """Integrates with existing tsfm_public, transformers, your data loaders"""
 
     def _initialize_model(self):

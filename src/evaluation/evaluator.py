@@ -53,7 +53,7 @@ def compare_models(
     their performance metrics for comparison.
 
     Args:
-        models: List of fitted BaseTSFM instances to compare.
+        models: List of fitted BaseTimeSeriesFoundationModel instances to compare.
         test_data: Test dataset compatible with all models' _prepare_data methods.
         metrics: List of metric names to include in results. Currently unused;
             all computed metrics are returned.

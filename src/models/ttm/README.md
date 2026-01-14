@@ -44,7 +44,7 @@ This module provides a production-ready implementation of the TTM (TinyTimeMixer
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌─────────────────┐         ┌──────────────────────────────────────┐    │
-│  │   BaseTSFM      │         │      TTMForecaster                   │    │
+│  │   BaseTimeSeriesFoundationModel      │         │      TTMForecaster                   │    │
 │  │ (Abstract Base) │◄────────│  - Concrete TTM implementation       │    │
 │  │                 │         │                                      │    │
 │  │ Abstract:       │         │ Implements:                          │    │

@@ -637,7 +637,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 - mape: Mean Absolute Percentage Error
 
         Note:
-            This is separate from BaseTSFM._compute_metrics() because the
+            This is separate from BaseTimeSeriesFoundationModel._compute_metrics() because the
             Trainer passes EvalPrediction objects rather than raw arrays.
         """
         try:

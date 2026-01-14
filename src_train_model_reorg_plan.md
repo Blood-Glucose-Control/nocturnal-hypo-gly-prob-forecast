@@ -213,7 +213,7 @@ nocturnal/
 #### Base Model Framework
 ```python
 # src/models/base/base_model.py
-class BaseTSFM(ABC):
+class BaseTimeSeriesFoundationModel(ABC):
     """Abstract base class for all Time Series Foundation Models"""
 
     def __init__(self, config: ModelConfig):
@@ -235,7 +235,7 @@ class BaseTSFM(ABC):
 ```
 
 #### Model-Specific Implementations
-Each model (TTM, Chronos, etc.) inherits from `BaseTSFM` and implements:
+Each model (TTM, Chronos, etc.) inherits from `BaseTimeSeriesFoundationModel` and implements:
 - Model-specific architecture
 - Custom training procedures
 - Distributed training optimizations
@@ -432,7 +432,7 @@ class DataVersionManager:
 
 ### Phase 1: Extract Common Functionality ✅ COMPLETED
 1. **✅ Identify Shared Code**: Analyzed TTM implementations and identified common patterns
-2. **✅ Create Base Classes**: Implemented unified `BaseTSFM` class with distributed training support
+2. **✅ Create Base Classes**: Implemented unified `BaseTimeSeriesFoundationModel` class with distributed training support
 3. **✅ Extract TTM Model**: Refactored TTM implementation to use base framework
 
 ### Phase 2: Implement New Structure 🔄 IN PROGRESS
