@@ -23,11 +23,13 @@ class TotoTrainingConfig:
         use_nll_loss: Whether to use negative log-likelihood loss (recommended for
             probabilistic outputs).
         gradient_accumulation_steps: Number of steps to accumulate gradients.
+        mse_weight: Weight for MSE loss component in composite loss (0.0 = pure NLL).
     """
 
     freeze_backbone: bool = False
     use_nll_loss: bool = True
     gradient_accumulation_steps: int = 1
+    mse_weight: float = 0.1
 
 
 @dataclass
@@ -98,8 +100,7 @@ class TotoConfig(ModelConfig):
             "split_config",
             "use_nll_loss",
             "gradient_accumulation_steps",
-            "lr_scheduler_type",
-            "warmup_ratio",
+            "mse_weight",
         }
 
         # Filter out Toto-specific params from kwargs for parent class
@@ -125,11 +126,7 @@ class TotoConfig(ModelConfig):
         self.freeze_backbone = kwargs.get("freeze_backbone", False)
         self.use_nll_loss = kwargs.get("use_nll_loss", True)
         self.gradient_accumulation_steps = kwargs.get("gradient_accumulation_steps", 1)
-
-        # Learning rate scheduler (cosine is best for fine-tuning)
-        # Options: "linear", "cosine", "cosine_with_restarts", "polynomial", "constant", "constant_with_warmup"
-        self.lr_scheduler_type = kwargs.get("lr_scheduler_type", "cosine")
-        self.warmup_ratio = kwargs.get("warmup_ratio", 0.1)  # 10% warmup by default
+        self.mse_weight = kwargs.get("mse_weight", 0.1)  # Weight for MSE in composite loss
 
         # Toto Data Configuration
         self.input_features = kwargs.get("input_features", ["bg_mM"])
@@ -151,6 +148,7 @@ class TotoConfig(ModelConfig):
             freeze_backbone=self.freeze_backbone,
             use_nll_loss=self.use_nll_loss,
             gradient_accumulation_steps=self.gradient_accumulation_steps,
+            mse_weight=self.mse_weight,
         )
 
     def to_data_config(self) -> TotoDataConfig:

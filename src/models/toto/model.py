@@ -65,11 +65,13 @@ class TotoForTrainer(torch.nn.Module):
     4. Returns {'loss': loss, 'logits': mean_predictions}
     """
 
-    def __init__(self, toto_model, forecast_length: int):
+    def __init__(self, toto_model, forecast_length: int, mse_weight: float = 0.1, target_variate_idx: int = 0):
         super().__init__()
         self.toto = toto_model
         self.forecast_length = forecast_length
         self.is_peft_model = hasattr(toto_model, 'base_model')
+        self.mse_weight = mse_weight  # Weight for MSE in composite loss
+        self.target_variate_idx = target_variate_idx  # Index of target variate (0 = BG)
 
     def _get_toto_backbone(self):
         """Extract the underlying Toto backbone, handling PEFT-wrapped models."""
@@ -124,7 +126,23 @@ class TotoForTrainer(torch.nn.Module):
         # CRITICAL: Do NOT normalize inputs before log_prob - Toto handles this internally
         log_prob = output.distribution.log_prob(full_input)
         forecast_log_prob = log_prob[:, :, -self.forecast_length:]
-        loss = -forecast_log_prob.mean()
+
+        # IMPORTANT: Only compute loss on target variate (e.g., BG at index 0)
+        # For multivariate input → univariate output, we don't want to train on exogenous features
+        target_idx = self.target_variate_idx
+        target_log_prob = forecast_log_prob[:, target_idx, :]  # Shape: (batch, forecast_len)
+        nll_loss = -target_log_prob.mean()
+
+        # Compute MSE loss to align training with evaluation metric (RMSE)
+        # This helps prevent the model from optimizing NLL at the expense of point predictions
+        pred_mean = output.distribution.mean[:, target_idx, -self.forecast_length:]  # Only target variate
+        target_values = targets[:, target_idx, :]  # Only target variate
+        mse_loss = torch.nn.functional.mse_loss(pred_mean, target_values)
+
+        # Composite loss: NLL for probabilistic calibration + MSE for point accuracy
+        # mse_weight controls the balance (0.1 = 10% MSE, 90% NLL)
+        mse_weight = getattr(self, 'mse_weight', 0.1)
+        loss = nll_loss + mse_weight * mse_loss
 
         # Check for NaN in loss
         if torch.isnan(loss) or torch.isinf(loss):
@@ -136,8 +154,8 @@ class TotoForTrainer(torch.nn.Module):
                 f"Loss value: {loss.item()}"
             )
 
-        # Return mean predictions as logits
-        logits = output.distribution.mean[:, :, -self.forecast_length:]
+        # Return mean predictions as logits (only target variate)
+        logits = output.distribution.mean[:, target_idx, -self.forecast_length:]
 
         return {"loss": loss, "logits": logits}
 
@@ -344,10 +362,25 @@ class TotoForecaster(BaseTSFM):
             forecast_tensor = torch.tensor(forecast, dtype=torch.float32)
             padding_mask = ~torch.isnan(context_tensor)
 
-            context_tensor = torch.nan_to_num(context_tensor, nan=0.0, posinf=50.0, neginf=0.0)
-            forecast_tensor = torch.nan_to_num(forecast_tensor, nan=0.0, posinf=50.0, neginf=0.0)
-            context_tensor = torch.clamp(context_tensor, min=0.0, max=50.0)
-            forecast_tensor = torch.clamp(forecast_tensor, min=0.0, max=50.0)
+            # Per-feature bounds for proper normalization
+            # Toto handles internal normalization, but we clamp extreme outliers
+            feature_bounds = {
+                "bg_mM": (0.0, 50.0),       # Blood glucose: 0-50 mM (physiological range)
+                "iob": (0.0, 30.0),          # Insulin on board: 0-30 units
+                "cob": (0.0, 200.0),         # Carbs on board: 0-200 grams
+                "steps": (0.0, 10000.0),     # Steps: 0-10000 per 5-min interval
+                "cals": (0.0, 1000.0),       # Calories: 0-1000 per interval
+                "hr_bpm": (0.0, 250.0),      # Heart rate: 0-250 bpm
+                "activity": (0.0, 100.0),    # Activity level: 0-100
+            }
+
+            # Apply per-feature bounds
+            for i, feat in enumerate(features):
+                min_val, max_val = feature_bounds.get(feat, (0.0, 1e6))  # Default wide range
+                context_tensor[:, i, :] = torch.nan_to_num(context_tensor[:, i, :], nan=0.0, posinf=max_val, neginf=0.0)
+                forecast_tensor[:, i, :] = torch.nan_to_num(forecast_tensor[:, i, :], nan=0.0, posinf=max_val, neginf=0.0)
+                context_tensor[:, i, :] = torch.clamp(context_tensor[:, i, :], min=min_val, max=max_val)
+                forecast_tensor[:, i, :] = torch.clamp(forecast_tensor[:, i, :], min=min_val, max=max_val)
 
             return TotoDataset(data=context_tensor, targets=forecast_tensor, padding_mask=padding_mask)
 
@@ -436,7 +469,12 @@ class TotoForecaster(BaseTSFM):
         """Execute Toto training using HuggingFace Trainer."""
         train_loader, val_loader, test_loader = self._prepare_data(train_data, val_data, test_data)
 
-        trainer_model = TotoForTrainer(self.model, self.config.forecast_length)
+        mse_weight = getattr(self.config, 'mse_weight', 0.1)
+        # Get target variate index (0 = first feature = BG by default)
+        target_feature = getattr(self.config, 'target_feature', 'bg_mM')
+        input_features = getattr(self.config, 'input_features', ['bg_mM'])
+        target_variate_idx = input_features.index(target_feature) if target_feature in input_features else 0
+        trainer_model = TotoForTrainer(self.model, self.config.forecast_length, mse_weight=mse_weight, target_variate_idx=target_variate_idx)
 
         has_val_data = val_loader is not None
         training_args = self._create_training_arguments(output_dir, has_val_data=has_val_data)

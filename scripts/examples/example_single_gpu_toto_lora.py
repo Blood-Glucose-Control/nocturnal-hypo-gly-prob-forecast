@@ -12,6 +12,7 @@ LoRA is more parameter-efficient than full fine-tuning:
 import os
 from src.models.base import DistributedConfig, GPUManager, LoRAConfig
 from src.models.toto import TotoForecaster, TotoConfig
+from src.data.models import ColumnNames
 from src.utils.logging_helper import info_print
 
 def main():
@@ -47,15 +48,28 @@ def main():
     info_print(f"   Dropout: {lora_config.dropout}")
 
     # 3. Toto Configuration
+    # Multivariate input: BG + exogenous factors (insulin, carbs, activity)
+    input_features = [
+        ColumnNames.BG.value,
+        ColumnNames.IOB.value,
+        ColumnNames.COB.value,
+        ColumnNames.STEPS.value,
+        ColumnNames.CALS.value,
+    ]
+
     config = TotoConfig(
         model_path="Datadog/Toto-Open-Base-1.0",
         context_length=504,      # 42 hours
         forecast_length=72,      # 6 hours
         batch_size=16,
-        learning_rate=1e-4,      # Standard LR for LoRA (higher OK since fewer params)
+        learning_rate=1e-5,      # Lower LR for more stable fine-tuning
         num_epochs=10,
         use_cpu=use_cpu,
         fp16=False,
+
+        # Multivariate input features
+        input_features=input_features,
+        target_feature=ColumnNames.BG.value,  # Still predict BG only
 
         # Training settings
         gradient_accumulation_steps=1,
@@ -66,8 +80,11 @@ def main():
         # Regularization
         weight_decay=0.01,
 
-        # Early stopping
-        early_stopping_patience=5,
+        # Early stopping - higher patience to find better checkpoint
+        early_stopping_patience=10,
+
+        # Composite loss: NLL + MSE for better alignment with evaluation metric
+        mse_weight=0.1,
     )
 
     # 4. Model Initialization with LoRA
@@ -86,8 +103,10 @@ def main():
     # 6. Training Loop
     info_print("Starting LoRA fine-tuning...")
     info_print("   Context: 504 steps (42h), Forecast: 72 steps (6h)")
-    info_print("   Epochs: 10, Batch size: 16")
+    info_print(f"   Features: {input_features}")
+    info_print("   Epochs: 10, Batch size: 16, LR: 1e-5")
     info_print("   LoRA rank: 16, ~1-2% of params trainable")
+    info_print("   Composite loss: NLL + 0.1*MSE, Patience: 10")
 
     try:
         results = model.fit(
