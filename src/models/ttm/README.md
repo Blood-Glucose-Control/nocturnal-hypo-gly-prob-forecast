@@ -389,7 +389,7 @@ for col in df.select_dtypes(include=['number']).columns:
     nan_pct = df[col].isna().sum() / len(df) * 100
     if nan_pct > 0:
         print(f"{col}: {nan_pct:.2f}% NaN")
-    
+
     if df[col].std() == 0:
         print(f"{col}: Zero variance - consider dropping")
 ```

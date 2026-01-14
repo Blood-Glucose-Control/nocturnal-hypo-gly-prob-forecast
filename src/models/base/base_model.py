@@ -378,9 +378,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             output_dir: Directory to save outputs
             **kwargs: Additional arguments
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement _train_model() method"
-        )
+        pass
 
     # Public API (fit, predict, evaluate, save_model, load_model, get_model_info...)
     def fit(
