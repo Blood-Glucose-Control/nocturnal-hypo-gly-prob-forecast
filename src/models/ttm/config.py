@@ -8,7 +8,7 @@ extending the base model configuration with TTM-specific parameters.
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
-from src.models.base import ModelConfig, TrainingStrategy
+from src.models.base import ModelConfig, TrainingBackend
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 
@@ -150,7 +150,7 @@ class TTMConfig(ModelConfig):
 
         # Set TTM-specific defaults
         self.model_type = "ttm"
-        self.training_backend = TrainingStrategy.TRANSFORMERS
+        self.training_backend = TrainingBackend.TRANSFORMERS
         # model_path is now handled by the parent class
 
         # TTM Training Configuration

@@ -26,7 +26,7 @@ from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 # Local imports
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingStrategy
+from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
 from src.models.ttm.config import TTMConfig
 from src.data.diabetes_datasets.data_loader import get_loader
 from src.data.models import ColumnNames
@@ -99,6 +99,27 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         self.preprocessor = None
         self.column_specifiers = None
 
+    # Properties
+    @property
+    def training_backend(self) -> TrainingBackend:
+        """Return the training strategy used by TTM.
+
+        Returns:
+            TrainingBackend: Always returns TrainingBackend.TRANSFORMERS as
+                TTM uses the HuggingFace Transformers Trainer for training.
+        """
+        return TrainingBackend.TRANSFORMERS
+    
+    @property
+    def supports_lora(self) -> bool:
+        """Check if TTM supports LoRA fine-tuning.
+
+        Returns:
+            bool: Always returns False. TTM is an MLP-based (Mixer) architecture
+                that lacks transformer attention layers required for LoRA.
+        """
+        return False
+    
     # Abstract method implementations
     ## Abstract implemented public methods
     def predict(
@@ -160,23 +181,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         return predictions
 
-    def training_backend(self) -> TrainingStrategy:
-        """Return the training strategy used by TTM.
 
-        Returns:
-            TrainingStrategy: Always returns TrainingStrategy.TRANSFORMERS as
-                TTM uses the HuggingFace Transformers Trainer for training.
-        """
-        return TrainingStrategy.TRANSFORMERS
-
-    def supports_lora(self) -> bool:
-        """Check if TTM supports LoRA fine-tuning.
-
-        Returns:
-            bool: Always returns False. TTM is an MLP-based (Mixer) architecture
-                that lacks transformer attention layers required for LoRA.
-        """
-        return False
 
     ## Abstract implemented private methods
     def _initialize_model(self) -> None:

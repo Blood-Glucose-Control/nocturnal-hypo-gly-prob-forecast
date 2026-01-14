@@ -273,6 +273,29 @@ class BaseTimeSeriesFoundationModel(ABC):
         # Initialize model
         self._initialize_model()
 
+    # Properties
+    @property
+    @abstractmethod
+    def training_backend(self) -> TrainingBackend:
+        """
+        Return the training strategy this model uses.
+
+        Returns:
+            TrainingBackend: The training approach for this model
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def supports_lora(self) -> bool:
+        """
+        Check if this model architecture supports LoRA fine-tuning.
+
+        Returns:
+            bool: True if the model supports LoRA, False otherwise
+        """
+        pass
+    
     # Abstract methods that child classes must implement
     ## Abstract public API methods
     @abstractmethod
@@ -292,28 +315,6 @@ class BaseTimeSeriesFoundationModel(ABC):
 
         Returns:
             Predictions as numpy array or dictionary with additional info
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def training_backend(self) -> TrainingBackend:
-        """
-        Return the training strategy this model uses.
-
-        Returns:
-            TrainingStrategy: The training approach for this model
-        """
-        pass
-
-    @property
-    @abstractmethod
-    def supports_lora(self) -> bool:
-        """
-        Check if this model architecture supports LoRA fine-tuning.
-
-        Returns:
-            bool: True if the model supports LoRA, False otherwise
         """
         pass
 
