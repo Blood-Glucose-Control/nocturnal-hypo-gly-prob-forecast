@@ -54,7 +54,7 @@ class TotoDataset(Dataset):
             "inputs": self.data[idx],
             "targets": self.targets[idx],
             "input_padding_mask": self.padding_mask[idx],
-            "id_mask": torch.ones_like(self.data[idx]),
+            "id_mask": torch.zeros(self.data[idx].shape, dtype=torch.int),
         }
 
 
@@ -112,7 +112,7 @@ class TotoForTrainer(torch.nn.Module):
         full_padding_mask = torch.cat(
             [input_padding_mask, torch.ones_like(targets, dtype=torch.bool)], dim=2
         )
-        full_id_mask = torch.cat([id_mask, torch.ones_like(targets)], dim=2)
+        full_id_mask = torch.cat([id_mask, torch.zeros(targets.shape, dtype=torch.int, device=targets.device)], dim=2)
 
         # Check for NaN/Inf in inputs
         if torch.isnan(full_input).any() or torch.isinf(full_input).any():
@@ -236,18 +236,21 @@ class TotoForecaster(BaseTSFM):
                 id_mask = batch["id_mask"].to(device)
 
                 batch_size_actual = inputs.shape[0]
+                num_variates = inputs.shape[1]
                 context_len = inputs.shape[2]
-                dummy_ts = torch.arange(context_len, dtype=torch.float32).unsqueeze(0)
-                dummy_ts = dummy_ts.expand(batch_size_actual, -1).to(device) * 300
+                # timestamp_seconds needs shape (batch, variates, timesteps)
+                dummy_ts = torch.arange(context_len, dtype=torch.int).unsqueeze(0).unsqueeze(0)
+                dummy_ts = dummy_ts.expand(batch_size_actual, num_variates, -1).to(device) * 300
 
                 masked_inputs = MaskedTimeseries(
                     series=inputs,
                     padding_mask=padding_mask,
                     id_mask=id_mask,
                     timestamp_seconds=dummy_ts,
-                    time_interval_seconds=torch.tensor([300.0], dtype=torch.float32).to(
-                        device
-                    ),
+                    # time_interval_seconds needs shape (batch, variates) with dtype int
+                    time_interval_seconds=torch.full(
+                        (batch_size_actual, num_variates), 300, dtype=torch.int
+                    ).to(device),
                 )
 
                 forecast = official_forecaster.forecast(
@@ -476,30 +479,37 @@ class TotoForecaster(BaseTSFM):
         return train_loader, val_loader, test_loader
 
     def _save_model_weights(self, output_dir: str) -> None:
-        """Save Toto model weights."""
+        """Save Toto model weights to final_model/model.pt."""
         if self.model is not None:
-            model_path = os.path.join(output_dir, "toto_model")
+            model_path = os.path.join(output_dir, "final_model")
             os.makedirs(model_path, exist_ok=True)
-            self.model.save_pretrained(model_path)
-            info_print(f"Toto model saved to {model_path}")
+            torch.save(self.model.state_dict(), os.path.join(model_path, "model.pt"))
+            info_print(f"Toto model saved to {model_path}/model.pt")
 
     def _load_model_weights(self, model_dir: str) -> None:
-        """Load Toto model weights."""
-        try:
-            model_path = os.path.join(model_dir, "toto_model")
-            if os.path.exists(model_path):
-                self.model = Toto.from_pretrained(model_path)
-            else:
-                self.model = Toto.from_pretrained(model_dir)
+        """Load Toto model weights from lora_adapter/ or final_model/model.pt."""
+        adapter_dir = os.path.join(model_dir, "lora_adapter")
+        model_file = os.path.join(model_dir, "final_model", "model.pt")
 
-            if torch.cuda.is_available() and not self.config.use_cpu:
-                self.model = self.model.cuda()
+        # Always start from base pretrained model
+        self.model = Toto.from_pretrained(self.config.model_path)
 
-            info_print(f"Toto model weights loaded from {model_dir}")
+        if os.path.exists(adapter_dir):
+            # Load LoRA adapter using PEFT
+            from peft import PeftModel
 
-        except Exception as e:
-            error_print(f"Failed to load model weights: {str(e)}")
-            raise
+            self.model = PeftModel.from_pretrained(self.model, adapter_dir)
+            info_print(f"Loaded LoRA adapter from {adapter_dir}")
+        elif os.path.exists(model_file):
+            # Load full fine-tuned weights
+            saved_state = torch.load(model_file, map_location="cpu")
+            self.model.load_state_dict(saved_state)
+            info_print(f"Loaded fine-tuned weights from {model_file}")
+        else:
+            info_print(f"No weights found at {model_dir}, using base model")
+
+        if torch.cuda.is_available() and not self.config.use_cpu:
+            self.model = self.model.cuda()
 
     def _train_model(
         self,
@@ -570,17 +580,21 @@ class TotoForecaster(BaseTSFM):
         else:
             train_result = trainer.train()
 
-        # Save the final model
-        final_model_dir = os.path.join(output_dir, "final_model")
-        trainer.save_model(final_model_dir)
-
-        # If using LoRA/PEFT, also save in PEFT format
-        if trainer_model.is_peft_model:
-            peft_save_dir = os.path.join(output_dir, "peft_adapter")
-            info_print(f"Saving PEFT adapter to {peft_save_dir}")
-            trainer_model.toto.save_pretrained(peft_save_dir)
-
+        # Extract the underlying Toto model from the trainer wrapper
         self.model = trainer_model.toto
+
+        # Save model - use PEFT's save_pretrained for LoRA, otherwise save full weights
+        if trainer_model.is_peft_model:
+            # Save LoRA adapter separately (recommended PEFT approach)
+            adapter_dir = os.path.join(output_dir, "lora_adapter")
+            self.model.save_pretrained(adapter_dir)
+            info_print(f"Saved LoRA adapter to {adapter_dir}")
+        else:
+            # Save full model weights for non-LoRA fine-tuning
+            final_model_dir = os.path.join(output_dir, "final_model")
+            os.makedirs(final_model_dir, exist_ok=True)
+            torch.save(self.model.state_dict(), os.path.join(final_model_dir, "model.pt"))
+            info_print(f"Saved model to {final_model_dir}/model.pt")
 
         test_metrics = {}
         if test_loader is not None:

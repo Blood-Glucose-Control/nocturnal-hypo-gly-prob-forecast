@@ -10,6 +10,7 @@ LoRA is more parameter-efficient than full fine-tuning:
 """
 
 import os
+from datetime import datetime
 from src.models.base import DistributedConfig, GPUManager, LoRAConfig
 from src.models.toto import TotoForecaster, TotoConfig
 from src.data.models import ColumnNames
@@ -90,7 +91,9 @@ def main():
     info_print("Toto Model with LoRA created!")
 
     # 5. Output Setup
-    output_dir = "./trained_models/artifacts/_tsfm_testing/output_single_gpu_toto_lora"
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
+    job_id = os.environ.get("SLURM_JOB_ID", "local")
+    output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_JID{job_id}_toto"
     os.makedirs(output_dir, exist_ok=True)
     info_print(f"Training outputs to {output_dir}")
 

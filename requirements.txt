@@ -37,7 +37,6 @@ PyWavelets
 ruff>=0.3.0
 scikit-learn
 seaborn
-skchange
 sktime
 #tf-keras
 torch
