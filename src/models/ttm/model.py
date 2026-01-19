@@ -6,11 +6,11 @@ the base TSFM framework, demonstrating how to integrate existing models.
 """
 
 import os
+import logging
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
-import torch
 from torch.utils.data import DataLoader
 from transformers import (
     TrainingArguments,
@@ -34,6 +34,11 @@ from src.data.preprocessing.split_or_combine_patients import (
     reduce_features_multi_patient,
 )
 from src.utils.logging_helper import info_print, debug_print, error_print
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 class TTMForecaster(BaseTimeSeriesFoundationModel):
@@ -109,7 +114,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 TTM uses the HuggingFace Transformers Trainer for training.
         """
         return TrainingBackend.TRANSFORMERS
-    
+
     @property
     def supports_lora(self) -> bool:
         """Check if TTM supports LoRA fine-tuning.
@@ -119,22 +124,40 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 that lacks transformer attention layers required for LoRA.
         """
         return False
-    
+
     # Abstract method implementations
     ## Abstract implemented public methods
     def predict(
         self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
     ) -> Union[np.ndarray, Dict[str, Any]]:
         """
-        Make predictions on new data.
+        Make predictions on new data using HuggingFace Trainer.
+
+        Following TTM best practices, this method uses Trainer.predict() to generate
+        predictions, which properly handles data preprocessing and batching.
 
         Args:
-            data: Input data for prediction
+            data: Input data for prediction (see _prepare_data for supported formats)
             batch_size: Batch size for prediction (defaults to config.batch_size)
-            return_dict: Whether to return additional information
+            return_dict: If True, return dictionary with predictions and metadata;
+                if False, return only predictions array
 
         Returns:
-            Predictions as numpy array or dictionary with additional info
+            Union[np.ndarray, Dict[str, Any]]:
+                - If return_dict=False: numpy array of predictions (n_samples, forecast_length, n_channels)
+                - If return_dict=True: Dictionary containing:
+                    - predictions: Model predictions array
+                    - backbone_embeddings: Hidden representations (if available)
+                    - model_config: Model configuration dictionary
+                    - n_samples: Number of samples predicted
+
+        Raises:
+            ValueError: If model has not been fitted
+
+        Example:
+            >>> predictions = model.predict(test_data)
+            >>> result = model.predict(test_data, return_dict=True)
+            >>> print(f"Predictions shape: {result['predictions'].shape}")
         """
         if not self.is_fitted or self.model is None:
             raise ValueError("Model must be fitted before making predictions")
@@ -142,46 +165,52 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Prepare data for prediction
         data_loader, _, _ = self._prepare_data(data)
 
-        # Set model to evaluation mode
-        self.model.eval()
+        # Use Trainer for prediction to ensure consistent preprocessing
+        batch_size_to_use = (
+            batch_size if batch_size is not None else self.config.batch_size
+        )
 
-        predictions = []
-        with torch.no_grad():
-            for batch in data_loader:
-                # Move batch to appropriate device
-                if torch.cuda.is_available() and not self.config.use_cpu:
-                    batch = {
-                        k: v.cuda()
-                        for k, v in batch.items()
-                        if isinstance(v, torch.Tensor)
-                    }
+        # Use a temporary directory for output if output_dir is not specified
+        import tempfile
 
-                # Forward pass
-                outputs = self.model(**batch)
+        output_dir = getattr(self.config, "output_dir", tempfile.mkdtemp())
 
-                # Extract predictions (implementation depends on model)
-                if hasattr(outputs, "prediction_logits"):
-                    batch_predictions = outputs.prediction_logits
-                elif hasattr(outputs, "logits"):
-                    batch_predictions = outputs.logits
-                else:
-                    batch_predictions = outputs
+        trainer = Trainer(
+            model=self.model,
+            args=TrainingArguments(
+                output_dir=output_dir,
+                per_device_eval_batch_size=batch_size_to_use,
+                dataloader_num_workers=self.config.dataloader_num_workers,
+                report_to="none",
+                seed=42,  # For reproducibility
+            ),
+        )
 
-                predictions.append(batch_predictions.cpu().numpy())
+        # Generate predictions using Trainer
+        info_print("Generating predictions using Trainer.predict()...")
+        predictions_output = trainer.predict(data_loader.dataset)
 
-        # Concatenate all predictions
-        predictions = np.concatenate(predictions, axis=0)
+        # Extract predictions from PredictionOutput
+        # predictions_output.predictions is a tuple: (forecasts, embeddings)
+        predictions = predictions_output.predictions[0]  # Get forecasts
+
+        info_print(f"Predictions shape: {predictions.shape}")
 
         if return_dict:
-            return {
+            result = {
                 "predictions": predictions,
                 "model_config": self.config.to_dict(),
                 "n_samples": len(predictions),
             }
+            # Include backbone embeddings if available
+            if len(predictions_output.predictions) > 1:
+                result["backbone_embeddings"] = predictions_output.predictions[1]
+                info_print(
+                    f"Backbone embeddings shape: {predictions_output.predictions[1].shape}"
+                )
+            return result
 
         return predictions
-
-
 
     ## Abstract implemented private methods
     def _initialize_model(self) -> None:
@@ -213,6 +242,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                     self.config.prediction_filter_length
                 )
 
+            info_print(
+                f"Attempting to load TTM model with the following parameters: \n {model_params}"
+            )
             # Get TTM model using the existing tsfm_public toolkit
             ttm_model = get_model(**model_params)
 
@@ -304,6 +336,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         if self.column_specifiers is None:
             self.column_specifiers = self._create_column_specifiers(data)
 
+        logger.info(f"Using column specifiers: {self.column_specifiers}")
         # Create preprocessor
         if self.preprocessor is None:
             self.preprocessor = TimeSeriesPreprocessor(
@@ -351,10 +384,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                     num_workers=self.config.dataloader_num_workers,
                 )
 
-            info_print("Data preparation complete:")
-            info_print(f"  Train samples: {len(dset_train):,} if dset_train else 0")
-            info_print(f"  Val samples: {len(dset_val):,} if dset_val else 0")
-            info_print(f"  Test samples: {len(dset_test):,} if dset_test else 0")
+            logger.info("Data preparation complete:")
+            logger.info(f"  Train samples: {len(dset_train):,} if dset_train else 0")
+            logger.info(f"  Val samples: {len(dset_val):,} if dset_val else 0")
+            logger.info(f"  Test samples: {len(dset_test):,} if dset_test else 0")
 
             return train_loader, val_loader, test_loader
 
@@ -388,10 +421,27 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 model version, or missing files).
         """
         try:
-            # TTM models can be loaded using the transformers library
-            from transformers import AutoModel
+            # Use get_model() to load the TTM architecture from the checkpoint directory
+            # This properly handles the custom TTM model type
+            model_params = {
+                "model_path": model_dir,  # Load from checkpoint directory
+                "context_length": self.config.context_length,
+                "prediction_length": self.config.forecast_length,
+                "freq": f"{self.config.resolution_min}min",
+            }
 
-            self.model = AutoModel.from_pretrained(model_dir)
+            # Only add prediction_filter_length if it's not None
+            if self.config.prediction_filter_length is not None:
+                model_params["prediction_filter_length"] = (
+                    self.config.prediction_filter_length
+                )
+
+            info_print(
+                f"Loading TTM checkpoint from {model_dir} with params: {model_params}"
+            )
+            ttm_model = get_model(**model_params)
+
+            self.model = ttm_model
             info_print(f"TTM model checkpoint loaded from {model_dir}")
 
         except Exception as e:
@@ -429,7 +479,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         import os
 
         os.environ["TQDM_MININTERVAL"] = "30"  # Update progress bar every 30 seconds
-
+        info_print("Starting TTM training using HuggingFace Trainer...")
         # Prepare data loaders
         train_loader, val_loader, test_loader = self._prepare_data(
             train_data, val_data, test_data
@@ -459,6 +509,23 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Save the model
         trainer.save_model()
 
+        # Get training history directly from trainer.state (in memory)
+        # This is more reliable than reading from file since trainer_state.json
+        # is only saved in checkpoint directories, not at output_dir root
+        training_history = {}
+        if hasattr(trainer, "state") and trainer.state is not None:
+            training_history = {
+                "log_history": trainer.state.log_history,
+                "best_metric": trainer.state.best_metric,
+                "best_model_checkpoint": trainer.state.best_model_checkpoint,
+                "global_step": trainer.state.global_step,
+                "epoch": trainer.state.epoch,
+            }
+            info_print("Captured training history from trainer state")
+            info_print(f"  Total log entries: {len(trainer.state.log_history)}")
+        else:
+            info_print("Warning: Could not access trainer.state")
+
         # Evaluate on test set if provided
         test_metrics = {}
         if test_loader is not None:
@@ -468,9 +535,91 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         return {
             "train_metrics": train_result.metrics,
             "test_metrics": test_metrics,
+            "training_history": training_history,
         }
 
     # TTM-specific public methods
+    def evaluate(
+        self,
+        test_data: Any,
+        batch_size: Optional[int] = None,
+        return_predictions: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Evaluate model performance on a dataset.
+
+        Following TTM best practices, this method uses Trainer.evaluate() to compute
+        evaluation metrics including loss, MSE, and other standard metrics.
+
+        Args:
+            test_data: Input data for evaluation (see _prepare_data for supported formats)
+            batch_size: Batch size for evaluation (defaults to config.batch_size)
+            return_predictions: If True, also return the predictions along with metrics
+
+        Returns:
+            Dict[str, Any]: Dictionary containing:
+                - eval_loss: Evaluation loss value
+                - eval_runtime: Time taken for evaluation
+                - eval_samples_per_second: Throughput metric
+                - eval_steps_per_second: Steps per second
+                - predictions: (optional) Model predictions if return_predictions=True
+                - backbone_embeddings: (optional) Hidden representations if return_predictions=True
+
+        Raises:
+            ValueError: If model has not been fitted
+
+        Example:
+            >>> metrics = model.evaluate(test_data)
+            >>> print(f"Test Loss: {metrics['eval_loss']:.4f}")
+        """
+        if not self.is_fitted or self.model is None:
+            raise ValueError("Model must be fitted before evaluation")
+
+        # Prepare data for evaluation
+        data_loader, _, _ = self._prepare_data(test_data)
+
+        # Create a Trainer instance for evaluation
+        batch_size_to_use = (
+            batch_size if batch_size is not None else self.config.batch_size
+        )
+
+        # Use a temporary directory for output if output_dir is not specified
+        import tempfile
+
+        output_dir = getattr(self.config, "output_dir", tempfile.mkdtemp())
+
+        trainer = Trainer(
+            model=self.model,
+            args=TrainingArguments(
+                output_dir=output_dir,
+                per_device_eval_batch_size=batch_size_to_use,
+                dataloader_num_workers=self.config.dataloader_num_workers,
+                report_to="none",
+                seed=42,  # For reproducibility
+            ),
+            compute_metrics=self._compute_trainer_metrics,
+        )
+
+        # Evaluate the model
+        info_print("Evaluating model using Trainer.evaluate()...")
+        eval_output = trainer.evaluate(data_loader.dataset)
+
+        info_print(f"Evaluation results: {eval_output}")
+
+        # Optionally include predictions
+        if return_predictions:
+            predictions_output = trainer.predict(data_loader.dataset)
+            eval_output["predictions"] = predictions_output.predictions[0]
+            if len(predictions_output.predictions) > 1:
+                eval_output["backbone_embeddings"] = predictions_output.predictions[1]
+            info_print(f"Predictions shape: {predictions_output.predictions[0].shape}")
+            if len(predictions_output.predictions) > 1:
+                info_print(
+                    f"Backbone embeddings shape: {predictions_output.predictions[1].shape}"
+                )
+
+        return eval_output
+
     def predict_zero_shot(
         self,
         data: Any,
@@ -556,18 +705,22 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             if your data uses different column naming conventions.
         """
         # Default mappings - adapt these to your data structure
+        # NOTE: target_columns are the ONLY columns that will be forecasted by the model
+        # control_columns, observable_columns, and conditional_columns are used as INPUT features only
         column_specifiers = {
             "id_columns": [ColumnNames.P_NUM.value],
             "timestamp_column": ColumnNames.DATETIME.value,
-            "target_columns": [ColumnNames.BG.value],
-            "observable_columns": [],
-            "control_columns": [
+            "target_columns": [ColumnNames.BG.value],  # Only forecast blood glucose
+            "observable_columns": [
+                # Observable columns: known in the past, unknown in the future
+                # These are used as inputs but NOT forecasted
                 ColumnNames.STEPS.value,
                 ColumnNames.COB.value,
                 ColumnNames.CARB_AVAILABILITY.value,
                 ColumnNames.INSULIN_AVAILABILITY.value,
                 ColumnNames.IOB.value,
             ],
+            "control_columns": [],  # Control columns: known in past AND future (we don't have any)
             "conditional_columns": [],
             "static_categorical_columns": [],
         }
@@ -692,7 +845,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             return metrics
 
         except Exception as e:
-            error_print(f"Error computing metrics: {str(e)}")
+            error_print(f"\nError computing metrics: {str(e)}")
             return {"custom_error": str(e)}
 
     def _get_callbacks(self) -> List:

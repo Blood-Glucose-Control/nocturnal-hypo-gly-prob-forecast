@@ -295,7 +295,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             bool: True if the model supports LoRA, False otherwise
         """
         pass
-    
+
     # Abstract methods that child classes must implement
     ## Abstract public API methods
     @abstractmethod
@@ -349,7 +349,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         """Save model checkpoint files (weights, optimizer state, etc.) to directory.
 
         This method should ONLY handle writing checkpoint files. The base class
-        save_model() handles config.json and metadata.json.
+        save() handles config.json and metadata.json.
         """
         pass
 
@@ -358,7 +358,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         """Load model checkpoint files (weights, optimizer state, etc.) from directory.
 
         This method should ONLY handle reading checkpoint files. The base class
-        load_model() handles config.json and metadata.json.
+        load() handles config.json and metadata.json.
         """
         pass
 
@@ -420,7 +420,7 @@ class BaseTimeSeriesFoundationModel(ABC):
                 to run even if training raises an exception.
         """
         info_print(f"Starting training for {self.__class__.__name__}")
-        info_print(f"Training strategy: {self.training_backend().value}")
+        info_print(f"Training Backend: {self.training_backend.value}")
 
         # Setup distributed training if configured
         self._setup_distributed()
@@ -436,7 +436,10 @@ class BaseTimeSeriesFoundationModel(ABC):
 
             # Post-training state updates
             self.is_fitted = True
-            self.training_history = metrics.get("train_metrics", metrics)
+            # Use training_history if provided, otherwise fall back to train_metrics
+            self.training_history = metrics.get(
+                "training_history", metrics.get("train_metrics", metrics)
+            )
             self._save_training_metadata(output_dir, metrics)
 
             info_print("🏁 Training complete!")
@@ -485,7 +488,7 @@ class BaseTimeSeriesFoundationModel(ABC):
 
         return metrics
 
-    def save_model(
+    def save(
         self, model_path: str, save_config: bool = True, save_metadata: bool = True
     ) -> None:
         """Save the model and associated metadata to disk.
@@ -503,7 +506,7 @@ class BaseTimeSeriesFoundationModel(ABC):
                 must override to save model weights.
 
         Note:
-            Child classes should call super().save_model() first to save
+            Child classes should call super().save() first to save
             configuration and metadata, then save model-specific weights.
         """
         os.makedirs(model_path, exist_ok=True)
@@ -524,7 +527,7 @@ class BaseTimeSeriesFoundationModel(ABC):
                 "config": self.config.to_dict(),
                 "lora_config": self.lora_config.__dict__,
                 "distributed_config": self.distributed_config.__dict__,
-                "training_backend": self.training_backend().value,
+                "training_backend": self.training_backend.value,
             }
 
             metadata_path = os.path.join(model_path, "metadata.json")
@@ -537,7 +540,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         info_print(f"Model saved to {model_path}")
 
     @classmethod
-    def load_model(
+    def load(
         cls, model_path: str, config: Optional[ModelConfig] = None
     ) -> "BaseTimeSeriesFoundationModel":
         """
@@ -564,13 +567,28 @@ class BaseTimeSeriesFoundationModel(ABC):
         instance = cls(config)
 
         # Load model-specific checkpoint files (weights, optimizer state, etc.)
+        info_print(f"Loading model from {model_path}...")
         instance._load_checkpoint(model_path)
 
-        # Load metadata
+        # Load metadata - check both metadata.json (from save_model) and
+        # training_metadata.json (from fit) for backward compatibility
         metadata_path = os.path.join(model_path, "metadata.json")
+        training_metadata_path = os.path.join(model_path, "training_metadata.json")
+
+        metadata = {}
         if os.path.exists(metadata_path):
             with open(metadata_path, "r") as f:
                 metadata = json.load(f)
+            info_print(f"Loaded metadata from {metadata_path}")
+        elif os.path.exists(training_metadata_path):
+            with open(training_metadata_path, "r") as f:
+                metadata = json.load(f)
+            info_print(f"Loaded metadata from {training_metadata_path}")
+            # Extract training_history from metrics if present
+            if "metrics" in metadata and "training_history" in metadata["metrics"]:
+                metadata["training_history"] = metadata["metrics"]["training_history"]
+
+        if metadata:
             instance.training_history = metadata.get("training_history", {})
             instance.best_metrics = metadata.get("best_metrics", {})
             instance.is_fitted = metadata.get("is_fitted", False)
@@ -599,7 +617,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             "is_fitted": self.is_fitted,
             "lora_enabled": self.lora_config.enabled,
             "distributed_enabled": self.distributed_config.enabled,
-            "training_backend": self.training_backend().value,
+            "training_backend": self.training_backend.value,
         }
 
         if self.model is not None:

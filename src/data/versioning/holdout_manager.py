@@ -297,7 +297,7 @@ class HoldoutManager:
 
         logger.info(
             "Hybrid split: \n"
-            + " " * 20
+            + " " * 23
             + f"{len(train_data):,} train samples from {len(self._train_patients)} patients, "
             f"\n" + " " * 23 + f"{len(holdout_data):,} holdout timesteps "
             f"({len(temporal_holdout_data):,} temporal + {len(holdout_patients_data):,} patient-based)"

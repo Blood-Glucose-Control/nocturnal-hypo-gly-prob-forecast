@@ -196,7 +196,7 @@ Input Data Format
                    ▼
 4. Model Persistence
    ┌────────────────────────────────────────┐
-   │  model.save_model("model.pt")          │
+   │  model.save("model.pt")          │
    │                                        │
    │  Saves:                                │
    │    • Model weights (HF format)         │
@@ -208,7 +208,7 @@ Input Data Format
 5. Inference
    ┌────────────────────────────────────────┐
    │  loaded_model = TTMForecaster(config)  │
-   │  loaded_model.load_model("model.pt")   │
+   │  loaded_model.load("model.pt")   │
    │                                        │
    │  predictions = loaded_model.predict(   │
    │      data=test_data,                   │
@@ -253,8 +253,8 @@ Main model class that implements the TTM forecasting pipeline.
 **Public Methods:**
 - `fit(train_data, output_dir)`: Train the model
 - `predict(data)`: Generate predictions
-- `save_model(path)`: Save model and config
-- `load_model(path)`: Load model from disk
+- `save(path)`: Save model and config
+- `load(path)`: Load model from disk
 - `predict_zero_shot(data)`: Inference without training
 
 **Private Methods:**
@@ -303,7 +303,7 @@ model.fit(
 )
 
 # Save model
-model.save_model("./trained_models/model.pt")
+model.save("./trained_models/model.pt")
 ```
 
 ### Custom Logging Directory
@@ -421,7 +421,7 @@ df = df.drop(columns=zero_var_cols)
 # Ensure config matches saved model
 config = TTMConfig(model_path="ibm-granite/granite-timeseries-ttm-r2")
 model = TTMForecaster(config)
-model.load_model("./path/to/model.pt")  # Load after initialization
+model.load("./path/to/model.pt")  # Load after initialization
 ```
 
 ### Out of Memory (OOM) errors

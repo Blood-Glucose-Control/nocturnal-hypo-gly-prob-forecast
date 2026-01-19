@@ -262,7 +262,7 @@ from src.data.versioning.dataset_registry import load_training_data, load_holdou
 
 train_data = load_training_data("kaggle_brisT1D")
 model = train_model(train_data)
-save_model(model)
+save(model)
 
 # Only for final evaluation
 holdout_data = load_holdout_data("kaggle_brisT1D")

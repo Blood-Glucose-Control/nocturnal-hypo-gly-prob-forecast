@@ -114,8 +114,8 @@ class BaseTimeSeriesFoundationModel(ABC):
     def evaluate(self, data_loader)
 
     # Model management
-    def save_model(self, output_dir, save_config, save_metadata)
-    def load_model(cls, model_dir, config)
+    def save(self, output_dir, save_config, save_metadata)
+    def load(cls, model_dir, config)
 
     # Advanced features
     def setup_distributed(self)
