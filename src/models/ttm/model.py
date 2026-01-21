@@ -787,9 +787,87 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         elif not isinstance(predictions, np.ndarray):
             predictions = np.array(predictions)
 
-        info_print(f"Zero-shot predictions shape: {predictions.shape}")
+        info_print(f"Zero-shot predictions shape (scaled): {predictions.shape}")
+
+        # Inverse scale predictions back to original units
+        # The preprocessor (tsp) was used to scale the data, so we use it to inverse scale
+        predictions = self._inverse_scale_zero_shot_predictions(predictions, tsp)
+
+        info_print(f"Zero-shot predictions shape (unscaled): {predictions.shape}")
 
         return predictions
+
+    def _inverse_scale_zero_shot_predictions(
+        self, predictions: np.ndarray, preprocessor: TimeSeriesPreprocessor
+    ) -> np.ndarray:
+        """Inverse scale zero-shot predictions back to original units.
+
+        Args:
+            predictions: Scaled predictions array
+            preprocessor: The TimeSeriesPreprocessor used for scaling
+
+        Returns:
+            Predictions in original scale
+        """
+        from tsfm_public.toolkit.time_series_preprocessor import INTERNAL_ID_COLUMN
+
+        if not preprocessor.scaling:
+            info_print("Preprocessor scaling is disabled, returning predictions as-is")
+            return predictions
+
+        if len(preprocessor.target_scaler_dict) == 0:
+            info_print("No scalers in preprocessor, returning predictions as-is")
+            return predictions
+
+        # Get the target scaler - for global scaling, key is '__id'
+        scaler_key = INTERNAL_ID_COLUMN
+        if scaler_key not in preprocessor.target_scaler_dict:
+            # Try first available key
+            scaler_key = next(iter(preprocessor.target_scaler_dict.keys()))
+
+        scaler = preprocessor.target_scaler_dict[scaler_key]
+
+        # Handle different prediction shapes
+        original_shape = predictions.shape
+        info_print(f"Inverse scaling zero-shot predictions with shape: {original_shape}")
+
+        # Reshape to 2D for sklearn scaler (samples, features)
+        if len(original_shape) == 1:
+            predictions_2d = predictions.reshape(-1, 1)
+            needs_squeeze = True
+        elif len(original_shape) == 2:
+            predictions_2d = predictions
+            needs_squeeze = False
+        elif len(original_shape) == 3:
+            # Shape: (samples, forecast_length, channels)
+            n_samples, forecast_len, n_channels = original_shape
+            predictions_2d = predictions.reshape(-1, n_channels)
+            needs_squeeze = False
+        else:
+            info_print(f"Unexpected predictions shape: {original_shape}, returning as-is")
+            return predictions
+
+        # Inverse transform
+        try:
+            # Only inverse scale the target column(s)
+            n_target_cols = len(preprocessor.target_columns)
+            predictions_unscaled = predictions_2d.copy()
+            predictions_unscaled[:, :n_target_cols] = scaler.inverse_transform(
+                predictions_2d[:, :n_target_cols]
+            )
+
+            # Reshape back to original shape
+            if len(original_shape) == 3:
+                predictions_unscaled = predictions_unscaled.reshape(original_shape)
+            elif needs_squeeze:
+                predictions_unscaled = predictions_unscaled.squeeze()
+
+            info_print(f"Successfully inverse-scaled zero-shot predictions")
+            return predictions_unscaled
+
+        except Exception as e:
+            info_print(f"Warning: Failed to inverse scale predictions: {e}")
+            return predictions
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.
