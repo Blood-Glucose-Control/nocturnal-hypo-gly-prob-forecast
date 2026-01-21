@@ -531,14 +531,25 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             raise
 
     def _save_checkpoint(self, output_dir: str) -> None:
-        """Save model checkpoint.
+        """Save model checkpoint and preprocessor.
 
         Args:
             output_dir: Directory path for saving checkpoint
         """
+        import pickle
+
         if self.model is not None and hasattr(self.model, "save_pretrained"):
             self.model.save_pretrained(output_dir)  # type: ignore[union-attr]
             info_print(f"TTM model saved to {output_dir}")
+
+        # Save the preprocessor for inference (critical for new/holdout patients)
+        # Using pickle because tsfm_public's save_pretrained uses json.dumps(sort_keys=True)
+        # which fails when preprocessor has mixed key types (float patient IDs + string keys)
+        if self.preprocessor is not None:
+            preprocessor_path = os.path.join(output_dir, "preprocessor.pkl")
+            with open(preprocessor_path, "wb") as f:
+                pickle.dump(self.preprocessor, f)
+            info_print(f"Preprocessor saved to {preprocessor_path}")
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load model checkpoint.
@@ -549,6 +560,8 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         Raises:
             Exception: If loading fails
         """
+        import pickle
+
         try:
             # Use get_model() to load the TTM architecture from the checkpoint directory
             # This properly handles the custom TTM model type
@@ -579,6 +592,22 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
             self.model = ttm_model
             info_print(f"TTM model checkpoint loaded from {model_dir}")
+
+            # Load the preprocessor if saved (critical for inference on holdout patients)
+            # Try pickle format first (new), then fall back to pretrained format (legacy)
+            preprocessor_pkl_path = os.path.join(model_dir, "preprocessor.pkl")
+            preprocessor_dir = os.path.join(model_dir, "preprocessor")
+
+            if os.path.exists(preprocessor_pkl_path):
+                with open(preprocessor_pkl_path, "rb") as f:
+                    self.preprocessor = pickle.load(f)
+                info_print(f"Preprocessor loaded from {preprocessor_pkl_path}")
+            elif os.path.exists(preprocessor_dir):
+                # Legacy format - try from_pretrained
+                self.preprocessor = TimeSeriesPreprocessor.from_pretrained(preprocessor_dir)
+                info_print(f"Preprocessor loaded from {preprocessor_dir} (legacy format)")
+            else:
+                info_print(f"No preprocessor found at {model_dir}, inference may require refitting")
 
         except Exception as e:
             error_print(f"Failed to load model checkpoint: {str(e)}")
