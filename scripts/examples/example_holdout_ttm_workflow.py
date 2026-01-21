@@ -268,7 +268,9 @@ def _plot_forecasts(
             fig, ax = plt.subplots(figsize=(15, 6))
 
             # Determine if we can use datetime x-axis
-            use_datetime_axis = forecast_datetimes is not None and len(forecast_datetimes) > 0
+            use_datetime_axis = (
+                forecast_datetimes is not None and len(forecast_datetimes) > 0
+            )
 
             if use_datetime_axis:
                 # Convert to pandas datetime for plotting
@@ -298,7 +300,9 @@ def _plot_forecasts(
 
                 # Plot forecast
                 forecast_dts_pred = forecast_dts[: len(predictions)]
-                ax.plot(forecast_dts_pred, predictions, "r--", label="Forecast", linewidth=2)
+                ax.plot(
+                    forecast_dts_pred, predictions, "r--", label="Forecast", linewidth=2
+                )
 
                 # Add vertical line at forecast start
                 ax.axvline(
@@ -311,6 +315,7 @@ def _plot_forecasts(
 
                 # Format x-axis for datetime
                 import matplotlib.dates as mdates
+
                 ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))
                 ax.xaxis.set_major_locator(mdates.AutoDateLocator())
                 plt.xticks(rotation=45, ha="right")
@@ -327,14 +332,17 @@ def _plot_forecasts(
                 )
 
                 actual_time = np.arange(
-                    len(historical_glucose), len(historical_glucose) + len(actual_glucose)
+                    len(historical_glucose),
+                    len(historical_glucose) + len(actual_glucose),
                 )
                 ax.plot(actual_time, actual_glucose, "g-", label="Actual", linewidth=2)
 
                 forecast_time = np.arange(
                     len(historical_glucose), len(historical_glucose) + len(predictions)
                 )
-                ax.plot(forecast_time, predictions, "r--", label="Forecast", linewidth=2)
+                ax.plot(
+                    forecast_time, predictions, "r--", label="Forecast", linewidth=2
+                )
 
                 ax.axvline(
                     x=len(historical_glucose),
@@ -383,28 +391,35 @@ def _plot_forecasts(
             # Save forecast data to CSV with datetime if available
             forecast_csv_path = forecast_dir / f"{phase_name}_{dataset_name}_data.csv"
             if use_datetime_axis:
-                all_datetimes = list(historical_dts) + list(forecast_dts[: len(actual_glucose)])
+                all_datetimes = list(historical_dts) + list(
+                    forecast_dts[: len(actual_glucose)]
+                )
                 forecast_data_df = pd.DataFrame(
                     {
                         "datetime": all_datetimes,
                         "historical": list(historical_glucose)
                         + [np.nan] * len(actual_glucose),
-                        "actual": [np.nan] * len(historical_glucose) + list(actual_glucose),
-                        "forecast": [np.nan] * len(historical_glucose) + list(predictions),
+                        "actual": [np.nan] * len(historical_glucose)
+                        + list(actual_glucose),
+                        "forecast": [np.nan] * len(historical_glucose)
+                        + list(predictions),
                     }
                 )
             else:
                 historical_time = np.arange(len(historical_glucose))
                 actual_time = np.arange(
-                    len(historical_glucose), len(historical_glucose) + len(actual_glucose)
+                    len(historical_glucose),
+                    len(historical_glucose) + len(actual_glucose),
                 )
                 forecast_data_df = pd.DataFrame(
                     {
                         "time_step": list(historical_time) + list(actual_time),
                         "historical": list(historical_glucose)
                         + [np.nan] * len(actual_glucose),
-                        "actual": [np.nan] * len(historical_glucose) + list(actual_glucose),
-                        "forecast": [np.nan] * len(historical_glucose) + list(predictions),
+                        "actual": [np.nan] * len(historical_glucose)
+                        + list(actual_glucose),
+                        "forecast": [np.nan] * len(historical_glucose)
+                        + list(predictions),
                     }
                 )
             forecast_data_df.to_csv(forecast_csv_path, index=False)

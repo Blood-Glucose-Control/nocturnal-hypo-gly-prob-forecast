@@ -604,10 +604,16 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 info_print(f"Preprocessor loaded from {preprocessor_pkl_path}")
             elif os.path.exists(preprocessor_dir):
                 # Legacy format - try from_pretrained
-                self.preprocessor = TimeSeriesPreprocessor.from_pretrained(preprocessor_dir)
-                info_print(f"Preprocessor loaded from {preprocessor_dir} (legacy format)")
+                self.preprocessor = TimeSeriesPreprocessor.from_pretrained(
+                    preprocessor_dir
+                )
+                info_print(
+                    f"Preprocessor loaded from {preprocessor_dir} (legacy format)"
+                )
             else:
-                info_print(f"No preprocessor found at {model_dir}, inference may require refitting")
+                info_print(
+                    f"No preprocessor found at {model_dir}, inference may require refitting"
+                )
 
         except Exception as e:
             error_print(f"Failed to load model checkpoint: {str(e)}")
@@ -829,7 +835,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         # Handle different prediction shapes
         original_shape = predictions.shape
-        info_print(f"Inverse scaling zero-shot predictions with shape: {original_shape}")
+        info_print(
+            f"Inverse scaling zero-shot predictions with shape: {original_shape}"
+        )
 
         # Reshape to 2D for sklearn scaler (samples, features)
         if len(original_shape) == 1:
@@ -844,7 +852,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             predictions_2d = predictions.reshape(-1, n_channels)
             needs_squeeze = False
         else:
-            info_print(f"Unexpected predictions shape: {original_shape}, returning as-is")
+            info_print(
+                f"Unexpected predictions shape: {original_shape}, returning as-is"
+            )
             return predictions
 
         # Inverse transform
@@ -862,7 +872,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             elif needs_squeeze:
                 predictions_unscaled = predictions_unscaled.squeeze()
 
-            info_print(f"Successfully inverse-scaled zero-shot predictions")
+            info_print("Successfully inverse-scaled zero-shot predictions")
             return predictions_unscaled
 
         except Exception as e:
