@@ -230,7 +230,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             error_print(f"Failed to initialize TimesFM model: {str(e)}")
             raise
 
-    def _prepare_training_data
+    def _prepare_training_data(
         self,
         train_data: Any,
         val_data: Optional[Any] = None,

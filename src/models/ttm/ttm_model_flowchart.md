@@ -2,7 +2,7 @@
 graph LR
     Start([User Code]) --> Init[__init__]
     Init --> InitModel[_initialize_model]
-    
+
     Start --> Fit[fit - inherited from base]
     Fit --> TrainModel[_train_model]
     TrainModel --> PrepareData[_prepare_data]
@@ -11,32 +11,32 @@ graph LR
     TrainModel --> ComputeMetrics[_compute_trainer_metrics]
     CreateTrainingArgs --> GetDistributedArgs[_get_distributed_training_args]
     PrepareData --> CreateColSpec[_create_column_specifiers]
-    
+
     Start --> Predict[predict]
     Predict --> PrepareData2[_prepare_data]
     PrepareData2 --> CreateColSpec2[_create_column_specifiers]
-    
+
     Start --> Evaluate[evaluate]
     Evaluate --> PrepareData3[_prepare_data]
     Evaluate --> ComputeMetrics2[_compute_trainer_metrics]
     PrepareData3 --> CreateColSpec3[_create_column_specifiers]
-    
+
     Start --> PredictZeroShot[predict_zero_shot]
     PredictZeroShot --> Predict2[predict]
     Predict2 --> PrepareData4[_prepare_data]
-    
+
     Start --> SaveModel[save_model - inherited from base]
     SaveModel --> SaveCheckpoint[_save_checkpoint]
-    
+
     Start --> LoadModel[load_model - inherited from base]
     LoadModel --> LoadCheckpoint[_load_checkpoint]
-    
+
     Start --> GetInfo[get_ttm_specific_info]
     GetInfo --> GetModelInfo[get_model_info - inherited]
-    
+
     Start --> GetTrainingBackend[training_backend property]
     Start --> SupportsLora[supports_lora property]
-    
+
     %% Base TSFM Public: Inherited public methods from BaseTimeSeriesFoundationModel
     style Fit fill:#0072B2,color:#000
     style SaveModel fill:#0072B2,color:#000

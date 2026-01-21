@@ -136,12 +136,12 @@ Why not just use the enum from config? Or if you need dynamic behavior, why stor
    def save_model_artifacts(self, output_dir: str) -> None:
        """Save ALL model files (weights + metadata)"""
        pass
-   
+
    # Option B: More granular but clearer
    @abstractmethod
    def _save_weights(self, output_dir: str) -> None:
        pass
-   
+
    def save_model(self, output_dir: str) -> None:
        self._save_config(output_dir)
        self._save_metadata(output_dir)
@@ -201,16 +201,16 @@ This base class tries to handle:
 ```python
 class BaseTSFM(ABC):
     """Only model lifecycle"""
-    
+
 class DistributedMixin:
     """Distributed training setup/cleanup"""
-    
+
 class LoRAMixin:
     """LoRA integration"""
-    
+
 class MetricsMixin:
     """Compute standard metrics"""
-    
+
 class TTMForecaster(BaseTSFM, DistributedMixin, LoRAMixin, MetricsMixin):
     """Compose what you need"""
 ```
@@ -553,14 +553,14 @@ A comprehensive refactoring of the base model framework to improve design patter
 @abstractmethod
 def _save_model_weights(self, path: str) -> None:
     """Save ONLY the model weights/state to the given path.
-    
+
     Args:
         path: Directory path where model weights should be saved.
-        
+
     Note:
         This method should ONLY save model weights and optimizer state.
         The base class handles config.json and training_metadata.json.
-        
+
     Example implementations:
         - PyTorch: torch.save(self.model_.state_dict(), os.path.join(path, "model.pt"))
         - HuggingFace: self.model_.save_pretrained(path)
@@ -571,10 +571,10 @@ def _save_model_weights(self, path: str) -> None:
 @abstractmethod
 def _load_model_weights(self, path: str) -> None:
     """Load ONLY the model weights/state from the given path.
-    
+
     Args:
         path: Directory path containing model weights.
-        
+
     Note:
         This method should ONLY load model weights and optimizer state.
         The base class handles config.json and training_metadata.json.
@@ -586,26 +586,26 @@ def _load_model_weights(self, path: str) -> None:
 # ============= PUBLIC SAVE METHOD (SIMPLIFIED) =============
 def save_model(self, path: str) -> None:
     """Save the complete model to disk.
-    
+
     Saves:
     - config.json: Model configuration
     - training_metadata.json: Training history, metrics, git info
     - Model weights: Via subclass _save_model_weights() implementation
-    
+
     Args:
         path: Directory path where the model will be saved.
-        
+
     Example:
         >>> model.fit(train_data)
         >>> model.save_model("./trained_models/my_model")
     """
     os.makedirs(path, exist_ok=True)
-    
+
     # 1. Save configuration (ONLY place config is saved)
     config_path = os.path.join(path, "config.json")
     with open(config_path, "w") as f:
         json.dump(self.config.to_dict(), f, indent=2)
-    
+
     # 2. Save training metadata (NO config duplication)
     metadata = {
         "model_type": self.__class__.__name__,
@@ -617,7 +617,7 @@ def save_model(self, path: str) -> None:
         "distributed_enabled": self.distributed_config.enabled,
         "training_backend": self.training_backend.value,
     }
-    
+
     # Add git info if available
     try:
         import git
@@ -627,14 +627,14 @@ def save_model(self, path: str) -> None:
         metadata["git_dirty"] = repo.is_dirty()
     except (ImportError, Exception):
         pass
-    
+
     metadata_path = os.path.join(path, "training_metadata.json")
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
-    
+
     # 3. Save model weights (delegated to subclass)
     self._save_model_weights(path)
-    
+
     info_print(f"✅ Model saved to {path}")
 
 
@@ -642,20 +642,20 @@ def save_model(self, path: str) -> None:
 @classmethod
 def load_model(cls, path: str, config: Optional[ModelConfig] = None) -> "BaseTimeSeriesModel":
     """Load a saved model from disk.
-    
+
     Loads:
     - config.json: Model configuration (unless override provided)
     - training_metadata.json: Training history and metrics
     - Model weights: Via subclass _load_model_weights() implementation
-    
+
     Args:
         path: Directory containing the saved model.
         config: Optional ModelConfig to override the saved configuration.
             Use this to modify hyperparameters when loading.
-    
+
     Returns:
         Loaded model instance ready for prediction or continued training.
-        
+
     Example:
         >>> model = TTMForecaster.load_model("./trained_models/my_model")
         >>> predictions = model.predict(test_data)
@@ -668,17 +668,17 @@ def load_model(cls, path: str, config: Optional[ModelConfig] = None) -> "BaseTim
                 f"No config.json found at {config_path}. "
                 "Either provide a config or ensure the model was saved correctly."
             )
-        
+
         with open(config_path, "r") as f:
             config_dict = json.load(f)
         config = ModelConfig.from_dict(config_dict)
-    
+
     # 2. Create instance (calls _initialize_model)
     instance = cls(config)
-    
+
     # 3. Load model weights (delegated to subclass)
     instance._load_model_weights(path)
-    
+
     # 4. Load training metadata
     metadata_path = os.path.join(path, "training_metadata.json")
     if os.path.exists(metadata_path):
@@ -687,7 +687,7 @@ def load_model(cls, path: str, config: Optional[ModelConfig] = None) -> "BaseTim
         instance.training_history_ = metadata.get("training_history", {})
         instance.best_metrics_ = metadata.get("best_metrics", {})
         instance.is_fitted_ = metadata.get("is_fitted", False)
-    
+
     info_print(f"✅ Model loaded from {path}")
     return instance
 ```
@@ -719,25 +719,25 @@ def _load_checkpoint(self, model_dir: str) -> None:
 ```python
 def _save_model_weights(self, path: str) -> None:
     """Save TTM model weights using HuggingFace format.
-    
+
     Args:
         path: Directory where weights will be saved.
     """
     if self.model_ is None:
         raise ValueError("Cannot save weights: model has not been initialized")
-    
+
     self.model_.save_pretrained(path)
     info_print(f"TTM weights saved to {path}")
 
 
 def _load_model_weights(self, path: str) -> None:
     """Load TTM model weights from HuggingFace format.
-    
+
     Args:
         path: Directory containing saved weights.
     """
     from transformers import AutoModel
-    
+
     self.model_ = AutoModel.from_pretrained(path)
     info_print(f"TTM weights loaded from {path}")
 ```
@@ -774,10 +774,10 @@ def _load_model_weights(self, path: str) -> None:
 def _save_model_weights(self, path: str) -> None:
     if self.model_ is None:
         raise ValueError("Cannot save weights: model not initialized")
-    
+
     weights_path = os.path.join(path, "model_weights.pt")
     torch.save(self.model_.state_dict(), weights_path)
-    
+
     # Optionally save optimizer state
     if hasattr(self, 'optimizer_'):
         optimizer_path = os.path.join(path, "optimizer_state.pt")
@@ -787,7 +787,7 @@ def _load_model_weights(self, path: str) -> None:
     weights_path = os.path.join(path, "model_weights.pt")
     state_dict = torch.load(weights_path, map_location='cpu')
     self.model_.load_state_dict(state_dict)
-    
+
     # Optionally load optimizer state
     optimizer_path = os.path.join(path, "optimizer_state.pt")
     if os.path.exists(optimizer_path) and hasattr(self, 'optimizer_'):
@@ -804,7 +804,7 @@ def _save_model_weights(self, path: str) -> None:
         "model_id": self.model_id,
         "fine_tuned_checkpoint": self.checkpoint_id
     }
-    
+
     api_path = os.path.join(path, "api_config.json")
     with open(api_path, "w") as f:
         json.dump(api_config, f, indent=2)
@@ -813,7 +813,7 @@ def _load_model_weights(self, path: str) -> None:
     api_path = os.path.join(path, "api_config.json")
     with open(api_path, "r") as f:
         api_config = json.load(f)
-    
+
     self.api_key = api_config["api_key"]
     self.model_id = api_config["model_id"]
     self.checkpoint_id = api_config["fine_tuned_checkpoint"]
@@ -854,7 +854,7 @@ This is **much** cleaner and follows the **Template Method Pattern** correctly!
 
 ## Property vs Method Question
 
-**User:** So my BaseTimeSeriesFoundationModel class has the @property @abstractmethod decorator for the training_backend that is a passthrough to the child class right? 
+**User:** So my BaseTimeSeriesFoundationModel class has the @property @abstractmethod decorator for the training_backend that is a passthrough to the child class right?
 
 But my linter is giving me a yellow underline when I have TTM training_backend populated in TTMForecaster. The linter is saying that it incorrectly overrides the property of the base class?
 
@@ -960,7 +960,7 @@ info_print(f"Training backend: {self.training_backend.value}")
 # Before
 "training_strategy": self.get_training_strategy().value
 
-# After  
+# After
 "training_backend": self.training_backend.value
 ```
 

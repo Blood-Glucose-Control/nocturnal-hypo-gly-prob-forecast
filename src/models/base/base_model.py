@@ -14,7 +14,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -328,7 +328,7 @@ class BaseTimeSeriesFoundationModel(ABC):
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
         """
         Prepare data loaders for training, validation, and testing.
-        
+
         Data splitting is controlled by model configuration.
 
         Args:
@@ -366,7 +366,7 @@ class BaseTimeSeriesFoundationModel(ABC):
     ) -> Dict[str, Any]:
         """
         Model-specific training implementation.
-        
+
         Data splitting for train/val/test is controlled by model configuration.
 
         Args:
@@ -391,7 +391,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         - Calling the model-specific training implementation
         - Saving training metadata
         - Cleaning up distributed resources
-        
+
         Data splitting for train/val/test is controlled by model configuration.
 
         Args:
@@ -422,9 +422,7 @@ class BaseTimeSeriesFoundationModel(ABC):
 
         try:
             # Let each model handle its own training
-            metrics = self._train_model(
-                train_data, output_dir, **kwargs
-            )
+            metrics = self._train_model(train_data, output_dir, **kwargs)
 
             # Post-training state updates
             self.is_fitted = True

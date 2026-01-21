@@ -182,7 +182,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             error_print(f"Failed to initialize Moment model: {str(e)}")
             raise
 
-    def _prepare_training_data
+    def _prepare_training_data(
         self, data: Any, split: Optional[str] = None
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
         """Prepare data for training or inference.

@@ -7,7 +7,7 @@ the base TSFM framework, demonstrating how to integrate existing models.
 
 import os
 import logging
-from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -28,7 +28,6 @@ from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 # Local imports
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
 from src.models.ttm.config import TTMConfig
-from src.data.diabetes_datasets.data_loader import get_loader
 from src.data.models import ColumnNames
 from src.data.preprocessing.split_or_combine_patients import (
     reduce_features_multi_patient,
@@ -43,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 class ColumnSpecifiers(TypedDict, total=False):
     """Type definition for TimeSeriesPreprocessor column configuration.
-    
+
     Attributes:
         id_columns: Columns identifying unique time series (e.g., patient_id).
         timestamp_column: Single column name for timestamps.
@@ -53,6 +52,7 @@ class ColumnSpecifiers(TypedDict, total=False):
         conditional_columns: Conditional features.
         static_categorical_columns: Static categorical features.
     """
+
     id_columns: List[str]
     timestamp_column: str
     target_columns: List[str]
@@ -172,8 +172,8 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         # Convert to numpy if needed
         if hasattr(predictions, "cpu"):
-            predictions = predictions.cpu().numpy() #py ignore
-        elif not isinstance(predictions, np.ndarray): 
+            predictions = predictions.cpu().numpy()  # py ignore
+        elif not isinstance(predictions, np.ndarray):
             predictions = np.array(predictions)
 
         info_print(f"Predictions shape (scaled): {predictions.shape}")
@@ -181,7 +181,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Inverse scale predictions back to original units
         if inverse_scale and self.preprocessor is not None:
             predictions = self._inverse_scale_predictions(predictions, data)
-            info_print(f"Predictions inverse-scaled to original units")
+            info_print("Predictions inverse-scaled to original units")
 
         info_print(f"Predictions shape: {predictions.shape}")
 
@@ -271,7 +271,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             if len(original_shape) == 1:
                 result = predictions_unscaled.flatten()
             elif len(original_shape) == 2:
-                result = predictions_unscaled.reshape(original_shape[0], original_shape[1])
+                result = predictions_unscaled.reshape(
+                    original_shape[0], original_shape[1]
+                )
             elif len(original_shape) == 3:
                 # Put unscaled values back into channel 0, keep other channels as-is
                 result = predictions.copy()
@@ -316,7 +318,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             )
             # Get TTM model using the existing tsfm_public toolkit
             ttm_model = get_model(**model_params)
-            
+
             # Validate that we received a model object, not a string
             if isinstance(ttm_model, str):
                 raise TypeError(
@@ -348,7 +350,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         train_data: Any,
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
         """Prepare data loaders for training, validation, and testing.
-        
+
         Data splitting is controlled by self.config.split_config.
 
         Args:
@@ -491,7 +493,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 f"Loading TTM checkpoint from {model_dir} with params: {model_params}"
             )
             ttm_model = get_model(**model_params)
-            
+
             # Validate that we received a model object, not a string
             if isinstance(ttm_model, str):
                 raise TypeError(
@@ -512,7 +514,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         **kwargs,
     ) -> Dict[str, Any]:
         """Execute model training.
-        
+
         Data splitting for train/val/test is controlled by self.config.split_config.
 
         Args:
@@ -807,7 +809,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         """
         import tempfile
 
-        batch_size_to_use = batch_size if batch_size is not None else self.config.batch_size
+        batch_size_to_use = (
+            batch_size if batch_size is not None else self.config.batch_size
+        )
         output_dir = getattr(self.config, "output_dir", tempfile.mkdtemp())
 
         return Trainer(

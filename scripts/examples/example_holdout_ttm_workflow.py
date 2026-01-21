@@ -470,7 +470,9 @@ def step4b_generate_forecasts(
 
             if len(predictions_raw.shape) == 3:
                 # Shape: (samples, forecast_length, num_channels) -> extract channel 0 for glucose
-                predictions = predictions_raw[0, :, 0]  # First sample, all timesteps, first channel (glucose)
+                predictions = predictions_raw[
+                    0, :, 0
+                ]  # First sample, all timesteps, first channel (glucose)
             elif len(predictions_raw.shape) == 2:
                 # Shape: (forecast_length, num_channels) -> extract channel 0
                 predictions = predictions_raw[:, 0]
@@ -594,7 +596,9 @@ def step4c_plot_forecasts(
             # Ensure predictions is 1D for plotting (should already be from step4b)
             predictions = np.array(predictions).squeeze()
             logger.info(f"  Predictions shape for plotting: {predictions.shape}")
-            logger.info(f"  Predictions range: [{predictions.min():.2f}, {predictions.max():.2f}]")
+            logger.info(
+                f"  Predictions range: [{predictions.min():.2f}, {predictions.max():.2f}]"
+            )
 
             # Create plot
             plt.figure(figsize=(15, 6))
