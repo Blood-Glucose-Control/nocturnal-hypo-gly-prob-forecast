@@ -103,7 +103,7 @@ class BaseTimeSeriesFoundationModel(ABC):
 
     # Abstract methods for model-specific implementation
     def _initialize_model(self) -> None
-    def _prepare_data(self, train_data, val_data, test_data)
+    def _prepare_training_data(self, train_data, val_data, test_data)
     def _create_training_arguments(self, output_dir)
     def _compute_metrics(self, eval_pred)
     def _load_model_weights(self, model_dir)
@@ -142,7 +142,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             freeze_backbone=self.config.freeze_backbone,
         )
 
-    def _prepare_data(self, train_data, val_data, test_data):
+    def _prepare_training_data(self, train_data, val_data, test_data):
         # Integrates with your existing data pipeline
         loader = get_loader(data_source_name=train_data, use_cached=True)
         data = loader.processed_data
@@ -213,7 +213,7 @@ python scripts/examples/test_base_framework.py
 ### From Existing TTM Code
 
 1. **Extract Configuration**: Move parameters to `TTMConfig`
-2. **Wrap Training Logic**: Implement `_prepare_data()` and `_compute_metrics()`
+2. **Wrap Training Logic**: Implement `_prepare_training_data()` and `_compute_metrics()`
 3. **Preserve Existing Code**: Framework calls your existing functions
 4. **Add New Features**: LoRA, distributed training come for free
 
@@ -227,7 +227,7 @@ python scripts/examples/test_base_framework.py
 ## Next Steps
 
 1. **Test Framework**: Run `test_base_framework.py`
-2. **Integrate Data**: Adapt `_prepare_data()` to your specific data format
+2. **Integrate Data**: Adapt `_prepare_training_data()` to your specific data format
 3. **Test Training**: Run actual training with your datasets
 4. **Add Models**: Implement Chronos, TimeGPT using same pattern
 5. **Experiment Management**: Add experiment tracking and model registry

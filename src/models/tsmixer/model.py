@@ -97,7 +97,7 @@ class TSMixerForecaster(BaseTimeSeriesFoundationModel):
             error_print(f"Failed to initialize TSMixer model: {str(e)}")
             raise
 
-    def _prepare_data(
+    def _prepare_training_data(
         self,
         train_data: Any,
         val_data: Optional[Any] = None,

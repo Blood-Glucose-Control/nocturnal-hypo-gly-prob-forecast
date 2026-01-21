@@ -44,16 +44,16 @@ This module provides a production-ready implementation of the TTM (TinyTimeMixer
 ├──────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌─────────────────┐         ┌──────────────────────────────────────┐    │
-│  │   BaseTimeSeriesFoundationModel      │         │      TTMForecaster                   │    │
+│  │BaseTSFM         │         │ TTMForecaster                        │    │
 │  │ (Abstract Base) │◄────────│  - Concrete TTM implementation       │    │
 │  │                 │         │                                      │    │
 │  │ Abstract:       │         │ Implements:                          │    │
 │  │ • fit()         │         │ • _initialize_model()                │    │
-│  │ • predict()     │         │ • _prepare_data()                    │    │
+│  │ • predict()     │         │ • _prepare_training_data()                    │    │
 │  │ • save()        │         │ • _train_model()                     │    │
 │  │ • load()        │         │ • _save_model_weights()              |    │
-│  └─────────────────┘         │ • _load_model_weights()              │    │
-│                              │                                      │    │
+│  │ • evaluate()    │         │ • _load_model_weights()              │    │
+│  └─────────────────┘         │                                      │    │
 │                              │ TTM-Specific:                        │    │
 │                              │ • predict_zero_shot()                │    │
 │                              │ • get_ttm_specific_info()            │    │
@@ -175,7 +175,7 @@ Input Data Format
    │  )                                     │
    │                                        │
    │  Internal Flow:                        │
-   │    ├─► _prepare_data()                 │
+   │    ├─► _prepare_training_data()                 │
    │    │     • Create column specifiers    │
    │    │     • Initialize preprocessor     │
    │    │     • Create DataLoaders          │
@@ -259,7 +259,7 @@ Main model class that implements the TTM forecasting pipeline.
 
 **Private Methods:**
 - `_initialize_model()`: Load pre-trained TTM
-- `_prepare_data()`: Create DataLoaders
+- `_prepare_training_data()`: Create DataLoaders
 - `_train_model()`: Execute training loop
 - `_create_training_arguments()`: Configure HF Trainer
 - `_compute_trainer_metrics()`: Custom metrics

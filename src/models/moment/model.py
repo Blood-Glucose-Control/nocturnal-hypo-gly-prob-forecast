@@ -97,7 +97,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             raise ValueError("Model must be fitted before making predictions")
 
         # Prepare data for prediction
-        data_loader, _, _ = self._prepare_data(data)
+        data_loader, _, _ = self._prepare_training_data(data)
 
         # Set model to evaluation mode
         self.model.eval()
@@ -182,7 +182,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             error_print(f"Failed to initialize Moment model: {str(e)}")
             raise
 
-    def _prepare_data(
+    def _prepare_training_data
         self, data: Any, split: Optional[str] = None
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
         """Prepare data for training or inference.
@@ -199,7 +199,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
         raise NotImplementedError(
             "Data preparation for Moment not yet implemented. "
-            "Please implement data preprocessing in _prepare_data()."
+            "Please implement data preprocessing in _prepare_training_data()."
         )
 
     def _get_training_args(self) -> TrainingArguments:

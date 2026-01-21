@@ -103,7 +103,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             raise ValueError("Model must be fitted before making predictions")
 
         # Prepare data for prediction
-        data_loader, _, _ = self._prepare_data(data, None, None)
+        data_loader, _, _ = self._prepare_training_data(data, None, None)
 
         # Set model to evaluation mode
         if hasattr(self.model, "eval"):
@@ -230,7 +230,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             error_print(f"Failed to initialize TimesFM model: {str(e)}")
             raise
 
-    def _prepare_data(
+    def _prepare_training_data
         self,
         train_data: Any,
         val_data: Optional[Any] = None,
@@ -251,7 +251,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         raise NotImplementedError(
             "Data preparation for TimesFM not yet implemented. "
-            "Please implement data preprocessing in _prepare_data()."
+            "Please implement data preprocessing in _prepare_training_data()."
         )
 
     def _get_training_args(self) -> TrainingArguments:

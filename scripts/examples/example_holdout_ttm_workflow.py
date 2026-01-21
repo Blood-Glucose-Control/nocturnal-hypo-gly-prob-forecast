@@ -461,7 +461,24 @@ def step4b_generate_forecasts(
             logger.info(f"Columns for model: {forecast_cols_for_model}")
 
             # Generate predictions
-            predictions = model.predict(forecast_data_for_model)
+            predictions_raw = model.predict(forecast_data_for_model)
+
+            # TTM returns predictions in shape (samples, forecast_length, num_channels)
+            # For univariate glucose prediction, we need channel 0
+            # Following tsfm_public.toolkit.visualization pattern: predictions[:, :, channel]
+            logger.info(f"  Raw predictions shape: {predictions_raw.shape}")
+
+            if len(predictions_raw.shape) == 3:
+                # Shape: (samples, forecast_length, num_channels) -> extract channel 0 for glucose
+                predictions = predictions_raw[0, :, 0]  # First sample, all timesteps, first channel (glucose)
+            elif len(predictions_raw.shape) == 2:
+                # Shape: (forecast_length, num_channels) -> extract channel 0
+                predictions = predictions_raw[:, 0]
+            else:
+                # Shape: (forecast_length,) -> already 1D
+                predictions = predictions_raw.squeeze()
+
+            logger.info(f"  Extracted glucose predictions shape: {predictions.shape}")
 
             # Extract glucose values
             glucose_col = "bg_mM"
@@ -489,10 +506,11 @@ def step4b_generate_forecasts(
             }
 
             logger.info(f"✓ Generated forecast for {dataset_name}")
-            logger.info(f"  Predictions shape: {predictions.shape}")
-            logger.info(f"  Predictions preview: {predictions[:5]}")
-            logger.info(f"  Historical data points: {len(historical_glucose)}")
-            logger.info(f"  Actual future data points: {len(actual_glucose)}")
+            logger.info(f"  Raw predictions shape: {predictions_raw.shape}")
+            logger.info(f"  Extracted glucose predictions shape: {predictions.shape}")
+            logger.info(f"  Glucose predictions preview (first 5): {predictions[:5]}")
+            logger.info(f"  Historical glucose points: {len(historical_glucose)}")
+            logger.info(f"  Actual future glucose points: {len(actual_glucose)}")
 
             # Save predictions to JSON for quick inspection (handles multi-dimensional data better)
             predictions_json = (
@@ -504,8 +522,9 @@ def step4b_generate_forecasts(
             predictions_data = {
                 "dataset": dataset_name,
                 "patient_id": str(first_patient),
-                "predictions_shape": list(predictions.shape),
-                "predictions": predictions.tolist(),  # Convert numpy to list for JSON
+                "raw_predictions_shape": list(predictions_raw.shape),
+                "glucose_predictions_shape": list(predictions.shape),
+                "glucose_predictions": predictions.tolist(),  # Convert numpy to list for JSON
                 "forecast_length": forecast_length,
                 "context_length": context_length,
             }
@@ -571,6 +590,11 @@ def step4c_plot_forecasts(
             actual_glucose = results["actual_glucose"]
             patient_id = results["patient_id"]
             context_length = results["context_length"]
+
+            # Ensure predictions is 1D for plotting (should already be from step4b)
+            predictions = np.array(predictions).squeeze()
+            logger.info(f"  Predictions shape for plotting: {predictions.shape}")
+            logger.info(f"  Predictions range: [{predictions.min():.2f}, {predictions.max():.2f}]")
 
             # Create plot
             plt.figure(figsize=(15, 6))

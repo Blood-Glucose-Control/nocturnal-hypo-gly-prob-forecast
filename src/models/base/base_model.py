@@ -299,9 +299,7 @@ class BaseTimeSeriesFoundationModel(ABC):
     # Abstract methods that child classes must implement
     ## Abstract public API methods
     @abstractmethod
-    def predict(
-        self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
-    ) -> Union[np.ndarray, Dict[str, Any]]:
+    def predict(self, data: Any, batch_size: Optional[int] = None) -> np.ndarray:
         """
         Make predictions on new data.
 
@@ -311,10 +309,9 @@ class BaseTimeSeriesFoundationModel(ABC):
         Args:
             data: Input data for prediction
             batch_size: Batch size for prediction (defaults to config.batch_size)
-            return_dict: Whether to return additional information
 
         Returns:
-            Predictions as numpy array or dictionary with additional info
+            Predictions as numpy array
         """
         pass
 
@@ -325,19 +322,17 @@ class BaseTimeSeriesFoundationModel(ABC):
         pass
 
     @abstractmethod
-    def _prepare_data(
+    def _prepare_training_data(
         self,
         train_data: Any,
-        val_data: Optional[Any] = None,
-        test_data: Optional[Any] = None,
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
         """
         Prepare data loaders for training, validation, and testing.
+        
+        Data splitting is controlled by model configuration.
 
         Args:
-            train_data: Training dataset
-            val_data: Validation dataset (optional)
-            test_data: Test dataset (optional)
+            train_data: Training dataset (will be split based on config)
 
         Returns:
             Tuple of (train_loader, val_loader, test_loader)
@@ -366,18 +361,16 @@ class BaseTimeSeriesFoundationModel(ABC):
     def _train_model(
         self,
         train_data: Any,
-        val_data: Optional[Any],
-        test_data: Optional[Any],
         output_dir: str,
         **kwargs,
     ) -> Dict[str, Any]:
         """
         Model-specific training implementation.
+        
+        Data splitting for train/val/test is controlled by model configuration.
 
         Args:
-            train_data: Training dataset
-            val_data: Validation dataset (optional)
-            test_data: Test dataset (optional)
+            train_data: Training dataset (will be split based on config)
             output_dir: Directory to save outputs
             **kwargs: Additional arguments
         """
@@ -387,8 +380,6 @@ class BaseTimeSeriesFoundationModel(ABC):
     def fit(
         self,
         train_data: Any,
-        val_data: Optional[Any] = None,
-        test_data: Optional[Any] = None,
         output_dir: str = "./output",
         **kwargs,
     ) -> Dict[str, Any]:
@@ -400,12 +391,13 @@ class BaseTimeSeriesFoundationModel(ABC):
         - Calling the model-specific training implementation
         - Saving training metadata
         - Cleaning up distributed resources
+        
+        Data splitting for train/val/test is controlled by model configuration.
 
         Args:
             train_data: Training dataset. Format depends on the specific model
                 implementation (e.g., DataFrame, Dataset, or data source name).
-            val_data: Validation dataset for monitoring training progress.
-            test_data: Test dataset for final evaluation after training.
+                Will be split into train/val/test based on model config.
             output_dir: Directory path where model checkpoints, logs, and
                 metadata will be saved.
             **kwargs: Additional keyword arguments passed to the model-specific
@@ -431,7 +423,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         try:
             # Let each model handle its own training
             metrics = self._train_model(
-                train_data, val_data, test_data, output_dir, **kwargs
+                train_data, output_dir, **kwargs
             )
 
             # Post-training state updates
@@ -451,8 +443,11 @@ class BaseTimeSeriesFoundationModel(ABC):
             self._cleanup_distributed()
 
     def evaluate(
-        self, test_data: Any, return_predictions: bool = False
-    ) -> Dict[str, Any]:
+        self,
+        test_data: Any,
+        batch_size: Optional[int] = None,
+        return_predictions: bool = False,
+    ) -> Dict[str, Any]:  # Values can be floats, arrays, etc.
         """
         Evaluate the model on test data.
 
@@ -461,6 +456,7 @@ class BaseTimeSeriesFoundationModel(ABC):
 
         Args:
             test_data: Test dataset (format depends on model's _prepare_data)
+            batch_size: Batch size for evaluation (defaults to config.batch_size)
             return_predictions: Whether to include predictions in output
 
         Returns:
@@ -470,7 +466,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             raise ValueError("Model must be fitted before evaluation")
 
         # Get predictions using the child's predict implementation
-        predictions = self.predict(test_data)
+        predictions = self.predict(test_data, batch_size=batch_size)
 
         # Extract ground truth from test data
         # Child classes may need to override if their data format differs
@@ -480,11 +476,8 @@ class BaseTimeSeriesFoundationModel(ABC):
         metrics = self._compute_metrics(predictions, y_true)
 
         if return_predictions:
-            return {
-                "metrics": metrics,
-                "predictions": predictions,
-                "ground_truth": y_true,
-            }
+            metrics["predictions"] = predictions
+            metrics["ground_truth"] = y_true
 
         return metrics
 

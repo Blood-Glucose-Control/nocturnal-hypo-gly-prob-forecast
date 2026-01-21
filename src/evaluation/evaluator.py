@@ -73,7 +73,7 @@ def compare_models(
             continue
 
         # Prepare test data
-        _, _, test_loader = model._prepare_data(None, None, test_data)
+        _, _, test_loader = model._prepare_training_data(None, None, test_data)
 
         # Evaluate model
         model_metrics = model.evaluate(test_loader)
