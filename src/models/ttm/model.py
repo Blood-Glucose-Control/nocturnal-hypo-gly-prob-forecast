@@ -7,7 +7,7 @@ the base TSFM framework, demonstrating how to integrate existing models.
 
 import os
 import logging
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
 
 import numpy as np
 import pandas as pd
@@ -137,7 +137,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         batch_size: Optional[int] = None,
         inverse_scale: bool = True,
         return_dict: bool = False,
-    ) -> np.ndarray:
+    ) -> Union[np.ndarray, Dict[str, Any]]:
         """Make predictions on new data.
 
         Args:
@@ -149,6 +149,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         Returns:
             Predictions as numpy array (in original scale if inverse_scale=True)
+            or a dictionary with predictions and metadata if return_dict=True.
 
         Raises:
             ValueError: If model has not been fitted
@@ -177,7 +178,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         # Convert to numpy if needed
         if hasattr(predictions, "cpu"):
-            predictions = predictions.cpu().numpy()  # py ignore
+            predictions = predictions.cpu().numpy()  # type: ignore
         elif not isinstance(predictions, np.ndarray):
             predictions = np.array(predictions)
 
@@ -480,6 +481,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         # Create datasets using tsfm_public get_datasets
         # Note: get_datasets returns (train, val, test) datasets but lacks type stubs
+        logger.info("\n")
+        info_print("Splitting data into train/val/test sets...")
+        info_print(f"  Split config: {self.config.split_config}")
         try:
             dset_train, dset_val, dset_test = get_datasets(  # type: ignore[misc]
                 ts_preprocessor=self.preprocessor,
@@ -629,7 +633,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             train_result = trainer.train()
 
         # Save the model
-        trainer.save_model()
+        trainer.save_model(output_dir=output_dir)
 
         # Get training history directly from trainer.state (in memory)
         # This is more reliable than reading from file since trainer_state.json
@@ -794,6 +798,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
     def _compute_trainer_metrics(self, eval_pred) -> Dict[str, Any]:
         """Compute evaluation metrics for Trainer.
 
+        The HuggingFace Trainer passes an EvalPrediction object containing:
+        - predictions: Model outputs (for TTM, this is a tuple of (forecasts, embeddings))
+        - label_ids: Ground truth labels (requires label_names=["future_values"] in TrainingArguments)
+
         Args:
             eval_pred: EvalPrediction object from Trainer
 
@@ -801,27 +809,80 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             Dictionary containing computed metrics (mse, rmse, mae, mape)
         """
         try:
-            # Extract predictions and labels (handle TTM's output format)
-            if hasattr(eval_pred, "predictions"):
-                predictions = eval_pred.predictions
-                labels = eval_pred.label_ids
-            else:
-                predictions, labels = eval_pred
+            # Extract predictions and labels from EvalPrediction
+            predictions = eval_pred.predictions
+            labels = eval_pred.label_ids
+            # Log initial shapes for debugging
+            debug_print(f"Raw predictions type: {type(predictions)}")
+            debug_print(f"Raw labels type: {type(labels)}")
 
-            # Handle nested structures (common with TTM)
-            if isinstance(predictions, (tuple, list)) and len(predictions) > 0:
-                if hasattr(predictions[0], "shape"):
+            # Handle TTM's output format: predictions is (forecasts, embeddings) tuple
+            if isinstance(predictions, (tuple, list)):
+                info_print(
+                    f"Predictions is tuple/list with {len(predictions)} elements - extracting forecasts only"
+                )
+                if len(predictions) > 0 and hasattr(predictions[0], "shape"):
+                    # First element is the forecasts, second is embeddings (discarded)
                     predictions = predictions[0]
+                    info_print(f"Extracted forecasts shape: {predictions.shape}")
+                else:
+                    info_print(
+                        "WARNING: Could not extract forecasts from tuple - using raw predictions"
+                    )
 
-            if isinstance(labels, (tuple, list)) and len(labels) > 0:
-                if hasattr(labels[0], "shape"):
+            # Handle labels - may be tuple/list or direct array
+            if isinstance(labels, (tuple, list)):
+                debug_print(f"Labels is tuple/list with {len(labels)} elements")
+                if len(labels) > 0 and hasattr(labels[0], "shape"):
                     labels = labels[0]
+                    debug_print(f"Extracted labels shape: {labels.shape}")
 
             # Convert to numpy arrays
             if not isinstance(predictions, np.ndarray):
                 predictions = np.array(predictions)
             if not isinstance(labels, np.ndarray):
                 labels = np.array(labels)
+
+            info_print(f"Final predictions shape: {predictions.shape}")
+            info_print(f"Final labels shape: {labels.shape}")
+            # Print first few values AFTER extraction to see actual scaled values
+            info_print(
+                f"  Predictions (first 5 of first sample): {predictions[0, :5, 0] if len(predictions.shape) == 3 else predictions[:5]}"
+            )
+            info_print(
+                f"  Labels (first 5 of first sample): {labels[0, :5, 0] if len(labels.shape) == 3 else labels[:5]}"
+            )
+
+            # Check for empty labels (indicates label_names not configured properly)
+            if labels.size == 0:
+                error_print(
+                    "Labels array is empty. Ensure TrainingArguments has "
+                    "label_names=['future_values'] configured."
+                )
+                return {"custom_error": "Empty labels - check label_names config"}
+
+            # Handle shape mismatch - predictions and labels should align
+            # Predictions shape: (batch, forecast_length, num_output_channels)
+            # Labels shape: (batch, forecast_length, num_channels) where num_channels >= num_output_channels
+            if predictions.shape != labels.shape:
+                # If predictions has fewer channels than labels (target_columns subset),
+                # slice labels to match the number of output channels
+                if (
+                    len(predictions.shape) == 3
+                    and len(labels.shape) == 3
+                    and predictions.shape[:2] == labels.shape[:2]
+                ):
+                    num_output_channels = predictions.shape[2]
+                    labels = labels[:, :, :num_output_channels]
+                    debug_print(f"Sliced labels to match predictions: {labels.shape}")
+                else:
+                    error_print(
+                        f"Shape mismatch: predictions {predictions.shape} vs "
+                        f"labels {labels.shape}"
+                    )
+                    return {
+                        "custom_error": f"Shape mismatch: {predictions.shape} vs {labels.shape}"
+                    }
 
             # Compute metrics
             mse = np.mean((predictions - labels) ** 2)
@@ -843,11 +904,14 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 "mape": float(mape),
             }
 
-            debug_print(f"Computed metrics: {metrics}")
+            info_print(f"Computed evaluation metrics: {metrics}")
             return metrics
 
         except Exception as e:
             error_print(f"\nError computing metrics: {str(e)}")
+            import traceback
+
+            debug_print(traceback.format_exc())
             return {"custom_error": str(e)}
 
     def _get_callbacks(self) -> List:
@@ -929,6 +993,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             "load_best_model_at_end": False,  # Disabled since eval is off
             "fp16": self.config.fp16,
             "dataloader_num_workers": self.config.dataloader_num_workers,
+            # Tell Trainer that 'future_values' in the batch is the labels field
+            # This ensures EvalPrediction.label_ids is populated correctly
+            "label_names": ["future_values"],
             "use_cpu": self.config.use_cpu,
             "report_to": "none",  # Disable wandb/tensorboard by default
             "disable_tqdm": False,  # Keep progress bar enabled
@@ -941,31 +1008,3 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         base_args.update(distributed_args)
 
         return TrainingArguments(**base_args)
-
-
-# Factory function for creating TTM models
-def create_ttm_model(
-    model_path: str = "ibm-granite/granite-timeseries-ttm-r2",
-    context_length: int = 512,
-    forecast_length: int = 96,
-    **kwargs,
-) -> TTMForecaster:
-    """Factory function to create a TTM model.
-
-    Args:
-        model_path: Path to TTM model
-        context_length: Input sequence length
-        forecast_length: Prediction horizon
-        **kwargs: Additional configuration parameters
-
-    Returns:
-        Configured TTM forecaster instance
-    """
-    config = TTMConfig(
-        model_path=model_path,
-        context_length=context_length,
-        forecast_length=forecast_length,
-        **kwargs,
-    )
-
-    return TTMForecaster(config)

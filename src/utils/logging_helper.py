@@ -92,9 +92,9 @@ def info_print(*args, rank_zero_only=True, **kwargs):
 
     caller = _get_caller_name()
     if caller:
-        print("\nINFO:", caller, *args, file=sys.stderr, flush=True, **kwargs)
+        print("INFO:", caller, *args, file=sys.stderr, flush=True, **kwargs)
     else:
-        print("\nINFO:", *args, file=sys.stderr, flush=True, **kwargs)
+        print("INFO:", *args, file=sys.stderr, flush=True, **kwargs)
 
 
 def error_print(*args, rank_zero_only=True, **kwargs):
@@ -112,9 +112,9 @@ def error_print(*args, rank_zero_only=True, **kwargs):
 
     caller = _get_caller_name()
     if caller:
-        print("\nERROR:", caller, *args, file=sys.stderr, flush=True, **kwargs)
+        print("ERROR:", caller, *args, file=sys.stderr, flush=True, **kwargs)
     else:
-        print("\nERROR:", *args, file=sys.stderr, flush=True, **kwargs)
+        print("ERROR:", *args, file=sys.stderr, flush=True, **kwargs)
 
 
 def debug_print(*args, rank_zero_only=True, **kwargs):
@@ -137,6 +137,6 @@ def debug_print(*args, rank_zero_only=True, **kwargs):
 
     caller = _get_caller_name()
     if caller:
-        print("\nDEBUG:", caller, *args, file=sys.stderr, flush=True, **kwargs)
+        print("DEBUG:", caller, *args, file=sys.stderr, flush=True, **kwargs)
     else:
-        print("\nDEBUG:", *args, file=sys.stderr, flush=True, **kwargs)
+        print("DEBUG:", *args, file=sys.stderr, flush=True, **kwargs)

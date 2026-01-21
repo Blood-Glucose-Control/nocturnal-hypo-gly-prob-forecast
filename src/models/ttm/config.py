@@ -133,6 +133,7 @@ class TTMConfig(ModelConfig):
             "input_features",
             "target_features",
             "split_config",
+            "fewshot_percent",
             "num_input_channels",
             "num_output_channels",
             "prediction_filter_length",

@@ -343,6 +343,7 @@ def step4_train_ttm_model(
         num_epochs=num_epochs,
         use_cpu=use_cpu,
         fp16=gpu_info["gpu_available"] and not use_cpu,
+        fewshot_percent=10,  # Use 10% of training data (few-shot)
     )
 
     logger.info("Model config:")
@@ -432,7 +433,7 @@ def step4b_generate_forecasts(
             patient_data = holdout_data[holdout_data[patient_col] == first_patient]
 
             logger.info(
-                f"First holdout datframe: {first_patient}"
+                f"First holdout dataframe: {first_patient}"
             )  # Will be a temporal holdout slice
             logger.info(f"Patient data shape: {patient_data.shape}")
             logger.info(f"Patient data preview:\n{patient_data.head()}")
@@ -921,7 +922,7 @@ def main():
                 args.output_dir,
                 num_epochs=args.epochs,
             )
-            logger.info(f"Plotting with columns: {list(combined_train_data.columns)}")
+
             # Step 4b: Generate forecasts
             forecast_results = step4b_generate_forecasts(
                 model,
@@ -963,6 +964,7 @@ def main():
             num_epochs=args.epochs,  # Use same epochs config
             use_cpu=not gpu_info["gpu_available"],
             fp16=gpu_info["gpu_available"],
+            fewshot_percent=10,  # Use 10% of training data (few-shot)
         )
 
         model = step6_load(str(model_path), config)
