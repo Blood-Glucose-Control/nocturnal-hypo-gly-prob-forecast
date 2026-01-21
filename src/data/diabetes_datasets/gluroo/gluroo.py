@@ -11,11 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 from datasets import IterableDataset, load_dataset
-import pyarrow.compute as pc
-import pyarrow as pa
-import pyarrow.dataset as ds
 from sqlalchemy import create_engine, text
-import torch
 from src.data.models import ColumnNames
 from src.data.cache_manager import get_cache_manager
 from src.data.diabetes_datasets.dataset_base import DatasetBase
@@ -131,7 +127,7 @@ class GlurooDataLoader(DatasetBase):
         Then splits the processed data into training and validation sets.
 
         Note: processed_data will remain empty to avoid loading all data into memory.
-        Use get_parquet_dataset() for streaming access to the Parquet files.
+        Use get_hf_streaming_dataset() for streaming access to the Parquet files.
         """
         need_to_process_data = True
         if self.use_cached:
@@ -375,10 +371,17 @@ class GlurooDataLoader(DatasetBase):
                 f"Completed processing and saving batch {batch_num}/{total_batches}"
             )
 
-    def _process_raw_data(
-        self, raw_data: pd.DataFrame, gid: str
-    ) -> pd.DataFrame | None:
-        pass
+    def _process_raw_data(self):
+        """
+        Required by DatasetBase.
+
+        Gluroo processing is handled via `_process_and_cache_data()` and
+        `_process_one_patient()` in a batched/streaming workflow.
+        """
+        raise NotImplementedError(
+            "GlurooDataLoader does not implement a single in-memory _process_raw_data() step. "
+            "Use `_process_and_cache_data()` to build Parquet cache and `get_hf_streaming_dataset()` to stream it."
+        )
 
     def _process_raw_data_batch(
         self,
@@ -791,122 +794,6 @@ class GlurooDataLoader(DatasetBase):
             f"Saved {total_files} Parquet batch files across {len(partition_groups)} partitions"
         )
 
-    # TODO: THIS SHOULD BE REMOVED TOO
-    def _load_from_parquet(
-        self, batch_size: int = 100000
-    ) -> dict[str, pd.DataFrame] | None:
-        """
-        Load processed data from partitioned Parquet files.
-
-        WARNING: This loads the ENTIRE dataset into memory. For large datasets,
-        use get_parquet_dataset() instead for true streaming access.
-
-        Reads data in batches for I/O efficiency, but still accumulates all data in memory.
-
-        Args:
-            batch_size (int): Number of rows to process per batch. Default is 100000.
-                Can be tuned for memory/performance optimization.
-
-        Returns:
-            Dictionary mapping patient IDs to DataFrames, or None if Parquet files don't exist
-        """
-        processed_path = self.cache_manager.get_absolute_path_by_type(
-            self.dataset_name, "processed"
-        )
-        parquet_path = processed_path / "parquet"
-
-        if not parquet_path.exists():
-            return None
-
-        # Check if parquet directory has partition subdirectories
-        # List of all partition=* directories: like [partition=000, partition=001, ...]
-        partition_dirs = [
-            d
-            for d in parquet_path.iterdir()
-            if d.is_dir() and d.name.startswith("partition=")
-        ]
-        if not partition_dirs:
-            return None
-
-        logger.info(
-            f"Loading data from {len(partition_dirs)} Parquet partitions (lazy loading)..."
-        )
-
-        # Use PyArrow Dataset for efficient lazy reading
-        try:
-            dataset = ds.dataset(str(parquet_path), format="parquet")
-
-            # Use scanner for lazy batch reading
-            # https://arrow.apache.org/docs/python/dataset.html#writing-large-amounts-of-data
-            scanner = dataset.scanner()
-
-            # Dictionary to accumulate data by patient_id
-            processed_data: dict[str, list[pd.DataFrame]] = {}
-
-            # Read data in batches
-            for batch in scanner.to_batches(max_rows=batch_size):
-                # Convert batch to pandas DataFrame
-                df_batch = batch.to_pandas()
-
-                # Group by patient_id and accumulate
-                for patient_id, group_df in df_batch.groupby("patient_id"):
-                    if patient_id not in processed_data:
-                        processed_data[patient_id] = []
-                    processed_data[patient_id].append(group_df)
-
-            # Combine all batches for each patient and format
-            result = {}
-            for patient_id, df_list in processed_data.items():
-                # Concatenate all batches for this patient
-                patient_df = pd.concat(df_list, ignore_index=True)
-
-                # Set datetime as index if it exists
-                if "datetime" in patient_df.columns:
-                    patient_df = patient_df.sort_values("datetime").set_index(
-                        "datetime"
-                    )
-                    patient_df.index = pd.to_datetime(patient_df.index)
-                else:
-                    # If no datetime column, sort by index
-                    patient_df = patient_df.sort_index()
-
-                # Remove patient_id column (it was added for grouping)
-                patient_df = patient_df.drop(columns=["patient_id"], errors="ignore")
-                result[patient_id] = patient_df
-
-            logger.info(f"Loaded {len(result)} patients from Parquet (lazy loading)")
-            return result
-
-        except Exception as e:
-            logger.warning(f"Error loading from Parquet: {e}")
-            return None
-
-    def get_parquet_dataset(self) -> ds.Dataset:
-        """
-        Get PyArrow Dataset for streaming access to Parquet files. The entire processed data can be treated as a single logical dataset.
-
-        This is useful for training with PyTorch DataLoader where you want
-        to stream data efficiently without loading everything into memory.
-
-        Returns:
-            PyArrow Dataset object, or None if Parquet files don't exist
-        """
-        # this does not load the data. If needed, it only crawls the dir to find all the files
-        processed_path = self.cache_manager.get_absolute_path_by_type(
-            self.dataset_name, "processed"
-        )
-        parquet_path = processed_path / "parquet"
-
-        if not parquet_path.exists():
-            raise FileNotFoundError(f"Parquet files not found at {parquet_path}")
-
-        try:
-            dataset = ds.dataset(str(parquet_path), format="parquet")
-            return dataset
-        except Exception as e:
-            logger.warning(f"Error creating PyArrow Dataset: {e}")
-            raise
-
     def get_hf_streaming_dataset(
         self,
         columns: list[str] | None = None,
@@ -977,79 +864,6 @@ class GlurooDataLoader(DatasetBase):
                 ) from e
 
         return dataset
-
-    def get_torch_iterable(
-        self,
-        columns: list[str] | None = None,
-        batch_size: int = 8192,
-        patient_ids: Iterable[str] | None = None,
-    ) -> torch.utils.data.IterableDataset:
-        """
-        Create a torch IterableDataset that streams batches from the Parquet dataset.
-
-        Args:
-            columns: Columns to project. If None, all columns are used (not recommended for large data).
-            batch_size: Arrow batch size for streaming (separate from Trainer per-device batch).
-            patient_ids: Optional iterable of patient_ids to filter (expects string p_num identifiers).
-
-        Returns:
-            torch.utils.data.IterableDataset suitable for Hugging Face Trainer.
-        """
-
-        base_ds = self.get_parquet_dataset()
-        if patient_ids:
-            patient_ids_set = set(patient_ids)
-            base_ds = base_ds.filter(pc.field("patient_id").isin(patient_ids_set))
-
-        projected_cols = columns
-
-        class GlurooIterable(torch.utils.data.IterableDataset):
-            def __iter__(self_inner):
-                for batch in base_ds.to_batches(
-                    columns=projected_cols, batch_size=batch_size
-                ):
-                    data = {}
-                    for col_name in (
-                        batch.schema.names if projected_cols is None else projected_cols
-                    ):
-                        col = batch.column(col_name)
-                        if pa.types.is_integer(col.type):
-                            tensor = torch.tensor(
-                                col.to_numpy(zero_copy_only=False), dtype=torch.int64
-                            )
-                        elif pa.types.is_floating(col.type):
-                            tensor = torch.tensor(
-                                col.to_numpy(zero_copy_only=False), dtype=torch.float32
-                            )
-                        else:
-                            # Fallback: keep as Python objects (e.g., strings); users can post-process in collate_fn
-                            tensor = col.to_pylist()
-                        data[col_name] = tensor
-
-                    # Yield whole batch (tensors where possible, python lists for strings)
-                    # Downstream DataLoader/Trainer can use a collate_fn to handle list->tensor or keep strings as-is.
-                    yield data
-
-        return GlurooIterable()
-
-    def peek_parquet(
-        self,
-        columns: list[str] | None = None,
-        n_rows: int = 20,
-    ) -> pd.DataFrame:
-        """
-        Return a small Pandas sample from the Parquet dataset without loading everything.
-
-        Args:
-            columns: Columns to project. If None, all columns are returned.
-            n_rows: Number of rows to peek (pulled from the first batch).
-        """
-        dataset = self.get_parquet_dataset()
-        try:
-            batch = next(dataset.to_batches(columns=columns, batch_size=n_rows))
-        except StopIteration:
-            return pd.DataFrame()
-        return batch.to_pandas().head(n_rows)
 
 
 # Standalone function for parallel processing
