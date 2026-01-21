@@ -2,14 +2,15 @@
 """
 End-to-end example: Holdout system with TTM training and evaluation.
 
-This script demonstrates the complete workflow:
+This script demonstrates the complete TTMForecaster workflow including:
 1. Generate holdout configurations
 2. Validate configurations
 3. Load and combine training data from multiple datasets
-4. Train TTM model on combined data
-5. Save model
-6. Load model
-7. Evaluate on holdout sets per dataset
+4. Zero-shot evaluation (pretrained model, no fine-tuning)
+5. Fine-tune model for one epoch and evaluate
+6. Load checkpointed model and evaluate (verify save/load works)
+7. Resume training on loaded model and evaluate
+8. Full holdout evaluation on all datasets
 
 Usage:
     # Run with default settings (combine all 4 datasets, 5% holdout, 1 epoch)
@@ -44,6 +45,7 @@ from src.data.preprocessing.dataset_combiner import (
 from src.data.preprocessing.imputation import impute_missing_values
 from src.models.base import DistributedConfig, GPUManager
 from src.models.ttm import TTMForecaster, TTMConfig
+from src.models.ttm.config import create_ttm_zero_shot_config
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -55,6 +57,362 @@ logging.getLogger("src.data.preprocessing").setLevel(logging.WARNING)
 logging.getLogger("src.data.diabetes_datasets").setLevel(logging.WARNING)
 logging.getLogger("src.models").setLevel(logging.WARNING)
 logging.getLogger("src.utils").setLevel(logging.WARNING)
+
+# =============================================================================
+# HELPER FUNCTIONS: Prediction Generation and Plotting
+# =============================================================================
+
+
+def _generate_forecasts(
+    model: TTMForecaster,
+    training_columns: list,
+    dataset_names: list,
+    config_dir: str,
+    output_dir: str,
+    phase_name: str,
+    zero_shot: bool = False,
+):
+    """Helper: Generate forecasts using the model and holdout data.
+
+    Args:
+        model: TTM forecaster (trained or pretrained)
+        training_columns: List of column names used during training
+        dataset_names: List of dataset names to generate forecasts for
+        config_dir: Directory containing holdout configurations
+        output_dir: Directory where prediction files will be saved
+        phase_name: Identifier for this phase (e.g., "zero_shot", "after_training")
+        zero_shot: If True, use predict_zero_shot() instead of predict()
+
+    Returns:
+        Dict[str, Dict]: Dictionary mapping dataset names to forecast results
+    """
+    logger.info(f"  Generating forecasts for phase: {phase_name}")
+
+    try:
+        context_length = model.config.context_length
+        forecast_length = model.config.forecast_length
+        registry = DatasetRegistry(holdout_config_dir=config_dir)
+
+        # Create predictions output directory with phase identifier
+        predictions_dir = Path(output_dir) / "predictions" / phase_name
+        predictions_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"  Predictions output directory: {predictions_dir}")
+
+        forecast_results = {}
+
+        # Process each dataset's first holdout patient
+        for dataset_name in dataset_names:
+            logger.info(f"  --- Generating forecast for dataset: {dataset_name} ---")
+
+            # Load holdout data
+            holdout_data = registry.load_holdout_data_only(dataset_name)
+
+            # Get first patient
+            patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
+            first_patient = holdout_data[patient_col].iloc[0]
+            patient_data = holdout_data[holdout_data[patient_col] == first_patient]
+
+            logger.info(f"  First holdout patient: {first_patient}")
+            logger.info(f"  Patient data shape: {patient_data.shape}")
+
+            forecast_cols = [
+                col for col in training_columns if col in patient_data.columns
+            ]
+            # Slice to get context + forecast length
+            total_length = context_length + forecast_length
+            forecast_data = patient_data.iloc[:total_length][forecast_cols].copy()
+
+            logger.info(f"  Forecast data shape: {forecast_data.shape}")
+
+            # Keep necessary columns for TTM preprocessing (p_num, datetime)
+            # Only remove source_dataset if present
+            exclude_cols = ["source_dataset"]
+            forecast_cols_for_model = [
+                col for col in forecast_data.columns if col not in exclude_cols
+            ]
+            forecast_data_for_model = forecast_data[forecast_cols_for_model].copy()
+
+            # Generate predictions
+            if zero_shot:
+                predictions_raw = model.predict_zero_shot(forecast_data_for_model)
+            else:
+                predictions_raw = model.predict(forecast_data_for_model)
+
+            # TTM returns predictions in shape (samples, forecast_length, num_channels)
+            # For univariate glucose prediction, we need channel 0
+            logger.info(f"    Raw predictions shape: {predictions_raw.shape}")
+
+            if len(predictions_raw.shape) == 3:
+                predictions = predictions_raw[0, :, 0]
+            elif len(predictions_raw.shape) == 2:
+                predictions = predictions_raw[:, 0]
+            else:
+                predictions = predictions_raw.squeeze()
+
+            logger.info(f"    Extracted glucose predictions shape: {predictions.shape}")
+
+            # Extract glucose values
+            glucose_col = "bg_mM"
+            historical_glucose = forecast_data[glucose_col].values[:context_length]
+            actual_glucose = forecast_data[glucose_col].values[context_length:]
+
+            # Extract datetime values for the forecast period
+            datetime_col = "datetime"
+            if datetime_col in forecast_data.columns:
+                forecast_datetimes = forecast_data[datetime_col].values[
+                    context_length : context_length + forecast_length
+                ]
+            else:
+                forecast_datetimes = None
+
+            # Store results
+            forecast_results[dataset_name] = {
+                "predictions": predictions,
+                "historical_glucose": historical_glucose,
+                "actual_glucose": actual_glucose,
+                "patient_id": first_patient,
+                "context_length": context_length,
+                "forecast_length": forecast_length,
+                "forecast_datetimes": forecast_datetimes,
+            }
+
+            logger.info(f"  ✓ Generated forecast for {dataset_name}")
+            logger.info(f"    Glucose predictions preview (first 5): {predictions[:5]}")
+
+            # Save predictions to JSON for quick inspection
+            predictions_json = (
+                predictions_dir
+                / f"{phase_name}_{dataset_name}_patient{first_patient}.json"
+            )
+
+            # Prepare data for JSON serialization
+            predictions_data = {
+                "phase": phase_name,
+                "dataset": dataset_name,
+                "patient_id": str(first_patient),
+                "raw_predictions_shape": list(predictions_raw.shape),
+                "glucose_predictions_shape": list(predictions.shape),
+                "glucose_predictions": predictions.tolist(),
+                "forecast_length": forecast_length,
+                "context_length": context_length,
+            }
+
+            if forecast_datetimes is not None:
+                predictions_data["forecast_datetimes"] = [
+                    str(dt) for dt in forecast_datetimes
+                ]
+
+            import json
+
+            with open(predictions_json, "w") as f:
+                json.dump(predictions_data, f, indent=2)
+
+            logger.info(f"    ✓ Predictions saved to: {predictions_json}")
+
+        logger.info(f"  ✓ Forecast generation completed for phase: {phase_name}")
+        return forecast_results
+
+    except Exception as e:
+        logger.error(f"  ✗ Failed to generate forecasts: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return None
+
+
+def _plot_forecasts(
+    forecast_results: dict,
+    output_dir: str,
+    phase_name: str,
+):
+    """Helper: Create plots and save forecast visualizations.
+
+    Args:
+        forecast_results: Dictionary from _generate_forecasts containing forecast data
+        output_dir: Directory where plots will be saved
+        phase_name: Identifier for this phase (e.g., "zero_shot", "after_training")
+    """
+    logger.info(f"  Plotting forecasts for phase: {phase_name}")
+
+    if forecast_results is None:
+        logger.error("  ✗ No forecast results to plot")
+        return False
+
+    try:
+        import pandas as pd
+
+        # Create forecast output directory with phase identifier
+        forecast_dir = Path(output_dir) / "forecasts" / phase_name
+        forecast_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"  Forecast output directory: {forecast_dir}")
+
+        # Plot each dataset's forecast
+        for dataset_name, results in forecast_results.items():
+            logger.info(f"  --- Plotting forecast for dataset: {dataset_name} ---")
+
+            predictions = results["predictions"]
+            historical_glucose = results["historical_glucose"]
+            actual_glucose = results["actual_glucose"]
+            patient_id = results["patient_id"]
+            context_length = results["context_length"]
+
+            # Ensure predictions is 1D for plotting
+            predictions = np.array(predictions).squeeze()
+            logger.info(f"    Predictions shape for plotting: {predictions.shape}")
+            logger.info(
+                f"    Predictions range: [{predictions.min():.2f}, {predictions.max():.2f}]"
+            )
+
+            # Create plot
+            plt.figure(figsize=(15, 6))
+
+            # Plot historical data
+            historical_time = np.arange(len(historical_glucose))
+            plt.plot(
+                historical_time,
+                historical_glucose,
+                "b-",
+                label="Historical Data",
+                linewidth=2,
+            )
+
+            # Plot actual future values
+            actual_time = np.arange(
+                len(historical_glucose), len(historical_glucose) + len(actual_glucose)
+            )
+            plt.plot(actual_time, actual_glucose, "g-", label="Actual", linewidth=2)
+
+            # Plot forecast
+            forecast_time = np.arange(
+                len(historical_glucose), len(historical_glucose) + len(predictions)
+            )
+            plt.plot(forecast_time, predictions, "r--", label="Forecast", linewidth=2)
+
+            # Add vertical line at forecast start
+            plt.axvline(
+                x=len(historical_glucose),
+                color="gray",
+                linestyle=":",
+                linewidth=1.5,
+                label="Forecast Start",
+            )
+
+            # Add reference lines for hypo/hyper thresholds (in mM)
+            plt.axhline(
+                y=3.9,
+                color="orange",
+                linestyle="--",
+                linewidth=1,
+                alpha=0.5,
+                label="Hypoglycemia (3.9 mM)",
+            )
+            plt.axhline(
+                y=10.0,
+                color="red",
+                linestyle="--",
+                linewidth=1,
+                alpha=0.5,
+                label="Hyperglycemia (10.0 mM)",
+            )
+
+            # Labels and title
+            plt.xlabel("Time Steps", fontsize=12)
+            plt.ylabel("Blood Glucose (mM)", fontsize=12)
+            plt.title(
+                f"[{phase_name.upper()}] Blood Glucose Forecast - {dataset_name} "
+                f"(Context: {context_length}, Patient: {patient_id})",
+                fontsize=14,
+            )
+            plt.legend(loc="best", fontsize=10)
+            plt.grid(True, alpha=0.3)
+
+            # Save plot
+            plot_path = forecast_dir / f"{phase_name}_{dataset_name}_forecast.png"
+            plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+            logger.info(f"    ✓ Forecast plot saved to: {plot_path}")
+
+            plt.close()
+
+            # Save forecast data to CSV
+            forecast_csv_path = forecast_dir / f"{phase_name}_{dataset_name}_data.csv"
+            forecast_data_df = pd.DataFrame(
+                {
+                    "time_step": list(historical_time) + list(actual_time),
+                    "historical": list(historical_glucose)
+                    + [np.nan] * len(actual_glucose),
+                    "actual": [np.nan] * len(historical_glucose) + list(actual_glucose),
+                    "forecast": [np.nan] * len(historical_glucose) + list(predictions),
+                }
+            )
+            forecast_data_df.to_csv(forecast_csv_path, index=False)
+            logger.info(f"    ✓ Forecast data saved to: {forecast_csv_path}")
+
+        logger.info(f"  ✓ Forecast plotting completed for phase: {phase_name}")
+        return True
+
+    except Exception as e:
+        logger.error(f"  ✗ Failed to plot forecasts: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return False
+
+
+def _evaluate_and_plot(
+    model: TTMForecaster,
+    training_columns: list,
+    dataset_names: list,
+    config_dir: str,
+    output_dir: str,
+    phase_name: str,
+    zero_shot: bool = False,
+):
+    """Helper: Generate forecasts and plots for a given phase.
+
+    This is the main helper that combines forecast generation and plotting.
+    Called after each major workflow phase (zero-shot, training, loading, etc.)
+
+    Args:
+        model: TTM forecaster
+        training_columns: List of column names from training data
+        dataset_names: List of dataset names
+        config_dir: Holdout config directory
+        output_dir: Output directory for artifacts
+        phase_name: Identifier for this phase
+        zero_shot: If True, use predict_zero_shot() for inference
+
+    Returns:
+        dict: Forecast results, or None if failed
+    """
+    logger.info("-" * 40)
+    logger.info(f"Evaluating and plotting for phase: {phase_name}")
+    logger.info("-" * 40)
+
+    # Generate forecasts
+    forecast_results = _generate_forecasts(
+        model=model,
+        training_columns=training_columns,
+        dataset_names=dataset_names,
+        config_dir=config_dir,
+        output_dir=output_dir,
+        phase_name=phase_name,
+        zero_shot=zero_shot,
+    )
+
+    # Plot forecasts
+    if forecast_results is not None:
+        _plot_forecasts(
+            forecast_results=forecast_results,
+            output_dir=output_dir,
+            phase_name=phase_name,
+        )
+
+    return forecast_results
+
+
+# =============================================================================
+# STEP FUNCTIONS
+# =============================================================================
 
 
 def step1_generate_holdout_configs(
@@ -308,13 +666,24 @@ def step3_load_training_data(dataset_names: list, config_dir: str):
     return combined_data
 
 
-def step4_train_ttm_model(
-    combined_data, dataset_names: list, output_dir: str, num_epochs: int = 1
+def step4_zero_shot_evaluation(
+    dataset_names: list,
+    training_columns: list,
+    config_dir: str,
+    output_dir: str,
 ):
-    """Step 4: Train TTM model on combined dataset."""
+    """Step 4: Zero-shot evaluation using pretrained model (no fine-tuning).
+
+    This demonstrates the TTM's pretrained capabilities on glucose forecasting
+    before any domain-specific fine-tuning. Uses the proper zero-shot configuration
+    with freeze_backbone=True and num_epochs=0.
+
+    Note: This step creates a temporary model just for zero-shot evaluation.
+    Step 5 will create a fresh model for fine-tuning.
+    """
     logger.info(" ")
     logger.info("=" * 80)
-    logger.info("STEP 4: Train TTM Model")
+    logger.info("STEP 4: Zero-Shot Evaluation (Pretrained Model)")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
     logger.info("=" * 80)
 
@@ -323,41 +692,109 @@ def step4_train_ttm_model(
     logger.info(f"GPU available: {gpu_info['gpu_available']}")
     logger.info(f"GPU count: {gpu_info['gpu_count']}")
 
-    # Single GPU training (no distributed)
+    # Single GPU (no distributed)
     distributed_config = DistributedConfig(enabled=False)
     use_cpu = not gpu_info["gpu_available"]
 
-    # Create logging directory path with dataset info
-    # Note: output_dir already includes job ID from the shell script
-    # logging_dir = Path(output_dir) / f"hf_model_training_logs"
-    # logging_dir.mkdir(parents=True, exist_ok=True)
-    # logger.info(f"Creating HF logging directory: \n\t {logging_dir}")
+    # Use proper zero-shot configuration
+    # This sets training_mode="zero_shot", freeze_backbone=True, num_epochs=0
+    # Following tsfm_public pattern: TinyTimeMixerForPrediction.from_pretrained(...)
+    config = create_ttm_zero_shot_config(
+        model_path="ibm-granite/granite-timeseries-ttm-r2",
+        context_length=512,
+        forecast_length=96,
+        batch_size=2048,
+        use_cpu=use_cpu,
+        fp16=gpu_info["gpu_available"] and not use_cpu,
+    )
 
-    # TTM configuration
+    logger.info("Zero-shot model config:")
+    logger.info(f"  Context length: {config.context_length}")
+    logger.info(f"  Forecast length: {config.forecast_length}")
+    logger.info(f"  Model path: {config.model_path}")
+    logger.info(f"  Training mode: {config.training_mode}")
+    logger.info(f"  Freeze backbone: {config.freeze_backbone}")
+    logger.info(f"  Num epochs: {config.num_epochs}")
+
+    # Create model (loads pretrained weights with frozen backbone)
+    model = TTMForecaster(config, distributed_config=distributed_config)
+    logger.info("✓ Pretrained TTM model loaded (zero-shot mode)")
+
+    # Evaluate and plot for zero-shot phase
+    _evaluate_and_plot(
+        model=model,
+        training_columns=training_columns,
+        dataset_names=dataset_names,
+        config_dir=config_dir,
+        output_dir=output_dir,
+        phase_name="0_zero_shot",
+        zero_shot=True,
+    )
+
+    logger.info("✓ Zero-shot evaluation completed")
+    # Note: We don't return the model - step5 will create a fresh one for training
+
+
+def step5_train_model(
+    combined_data,
+    dataset_names: list,
+    training_columns: list,
+    config_dir: str,
+    output_dir: str,
+    num_epochs: int = 1,
+):
+    """Step 5: Fine-tune TTM model on combined dataset.
+
+    Creates a fresh model configured for fine-tuning (not zero-shot).
+
+    Args:
+        combined_data: Combined training DataFrame
+        dataset_names: List of dataset names
+        training_columns: Column names from training data
+        config_dir: Holdout config directory
+        output_dir: Output directory
+        num_epochs: Number of training epochs
+
+    Returns:
+        tuple: (model, config, results, model_path) - Trained model, config, training results, and save path
+    """
+    logger.info(" ")
+    logger.info("=" * 80)
+    logger.info("STEP 5: Fine-tune TTM Model")
+    logger.info(f"Datasets: {', '.join(dataset_names)}")
+    logger.info(f"Epochs: {num_epochs}")
+    logger.info("=" * 80)
+
+    # GPU setup
+    gpu_info = GPUManager.get_gpu_info()
+    distributed_config = DistributedConfig(enabled=False)
+    use_cpu = not gpu_info["gpu_available"]
+
+    # Create a fresh model configured for fine-tuning (not zero-shot)
     config = TTMConfig(
         model_path="ibm-granite/granite-timeseries-ttm-r2",
         context_length=512,
         forecast_length=96,
         batch_size=2048,
-        learning_rate=1e-4,
         num_epochs=num_epochs,
+        training_mode="fine_tune",
+        freeze_backbone=False,  # Trainable for fine-tuning
         use_cpu=use_cpu,
         fp16=gpu_info["gpu_available"] and not use_cpu,
-        fewshot_percent=10,  # Use 10% of training data (few-shot)
     )
 
-    logger.info("Model config:")
+    logger.info("Fine-tuning config:")
     logger.info(f"  Context length: {config.context_length}")
     logger.info(f"  Forecast length: {config.forecast_length}")
-    logger.info(f"  Batch size: {config.batch_size}")
-    logger.info(f"  Epochs: {config.num_epochs}")
-    # logger.info(f"  Logging directory: {logging_dir}")
+    logger.info(f"  Model path: {config.model_path}")
+    logger.info(f"  Training mode: {config.training_mode}")
+    logger.info(f"  Freeze backbone: {config.freeze_backbone}")
+    logger.info(f"  Num epochs: {config.num_epochs}")
 
-    # Create model
+    # Create fresh model for fine-tuning
     model = TTMForecaster(config, distributed_config=distributed_config)
-    logger.info("✓ TTM model created")
+    logger.info("✓ Fresh TTM model created for fine-tuning")
 
-    # Train
     print(f"\n>>> Starting training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {output_dir}")
     print(f">>> Training with {num_epochs} epoch(s)...\n")
@@ -365,390 +802,127 @@ def step4_train_ttm_model(
     logger.info(f"Output directory: {output_dir}")
 
     try:
-        # Pass the combined DataFrame directly instead of dataset name
+        # Train the model
         results = model.fit(train_data=combined_data, output_dir=output_dir)
-        print("\n>>> Training completed successfully on combined datasets\n")
+        print("\n>>> Training completed successfully\n")
         logger.info("✓ Training completed")
         logger.info(f"  Results: {list(results.keys())}")
-        return model, results
+
+        # Save model checkpoint
+        model_path = Path(output_dir) / "model.pt"
+        model_path.parent.mkdir(parents=True, exist_ok=True)
+        model.save(str(model_path))
+        logger.info(f"✓ Model saved to: {model_path}")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
+
+        # Evaluate and plot after training
+        _evaluate_and_plot(
+            model=model,
+            training_columns=training_columns,
+            dataset_names=dataset_names,
+            config_dir=config_dir,
+            output_dir=output_dir,
+            phase_name="1_after_training",
+        )
+
+        return model, config, results, model_path
+
     except Exception as e:
         print(f"\n>>> ERROR: Training failed: {e}\n")
         logger.error(f"✗ Training failed: {e}")
         raise
 
 
-def step4b_generate_forecasts(
-    model: TTMForecaster,
+def step6_load_checkpoint(
+    model_path: Path,
+    config: TTMConfig,
     training_columns: list,
     dataset_names: list,
     config_dir: str,
     output_dir: str,
 ):
-    """Step 4b: Generate forecasts using the trained model and holdout data.
+    """Step 6: Load model from checkpoint and verify it works.
+
+    This step demonstrates that the model can be saved and loaded correctly.
 
     Args:
-        model: Trained TTM forecaster
-        training_columns: List of column names used during training
-        dataset_names: List of dataset names to generate forecasts for
-        config_dir: Directory containing holdout configurations
-        output_dir: Directory where prediction CSV files will be saved
+        model_path: Path to the saved model checkpoint
+        config: TTMConfig for loading the model
+        training_columns: Column names from training data
+        dataset_names: List of dataset names
+        config_dir: Holdout config directory
+        output_dir: Output directory
 
     Returns:
-        Dict[str, Dict]: Dictionary mapping dataset names to forecast results containing:
-            - predictions: Model predictions array
-            - historical_glucose: Historical glucose values
-            - actual_glucose: Actual future glucose values
-            - patient_id: ID of the patient used for forecasting
-            - context_length: Length of context window
-            - forecast_length: Length of forecast horizon
+        TTMForecaster: Loaded model
     """
     logger.info(" ")
     logger.info("=" * 80)
-    logger.info("STEP 4b: Generate Forecasts")
-    logger.info(f"Datasets: {', '.join(dataset_names)}")
+    logger.info("STEP 6: Load Model from Checkpoint")
     logger.info("=" * 80)
 
-    try:
-        context_length = model.config.context_length
-        forecast_length = model.config.forecast_length
-        registry = DatasetRegistry(holdout_config_dir=config_dir)
+    model_path = Path(model_path)
 
-        # Create predictions output directory
-        predictions_dir = Path(output_dir) / "predictions"
-        predictions_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Predictions output directory: {predictions_dir}")
-
-        forecast_results = {}
-
-        # Process each dataset's first holdout patient
-        for dataset_name in dataset_names:
-            logger.info(f"--- Generating forecast for dataset: {dataset_name} ---")
-
-            # Load holdout data
-            holdout_data = registry.load_holdout_data_only(dataset_name)
-
-            # Get first patient
-            patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
-            first_patient = holdout_data[patient_col].iloc[0]
-            patient_data = holdout_data[holdout_data[patient_col] == first_patient]
-
-            logger.info(
-                f"First holdout dataframe: {first_patient}"
-            )  # Will be a temporal holdout slice
-            logger.info(f"Patient data shape: {patient_data.shape}")
-            logger.info(f"Patient data preview:\n{patient_data.head()}")
-
-            forecast_cols = [
-                col for col in training_columns if col in patient_data.columns
-            ]
-            # Slice to get context + forecast length
-            total_length = context_length + forecast_length
-            forecast_data = patient_data.iloc[:total_length][forecast_cols].copy()
-
-            logger.info(f"Forecast data shape: {forecast_data.shape}")
-            logger.info(f"Forecast data preview:\n{forecast_data.head()}")
-
-            # Keep necessary columns for TTM preprocessing (p_num, datetime)
-            # Only remove source_dataset if present
-            exclude_cols = ["source_dataset"]
-            forecast_cols_for_model = [
-                col for col in forecast_data.columns if col not in exclude_cols
-            ]
-            forecast_data_for_model = forecast_data[forecast_cols_for_model].copy()
-
-            logger.info(
-                f"Forecast data for model shape: {forecast_data_for_model.shape}"
-            )
-            logger.info(f"Columns for model: {forecast_cols_for_model}")
-
-            # Generate predictions
-            predictions_raw = model.predict(forecast_data_for_model)
-
-            # TTM returns predictions in shape (samples, forecast_length, num_channels)
-            # For univariate glucose prediction, we need channel 0
-            # Following tsfm_public.toolkit.visualization pattern: predictions[:, :, channel]
-            logger.info(f"  Raw predictions shape: {predictions_raw.shape}")
-
-            if len(predictions_raw.shape) == 3:
-                # Shape: (samples, forecast_length, num_channels) -> extract channel 0 for glucose
-                predictions = predictions_raw[
-                    0, :, 0
-                ]  # First sample, all timesteps, first channel (glucose)
-            elif len(predictions_raw.shape) == 2:
-                # Shape: (forecast_length, num_channels) -> extract channel 0
-                predictions = predictions_raw[:, 0]
-            else:
-                # Shape: (forecast_length,) -> already 1D
-                predictions = predictions_raw.squeeze()
-
-            logger.info(f"  Extracted glucose predictions shape: {predictions.shape}")
-
-            # Extract glucose values
-            glucose_col = "bg_mM"
-            historical_glucose = forecast_data[glucose_col].values[:context_length]
-            actual_glucose = forecast_data[glucose_col].values[context_length:]
-
-            # Extract datetime values for the forecast period
-            datetime_col = "datetime"
-            if datetime_col in forecast_data.columns:
-                forecast_datetimes = forecast_data[datetime_col].values[
-                    context_length : context_length + forecast_length
-                ]
-            else:
-                forecast_datetimes = None
-
-            # Store results
-            forecast_results[dataset_name] = {
-                "predictions": predictions,
-                "historical_glucose": historical_glucose,
-                "actual_glucose": actual_glucose,
-                "patient_id": first_patient,
-                "context_length": context_length,
-                "forecast_length": forecast_length,
-                "forecast_datetimes": forecast_datetimes,
-            }
-
-            logger.info(f"✓ Generated forecast for {dataset_name}")
-            logger.info(f"  Raw predictions shape: {predictions_raw.shape}")
-            logger.info(f"  Extracted glucose predictions shape: {predictions.shape}")
-            logger.info(f"  Glucose predictions preview (first 5): {predictions[:5]}")
-            logger.info(f"  Historical glucose points: {len(historical_glucose)}")
-            logger.info(f"  Actual future glucose points: {len(actual_glucose)}")
-
-            # Save predictions to JSON for quick inspection (handles multi-dimensional data better)
-            predictions_json = (
-                predictions_dir
-                / f"predictions_{dataset_name}_patient{first_patient}.json"
-            )
-
-            # Prepare data for JSON serialization
-            predictions_data = {
-                "dataset": dataset_name,
-                "patient_id": str(first_patient),
-                "raw_predictions_shape": list(predictions_raw.shape),
-                "glucose_predictions_shape": list(predictions.shape),
-                "glucose_predictions": predictions.tolist(),  # Convert numpy to list for JSON
-                "forecast_length": forecast_length,
-                "context_length": context_length,
-            }
-
-            # Add datetime info if available
-            if forecast_datetimes is not None:
-                predictions_data["forecast_datetimes"] = [
-                    str(dt) for dt in forecast_datetimes
-                ]
-
-            # Save as JSON
-            import json
-
-            with open(predictions_json, "w") as f:
-                json.dump(predictions_data, f, indent=2)
-
-            logger.info(f"  ✓ Predictions saved to: {predictions_json}")
-
-        logger.info("\n✓ Forecast generation completed successfully")
-        return forecast_results
-
-    except Exception as e:
-        logger.error(f"✗ Failed to generate forecasts: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return None
-
-
-def step4c_plot_forecasts(
-    forecast_results: dict,
-    output_dir: str,
-):
-    """Step 4c: Create plots and save forecast visualizations.
-
-    Args:
-        forecast_results: Dictionary from step4b_generate_forecasts containing forecast data
-        output_dir: Directory where plots and CSV files will be saved
-    """
-    logger.info(" ")
-    logger.info("=" * 80)
-    logger.info("STEP 4c: Plot Forecasts")
-    logger.info("=" * 80)
-
-    if forecast_results is None:
-        logger.error("✗ No forecast results to plot")
-        return False
-
-    try:
-        import pandas as pd
-
-        # Create forecast output directory
-        forecast_dir = Path(output_dir) / "forecasts"
-        forecast_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Forecast output directory: {forecast_dir}")
-
-        # Plot each dataset's forecast
-        for dataset_name, results in forecast_results.items():
-            logger.info(f"\n--- Plotting forecast for dataset: {dataset_name} ---")
-
-            predictions = results["predictions"]
-            historical_glucose = results["historical_glucose"]
-            actual_glucose = results["actual_glucose"]
-            patient_id = results["patient_id"]
-            context_length = results["context_length"]
-
-            # Ensure predictions is 1D for plotting (should already be from step4b)
-            predictions = np.array(predictions).squeeze()
-            logger.info(f"  Predictions shape for plotting: {predictions.shape}")
-            logger.info(
-                f"  Predictions range: [{predictions.min():.2f}, {predictions.max():.2f}]"
-            )
-
-            # Create plot
-            plt.figure(figsize=(15, 6))
-
-            # Plot historical data
-            historical_time = np.arange(len(historical_glucose))
-            plt.plot(
-                historical_time,
-                historical_glucose,
-                "b-",
-                label="Historical Data",
-                linewidth=2,
-            )
-
-            # Plot actual future values
-            actual_time = np.arange(
-                len(historical_glucose), len(historical_glucose) + len(actual_glucose)
-            )
-            plt.plot(actual_time, actual_glucose, "g-", label="Actual", linewidth=2)
-
-            # Plot forecast
-            forecast_time = np.arange(
-                len(historical_glucose), len(historical_glucose) + len(predictions)
-            )
-            plt.plot(forecast_time, predictions, "r--", label="Forecast", linewidth=2)
-
-            # Add vertical line at forecast start
-            plt.axvline(
-                x=len(historical_glucose),
-                color="gray",
-                linestyle=":",
-                linewidth=1.5,
-                label="Forecast Start",
-            )
-
-            # Add reference lines for hypo/hyper thresholds (in mM)
-            plt.axhline(
-                y=3.9,
-                color="orange",
-                linestyle="--",
-                linewidth=1,
-                alpha=0.5,
-                label="Hypoglycemia (3.9 mM)",
-            )
-            plt.axhline(
-                y=10.0,
-                color="red",
-                linestyle="--",
-                linewidth=1,
-                alpha=0.5,
-                label="Hyperglycemia (10.0 mM)",
-            )
-
-            # Labels and title
-            plt.xlabel("Time Steps", fontsize=12)
-            plt.ylabel("Blood Glucose (mM)", fontsize=12)
-            plt.title(
-                f"Blood Glucose Forecast - {dataset_name} Context Length {context_length}, (Patient {patient_id})",
-                fontsize=14,
-            )
-            plt.legend(loc="best", fontsize=10)
-            plt.grid(True, alpha=0.3)
-
-            # Save plot
-            plot_path = forecast_dir / f"forecast_plot_{dataset_name}.png"
-            plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-            logger.info(f"✓ Forecast plot saved to: {plot_path}")
-
-            plt.close()
-
-            # Save forecast data to CSV
-            forecast_csv_path = forecast_dir / f"forecast_data_{dataset_name}.csv"
-            forecast_data_df = pd.DataFrame(
-                {
-                    "time_step": list(historical_time) + list(actual_time),
-                    "historical": list(historical_glucose)
-                    + [np.nan] * len(actual_glucose),
-                    "actual": [np.nan] * len(historical_glucose) + list(actual_glucose),
-                    "forecast": [np.nan] * len(historical_glucose) + list(predictions),
-                }
-            )
-            forecast_data_df.to_csv(forecast_csv_path, index=False)
-            logger.info(f"✓ Forecast data saved to: {forecast_csv_path}")
-
-        logger.info("\n✓ Forecast plotting completed successfully")
-        return True
-
-    except Exception as e:
-        logger.error(f"✗ Failed to plot forecasts: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-def step5_save(model: TTMForecaster, save_path: Path):
-    """Step 5: Save trained model."""
-    logger.info("=" * 80)
-    logger.info("STEP 5: Save Trained Model")
-    logger.info("=" * 80)
-
-    save_path = Path(save_path)
-    save_path.parent.mkdir(parents=True, exist_ok=True)
-
-    try:
-        model.save(str(save_path))
-        logger.info(f"✓ Model saved to: {save_path}")
-        logger.info(f"  Size: {save_path.stat().st_size / (1024*1024):.2f} MB")
-        return True
-    except Exception as e:
-        logger.error(f"✗ Failed to save model: {e}")
-        return False
-
-
-def step6_load(load_path: str, config: TTMConfig):
-    """Step 6: Load trained model."""
-    logger.info("=" * 80)
-    logger.info("STEP 6: Load Trained Model")
-    logger.info("=" * 80)
-
-    load_path = Path(load_path)
-
-    if not load_path.exists():
-        logger.error(f"✗ Model file not found: {load_path}")
+    if not model_path.exists():
+        logger.error(f"✗ Model file not found: {model_path}")
         return None
     else:
-        logger.info(f"✓ Model file found: {load_path}")
+        logger.info(f"✓ Model file found: {model_path}")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
 
     try:
         # Load using the class method
-        model = TTMForecaster.load(str(load_path), config)
-        logger.info(f"✓ Model loaded from: {load_path}")
+        model = TTMForecaster.load(str(model_path), config)
+        logger.info(f"✓ Model loaded from: {model_path}")
+
+        # Evaluate and plot after loading (to verify it works)
+        _evaluate_and_plot(
+            model=model,
+            training_columns=training_columns,
+            dataset_names=dataset_names,
+            config_dir=config_dir,
+            output_dir=output_dir,
+            phase_name="2_after_loading",
+        )
+
         return model
+
     except Exception as e:
         logger.error(f"✗ Failed to load model: {e}")
+        import traceback
+
+        traceback.print_exc()
         return None
 
 
-def step6b_continue_training(
+def step7_resume_training(
     model: TTMForecaster,
     combined_data,
     dataset_names: list,
+    training_columns: list,
+    config_dir: str,
     output_dir: str,
     num_epochs: int = 1,
 ):
-    """Step 6b: Continue training on loaded model for additional epochs."""
+    """Step 7: Resume training on loaded model for additional epochs.
+
+    This demonstrates the ability to continue training from a checkpoint.
+
+    Args:
+        model: Loaded TTM model
+        combined_data: Training data
+        dataset_names: List of dataset names
+        training_columns: Column names from training data
+        config_dir: Holdout config directory
+        output_dir: Output directory
+        num_epochs: Number of additional epochs
+
+    Returns:
+        tuple: (model, results, model_path) - Updated model, results, and save path
+    """
     logger.info(" ")
     logger.info("=" * 80)
-    logger.info("STEP 6b: Continue Training Loaded Model")
+    logger.info("STEP 7: Resume Training on Loaded Model")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
     logger.info(f"Additional epochs: {num_epochs}")
     logger.info("=" * 80)
@@ -768,91 +942,157 @@ def step6b_continue_training(
     else:
         logger.warning("⚠ Model does not have training_history attribute")
 
-    print(f"\n>>> Continuing training on combined datasets: {', '.join(dataset_names)}")
-    print(f">>> Output directory: {output_dir}")
+    # Create output directory for resumed training
+    resumed_output_dir = Path(output_dir) / "resumed_training"
+    resumed_output_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"\n>>> Resuming training on combined datasets: {', '.join(dataset_names)}")
+    print(f">>> Output directory: {resumed_output_dir}")
     print(f">>> Training with {num_epochs} additional epoch(s)...\n")
 
     try:
-        # Continue training - the model should resume from its current state
-        results = model.fit(train_data=combined_data, output_dir=output_dir)
-        print("\n>>> Continued training completed successfully\n")
-        logger.info("✓ Continued training completed")
+        # Continue training
+        results = model.fit(
+            train_data=combined_data, output_dir=str(resumed_output_dir)
+        )
+        print("\n>>> Resumed training completed successfully\n")
+        logger.info("✓ Resumed training completed")
         logger.info(f"  Results: {list(results.keys())}")
 
-        # Check training history after continued training
-        if hasattr(model, "training_history"):
-            if isinstance(model.training_history, dict) and model.training_history:
-                if "log_history" in model.training_history:
-                    logger.info(
-                        f"  Updated log history entries: {len(model.training_history['log_history'])}"
-                    )
-                if "best_metric" in model.training_history:
-                    logger.info(
-                        f"  Best metric after continued training: {model.training_history['best_metric']}"
-                    )
+        # Save the model after resumed training
+        model_path = resumed_output_dir / "model.pt"
+        model.save(str(model_path))
+        logger.info(f"✓ Resumed model saved to: {model_path}")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
 
-        return model, results
+        # Evaluate and plot after resumed training
+        _evaluate_and_plot(
+            model=model,
+            training_columns=training_columns,
+            dataset_names=dataset_names,
+            config_dir=config_dir,
+            output_dir=output_dir,
+            phase_name="3_after_resumed_training",
+        )
+
+        return model, results, model_path
+
     except Exception as e:
-        print(f"\n>>> ERROR: Continued training failed: {e}\n")
-        logger.error(f"✗ Continued training failed: {e}")
+        print(f"\n>>> ERROR: Resumed training failed: {e}\n")
+        logger.error(f"✗ Resumed training failed: {e}")
         raise
 
 
-def step7_evaluate_on_holdout(model: TTMForecaster, dataset_name: str, config_dir: str):
-    """Step 7: Evaluate model on holdout set."""
+def step8_full_holdout_evaluation(
+    model: TTMForecaster, dataset_names: list, config_dir: str
+):
+    """Step 8: Full evaluation on holdout sets for all datasets.
+
+    This performs the comprehensive evaluation using Trainer.evaluate()
+    on the complete holdout data for each dataset.
+
+    Args:
+        model: Trained TTM model
+        dataset_names: List of dataset names
+        config_dir: Holdout config directory
+
+    Returns:
+        dict: Mapping of dataset names to evaluation results
+    """
+    logger.info(" ")
     logger.info("=" * 80)
-    logger.info(f"### STEP 7: Evaluate on Holdout Set for {dataset_name}")
+    logger.info("STEP 8: Full Holdout Evaluation")
+    logger.info(f"Datasets: {', '.join(dataset_names)}")
     logger.info("=" * 80)
+
     registry = DatasetRegistry(holdout_config_dir=config_dir)
+    all_results = {}
 
-    # Load holdout data
-    holdout_data = registry.load_holdout_data_only(dataset_name)
-    logger.info(f"✓ Holdout data loaded: {len(holdout_data):,} samples")
+    for dataset_name in dataset_names:
+        logger.info(f"\n--- Evaluating holdout for: {dataset_name} ---")
 
-    # Log dataset info
-    if "p_num" in holdout_data.columns or "id" in holdout_data.columns:
-        patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
-        holdout_patients = holdout_data[patient_col].unique()
-        logger.info(f"  Holdout patients: {len(holdout_patients)}")
+        # Load holdout data
+        holdout_data = registry.load_holdout_data_only(dataset_name)
+        logger.info(f"✓ Holdout data loaded: {len(holdout_data):,} samples")
 
-    # Prepare data for evaluation (remove non-numeric columns)
-    exclude_cols = ["datetime", "p_num", "id", "source_dataset"]
-    numeric_cols = [col for col in holdout_data.columns if col not in exclude_cols]
-    holdout_data_numeric = holdout_data[numeric_cols].copy()
+        # Log dataset info
+        if "p_num" in holdout_data.columns or "id" in holdout_data.columns:
+            patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
+            holdout_patients = holdout_data[patient_col].unique()
+            logger.info(f"  Holdout patients: {len(holdout_patients)}")
 
-    logger.info(f"  Numeric columns for evaluation: {len(numeric_cols)}")
-    logger.info(f"  Holdout data shape: {holdout_data_numeric.shape}")
+        # Prepare data for evaluation (remove non-numeric columns)
+        exclude_cols = ["datetime", "p_num", "id", "source_dataset"]
+        numeric_cols = [col for col in holdout_data.columns if col not in exclude_cols]
+        holdout_data_numeric = holdout_data[numeric_cols].copy()
 
-    # Evaluate using the new evaluate() method
-    try:
-        logger.info("Running evaluation on holdout set using Trainer.evaluate()...")
+        logger.info(f"  Numeric columns for evaluation: {len(numeric_cols)}")
+        logger.info(f"  Holdout data shape: {holdout_data_numeric.shape}")
 
-        # Call the evaluate method with holdout data
-        eval_results = model.evaluate(test_data=holdout_data_numeric)
+        # Evaluate using the evaluate() method
+        try:
+            logger.info("  Running evaluation on holdout set...")
 
-        logger.info("✓ Evaluation completed")
-        logger.info("  Metrics:")
+            eval_results = model.evaluate(test_data=holdout_data_numeric)
 
-        # Log all metrics from evaluation
-        for key, value in eval_results.items():
-            if isinstance(value, (int, float)):
-                logger.info(f"    - {key}: {value:.6f}")
+            logger.info(f"  ✓ Evaluation completed for {dataset_name}")
+            logger.info("  Metrics:")
+
+            # Log all metrics from evaluation
+            for key, value in eval_results.items():
+                if isinstance(value, (int, float)):
+                    logger.info(f"    - {key}: {value:.6f}")
+                else:
+                    logger.info(f"    - {key}: {value}")
+
+            all_results[dataset_name] = eval_results
+
+        except Exception as e:
+            logger.error(f"  ✗ Evaluation failed for {dataset_name}: {e}")
+            import traceback
+
+            traceback.print_exc()
+            all_results[dataset_name] = None
+
+    # Summary
+    logger.info("\n" + "=" * 80)
+    logger.info("Full Holdout Evaluation Summary")
+    logger.info("=" * 80)
+    for dataset_name, results in all_results.items():
+        if results is not None:
+            # Find primary metric (usually MSE or loss)
+            primary_metric = results.get("eval_loss", results.get("mse", "N/A"))
+            if isinstance(primary_metric, float):
+                logger.info(f"  {dataset_name}: eval_loss = {primary_metric:.6f}")
             else:
-                logger.info(f"    - {key}: {value}")
+                logger.info(f"  {dataset_name}: {primary_metric}")
+        else:
+            logger.info(f"  {dataset_name}: FAILED")
 
-        return eval_results
-    except Exception as e:
-        logger.error(f"✗ Evaluation failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return None
+    return all_results
 
 
+# =============================================================================
+# MAIN WORKFLOW
+# =============================================================================
 def main():
     parser = argparse.ArgumentParser(
-        description="End-to-end holdout workflow with TTM training",
+        description="End-to-end holdout workflow demonstrating all TTMForecaster capabilities",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Workflow Steps:
+  1. Check holdout configs exist
+  2. Validate holdout configs
+  3. Load and combine training data
+  4. Zero-shot evaluation (pretrained model, no fine-tuning)
+  5. Fine-tune model for specified epochs
+  6. Load model from checkpoint (verify save/load works)
+  7. Resume training on loaded model
+  8. Full holdout evaluation on all datasets
+
+Each evaluation phase (4, 5, 6, 7) generates predictions and plots
+stored in separate subdirectories for comparison.
+        """,
     )
     parser.add_argument(
         "--datasets",
@@ -873,10 +1113,13 @@ def main():
     parser.add_argument(
         "--skip-training",
         action="store_true",
-        help="Skip training (use existing model)",
+        help="Skip training steps (only run zero-shot and load existing model)",
     )
     parser.add_argument(
-        "--epochs", type=int, default=1, help="Number of training epochs (default: 1)"
+        "--epochs",
+        type=int,
+        default=1,
+        help="Number of training epochs per phase (default: 1)",
     )
 
     args = parser.parse_args()
@@ -884,134 +1127,157 @@ def main():
     # Set output directory
     if args.output_dir is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
-        args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_default_dir_holdout_workflow"
-
-    model_path = Path(args.output_dir) / "model.pt"
+        args.output_dir = (
+            f"./trained_models/artifacts/_tsfm_testing/{timestamp}_holdout_workflow"
+        )
 
     logger.info("=" * 80)
-    logger.info("🚀 HOLDOUT SYSTEM WORKFLOW WITH TTM")
+    logger.info("🚀 TTM FORECASTER COMPLETE WORKFLOW DEMONSTRATION")
     logger.info("Start of: example_holdout_ttm_workflow.py")
     logger.info("=" * 80)
     logger.info(f"Datasets: {', '.join(args.datasets)}")
     logger.info(f"Config dir: {args.config_dir}")
     logger.info(f"Output dir: {args.output_dir}")
-    logger.info(f"Epochs: {args.epochs}")
+    logger.info(f"Epochs per phase: {args.epochs}")
+    logger.info(f"Skip training: {args.skip_training}")
     logger.info("=" * 80)
 
     try:
-        # Step 1: Check/generate holdout configs
+        # =====================================================================
+        # STEP 1: Check/generate holdout configs
+        # =====================================================================
         if not step1_generate_holdout_configs(
             args.config_dir, args.output_dir, args.datasets
         ):
             logger.error("Please generate holdout configs first")
             return
 
-        # Step 2: Validate configuration for all datasets
+        # =====================================================================
+        # STEP 2: Validate configuration for all datasets
+        # =====================================================================
         if not step2_validate_holdout_configs(args.datasets, args.config_dir):
             logger.error("Configuration validation failed")
             return
 
-        # Step 3: Load and combine training data
+        # =====================================================================
+        # STEP 3: Load and combine training data
+        # =====================================================================
         combined_train_data = step3_load_training_data(args.datasets, args.config_dir)
+        training_columns = list(combined_train_data.columns)
 
-        if not args.skip_training:
-            # Step 4: Train model on combined data
-            model, results = step4_train_ttm_model(
-                combined_train_data,
-                args.datasets,
-                args.output_dir,
-                num_epochs=args.epochs,
-            )
-
-            # Step 4b: Generate forecasts
-            forecast_results = step4b_generate_forecasts(
-                model,
-                list(combined_train_data.columns),
-                args.datasets,
-                args.config_dir,
-                args.output_dir,
-            )
-
-            # Step 4c: Plot forecasts
-            if forecast_results is not None:
-                step4c_plot_forecasts(forecast_results, args.output_dir)
-
-            # Step 5: Save model
-            if not step5_save(model, str(model_path)):
-                logger.error("Failed to save model")
-                return
-        else:
-            # Step 4: Skip training (use existing model)
-            logger.info("=" * 80)
-            logger.info("STEP 4: Train TTM Model")
-            logger.info("⏭️  Skipping training (using existing model)")
-            logger.info("=" * 80)
-            # Step 5: Skip saving model
-            logger.info("=" * 80)
-            logger.info("STEP 5: Save Trained Model")
-            logger.info("⏭️  Skipping training (No trained model to save)")
-            logger.info("=" * 80)
-
-        # Step 6: Load model
-        # Recreate config for loading
-        gpu_info = GPUManager.get_gpu_info()
-        config = TTMConfig(
-            model_path="ibm-granite/granite-timeseries-ttm-r2",
-            context_length=512,
-            forecast_length=96,
-            batch_size=2048,
-            learning_rate=1e-4,
-            num_epochs=args.epochs,  # Use same epochs config
-            use_cpu=not gpu_info["gpu_available"],
-            fp16=gpu_info["gpu_available"],
-            fewshot_percent=10,  # Use 10% of training data (few-shot)
+        # =====================================================================
+        # STEP 4: Zero-shot evaluation (pretrained model, no fine-tuning)
+        # =====================================================================
+        step4_zero_shot_evaluation(
+            dataset_names=args.datasets,
+            training_columns=training_columns,
+            config_dir=args.config_dir,
+            output_dir=args.output_dir,
         )
 
-        model = step6_load(str(model_path), config)
-        if model is None:
-            logger.error("Failed to load model")
-            return
-
-        # Step 6b: Continue training for another epoch (to test save/load/resume)
-        if not args.skip_training:
+        if args.skip_training:
             logger.info(" ")
             logger.info("=" * 80)
-            logger.info("🔄 Testing Save/Load/Resume: Continue training loaded model")
+            logger.info("⏭️  SKIPPING TRAINING STEPS (--skip-training flag set)")
             logger.info("=" * 80)
 
-            # Create a new output directory for continued training
-            continued_output_dir = Path(args.output_dir) / "continued_training"
-            continued_output_dir.mkdir(parents=True, exist_ok=True)
-
-            model, continued_results = step6b_continue_training(
-                model,
-                combined_train_data,
-                args.datasets,
-                str(continued_output_dir),
+            # Try to load existing model for evaluation
+            model_path = Path(args.output_dir) / "model.pt"
+            if model_path.exists():
+                logger.info(f"Loading existing model from: {model_path}")
+                # Create a config for loading (same as fine-tuning config)
+                # gpu_info = GPUManager.get_gpu_info()
+                config = TTMConfig(
+                    model_path="ibm-granite/granite-timeseries-ttm-r2",
+                    context_length=512,
+                    forecast_length=96,
+                )
+                model = step6_load_checkpoint(
+                    model_path=model_path,
+                    config=config,
+                    training_columns=training_columns,
+                    dataset_names=args.datasets,
+                    config_dir=args.config_dir,
+                    output_dir=args.output_dir,
+                )
+                if model is None:
+                    logger.error("Failed to load existing model")
+                    return
+            else:
+                logger.info("No existing model found, skipping evaluation steps")
+                return
+        else:
+            # =====================================================================
+            # STEP 5: Fine-tune model for one epoch
+            # =====================================================================
+            model, config, train_results, model_path = step5_train_model(
+                combined_data=combined_train_data,
+                dataset_names=args.datasets,
+                training_columns=training_columns,
+                config_dir=args.config_dir,
+                output_dir=args.output_dir,
                 num_epochs=args.epochs,
             )
 
-            # Save the model again after continued training
-            continued_model_path = continued_output_dir / "model.pt"
-            if not step5_save(model, str(continued_model_path)):
-                logger.error("Failed to save continued training model")
-                # Don't return - still evaluate
-            else:
-                logger.info(
-                    f"✓ Continued training model saved to: {continued_model_path}"
-                )
+            # =====================================================================
+            # STEP 6: Load model from checkpoint (verify save/load works)
+            # =====================================================================
+            model = step6_load_checkpoint(
+                model_path=model_path,
+                config=config,
+                training_columns=training_columns,
+                dataset_names=args.datasets,
+                config_dir=args.config_dir,
+                output_dir=args.output_dir,
+            )
+            if model is None:
+                logger.error("Failed to load model from checkpoint")
+                return
 
-        # Step 7: Evaluate on holdout for each dataset
-        for dataset_name in args.datasets:
-            logger.info(f"\nEvaluating on holdout set for: {dataset_name}")
-            step7_evaluate_on_holdout(model, dataset_name, args.config_dir)
+            # =====================================================================
+            # STEP 7: Resume training on loaded model
+            # =====================================================================
+            model, resume_results, resumed_model_path = step7_resume_training(
+                model=model,
+                combined_data=combined_train_data,
+                dataset_names=args.datasets,
+                training_columns=training_columns,
+                config_dir=args.config_dir,
+                output_dir=args.output_dir,
+                num_epochs=args.epochs,
+            )
 
+        # =====================================================================
+        # STEP 8: Full holdout evaluation on all datasets
+        # =====================================================================
+        step8_full_holdout_evaluation(
+            model=model,
+            dataset_names=args.datasets,
+            config_dir=args.config_dir,
+        )
+
+        # =====================================================================
+        # WORKFLOW COMPLETE
+        # =====================================================================
         logger.info("\n" + "=" * 80)
         logger.info("✅ WORKFLOW COMPLETED SUCCESSFULLY!")
         logger.info("=" * 80)
-        logger.info(f"Model saved at: {model_path}")
-        logger.info(f"Training outputs in: {args.output_dir}")
-        logger.info("End of : example_holdout_ttm_workflow.py")
+        logger.info(f"Output directory: {args.output_dir}")
+        logger.info("Generated artifacts:")
+        logger.info("  - predictions/zero_shot/          : Zero-shot predictions")
+        if not args.skip_training:
+            logger.info(
+                "  - predictions/after_training/     : Post-training predictions"
+            )
+            logger.info("  - predictions/after_loading/      : Post-load predictions")
+            logger.info(
+                "  - predictions/after_resumed_training/ : Post-resume predictions"
+            )
+            logger.info("  - model.pt                         : Initial trained model")
+            logger.info("  - resumed_training/model.pt        : Resumed training model")
+        logger.info("  - forecasts/*/                     : Forecast plots per phase")
+        logger.info("=" * 80)
+        logger.info("End of: example_holdout_ttm_workflow.py")
 
     except KeyboardInterrupt:
         logger.info("\n\n🛑 Workflow interrupted by user")

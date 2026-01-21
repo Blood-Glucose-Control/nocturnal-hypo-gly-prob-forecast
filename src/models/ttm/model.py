@@ -675,27 +675,92 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
     ) -> np.ndarray:
         """Make zero-shot predictions without fine-tuning.
 
+        Uses the tsfm_public pattern: create a TimeSeriesPreprocessor,
+        use get_datasets() to prepare the data, then use Trainer.predict()
+        directly on the dataset.
+
         Args:
-            data: Input data for prediction
+            data: Input data for prediction (DataFrame)
             batch_size: Batch size for prediction
 
         Returns:
             Model predictions as numpy array
         """
+        import tempfile
+
         info_print("Making zero-shot predictions with TTM")
 
-        # Temporarily override training mode and is_fitted to allow prediction
-        original_strategy = self.config.training_mode
-        original_is_fitted = self.is_fitted
-        self.config.training_mode = "zero_shot"
-        self.is_fitted = True  # Allow prediction without fitting
+        # Convert dict format to DataFrame if needed
+        if isinstance(data, dict):
+            data = pd.concat(data.values(), ignore_index=True)
 
-        try:
-            return self.predict(data, batch_size)
-        finally:
-            # Restore original state
-            self.config.training_mode = original_strategy
-            self.is_fitted = original_is_fitted
+        # Create column specifiers if needed
+        if self.column_specifiers is None:
+            self.column_specifiers = self._create_column_specifiers(data)
+
+        # Create preprocessor for zero-shot inference
+        tsp = TimeSeriesPreprocessor(
+            **self.column_specifiers,
+            context_length=self.config.context_length,
+            prediction_length=self.config.forecast_length,
+            scaling=True,
+            encode_categorical=False,
+            scaler_type=ScalerType.STANDARD.value,  # type: ignore[arg-type]
+        )
+
+        # Use get_datasets to prepare data (handles preprocessor fitting internally)
+        # Use a split that puts all data in test for inference
+        split_config = {"train": 0.33, "test": 0.33, "val": 0.34}
+
+        # Check for resolution_prefix_tuning on model config
+        use_freq_token = False
+        if self.model is not None and hasattr(self.model, "config"):
+            model_config = getattr(self.model, "config", None)
+            if model_config is not None and hasattr(
+                model_config, "resolution_prefix_tuning"
+            ):
+                use_freq_token = bool(
+                    getattr(model_config, "resolution_prefix_tuning", False)
+                )
+        info_print(f"Passing the following dataset to get_dataset: \n {data}")
+        dset_train, dset_val, dset_test = get_datasets(  # type: ignore[misc]
+            tsp,
+            data,
+            split_config,  # type: ignore[arg-type]
+            use_frequency_token=use_freq_token,
+        )
+        info_print("Data prepared for zero-shot inference")
+        # Create temporary directory for trainer output
+        temp_dir = tempfile.mkdtemp()
+
+        # Create trainer for zero-shot inference
+        zeroshot_trainer = Trainer(
+            model=self.model,
+            args=TrainingArguments(
+                output_dir=temp_dir,
+                per_device_eval_batch_size=batch_size or self.config.batch_size,
+                seed=42,
+                report_to="none",
+            ),
+        )
+
+        # Get predictions using trainer.predict()
+        info_print("Generating zero-shot predictions...")
+        predictions_output = zeroshot_trainer.predict(dset_test)
+
+        # Extract predictions from output
+        # predictions_output.predictions is a tuple: (forecasts, embeddings)
+        predictions = predictions_output.predictions[0]
+
+        # Convert to numpy if needed
+        if hasattr(predictions, "cpu"):
+            predictions = predictions.cpu().numpy()  # type: ignore[union-attr]
+        elif not isinstance(predictions, np.ndarray):
+            predictions = np.array(predictions)
+
+        info_print(f"Zero-shot predictions shape: {predictions.shape}")
+
+        return predictions
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.
