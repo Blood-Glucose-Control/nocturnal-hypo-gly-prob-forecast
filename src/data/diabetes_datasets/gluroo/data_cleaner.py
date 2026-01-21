@@ -1,10 +1,7 @@
-# Copyright (c) 2025 Blood-Glucose-Control
-# Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
-
 from typing import cast
-
+from src.data.models import ColumnNames
 import pandas as pd
+from src.utils.unit import mg_dl_to_mmol_l
 
 
 def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
@@ -13,27 +10,42 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
 
     1. blood glucose values from mg/dL to mmol/L.
     2. Convert date to datetime
-    3. Adds patient identifier "glu001" as p_num column
+    3. p_num is already included from the database query (integer value)
+    4. Sets datetime as index (required by preprocessing pipeline)
 
     Args:
-        df_raw (pd.DataFrame): Input DataFrame with raw Gluroo data
+        df_raw (pd.DataFrame): Input DataFrame with raw Gluroo data (must contain p_num column from database)
 
     Returns:
-        pd.DataFrame: DataFrame with standardized column names and formats
+        pd.DataFrame: DataFrame with standardized column names and formats, with datetime index
 
     TODO:
     - Gluroo's data might have HR, steps and activity data in the future.
     """
 
     df = df_raw.copy()
-    # TODO: Remove the dependency of p_num. Kaggle data is the very few dataset where there are multiple patients in the same file.
-    df["p_num"] = "glu001"
-    df["datetime"] = df["date"]
+    # p_num is already included from the database query (integer value)
+    df[ColumnNames.DATETIME.value] = pd.to_datetime(df["date"])
+
+    # Convert columns to numeric (handles object dtype from database)
+    numeric_columns = ["bgl", "food_g", "dose_units", "exercise_mins"]
+    for col in numeric_columns:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # Convert blood glucose from mg/dL to mmol/L
-    df["bg_mM"] = (df["bgl"] / 18.0).round(2)
+    df[ColumnNames.BG.value] = mg_dl_to_mmol_l(df, bgl_col="bgl")
+
+    # Set datetime as index (required by preprocessing pipeline)
+    df = df.set_index(ColumnNames.DATETIME.value)
+    df.index.name = ColumnNames.DATETIME.value
 
     return df
+
+
+"""
+TODO: This is not used anymore.
+"""
 
 
 def meal_identification_cleaning_pipeline(
@@ -235,6 +247,7 @@ def coerce_time_fn(
     return data_resampled
 
 
+# TODO: Not used
 def remove_num_meal(patient_df, num_meal):
     """
     Remove all days that have exactly the specified number of meals.
@@ -274,6 +287,7 @@ def remove_num_meal(patient_df, num_meal):
     return result_df.drop(columns=["day"])
 
 
+# TODO: Not used
 def erase_meal_overlap_fn(patient_df, meal_length, min_carbs):
     """
     Process the DataFrame to handle meal overlaps and combine closely timed meals.
@@ -319,6 +333,7 @@ def erase_meal_overlap_fn(patient_df, meal_length, min_carbs):
     return patient_df
 
 
+# TODO: Not used
 def keep_top_n_carb_meals(patient_df, n_top_carb_meals):
     """
     Keep only the top n carbohydrate meals per day in the DataFrame.

@@ -61,6 +61,12 @@ src/data/diabetes_datasets/**/processed/*
 scripts/notebooks/**/*.csv
 trained_models/artifacts/*
 
+
+models/*
+scripts/notebooks/AutogluonModels*
+cache/data/gluroo/processed/parquet/*
+
+
 scripts/watgpu_slurm/data_processing_scripts/results/
 
 cache/**/*.csv

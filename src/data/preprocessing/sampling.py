@@ -22,6 +22,7 @@ Functions:
     resample_to_frequency: Resample time series data to a specified frequency
 """
 
+from typing_extensions import deprecated
 import pandas as pd
 from typing import Literal, Tuple
 from src.data.models import ColumnNames
@@ -32,6 +33,7 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+@deprecated("Use ensure_regular_time_intervals_with_aggregation instead")
 def ensure_regular_time_intervals(
     df: pd.DataFrame, direction: Literal["backward", "forward", "nearest"] = "forward"
 ) -> Tuple[pd.DataFrame, int]:
@@ -62,6 +64,13 @@ def ensure_regular_time_intervals(
     original_data = df.copy()
     freq = get_most_common_time_interval(df)
     logger.info(f"\tMost common time interval: {freq} minutes")
+
+    # This is possible when there are only a few rows (new users who start and quit. They would only have system messages that are very close to each other)
+    if freq == 0:
+        gid = df[ColumnNames.P_NUM.value].iloc[0]
+        raise ValueError(
+            f"Time interval is 0 minutes. This may indicate duplicate timestamps or insufficient data. gid: {gid}"
+        )
 
     # Create complete time range for this patient
     full_time_range = pd.date_range(
@@ -146,6 +155,12 @@ def ensure_regular_time_intervals_with_aggregation(
         raise ValueError("DataFrame must have datetime index")
 
     freq = get_most_common_time_interval(df)
+    # This is possible when there are only a few rows (new users who start and quit. They would only have system messages that are very close to each other)
+    if freq == 0:
+        gid = df[ColumnNames.P_NUM.value].iloc[0]
+        raise ValueError(
+            f"Time interval is 0 minutes. This may indicate duplicate timestamps or insufficient data. Skipping gid: {gid}"
+        )
     logger.info(f"\tMost common time interval: {freq} minutes")
 
     datetime_col = ColumnNames.DATETIME.value
