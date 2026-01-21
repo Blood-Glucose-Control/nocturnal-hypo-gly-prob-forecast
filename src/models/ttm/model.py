@@ -156,8 +156,13 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         if not self.is_fitted or self.model is None:
             raise ValueError("Model must be fitted before making predictions")
 
-        # Prepare data for prediction
-        data_loader, _, _ = self._prepare_training_data(data)
+        # Prepare data for inference using the fitted preprocessor
+        # Falls back to training data prep if preprocessor not available (e.g., loaded model)
+        try:
+            data_loader = self._prepare_inference_data(data)
+        except ValueError as e:
+            info_print(f"Falling back to _prepare_training_data: {e}")
+            data_loader, _, _ = self._prepare_training_data(data)
 
         # Create trainer for inference
         trainer = self._create_inference_trainer(batch_size)
@@ -344,6 +349,74 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         except Exception as e:
             error_print(f"Failed to initialize TTM model: {str(e)}")
             raise
+
+    def _prepare_inference_data(self, data: Any) -> DataLoader:
+        """Prepare data for inference (prediction) using the existing preprocessor.
+
+        Uses the fitted preprocessor from training to scale the data and creates
+        a ForecastDFDataset for inference. Does NOT retrain scalers.
+
+        Args:
+            data: Input data for prediction (DataFrame or dict of DataFrames)
+
+        Returns:
+            DataLoader for inference
+
+        Raises:
+            ValueError: If preprocessor hasn't been trained
+        """
+        from tsfm_public.toolkit.dataset import ForecastDFDataset
+
+        if self.preprocessor is None:
+            raise ValueError(
+                "Preprocessor not available. Model must be trained before prediction, "
+                "or preprocessor must be loaded with the model."
+            )
+
+        # Convert dict format to DataFrame if needed
+        if isinstance(data, dict):
+            from src.data.data_loading import multi_patient_dict_to_df
+
+            data = multi_patient_dict_to_df(
+                patients_dict=data,
+                resolution_min=self.config.resolution_min,
+                x_features=self.config.input_features,
+                y_feature=self.config.target_features,
+            )
+            data = data.reset_index()
+
+        info_print(f"Preprocessing inference data with shape: {data.shape}")
+
+        # Use the existing preprocessor to scale the data (without retraining)
+        # preprocess() applies the fitted scalers
+        scaled_data = self.preprocessor.preprocess(data)
+
+        # Create ForecastDFDataset for inference using the preprocessor's column specs
+        inference_dataset = ForecastDFDataset(
+            data=scaled_data,
+            id_columns=self.preprocessor.id_columns,
+            timestamp_column=self.preprocessor.timestamp_column,
+            target_columns=self.preprocessor.target_columns,
+            observable_columns=self.preprocessor.observable_columns,
+            control_columns=self.preprocessor.control_columns,
+            conditional_columns=self.preprocessor.conditional_columns,
+            static_categorical_columns=self.preprocessor.static_categorical_columns,
+            context_length=self.config.context_length,
+            prediction_length=self.config.forecast_length,
+        )
+
+        # Create DataLoader for inference
+        inference_loader = DataLoader(
+            inference_dataset,
+            batch_size=self.config.batch_size,
+            shuffle=False,
+            num_workers=self.config.dataloader_num_workers,
+        )
+
+        info_print(
+            f"Created inference DataLoader with {len(inference_dataset)} samples"
+        )
+        return inference_loader
 
     def _prepare_training_data(
         self,
