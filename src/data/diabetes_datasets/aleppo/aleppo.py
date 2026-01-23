@@ -74,13 +74,13 @@ class AleppoDataLoader(DatasetBase):
                 The total sample size was 225 participants. The Dexcom G4 was used to continuously monitor glucose levels for a span of 6 months.
            """
 
-    def load_data(self):
+    def load_data(self) -> None:
         """
-        The function will load the raw data, process data and split it into train and validation.
+        Load the raw data, process data and split it into train and validation.
         If the dataset is not cached, the function will process the raw data and save it to the cache.
 
-        Returns:
-            pd.DataFrame: The loaded data as a pandas DataFrame.
+        Side Effects:
+            Sets self.processed_data, self.train_data, and self.validation_data.
         """
         need_to_process_data = True
         if self.use_cached:

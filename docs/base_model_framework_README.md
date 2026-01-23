@@ -8,7 +8,7 @@ The base model framework provides a production-ready foundation for implementing
 
 ### 🏗️ **Architecture Components**
 
-1. **`BaseTSFM`** - Abstract base class for all time series foundation models
+1. **`BaseTimeSeriesFoundationModel`** - Abstract base class for all time series foundation models
 2. **`ModelConfig`** - Comprehensive configuration management with 30+ parameters
 3. **`DistributedManager`** - Multi-GPU and multi-node distributed training
 4. **`LoRATrainer`** - Memory-efficient fine-tuning with Low-Rank Adaptation
@@ -18,7 +18,7 @@ The base model framework provides a production-ready foundation for implementing
 
 ### 🚀 **Production-Ready Capabilities**
 
-- **Unified Interface**: All models inherit from `BaseTSFM` for consistent API
+- **Unified Interface**: All models inherit from `BaseTimeSeriesFoundationModel` for consistent API
 - **Distributed Training**: PyTorch DDP, DeepSpeed, FSDP support
 - **Memory Optimization**: LoRA, gradient checkpointing, mixed precision
 - **Model Management**: Save/load, versioning, metadata tracking
@@ -67,7 +67,7 @@ results = model.fit(
 ```
 src/models/base/
 ├── __init__.py           # Exports all framework components
-├── base_model.py         # Core BaseTSFM class (500+ lines)
+├── base_model.py         # Core BaseTimeSeriesFoundationModel class (500+ lines)
 ├── distributed.py        # Distributed training utilities (300+ lines)
 └── lora_utils.py         # LoRA implementation (400+ lines)
 
@@ -82,7 +82,7 @@ src/models/ttm/
 
 **Plan (Document)**:
 ```python
-class BaseTSFM(ABC):
+class BaseTimeSeriesFoundationModel(ABC):
     def __init__(self, config: ModelConfig):
         self.config = config
         self.distributed_strategy = None
@@ -95,7 +95,7 @@ class BaseTSFM(ABC):
 
 **Actual Implementation**:
 ```python
-class BaseTSFM(ABC):
+class BaseTimeSeriesFoundationModel(ABC):
     """1,200+ line comprehensive implementation with:"""
 
     # Configuration management
@@ -103,7 +103,7 @@ class BaseTSFM(ABC):
 
     # Abstract methods for model-specific implementation
     def _initialize_model(self) -> None
-    def _prepare_data(self, train_data, val_data, test_data)
+    def _prepare_training_data(self, train_data, val_data, test_data)
     def _create_training_arguments(self, output_dir)
     def _compute_metrics(self, eval_pred)
     def _load_model_weights(self, model_dir)
@@ -114,8 +114,8 @@ class BaseTSFM(ABC):
     def evaluate(self, data_loader)
 
     # Model management
-    def save_model(self, output_dir, save_config, save_metadata)
-    def load_model(cls, model_dir, config)
+    def save(self, output_dir, save_config, save_metadata)
+    def load(cls, model_dir, config)
 
     # Advanced features
     def setup_distributed(self)
@@ -131,7 +131,7 @@ class BaseTSFM(ABC):
 The framework integrates with your existing TTM code:
 
 ```python
-class TTMForecaster(BaseTSFM):
+class TTMForecaster(BaseTimeSeriesFoundationModel):
     """Integrates with existing tsfm_public, transformers, your data loaders"""
 
     def _initialize_model(self):
@@ -142,7 +142,7 @@ class TTMForecaster(BaseTSFM):
             freeze_backbone=self.config.freeze_backbone,
         )
 
-    def _prepare_data(self, train_data, val_data, test_data):
+    def _prepare_training_data(self, train_data, val_data, test_data):
         # Integrates with your existing data pipeline
         loader = get_loader(data_source_name=train_data, use_cached=True)
         data = loader.processed_data
@@ -213,7 +213,7 @@ python scripts/examples/test_base_framework.py
 ### From Existing TTM Code
 
 1. **Extract Configuration**: Move parameters to `TTMConfig`
-2. **Wrap Training Logic**: Implement `_prepare_data()` and `_compute_metrics()`
+2. **Wrap Training Logic**: Implement `_prepare_training_data()` and `_compute_metrics()`
 3. **Preserve Existing Code**: Framework calls your existing functions
 4. **Add New Features**: LoRA, distributed training come for free
 
@@ -227,7 +227,7 @@ python scripts/examples/test_base_framework.py
 ## Next Steps
 
 1. **Test Framework**: Run `test_base_framework.py`
-2. **Integrate Data**: Adapt `_prepare_data()` to your specific data format
+2. **Integrate Data**: Adapt `_prepare_training_data()` to your specific data format
 3. **Test Training**: Run actual training with your datasets
 4. **Add Models**: Implement Chronos, TimeGPT using same pattern
 5. **Experiment Management**: Add experiment tracking and model registry

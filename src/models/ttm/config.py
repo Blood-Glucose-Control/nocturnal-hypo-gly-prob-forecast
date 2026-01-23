@@ -8,7 +8,7 @@ extending the base model configuration with TTM-specific parameters.
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
-from src.models.base import ModelConfig, TrainingStrategy
+from src.models.base import ModelConfig, TrainingBackend
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 
@@ -98,7 +98,7 @@ class TTMConfig(ModelConfig):
 
     Attributes:
         model_type: Always "ttm" for this configuration.
-        training_strategy: Always TRANSFORMERS for TTM.
+        training_backend: Always TRANSFORMERS for TTM.
         freeze_backbone: Whether to freeze pre-trained weights.
         use_tracking_callback: Enable experiment tracking.
         find_optimal_lr: Run learning rate finder.
@@ -112,6 +112,8 @@ class TTMConfig(ModelConfig):
         num_output_channels: Number of output channels.
         prediction_filter_length: Optional prediction filter length.
         resolution_min: Data resolution in minutes (default 5 for CGM data).
+        logging_dir: Optional directory for TensorBoard logs. If None, defaults to
+            output_dir/logs in TrainingArguments.
 
     Example:
         >>> config = TTMConfig(
@@ -131,12 +133,14 @@ class TTMConfig(ModelConfig):
             "input_features",
             "target_features",
             "split_config",
+            "fewshot_percent",
             "num_input_channels",
             "num_output_channels",
             "prediction_filter_length",
             "resolution_min",
             "use_tracking_callback",
             "find_optimal_lr",
+            "logging_dir",
         }
 
         # Filter out TTM-specific params from kwargs for parent class
@@ -147,13 +151,14 @@ class TTMConfig(ModelConfig):
 
         # Set TTM-specific defaults
         self.model_type = "ttm"
-        self.training_strategy = TrainingStrategy.TRANSFORMERS
+        self.training_backend = TrainingBackend.TRANSFORMERS
         # model_path is now handled by the parent class
 
         # TTM Training Configuration
         self.freeze_backbone = kwargs.get("freeze_backbone", False)
         self.use_tracking_callback = kwargs.get("use_tracking_callback", True)
         self.find_optimal_lr = kwargs.get("find_optimal_lr", False)
+        self.logging_dir = kwargs.get("logging_dir", None)
 
         # TTM Data Configuration
         self.scaler_type = kwargs.get("scaler_type", "standard")
@@ -370,13 +375,13 @@ def create_ttm_fine_tuning_config(**overrides) -> TTMConfig:
 
     Returns:
         TTMConfig: Configured for fine-tuning with:
-            - fit_strategy: "fine_tune"
+            - training_mode: "fine_tune"
             - learning_rate: 1e-5 (lower than default)
             - num_epochs: 5 (fewer than default)
             - warmup_steps: 500 (fewer than default)
     """
     fine_tuning_defaults = {
-        "fit_strategy": "fine_tune",
+        "training_mode": "fine_tune",
         "freeze_backbone": False,
         "learning_rate": 1e-5,  # Lower LR for fine-tuning
         "num_epochs": 5,  # Fewer epochs for fine-tuning
@@ -396,12 +401,12 @@ def create_ttm_zero_shot_config(**overrides) -> TTMConfig:
 
     Returns:
         TTMConfig: Configured for zero-shot with:
-            - fit_strategy: "zero_shot"
+            - training_mode: "zero_shot"
             - freeze_backbone: True
             - num_epochs: 0 (no training)
     """
     zero_shot_defaults = {
-        "fit_strategy": "zero_shot",
+        "training_mode": "zero_shot",
         "freeze_backbone": True,
         "num_epochs": 0,  # No training
     }
