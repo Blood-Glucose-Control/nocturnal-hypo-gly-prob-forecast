@@ -162,8 +162,8 @@ def generate_holdout_configs_for_datasets(
     temporal_pct: float = 0.05,
     patient_pct: float = 0.05,
     seed: int = 42,
-    min_train_samples: int = 50,
-    min_holdout_samples: int = 96,
+    min_train_samples: int = 608,
+    min_holdout_samples: int = 608,
 ) -> Dict[str, bool]:
     """Generate holdout configurations for multiple datasets.
 

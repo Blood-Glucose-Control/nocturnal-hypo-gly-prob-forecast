@@ -133,9 +133,10 @@ if __name__ == "__main__":
     # Call library function to generate configs
     holdout_utils.generate_holdout_configs_for_datasets(
         datasets=datasets,
-        split_type=args.split_type,
+        output_dir=output_dir,
         temporal_pct=args.temporal_pct,
         patient_pct=args.patient_pct,
         seed=args.seed,
-        output_dir=output_dir,
+        min_train_samples=608,
+        min_holdout_samples=608,
     )
