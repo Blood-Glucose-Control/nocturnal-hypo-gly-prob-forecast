@@ -19,11 +19,11 @@ echo "Starting aleppo data processing"
 python -c "
 from src.data.diabetes_datasets.data_loader import get_loader
 loader = get_loader(
-    data_source_name='aleppo',
+    data_source_name="aleppo_2017",
     train_percentage=0.9,
     use_cached=False,
     parallel=True,
-    max_workers=10,
+    max_workers=14,
 )
 "
 echo "Aleppo data processing completed"

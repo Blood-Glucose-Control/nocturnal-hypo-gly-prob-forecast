@@ -25,7 +25,7 @@ PATIENT_COUNT = 226
 
 # TODO: ISF/CR is not dropped in the dataset. We could use this to calculate slope of the glucose curve.
 # to give models some hints about trend of the glucose curve.
-class AleppoDataLoader(DatasetBase):
+class Aleppo2017DataLoader(DatasetBase):
     def __init__(
         self,
         keep_columns: list[str] | None = None,
@@ -65,7 +65,7 @@ class AleppoDataLoader(DatasetBase):
     @property
     def dataset_name(self):
         # return Dataset.ALEPPO.value
-        return "aleppo"
+        return "aleppo_2017"
 
     @property
     def description(self):

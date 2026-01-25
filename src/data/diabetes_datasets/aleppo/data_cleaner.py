@@ -194,7 +194,7 @@ def process_one_patient(
 
     # Debug only
     if debug:
-        debug_dir = get_project_root() / "cache" / "data" / "aleppo" / "debug"
+        debug_dir = get_project_root() / "cache" / "data" / "aleppo_2017" / "debug"
         os.makedirs(debug_dir, exist_ok=True)
         df.to_csv(debug_dir / f"p{pid}.csv", index=True)
     return df

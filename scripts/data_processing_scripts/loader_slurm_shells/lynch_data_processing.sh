@@ -23,7 +23,7 @@ loader = get_loader(
     data_source_name='lynch_2022',
     use_cached=False,
     parallel=True,
-    max_workers=30,
+    max_workers=14,
 )
 "
 echo "Lynch 2022 data processing completed"

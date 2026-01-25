@@ -23,7 +23,7 @@ loader = get_loader(
     data_source_name='tamborlane_2008',
     use_cached=False,
     parallel=True,
-    max_workers=5,
+    max_workers=14,
 )"
 echo "Tamborlane data processing completed"
 

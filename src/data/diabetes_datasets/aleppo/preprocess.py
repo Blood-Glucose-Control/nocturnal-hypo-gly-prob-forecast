@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 repo = get_project_root()
-CACHE_DIR = repo / "cache" / "data" / "aleppo"
+CACHE_DIR = repo / "cache" / "data" / "aleppo_2017"
 DATA_TABLES = CACHE_DIR / "raw" / "Data Tables"
 DB_PATH = CACHE_DIR / "aleppo.db"
 
@@ -226,7 +226,7 @@ def convert_to_csv(df):
     logger.info("Converting data to CSV")
     project_root = get_project_root()
     # TODO: Probably shouldn't hardcode this.
-    data_dir = project_root / "cache" / "data" / "aleppo" / "interim"
+    data_dir = project_root / "cache" / "data" / "aleppo_2017" / "interim"
     os.makedirs(data_dir, exist_ok=True)
     for pid in df["pid"].unique():
         df_pid = df[df["pid"] == pid]

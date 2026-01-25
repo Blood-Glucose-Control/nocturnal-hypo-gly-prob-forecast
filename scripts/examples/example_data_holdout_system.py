@@ -235,7 +235,7 @@ def example_7_multi_dataset_training():
     logger.info("Example 7: Multi-Dataset Training")
     logger.info("=" * 60)
 
-    datasets = ["kaggle_brisT1D", "gluroo", "aleppo"]
+    datasets = ["kaggle_brisT1D", "gluroo", "aleppo_2017"]
 
     all_train_data = []
     all_holdout_data = []

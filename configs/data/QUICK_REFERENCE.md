@@ -72,7 +72,7 @@ from src.data.versioning.dataset_registry import get_dataset_registry
 
 registry = get_dataset_registry()
 datasets = registry.list_available_datasets()
-print(datasets)  # ['kaggle_brisT1D', 'gluroo', 'aleppo', ...]
+print(datasets)  # ['kaggle_brisT1D', 'gluroo', "aleppo_2017", ...]
 ```
 
 ---

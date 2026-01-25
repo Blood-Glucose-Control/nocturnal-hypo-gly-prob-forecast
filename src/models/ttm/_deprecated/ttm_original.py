@@ -281,7 +281,7 @@ def finetune_ttm(
         # Data Configuration
         data_source_name (str):
             Name of the data source to load patient data from. Currently supported:
-            - "kaggle_brisT1D" | "aleppo"
+            - "kaggle_brisT1D" | "aleppo_2017"
         y_feature (list of str):
             List of target variable(s) to predict.
         x_features (list of str):
@@ -430,7 +430,7 @@ if __name__ == "__main__":
         context_length=512,
         forecast_length=96,
         # Data Configuration
-        data_source_name="aleppo",
+        data_source_name="aleppo_2017",
         y_feature=[ColumnNames.BG.value],
         x_features=[
             ColumnNames.COB.value,
