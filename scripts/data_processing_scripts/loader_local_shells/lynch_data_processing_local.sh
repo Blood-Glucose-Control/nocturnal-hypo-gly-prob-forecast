@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Local (non-SLURM) version of lynch data processing
-# Run with: bash scripts/data_processing_scripts/lynch_data_processing_local.sh
+# Run with: bash scripts/data_processing_scripts/loader_local_shells/lynch_data_processing_local.sh
 
 set -e  # Exit on error
 
