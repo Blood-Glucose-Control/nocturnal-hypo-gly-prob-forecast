@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """
 Data cleaning utilities for the Brown 2019 DCLP3 diabetes dataset.
@@ -153,10 +153,12 @@ def clean_brown_2019_data(
     # Basal/Bolus: use DataDtTm_adjusted if available (corrected timestamps)
     # Some patients (114, 165) have incorrect dates in DataDtTm (e.g., 2010 instead of 2018)
     basal_df[dt_col] = pd.to_datetime(
-        basal_df["DataDtTm_adjusted"].fillna(basal_df["DataDtTm"])
+        basal_df["DataDtTm_adjusted"].fillna(basal_df["DataDtTm"]),
+        format="%d%b%y:%H:%M:%S",
     )
     bolus_df[dt_col] = pd.to_datetime(
-        bolus_df["DataDtTm_adjusted"].fillna(bolus_df["DataDtTm"])
+        bolus_df["DataDtTm_adjusted"].fillna(bolus_df["DataDtTm"]),
+        format="%d%b%y:%H:%M:%S",
     )
 
     logger.info(
@@ -182,9 +184,10 @@ def clean_brown_2019_data(
     bolus_df = bolus_df.drop(columns=["DataDtTm", "DataDtTm_adjusted", "RecID"])
 
     # ========== STEP 3: Floor timestamps to 5-min grid ==========
-    cgm_df[dt_col] = cgm_df[dt_col].dt.floor("5min")
-    basal_df[dt_col] = basal_df[dt_col].dt.floor("5min")
-    bolus_df[dt_col] = bolus_df[dt_col].dt.floor("5min")
+    # type: ignore comments needed due to pandas-stubs not exposing .dt.floor() correctly
+    cgm_df[dt_col] = cgm_df[dt_col].dt.floor("5min")  # type: ignore[attr-defined]
+    basal_df[dt_col] = basal_df[dt_col].dt.floor("5min")  # type: ignore[attr-defined]
+    bolus_df[dt_col] = bolus_df[dt_col].dt.floor("5min")  # type: ignore[attr-defined]
 
     # ========== STEP 4: Aggregate collisions ==========
     # When multiple readings fall in same 5-min bin:
@@ -222,7 +225,7 @@ def clean_brown_2019_data(
 
     processed_patients = {}
     for i, (pid, pdf) in enumerate(patient_dict.items()):
-        processed_df, freq = ensure_regular_time_intervals_with_aggregation(pdf)
+        processed_df, _freq = ensure_regular_time_intervals_with_aggregation(pdf)
         processed_patients[pid] = processed_df
 
         if (i + 1) % 50 == 0:
@@ -375,8 +378,9 @@ if __name__ == "__main__":
     print(output_df.head(20))
 
     print("\n=== Validation ===")
+    # type: ignore needed - pandas-stubs doesn't expose DatetimeIndex attributes correctly
     print(
-        f"All timestamps on 5-min grid: {((output_df.index.minute % 5 == 0) & (output_df.index.second == 0)).all()}"
+        f"All timestamps on 5-min grid: {((output_df.index.minute % 5 == 0) & (output_df.index.second == 0)).all()}"  # type: ignore[attr-defined]
     )
     print(f"No negative BG: {(output_df[ColumnNames.BG.value].dropna() >= 0).all()}")
     print(f"No negative bolus: {(output_df[ColumnNames.DOSE_UNITS.value] >= 0).all()}")
