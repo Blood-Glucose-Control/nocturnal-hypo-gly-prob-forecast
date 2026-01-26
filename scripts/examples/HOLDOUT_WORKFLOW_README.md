@@ -11,7 +11,7 @@ Complete end-to-end workflow demonstrating the holdout system with TTM training 
 sbatch scripts/examples/run_holdout_ttm_workflow.sh
 
 # Run with different dataset
-sbatch --export=DATASETS="aleppo" scripts/examples/run_holdout_ttm_workflow.sh
+sbatch --export=DATASETS="aleppo_2017" scripts/examples/run_holdout_ttm_workflow.sh
 
 # Use different config directory
 sbatch --export=DATASETS="brown_2019",CONFIG_DIR=configs/data/holdout scripts/examples/run_holdout_ttm_workflow.sh

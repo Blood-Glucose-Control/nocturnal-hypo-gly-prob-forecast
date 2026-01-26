@@ -63,19 +63,8 @@ trained_models/artifacts/*
 
 scripts/watgpu_slurm/data_processing_scripts/results/
 
-cache/**/*.csv
-cache/**/*.txt
-cache/**/*.json
-cache/**/*.pkl
-cache/data/brown_2019/*
-cache/data/lynch_2022/*
-cache/data/tamborlane_2008/*
-cache/data/aleppo/*
-cache/data/colas_2019/*
-cache/data/hall_2018/*
-
-# Permissive for the cached data
-!cache/data/kaggle_brisT1D/processed/train/train.csv
+# Cache directory (symlinked to shared location)
+cache
 
 
 
