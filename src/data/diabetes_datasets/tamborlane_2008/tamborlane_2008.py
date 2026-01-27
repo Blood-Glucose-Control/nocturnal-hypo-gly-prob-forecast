@@ -15,6 +15,8 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pandas as pd
 
+from data.models import DatasetSourceType
+
 # Import the data cleaner functions
 try:
     from .data_cleaner import (
@@ -164,23 +166,27 @@ class Tamborlane2008DataLoader(DatasetBase):
     # Properties
     @property
     def dataset_name(self) -> str:
-        """Return the dataset name.
+        return DatasetSourceType.TAMBORLANE_2008.value
 
-        Returns:
-            str: The name identifier for this dataset ('tamborlane_2008').
-        """
-        return "tamborlane_2008"
+    @property
+    def description(self):
+        return """
+                Objective: 'The value of continuous glucose monitoring in the management of type 1 diabetes mellitus has not been determined. (2008)'
+                Title: 'Continuous Glucose Monitoring and Intensive Treatment of Type 1 Diabetes'
+                n = 322 participants.
+                Duration: 26 weeks
+                Paper: https://www.nejm.org/doi/full/10.1056/NEJMoa0805017
+
+            """
 
     @property
     def num_patients(self) -> int:
         """Get the number of patients in the dataset.
 
         Returns:
-            int: The count of patients, or 0 if no data is loaded.
+            int: The count of processed patients, or 0 if no data is loaded.
         """
-        if self.processed_data is None:
-            return 0
-        return len(self.processed_data)
+        return len(self.processed_data) if self.processed_data else 0
 
     @property
     def patient_ids(self) -> list[str]:

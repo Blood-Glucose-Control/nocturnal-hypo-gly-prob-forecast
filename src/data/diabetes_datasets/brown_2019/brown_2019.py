@@ -133,30 +133,23 @@ class Brown2019DataLoader(DatasetBase):
 
     @property
     def dataset_name(self) -> str:
-        """Return the dataset name.
-
-        Returns:
-            str: The name identifier for this dataset ('brown_2019').
-        """
         return DatasetSourceType.BROWN_2019.value
 
     @property
     def description(self) -> str:
-        """Return a description of the dataset.
-
-        Returns:
-            str: Human-readable description of the Brown 2019 DCLP3 study.
-        """
         return """
-        Brown 2019 DCLP3 Study: A randomized trial comparing Closed-Loop Control (Control-IQ)
-        vs Sensor-Augmented Pump therapy in adults with Type 1 diabetes.
-
-        - 168 participants total
-        - 125 have insulin pump data (basal rate changes + bolus deliveries)
-        - 43 have CGM only (no pump data)
-        - Data spans ~6 months per patient (Baseline + Post Randomization periods)
-        - CGM: Dexcom G6, 5-minute intervals
-        """
+                Objective: 'Closed-loop systems that automate insulin
+                    delivery may improve glycemic outcomes in patients with type 1 diabetes'
+                Title: 'Six-Month Randomized, Multicenter Trial of Closed-Loop Control in Type 1 Diabetes'
+                n = 168 participants total
+                    - 125 have insulin pump data (basal rate changes + bolus deliveries)
+                    - 43 have CGM only (no pump data)
+                    - Data spans ~6 months per patient (Baseline + Post Randomization periods)
+                    - CGM: Dexcom G6, 5-minute intervals
+                Paper: https://www.nejm.org/doi/full/10.1056/NEJMoa1907863
+                Note  Brown 2019 DCLP3 Study: A randomized trial comparing Closed-Loop Control (Control-IQ)
+                    vs Sensor-Augmented Pump therapy in adults with Type 1 diabetes.
+            """
 
     def load_raw(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """

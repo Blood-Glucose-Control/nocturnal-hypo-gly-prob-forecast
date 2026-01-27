@@ -63,26 +63,6 @@ class DatasetBase(ABC):
     Attributes:
         processed_data (pd.DataFrame or pd.Series): The processed dataset after loading
         raw_data (pd.DataFrame or pd.Series): The raw dataset without processing
-
-    Example:
-        ```python
-        class MyDataset(DatasetBase):
-            def load_raw(self):
-                # Implementation
-                return df
-
-            @property
-            def dataset_name(self):
-                return "my_dataset"
-
-            def load_data(self):
-                # Implementation
-                return processed_df
-
-            def _process_raw_data(self):
-                # Implementation
-                return processed_df
-        ```
     """
 
     def __init__(self):
@@ -96,9 +76,28 @@ class DatasetBase(ABC):
         """Get the name of the dataset.
 
         Returns:
-            str: Name of the dataset
+            str: Name of the dataset, use: DatasetSourceType.[data_name].value
         """
-        raise NotImplementedError("get_dataset_name must be implemented by subclass")
+        raise NotImplementedError("'dataset_name()' must be implemented by subclass")
+
+    @property
+    @abstractmethod
+    def description(self):
+        """Get the description of the dataset.
+
+        Returns:
+            str: Description of the dataset
+        """
+        raise NotImplementedError("'description()' must be implemented by subclass")
+
+    @property
+    def num_patients(self) -> int:
+        """Get the number of patients in the dataset.
+
+        Returns:
+            int: The count of processed patients, or 0 if no data is loaded.
+        """
+        return len(self.processed_data) if self.processed_data else 0
 
     # Public Abstract Methods
     @abstractmethod
@@ -111,7 +110,7 @@ class DatasetBase(ABC):
         Returns:
             pd.DataFrame or pd.Series: The processed dataset ready for use
         """
-        raise NotImplementedError("load_data must be implemented by subclass")
+        raise NotImplementedError("'load_data()' must be implemented by subclass")
 
     @abstractmethod
     def load_raw(self):
@@ -120,7 +119,7 @@ class DatasetBase(ABC):
         Returns:
             pd.DataFrame or pd.Series: The raw dataset
         """
-        raise NotImplementedError("load_raw must be implemented by subclass")
+        raise NotImplementedError("'load_raw()' must be implemented by subclass")
 
     # Public Methods
     def create_validation_table(self):

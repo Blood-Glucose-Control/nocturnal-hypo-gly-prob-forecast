@@ -147,6 +147,18 @@ class BrisT1DDataLoader(DatasetBase):
         return "kaggle_brisT1D"
 
     @property
+    def description(self):
+        return """
+                The BrisT1D dataset features both device data from the T1D management systems and smartwatches used by participants,
+                as well as transcripts of monthly interviews and focus groups conducted during the study.
+                The device data is provided in a processed state, for usability and more rapid analysis, and in a raw
+                state, for in-depth exploration of novel insights captured in the study.
+                Paper: https://doi.org/10.48550/arXiv.2507.17757
+                Duration: 6 months
+                Participants: 24 T1D young adults (18-26 years)
+           """
+
+    @property
     def num_patients(self) -> int:
         """Get the number of patients in the dataset."""
         if self.processed_data is None:

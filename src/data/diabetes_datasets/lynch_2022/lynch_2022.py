@@ -95,6 +95,26 @@ class Lynch2022DataLoader(DatasetBase):
         return "lynch_2022"
 
     @property
+    def description(self):
+        """Return a description of the dataset.
+
+        Returns:
+            str: Human-readable description of study.
+        """
+        return """
+                Objective: 'To evaluate a transition from standard-of-care (SC) management of type 1 diabetes
+                    (any insulin delivery method including hybrid closed-loop systems plus real-time continuous
+                    glucose monitoring [CGM]) to use of the insulin-only configuration of the iLet® bionic
+                    pancreas (BP) in 90 adults and children (age 6–71 years).'
+                Title: 'The Insulin-Only Bionic Pancreas Pivotal Trial Extension Study: A Multi-Center Single-Arm
+                    Evaluation of the Insulin-Only Configuration of the Bionic Pancreas in Adults and Youth with
+                    Type 1 Diabetes'
+                n = 440 participants using either insulin aspart, insulin lispro, or fast-acting insulin aspart
+                Duration: 13 weeks
+                Paper: https://journals.sagepub.com/doi/full/10.1089/dia.2022.0341
+            """
+
+    @property
     def num_patients(self) -> int:
         """Get the number of patients in the dataset."""
         if self.processed_data is None:
