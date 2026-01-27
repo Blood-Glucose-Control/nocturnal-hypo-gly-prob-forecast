@@ -101,19 +101,18 @@ class Aleppo2017DataLoader(DatasetBase):
         return list(self.processed_data.keys()) if self.processed_data else []
 
     @property
-    def train_data_shape_summary(self) -> dict[str, tuple[int, int]]:
-        """Get shape summary for each patient's training data.
-
-        Returns:
-            dict[str, tuple[int, int]]: Dictionary mapping patient IDs to their
-                DataFrame shape as (num_rows, num_columns). Returns empty dict
-                if train_data is not available.
+    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
+        """Get shape summary for each patient's data.
+        For test data, patient_df may be a nested dictionary, e.g.:
+            {patient_id: {sub_id: DataFrame}}
+        For train/validation data, patient_df is a DataFrame.
+        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
         """
-        if not self.train_data:
+        if not self.processed_data:
             return {}
         return {
             patient_id: df.shape
-            for patient_id, df in self.train_data.items()
+            for patient_id, df in self.processed_data.items()
             if isinstance(df, pd.DataFrame)
         }
 

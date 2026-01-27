@@ -22,11 +22,10 @@ This document compares the implemented properties and methods across all data lo
 |-------------------|------------------------|------------|---------|-----------|-----------|----------------|--------|
 | **PROPERTIES** |||||||||
 | `dataset_name` | ✅ (abstract) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `description` |  ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `description` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `num_patients` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `patient_ids` | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `train_data_shape_summary` | ❌ | ✅ | ✅ | ✅ | ⚠️ `data_shape_summary` | ✅ | ❌ |
-| `test_data_shape_summary` | ❌ | ❌ | ✅ | ❌ | ⚠️ (in `data_shape_summary`) | ❌ | ❌ |
+| `patient_ids` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `data_shape_summary`       | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
 | `dataset_info` | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | `data_metrics` | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | **INIT ATTRIBUTES** |||||||||

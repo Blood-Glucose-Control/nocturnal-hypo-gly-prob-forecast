@@ -99,6 +99,25 @@ class DatasetBase(ABC):
         """
         return len(self.processed_data) if self.processed_data else 0
 
+    @property
+    def patient_ids(self) -> list[str]:
+        """Get list of patient IDs in the dataset.
+
+        Returns:
+            list[str]: List of patient ID strings, or empty list if no data.
+        """
+        return list(self.processed_data.keys()) if self.processed_data else []
+    
+    @property
+    @abstractmethod
+    def data_shape_summary(self) -> dict:
+        """Get a summary of the data shape.
+
+        Returns:
+            dict: A dictionary summarizing the shape of the dataset
+        """
+        raise NotImplementedError("'data_shape_summary()' must be implemented by subclass")
+
     # Public Abstract Methods
     @abstractmethod
     def load_data(self):

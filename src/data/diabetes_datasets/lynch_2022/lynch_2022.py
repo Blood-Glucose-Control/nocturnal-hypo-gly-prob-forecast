@@ -131,22 +131,15 @@ class Lynch2022DataLoader(DatasetBase):
     @property
     def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
         """Get shape summary for each patient's data.
-        For test data, patient_df may be a nested dictionary, e.g.:
-            {patient_id: {sub_id: DataFrame}}
-        For train/validation data, patient_df is a DataFrame.
         Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
         """
-        if not isinstance(self.processed_data, dict):
+        if not self.processed_data:
             return {}
-        shape_summary = {}
-        for patient_id, patient_df in self.processed_data.items():
-            if isinstance(patient_df, pd.DataFrame):
-                shape_summary[patient_id] = patient_df.shape
-            elif isinstance(patient_df, dict):
-                for sub_id, sub_df in patient_df.items():
-                    if isinstance(sub_df, pd.DataFrame):
-                        shape_summary[(patient_id, sub_id)] = sub_df.shape
-        return shape_summary
+        return {
+            patient_id: df.shape
+            for patient_id, df in self.processed_data.items()
+            if isinstance(df, pd.DataFrame)
+        }
 
     def to_dataframe(self) -> pd.DataFrame:
         """
