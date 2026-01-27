@@ -2,7 +2,7 @@
 # Licensed under Custom Research License (see LICENSE file)
 # For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
-from data.models import DatasetSourceType
+from src.data.models import DatasetSourceType
 from src.data.diabetes_datasets.aleppo_2017.preprocess import create_aleppo_csv
 from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.cache_manager import get_cache_manager

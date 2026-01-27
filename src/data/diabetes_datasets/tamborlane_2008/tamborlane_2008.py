@@ -15,7 +15,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import pandas as pd
 
-from data.models import DatasetSourceType
+from src.data.models import DatasetSourceType
 
 # Import the data cleaner functions
 try:
