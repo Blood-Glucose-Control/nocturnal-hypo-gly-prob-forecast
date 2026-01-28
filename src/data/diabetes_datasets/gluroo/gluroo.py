@@ -901,7 +901,7 @@ def process_single_patient(patient_tuple: tuple[str, pd.DataFrame, Path]) -> tup
         df = data_translation(df_raw)
         df = preprocessing_pipeline(str(p_num), df, use_aggregation=True)
         # Debugging only: use p_num for filename (cleaner than gid)
-        df.to_csv(f"processed_{p_num}.csv", index=True)  # Debugging only
+        # df.to_csv(f"processed_{p_num}.csv", index=True)  # Debugging only
 
         if df.empty:
             raise ValueError(f"Processed data is empty for patient p_num={p_num}")
