@@ -107,7 +107,7 @@ class DatasetBase(ABC):
             list[str]: List of patient ID strings, or empty list if no data.
         """
         return list(self.processed_data.keys()) if self.processed_data else []
-    
+
     @property
     @abstractmethod
     def data_shape_summary(self) -> dict:
@@ -116,7 +116,9 @@ class DatasetBase(ABC):
         Returns:
             dict: A dictionary summarizing the shape of the dataset
         """
-        raise NotImplementedError("'data_shape_summary()' must be implemented by subclass")
+        raise NotImplementedError(
+            "'data_shape_summary()' must be implemented by subclass"
+        )
 
     # Public Abstract Methods
     @abstractmethod

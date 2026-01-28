@@ -56,48 +56,55 @@ logger = logging.getLogger(__name__)
 
 
 class Tamborlane2008DataLoader(DatasetBase):
-    """
-    Data loader for the Tamborlane 2008 CGM dataset.
+    """Data loader for the Tamborlane 2008 CGM dataset.
 
-    This class handles loading, processing, and caching of the Tamborlane 2008 dataset,
-    which contains continuous glucose monitoring data from pediatric Type 1 diabetes patients.
+    This class handles loading, processing, and caching of the Tamborlane 2008
+    dataset, which contains continuous glucose monitoring data from pediatric
+    Type 1 diabetes patients collected as part of the DirecNet study.
 
-    The data format expects columns such as:
-    - RecID: Record identifier
-    - PtID: Patient identifier
-    - DeviceDate: Date of the CGM reading (format: YYYY-MM-DD)
-    - DeviceTime: Time of the CGM reading (format: HH:MM:SS)
-    - GlucoseValue: Glucose value in mg/dL
-    - GlucoseDisplayTime: Alternative timestamp for the glucose reading
+    The study evaluated the accuracy and safety of CGM in children with T1D,
+    providing high-frequency glucose measurements useful for hypoglycemia
+    prediction research.
 
     Key features of this dataset:
-    - CGM data from pediatric patients (age 8-17)
-    - High-frequency measurements (5-minute intervals)
-    - Multi-day continuous monitoring periods
-    - Useful for nocturnal hypoglycemia prediction
+        - CGM data from pediatric patients (age 8-17)
+        - High-frequency measurements (5-minute intervals)
+        - Multi-day continuous monitoring periods
+        - Useful for nocturnal hypoglycemia prediction
 
     Attributes:
-        keep_columns (list[str] | None): Specific columns to load from the dataset
-        num_validation_days (int): Number of days to use for validation
-        use_cached (bool): Whether to use cached processed data if available
-        dataset_type (str): Type of dataset ('train' or 'test')
-        parallel (bool): Whether to use parallel processing
-        generic_patient_start_date (pd.Timestamp): Starting date for all patients
-        max_workers (int): Maximum number of workers for parallel processing
-        extract_features (bool): Whether to extract CGM-specific features
-        raw_data_path (Path): Path to the raw data files
+        keep_columns: Specific columns to load from the dataset.
+        dataset_type: Type of dataset ('train' or 'test').
+        use_cached: Whether to use cached processed data if available.
+        num_validation_days: Number of days to use for validation.
+        train_percentage: Percentage of data to use for training.
+        parallel: Whether to use parallel processing.
+        max_workers: Maximum number of workers for parallel processing.
+        generic_patient_start_date: Starting date for all patients.
+        extract_features: Whether to extract CGM-specific features.
+        raw_data_path: Path to the raw data files.
+
+    Example:
+        >>> loader = Tamborlane2008DataLoader(use_cached=True)
+        >>> pretraining_dict = loader.processed_data
     """
 
     def __init__(
         self,
+        # Data Selection
         keep_columns: list[str] | None = None,
+        dataset_type: str = "train",
+        # Caching
+        use_cached: bool = True,
+        # Train/validation splitting
         num_validation_days: int = 7,  # Shorter validation for CGM data
         train_percentage: float = 0.9,
-        use_cached: bool = True,
-        dataset_type: str = "train",
+        # Parallel processing
         parallel: bool = True,
+        max_workers: int = 14,
+        # Date normalization (if applicable)
         generic_patient_start_date: pd.Timestamp = pd.Timestamp("2008-01-01"),
-        max_workers: int = 3,
+        # Dataset-specific parameters
         extract_features: bool = True,
         raw_data_path: str | Path | None = None,
     ):
@@ -200,22 +207,17 @@ class Tamborlane2008DataLoader(DatasetBase):
         return list(self.processed_data.keys())
 
     @property
-    def train_data_shape_summary(self) -> dict[str, tuple[int, int]]:
-        """Get shape summary for each patient's processed data.
-
-        Returns:
-            dict[str, tuple[int, int]]: Dictionary mapping patient IDs to their
-                DataFrame shape as (num_rows, num_columns). Returns empty dict
-                if processed_data is not available.
+    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
+        """Get shape summary for each patient's data.
+        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
         """
-        if not isinstance(self.processed_data, dict):
+        if not self.processed_data:
             return {}
-
-        shape_summary = {}
-        for patient_id, patient_df in self.processed_data.items():
-            if isinstance(patient_df, pd.DataFrame):
-                shape_summary[patient_id] = patient_df.shape
-        return shape_summary
+        return {
+            patient_id: df.shape
+            for patient_id, df in self.processed_data.items()
+            if isinstance(df, pd.DataFrame)
+        }
 
     @property
     def dataset_info(self) -> dict[str, object]:

@@ -37,21 +37,72 @@ logger = logging.getLogger(__name__)
 
 
 class Lynch2022DataLoader(DatasetBase):
-    """Data loader for the Lynch 2022 IOBP2 RCT dataset."""
+    """Data loader for the Lynch 2022 IOBP2 RCT dataset.
+
+    This class handles loading, processing, and caching of the Lynch 2022
+    dataset, which contains continuous glucose monitoring data from the IOBP2
+    (Insulin-Only Bionic Pancreas Pivotal Trial Extension Study) randomized
+    controlled trial.
+
+    The study evaluated a transition from standard-of-care management of Type 1
+    diabetes to use of the insulin-only configuration of the iLet® bionic
+    pancreas in adults and children (age 6-71 years).
+
+    Key features of this dataset:
+        - n = 440 participants using insulin aspart, lispro, or fast-acting aspart
+        - 13-week study duration
+        - CGM data from both standard-of-care and bionic pancreas periods
+        - Supports both train and test dataset types
+
+    Attributes:
+        keep_columns: Specific columns to load from the dataset.
+        dataset_type: Type of dataset ('train' or 'test').
+        use_cached: Whether to use cached processed data if available.
+        num_validation_days: Number of days to use for validation.
+        train_percentage: Percentage of data to use for training.
+        parallel: Whether to use parallel processing.
+        max_workers: Maximum number of workers for parallel processing.
+        generic_patient_start_date: Starting date for all patients.
+        config: Optional configuration dictionary.
+
+    Example:
+        >>> loader = Lynch2022DataLoader(use_cached=True)
+        >>> pretraining_dict = loader.processed_data
+    """
 
     def __init__(
         self,
+        # Data Selection
         keep_columns: list[str] | None = None,
+        dataset_type: str = "train",
+        # Caching
         use_cached: bool = True,
+        # Train/validation splitting
         num_validation_days: int = 20,
         train_percentage: float = 0.9,
-        dataset_type: str = "train",
-        config: dict | None = None,
+        # Parallel processing
         parallel: bool = True,
+        max_workers: int = 14,
+        # Date normalization (if applicable)
         generic_patient_start_date: pd.Timestamp = pd.Timestamp("2024-01-01"),
-        max_workers: int = 3,
+        # Dataset-specific parameters
     ):
-        """Initialize the Lynch 2022 data loader."""
+        """
+        Initialize the Lynch 2022 data loader.
+
+        Args:
+            keep_columns: Specific columns to load from the dataset. If specified,
+                'datetime' will be automatically added if not present.
+            use_cached: Whether to use cached processed data if available (default True)
+            num_validation_days: Number of days to use for validation (default 20)
+            train_percentage: Percentage of data to use for training (default 0.9).
+                Note: Currently not implemented.
+            dataset_type: Type of dataset to load ('train' or 'test')
+            config: Optional configuration dictionary. Note: Currently not implemented.
+            parallel: Whether to use parallel processing (default True)
+            generic_patient_start_date: Starting date for patients (default 2024-01-01)
+            max_workers: Maximum number of workers for parallel processing (default 14)
+        """
         # Ensure 'datetime' is included in keep_columns if specified
         if keep_columns is not None and "datetime" not in keep_columns:
             keep_columns = keep_columns + ["datetime"]
@@ -84,9 +135,6 @@ class Lynch2022DataLoader(DatasetBase):
         logger.info("Initializing Lynch 2022 Data Loader...")
         logger.info(
             f"Use of train_percentage parameter is currently not implemented: {train_percentage}"
-        )
-        logger.info(
-            f"Use of configuration parameter is currently not implemented: {config}"
         )
         self.load_data()
 

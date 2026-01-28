@@ -1,6 +1,6 @@
 # Data Loader Consistency Assessment
 
-> **Created:** January 27, 2026  
+> **Created:** January 27, 2026
 > **Purpose:** Compare properties and methods across all data loaders to identify inconsistencies and plan standardization
 
 ---
@@ -25,7 +25,7 @@ This document compares the implemented properties and methods across all data lo
 | `description` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `num_patients` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `patient_ids` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| `data_shape_summary`       | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `data_shape_summary`       | ✅ | ✅ | ❌ | ✅  | ✅ | ✅  | ❌ |
 | `dataset_info` | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | `data_metrics` | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ |
 | **INIT ATTRIBUTES** |||||||||
@@ -125,7 +125,7 @@ This document compares the implemented properties and methods across all data lo
 
 ### Phase 1: Core Properties (Add to DatasetBase)
 1. Add abstract properties to `DatasetBase`:
-   - `num_patients` 
+   - `num_patients`
    - `patient_ids`
    - `description` (optional, with default)
    - `dataset_info`
