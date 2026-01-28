@@ -25,16 +25,23 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
 
     df = df_raw.copy()
     # p_num is already included from the database query (integer value)
-    df[ColumnNames.DATETIME.value] = pd.to_datetime(df["date"])
+    df.rename(
+        columns={
+            "patient_id": ColumnNames.P_NUM.value,
+            "bgl": ColumnNames.BG.value,
+            "date": ColumnNames.DATETIME.value,
+        },
+        inplace=True,
+    )
 
     # Convert columns to numeric (handles object dtype from database)
-    numeric_columns = ["bgl", "food_g", "dose_units", "exercise_mins"]
+    numeric_columns = ["bg_mM", "food_g", "dose_units", "exercise_mins"]
     for col in numeric_columns:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # Convert blood glucose from mg/dL to mmol/L
-    df[ColumnNames.BG.value] = mg_dl_to_mmol_l(df, bgl_col="bgl")
+    df[ColumnNames.BG.value] = mg_dl_to_mmol_l(df, bgl_col="bg_mM")
 
     # Set datetime as index (required by preprocessing pipeline)
     df = df.set_index(ColumnNames.DATETIME.value)

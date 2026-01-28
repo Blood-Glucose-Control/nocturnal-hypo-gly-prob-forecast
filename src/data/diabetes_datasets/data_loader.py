@@ -180,9 +180,9 @@ def get_loader(
     elif data_source_name == "gluroo":
         return GlurooDataLoader(
             keep_columns=keep_columns,
-            num_validation_days=num_validation_days,
+            # num_validation_days=num_validation_days,
             config=config,
-            parallel=parallel,
+            # parallel=parallel,
         )
     elif data_source_name == "aleppo":
         return AleppoDataLoader(
