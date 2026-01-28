@@ -49,8 +49,8 @@ SIMGLUCOSE_CONFIG: DatasetConfig = DatasetConfig(
 
 
 # Aleppo dataset
-ALEPPO_CONFIG: DatasetConfig = DatasetConfig(
-    source=DatasetSourceType.ALEPPO,
+ALEPPO_2017_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.ALEPPO_2017,
     cache_path="aleppo_2017",
     description="Aleppo dataset",
     required_files=["Data Tables"],
@@ -95,7 +95,7 @@ DATASET_CONFIGS = {
     DatasetSourceType.KAGGLE_BRIS_T1D.value: KAGGLE_BRIST1D_CONFIG,
     DatasetSourceType.GLUROO.value: GLUROO_CONFIG,
     DatasetSourceType.SIMGLUCOSE.value: SIMGLUCOSE_CONFIG,
-    DatasetSourceType.ALEPPO.value: ALEPPO_CONFIG,
+    DatasetSourceType.ALEPPO_2017.value: ALEPPO_2017_CONFIG,
     DatasetSourceType.LYNCH_2022.value: LYNCH_2022_CONFIG,
     DatasetSourceType.TAMBORLANE_2008.value: TAMBORLANE_2008_CONFIG,
     DatasetSourceType.BROWN_2019.value: BROWN_2019_CONFIG,

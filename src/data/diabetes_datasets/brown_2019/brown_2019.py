@@ -76,37 +76,46 @@ def _process_single_patient(args: tuple) -> tuple[str, pd.DataFrame]:
 
 
 class Brown2019DataLoader(DatasetBase):
-    """
-    DataLoader for Brown 2019 DCLP3 dataset.
+    """Data loader for the Brown 2019 DCLP3 dataset.
 
-    This loader handles the complete pipeline:
-    1. Load raw data (CGM, basal, bolus)
-    2. Clean and merge into single DataFrame
-    3. Run preprocessing pipeline for IOB calculation
-    4. Split into train/validation sets
+    This class handles loading, processing, and caching of the Brown 2019
+    dataset from the DCLP3 (Closed-Loop Control vs Sensor-Augmented Pump)
+    study comparing closed-loop insulin delivery systems.
 
-    Args:
-        use_cached: Use cached processed data if available.
-        train_percentage: Percentage of data for training (0.0-1.0).
-        keep_columns: List of columns to keep (None = keep all).
-        parallel: Use parallel processing for patient preprocessing.
-        max_workers: Number of parallel workers (default 3).
+    The study evaluated hybrid closed-loop insulin delivery in patients with
+    Type 1 diabetes, providing CGM, basal rate, and bolus delivery data.
+
+    Key features of this dataset:
+        - n = 168 total patients (125 with pump data, 43 CGM-only)
+        - CGM readings with basal and bolus insulin data
+        - Suitable for IOB/COB calculation and closed-loop research
+        - Multi-source data (CGM, basal rates, bolus deliveries)
+
+    Attributes:
+        keep_columns: Specific columns to load from the dataset.
+        use_cached: Whether to use cached processed data if available.
+        train_percentage: Percentage of data to use for training.
+        parallel: Whether to use parallel processing.
+        max_workers: Maximum number of workers for parallel processing.
 
     Example:
-        ```python
-        loader = Brown2019DataLoader(use_cached=True)
-        train_data = loader.train_data  # dict[patient_id, DataFrame]
-        validation_data = loader.validation_data
-        ```
+        >>> loader = Brown2019DataLoader(use_cached=True)
+        >>> pretraining_dict = loader.processed_data
     """
 
     def __init__(
         self,
-        use_cached: bool = True,
-        train_percentage: float = 0.9,
+        # Data Selection
         keep_columns: list[str] | None = None,
+        # Caching
+        use_cached: bool = True,
+        # Train/validation splitting
+        train_percentage: float = 0.9,
+        # Parallel processing
         parallel: bool = True,
-        max_workers: int = 3,
+        max_workers: int = 14,
+        # Date normalization (if applicable)
+        # Dataset-specific parameters
     ):
         super().__init__()
         self.use_cached = use_cached
@@ -133,30 +142,98 @@ class Brown2019DataLoader(DatasetBase):
 
     @property
     def dataset_name(self) -> str:
-        """Return the dataset name.
-
-        Returns:
-            str: The name identifier for this dataset ('brown_2019').
-        """
         return DatasetSourceType.BROWN_2019.value
 
     @property
     def description(self) -> str:
-        """Return a description of the dataset.
+        return """
+                Objective: 'Closed-loop systems that automate insulin
+                    delivery may improve glycemic outcomes in patients with type 1 diabetes'
+                Title: 'Six-Month Randomized, Multicenter Trial of Closed-Loop Control in Type 1 Diabetes'
+                n = 168 participants total
+                    - 125 have insulin pump data (basal rate changes + bolus deliveries)
+                    - 43 have CGM only (no pump data)
+                    - Data spans ~6 months per patient (Baseline + Post Randomization periods)
+                    - CGM: Dexcom G6, 5-minute intervals
+                Paper: https://www.nejm.org/doi/full/10.1056/NEJMoa1907863
+                Note  Brown 2019 DCLP3 Study: A randomized trial comparing Closed-Loop Control (Control-IQ)
+                    vs Sensor-Augmented Pump therapy in adults with Type 1 diabetes.
+            """
+
+    @property
+    def num_patients(self) -> int:
+        """Get the number of patients in the dataset.
 
         Returns:
-            str: Human-readable description of the Brown 2019 DCLP3 study.
+            int: The count of patients, or 0 if no data is loaded.
         """
-        return """
-        Brown 2019 DCLP3 Study: A randomized trial comparing Closed-Loop Control (Control-IQ)
-        vs Sensor-Augmented Pump therapy in adults with Type 1 diabetes.
+        return len(self.processed_data) if self.processed_data else 0
 
-        - 168 participants total
-        - 125 have insulin pump data (basal rate changes + bolus deliveries)
-        - 43 have CGM only (no pump data)
-        - Data spans ~6 months per patient (Baseline + Post Randomization periods)
-        - CGM: Dexcom G6, 5-minute intervals
+    @property
+    def patient_ids(self) -> list[str]:
+        """Get list of patient IDs in the dataset.
+
+        Returns:
+            list[str]: List of patient ID strings, or empty list if no data.
         """
+        return list(self.processed_data.keys()) if self.processed_data else []
+
+    @property
+    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
+        """Get shape summary for each patient's data.
+        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
+        """
+        if not self.processed_data:
+            return {}
+        return {
+            patient_id: df.shape
+            for patient_id, df in self.processed_data.items()
+            if isinstance(df, pd.DataFrame)
+        }
+
+    @property
+    def train_data_shape_summary(self) -> dict[str, tuple[int, int]]:
+        """Get shape summary for each patient's training data.
+
+        Returns:
+            dict[str, tuple[int, int]]: Dictionary mapping patient IDs to their
+                DataFrame shape as (num_rows, num_columns). Returns empty dict
+                if train_data is not available.
+        """
+        if not self.train_data:
+            return {}
+        return {
+            patient_id: df.shape
+            for patient_id, df in self.train_data.items()
+            if isinstance(df, pd.DataFrame)
+        }
+
+    @property
+    def dataset_info(self) -> dict[str, object]:
+        """Get comprehensive information about the dataset.
+
+        Returns:
+            dict[str, object]: Dictionary containing dataset statistics and metadata
+                including dataset_name, num_patients, patient_ids, train_percentage,
+                parallel, max_workers, and optionally train_shapes, num_train_patients,
+                num_validation_patients, and metrics.
+        """
+        info = {
+            "dataset_name": self.dataset_name,
+            "num_patients": self.num_patients,
+            "patient_ids": self.patient_ids,
+            "train_percentage": self.train_percentage,
+            "parallel": self.parallel,
+            "max_workers": self.max_workers,
+        }
+        if self.train_data:
+            info["train_shapes"] = self.train_data_shape_summary
+            info["num_train_patients"] = len(self.train_data)
+        if self.validation_data:
+            info["num_validation_patients"] = len(self.validation_data)
+        if self.data_metrics:
+            info["metrics"] = self.data_metrics
+        return info
 
     def load_raw(self) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
@@ -396,68 +473,6 @@ class Brown2019DataLoader(DatasetBase):
             )
 
         logger.info(f"Dataset validation: {self.data_metrics}")
-
-    @property
-    def num_patients(self) -> int:
-        """Get the number of patients in the dataset.
-
-        Returns:
-            int: The count of patients, or 0 if no data is loaded.
-        """
-        return len(self.processed_data) if self.processed_data else 0
-
-    @property
-    def patient_ids(self) -> list[str]:
-        """Get list of patient IDs in the dataset.
-
-        Returns:
-            list[str]: List of patient ID strings, or empty list if no data.
-        """
-        return list(self.processed_data.keys()) if self.processed_data else []
-
-    @property
-    def train_data_shape_summary(self) -> dict[str, tuple[int, int]]:
-        """Get shape summary for each patient's training data.
-
-        Returns:
-            dict[str, tuple[int, int]]: Dictionary mapping patient IDs to their
-                DataFrame shape as (num_rows, num_columns). Returns empty dict
-                if train_data is not available.
-        """
-        if not self.train_data:
-            return {}
-        return {
-            patient_id: df.shape
-            for patient_id, df in self.train_data.items()
-            if isinstance(df, pd.DataFrame)
-        }
-
-    @property
-    def dataset_info(self) -> dict[str, object]:
-        """Get comprehensive information about the dataset.
-
-        Returns:
-            dict[str, object]: Dictionary containing dataset statistics and metadata
-                including dataset_name, num_patients, patient_ids, train_percentage,
-                parallel, max_workers, and optionally train_shapes, num_train_patients,
-                num_validation_patients, and metrics.
-        """
-        info = {
-            "dataset_name": self.dataset_name,
-            "num_patients": self.num_patients,
-            "patient_ids": self.patient_ids,
-            "train_percentage": self.train_percentage,
-            "parallel": self.parallel,
-            "max_workers": self.max_workers,
-        }
-        if self.train_data:
-            info["train_shapes"] = self.train_data_shape_summary
-            info["num_train_patients"] = len(self.train_data)
-        if self.validation_data:
-            info["num_validation_patients"] = len(self.validation_data)
-        if self.data_metrics:
-            info["metrics"] = self.data_metrics
-        return info
 
     # ==================== Public Methods ====================
 

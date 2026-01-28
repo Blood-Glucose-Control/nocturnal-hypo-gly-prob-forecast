@@ -135,7 +135,7 @@ class CacheManager:
         elif source == DatasetSourceType.HUGGING_FACE:
             self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
         elif source in (
-            DatasetSourceType.ALEPPO,
+            DatasetSourceType.ALEPPO_2017,
             DatasetSourceType.LYNCH_2022,
             DatasetSourceType.BROWN_2019,
         ):
