@@ -14,7 +14,7 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -26,7 +26,7 @@ from enum import Enum
 from src.utils.logging_helper import info_print, error_print
 
 
-class TrainingStrategy(Enum):
+class TrainingBackend(Enum):
     """Training strategy options for different model architectures."""
 
     TRANSFORMERS = "transformers"  # Uses transformers.Trainer
@@ -50,7 +50,7 @@ class ModelConfig:
         n_heads: Number of attention heads (for transformer-based models).
         n_layers: Number of transformer/encoder layers.
         dropout: Dropout probability for regularization.
-        fit_strategy: Training approach - "zero_shot", "fine_tune", or "from_scratch".
+        training_mode: Training approach - "zero_shot", "fine_tune", or "from_scratch".
         freeze_backbone: Whether to freeze pre-trained weights during fine-tuning.
         learning_rate: Learning rate for the optimizer.
         batch_size: Number of samples per training batch.
@@ -68,7 +68,7 @@ class ModelConfig:
         fp16: Whether to use mixed precision (FP16) training.
         dataloader_num_workers: Number of worker processes for data loading.
         use_cpu: Force CPU usage even if GPU is available.
-        training_strategy: The training framework to use (Transformers, PyTorch, etc.).
+        training_backend: The training framework to use (Transformers, PyTorch, etc.).
         loss_function: Loss function for training - "mse", "mae", "huber", or "pinball".
     """
 
@@ -83,7 +83,7 @@ class ModelConfig:
     dropout: float = 0.1
 
     # Model behavior
-    fit_strategy: str = "fine_tune"  # "zero_shot", "fine_tune", "from_scratch"
+    training_mode: str = "fine_tune"  # "zero_shot", "fine_tune", "from_scratch"
     freeze_backbone: bool = False
 
     # Training configuration
@@ -109,7 +109,7 @@ class ModelConfig:
     use_cpu: bool = False
 
     # Training strategy
-    training_strategy: TrainingStrategy = TrainingStrategy.TRANSFORMERS
+    training_backend: TrainingBackend = TrainingBackend.TRANSFORMERS
 
     # Loss function
     loss_function: str = "mse"  # "mse", "mae", "huber", "pinball"
@@ -223,7 +223,7 @@ class DistributedConfig:
     fsdp_config: Optional[Dict[str, Any]] = None
 
 
-class BaseTSFM(ABC):
+class BaseTimeSeriesFoundationModel(ABC):
     """
     Abstract base class for all Time Series Foundation Models.
 
@@ -273,38 +273,19 @@ class BaseTSFM(ABC):
         # Initialize model
         self._initialize_model()
 
-    # Abstract methods that child classes must implement
-    ## Abstract public API methods
+    # Properties
+    @property
     @abstractmethod
-    def predict(
-        self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
-    ) -> Union[np.ndarray, Dict[str, Any]]:
-        """
-        Make predictions on new data.
-
-        Each model must implement this method to handle its specific
-        prediction logic and output format.
-
-        Args:
-            data: Input data for prediction
-            batch_size: Batch size for prediction (defaults to config.batch_size)
-            return_dict: Whether to return additional information
-
-        Returns:
-            Predictions as numpy array or dictionary with additional info
-        """
-        pass
-
-    @abstractmethod
-    def get_training_strategy(self) -> TrainingStrategy:
+    def training_backend(self) -> TrainingBackend:
         """
         Return the training strategy this model uses.
 
         Returns:
-            TrainingStrategy: The training approach for this model
+            TrainingBackend: The training approach for this model
         """
         pass
 
+    @property
     @abstractmethod
     def supports_lora(self) -> bool:
         """
@@ -315,6 +296,25 @@ class BaseTSFM(ABC):
         """
         pass
 
+    # Abstract methods that child classes must implement
+    ## Abstract public API methods
+    @abstractmethod
+    def predict(self, data: Any, batch_size: Optional[int] = None) -> np.ndarray:
+        """
+        Make predictions on new data.
+
+        Each model must implement this method to handle its specific
+        prediction logic and output format.
+
+        Args:
+            data: Input data for prediction
+            batch_size: Batch size for prediction (defaults to config.batch_size)
+
+        Returns:
+            Predictions as numpy array
+        """
+        pass
+
     ## Abstract Protected Methods
     @abstractmethod
     def _initialize_model(self) -> None:
@@ -322,19 +322,17 @@ class BaseTSFM(ABC):
         pass
 
     @abstractmethod
-    def _prepare_data(
+    def _prepare_training_data(
         self,
         train_data: Any,
-        val_data: Optional[Any] = None,
-        test_data: Optional[Any] = None,
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
         """
         Prepare data loaders for training, validation, and testing.
 
+        Data splitting is controlled by model configuration.
+
         Args:
-            train_data: Training dataset
-            val_data: Validation dataset (optional)
-            test_data: Test dataset (optional)
+            train_data: Training dataset (will be split based on config)
 
         Returns:
             Tuple of (train_loader, val_loader, test_loader)
@@ -342,44 +340,46 @@ class BaseTSFM(ABC):
         pass
 
     @abstractmethod
-    def _save_model_weights(self, output_dir: str) -> None:
-        """Save model weights to directory. Each model implements this."""
+    def _save_checkpoint(self, output_dir: str) -> None:
+        """Save model checkpoint files (weights, optimizer state, etc.) to directory.
+
+        This method should ONLY handle writing checkpoint files. The base class
+        save() handles config.json and metadata.json.
+        """
         pass
 
     @abstractmethod
-    def _load_model_weights(self, model_dir: str) -> None:
-        """Load model weights from directory. Each model implements this."""
+    def _load_checkpoint(self, model_dir: str) -> None:
+        """Load model checkpoint files (weights, optimizer state, etc.) from directory.
+
+        This method should ONLY handle reading checkpoint files. The base class
+        load() handles config.json and metadata.json.
+        """
         pass
 
     @abstractmethod
     def _train_model(
         self,
         train_data: Any,
-        val_data: Optional[Any],
-        test_data: Optional[Any],
         output_dir: str,
         **kwargs,
     ) -> Dict[str, Any]:
         """
         Model-specific training implementation.
 
+        Data splitting for train/val/test is controlled by model configuration.
+
         Args:
-            train_data: Training dataset
-            val_data: Validation dataset (optional)
-            test_data: Test dataset (optional)
+            train_data: Training dataset (will be split based on config)
             output_dir: Directory to save outputs
             **kwargs: Additional arguments
         """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement _train_model() method"
-        )
+        pass
 
     # Public API (fit, predict, evaluate, save_model, load_model, get_model_info...)
     def fit(
         self,
         train_data: Any,
-        val_data: Optional[Any] = None,
-        test_data: Optional[Any] = None,
         output_dir: str = "./output",
         **kwargs,
     ) -> Dict[str, Any]:
@@ -392,11 +392,12 @@ class BaseTSFM(ABC):
         - Saving training metadata
         - Cleaning up distributed resources
 
+        Data splitting for train/val/test is controlled by model configuration.
+
         Args:
             train_data: Training dataset. Format depends on the specific model
                 implementation (e.g., DataFrame, Dataset, or data source name).
-            val_data: Validation dataset for monitoring training progress.
-            test_data: Test dataset for final evaluation after training.
+                Will be split into train/val/test based on model config.
             output_dir: Directory path where model checkpoints, logs, and
                 metadata will be saved.
             **kwargs: Additional keyword arguments passed to the model-specific
@@ -411,7 +412,7 @@ class BaseTSFM(ABC):
                 to run even if training raises an exception.
         """
         info_print(f"Starting training for {self.__class__.__name__}")
-        info_print(f"Training strategy: {self.get_training_strategy().value}")
+        info_print(f"Training Backend: {self.training_backend.value}")
 
         # Setup distributed training if configured
         self._setup_distributed()
@@ -421,13 +422,14 @@ class BaseTSFM(ABC):
 
         try:
             # Let each model handle its own training
-            metrics = self._train_model(
-                train_data, val_data, test_data, output_dir, **kwargs
-            )
+            metrics = self._train_model(train_data, output_dir, **kwargs)
 
             # Post-training state updates
             self.is_fitted = True
-            self.training_history = metrics.get("train_metrics", metrics)
+            # Use training_history if provided, otherwise fall back to train_metrics
+            self.training_history = metrics.get(
+                "training_history", metrics.get("train_metrics", metrics)
+            )
             self._save_training_metadata(output_dir, metrics)
 
             info_print("🏁 Training complete!")
@@ -439,8 +441,11 @@ class BaseTSFM(ABC):
             self._cleanup_distributed()
 
     def evaluate(
-        self, test_data: Any, return_predictions: bool = False
-    ) -> Dict[str, Any]:
+        self,
+        test_data: Any,
+        batch_size: Optional[int] = None,
+        return_predictions: bool = False,
+    ) -> Dict[str, Any]:  # Values can be floats, arrays, etc.
         """
         Evaluate the model on test data.
 
@@ -449,6 +454,7 @@ class BaseTSFM(ABC):
 
         Args:
             test_data: Test dataset (format depends on model's _prepare_data)
+            batch_size: Batch size for evaluation (defaults to config.batch_size)
             return_predictions: Whether to include predictions in output
 
         Returns:
@@ -458,7 +464,7 @@ class BaseTSFM(ABC):
             raise ValueError("Model must be fitted before evaluation")
 
         # Get predictions using the child's predict implementation
-        predictions = self.predict(test_data)
+        predictions = self.predict(test_data, batch_size=batch_size)
 
         # Extract ground truth from test data
         # Child classes may need to override if their data format differs
@@ -468,16 +474,13 @@ class BaseTSFM(ABC):
         metrics = self._compute_metrics(predictions, y_true)
 
         if return_predictions:
-            return {
-                "metrics": metrics,
-                "predictions": predictions,
-                "ground_truth": y_true,
-            }
+            metrics["predictions"] = predictions
+            metrics["ground_truth"] = y_true
 
         return metrics
 
-    def save_model(
-        self, output_dir: str, save_config: bool = True, save_metadata: bool = True
+    def save(
+        self, model_path: str, save_config: bool = True, save_metadata: bool = True
     ) -> None:
         """Save the model and associated metadata to disk.
 
@@ -485,7 +488,7 @@ class BaseTSFM(ABC):
         must override this method to implement actual model weight saving.
 
         Args:
-            output_dir: Directory path where the model will be saved.
+            model_path: Directory path where the model will be saved.
             save_config: Whether to save the model configuration to config.json.
             save_metadata: Whether to save training metadata to metadata.json.
 
@@ -494,14 +497,14 @@ class BaseTSFM(ABC):
                 must override to save model weights.
 
         Note:
-            Child classes should call super().save_model() first to save
+            Child classes should call super().save() first to save
             configuration and metadata, then save model-specific weights.
         """
-        os.makedirs(output_dir, exist_ok=True)
+        os.makedirs(model_path, exist_ok=True)
 
         # Save configuration
         if save_config:
-            config_path = os.path.join(output_dir, "config.json")
+            config_path = os.path.join(model_path, "config.json")
             with open(config_path, "w") as f:
                 json.dump(self.config.to_dict(), f, indent=2)
 
@@ -515,26 +518,27 @@ class BaseTSFM(ABC):
                 "config": self.config.to_dict(),
                 "lora_config": self.lora_config.__dict__,
                 "distributed_config": self.distributed_config.__dict__,
-                "training_strategy": self.get_training_strategy().value,
+                "training_backend": self.training_backend.value,
             }
 
-            metadata_path = os.path.join(output_dir, "metadata.json")
+            metadata_path = os.path.join(model_path, "metadata.json")
             with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=2)
 
-        self._save_model_weights(output_dir)  # <-- This line instead of raising
+        # Save model-specific checkpoint files (weights, optimizer state, etc.)
+        self._save_checkpoint(model_path)
 
-        info_print(f"Model saved to {output_dir}")
+        info_print(f"Model saved to {model_path}")
 
     @classmethod
-    def load_model(
-        cls, model_dir: str, config: Optional[ModelConfig] = None
-    ) -> "BaseTSFM":
+    def load(
+        cls, model_path: str, config: Optional[ModelConfig] = None
+    ) -> "BaseTimeSeriesFoundationModel":
         """
         Load a saved model.
 
         Args:
-            model_dir: Directory containing the saved model
+            model_path: Directory containing the saved model
             config: Optional config override
 
         Returns:
@@ -542,7 +546,7 @@ class BaseTSFM(ABC):
         """
         # Load config if not provided
         if config is None:
-            config_path = os.path.join(model_dir, "config.json")
+            config_path = os.path.join(model_path, "config.json")
             if os.path.exists(config_path):
                 with open(config_path, "r") as f:
                     config_dict = json.load(f)
@@ -553,20 +557,34 @@ class BaseTSFM(ABC):
         # Create instance
         instance = cls(config)
 
-        # Load the actual model weights
-        # This is model-specific and should be implemented in subclasses
-        instance._load_model_weights(model_dir)
+        # Load model-specific checkpoint files (weights, optimizer state, etc.)
+        info_print(f"Loading model from {model_path}...")
+        instance._load_checkpoint(model_path)
 
-        # Load metadata
-        metadata_path = os.path.join(model_dir, "metadata.json")
+        # Load metadata - check both metadata.json (from save_model) and
+        # training_metadata.json (from fit) for backward compatibility
+        metadata_path = os.path.join(model_path, "metadata.json")
+        training_metadata_path = os.path.join(model_path, "training_metadata.json")
+
+        metadata = {}
         if os.path.exists(metadata_path):
             with open(metadata_path, "r") as f:
                 metadata = json.load(f)
+            info_print(f"Loaded metadata from {metadata_path}")
+        elif os.path.exists(training_metadata_path):
+            with open(training_metadata_path, "r") as f:
+                metadata = json.load(f)
+            info_print(f"Loaded metadata from {training_metadata_path}")
+            # Extract training_history from metrics if present
+            if "metrics" in metadata and "training_history" in metadata["metrics"]:
+                metadata["training_history"] = metadata["metrics"]["training_history"]
+
+        if metadata:
             instance.training_history = metadata.get("training_history", {})
             instance.best_metrics = metadata.get("best_metrics", {})
             instance.is_fitted = metadata.get("is_fitted", False)
 
-        info_print(f"Model loaded from {model_dir}")
+        info_print(f"Model loaded from {model_path}")
         return instance
 
     def get_model_info(self) -> Dict[str, Any]:
@@ -579,7 +597,7 @@ class BaseTSFM(ABC):
                 - is_fitted: Whether the model has been trained.
                 - lora_enabled: Whether LoRA is enabled.
                 - distributed_enabled: Whether distributed training is enabled.
-                - training_strategy: The training framework being used.
+                - training_backend: The training framework being used.
                 - total_parameters: Total number of model parameters (if model exists).
                 - trainable_parameters: Number of trainable parameters (if model exists).
                 - trainable_percentage: Percentage of parameters that are trainable.
@@ -590,7 +608,7 @@ class BaseTSFM(ABC):
             "is_fitted": self.is_fitted,
             "lora_enabled": self.lora_config.enabled,
             "distributed_enabled": self.distributed_config.enabled,
-            "training_strategy": self.get_training_strategy().value,
+            "training_backend": self.training_backend.value,
         }
 
         if self.model is not None:
@@ -986,7 +1004,7 @@ class BaseTSFM(ABC):
 
 
 # Utility functions for model management
-def create_model_from_config(config_path: str) -> BaseTSFM:
+def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
     """
     Factory function to create a model from a configuration file.
 

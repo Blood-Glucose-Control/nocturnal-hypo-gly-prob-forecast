@@ -1,7 +1,7 @@
 """TimesFM model for time series forecasting.
 
 This module provides a wrapper around Google's TimesFM (Time Series Foundation Model)
-for glucose forecasting tasks. Integrated with the BaseTSFM framework for consistency.
+for glucose forecasting tasks. Integrated with the BaseTimeSeriesFoundationModel framework for consistency.
 """
 
 from .config import TimesFMConfig

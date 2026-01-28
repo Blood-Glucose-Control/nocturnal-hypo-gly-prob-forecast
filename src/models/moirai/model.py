@@ -16,12 +16,12 @@ from transformers import (
 )
 
 # Local imports
-from src.models.base import BaseTSFM
+from src.models.base import BaseTimeSeriesFoundationModel
 from src.models.moirai.config import MoiraiConfig
 from src.utils.logging_helper import info_print, error_print
 
 
-class MoiraiForecaster(BaseTSFM):
+class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     """Moirai forecaster implementation using the base TSFM framework.
 
     Moirai is a time series foundation model developed by Salesforce that uses
@@ -99,7 +99,7 @@ class MoiraiForecaster(BaseTSFM):
             raise ValueError("Model must be fitted before making predictions")
 
         # Prepare data for prediction
-        data_loader, _, _ = self._prepare_data(data)
+        data_loader, _, _ = self._prepare_training_data(data)
 
         # Set model to evaluation mode
         self.model.eval()
@@ -184,7 +184,7 @@ class MoiraiForecaster(BaseTSFM):
             error_print(f"Failed to initialize Moirai model: {str(e)}")
             raise
 
-    def _prepare_data(
+    def _prepare_training_data(
         self, data: Any, split: Optional[str] = None
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
         """Prepare data for training or inference.
@@ -201,7 +201,7 @@ class MoiraiForecaster(BaseTSFM):
 
         raise NotImplementedError(
             "Data preparation for Moirai not yet implemented. "
-            "Please implement data preprocessing in _prepare_data()."
+            "Please implement data preprocessing in _prepare_training_data()."
         )
 
     def _get_training_args(self) -> TrainingArguments:

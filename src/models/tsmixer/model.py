@@ -11,7 +11,7 @@ import numpy as np
 from torch.utils.data import DataLoader
 from transformers import TrainingArguments
 
-from src.models.base import BaseTSFM, ModelConfig, TrainingStrategy
+from src.models.base import BaseTimeSeriesFoundationModel, ModelConfig, TrainingBackend
 from src.utils.logging_helper import info_print, error_print
 
 
@@ -43,7 +43,7 @@ class TSMixerConfig(ModelConfig):
         self.mixing_hidden_dim = kwargs.get("mixing_hidden_dim", 256)
 
 
-class TSMixerForecaster(BaseTSFM):
+class TSMixerForecaster(BaseTimeSeriesFoundationModel):
     """
     TSMixer forecaster implementation.
 
@@ -71,9 +71,9 @@ class TSMixerForecaster(BaseTSFM):
         """TSMixer is MLP-based and does NOT support LoRA fine-tuning."""
         return False
 
-    def get_training_strategy(self) -> TrainingStrategy:
+    def training_backend(self) -> TrainingBackend:
         """TSMixer uses custom PyTorch training loops."""
-        return TrainingStrategy.PYTORCH
+        return TrainingBackend.PYTORCH
 
     def _initialize_model(self) -> None:
         """Initialize the TSMixer model architecture."""
@@ -97,7 +97,7 @@ class TSMixerForecaster(BaseTSFM):
             error_print(f"Failed to initialize TSMixer model: {str(e)}")
             raise
 
-    def _prepare_data(
+    def _prepare_training_data(
         self,
         train_data: Any,
         val_data: Optional[Any] = None,

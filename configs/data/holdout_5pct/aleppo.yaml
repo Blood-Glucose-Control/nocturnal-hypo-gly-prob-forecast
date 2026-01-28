@@ -1,0 +1,27 @@
+dataset_name: aleppo
+holdout_type: hybrid
+description: 'Hybrid holdout strategy: 5% temporal split on training patients + 11
+  holdout patients (5% of total)'
+created_date: '2026-01-10'
+version: '1.0'
+temporal_config:
+  holdout_percentage: 0.05
+  min_train_samples: 50
+  min_holdout_samples: 10
+patient_config:
+  holdout_patients:
+  - p140
+  - p33
+  - p203
+  - p288
+  - p277
+  - p73
+  - p74
+  - p41
+  - p164
+  - p135
+  - p39
+  holdout_percentage: null
+  min_train_patients: 2
+  min_holdout_patients: 1
+  random_seed: 42

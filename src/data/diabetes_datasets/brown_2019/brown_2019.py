@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """
 DataLoader for the Brown 2019 DCLP3 dataset.
@@ -173,15 +173,15 @@ class Brown2019DataLoader(DatasetBase):
 
         return load_raw_brown_2019_data(DATA_DIR)
 
-    def load_data(self) -> dict[str, pd.DataFrame]:
+    def load_data(self) -> None:
         """
         Load and process the dataset.
 
         If cached data exists and use_cached=True, loads from cache.
         Otherwise, processes raw data and saves to cache.
 
-        Returns:
-            Dict mapping patient_id -> DataFrame.
+        Side Effects:
+            Sets self.processed_data, self.train_data, and self.validation_data.
         """
         need_to_process = True
 
@@ -200,8 +200,6 @@ class Brown2019DataLoader(DatasetBase):
 
         # Compute validation metrics
         self._validate_dataset()
-
-        return self.processed_data
 
     def _process_and_cache_data(self):
         """

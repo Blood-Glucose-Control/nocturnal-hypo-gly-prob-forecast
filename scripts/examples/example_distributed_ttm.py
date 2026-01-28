@@ -139,7 +139,7 @@ def main():
     model_info = model.get_model_info()
     info_print("📊 Model Info:")
     info_print(f"   Distributed enabled: {model_info['distributed_enabled']}")
-    info_print(f"   Training strategy: {model_info['training_strategy']}")
+    info_print(f"   Training strategy: {model_info['training_backend']}")
 
     # 6. Training works exactly the same!
     output_dir = "./trained_models/artifacts/_tsfm_testing/output_distributed_ttm"

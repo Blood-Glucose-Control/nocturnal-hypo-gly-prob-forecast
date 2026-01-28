@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
@@ -11,7 +11,7 @@ class DatasetSourceType(str, Enum):
     LOCAL = "local"
     GLUROO = "gluroo"
     HUGGING_FACE = "hugging_face"
-    ALEPPO = "aleppo"
+    ALEPPO = "aleppo_2017"
     LYNCH_2022 = "lynch_2022"
     BROWN_2019 = "brown_2019"
     SIMGLUCOSE = "simglucose"

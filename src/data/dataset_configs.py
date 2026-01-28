@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """
 Dataset configurations for automatic data fetching and processing.
@@ -51,7 +51,7 @@ SIMGLUCOSE_CONFIG: DatasetConfig = DatasetConfig(
 # Aleppo dataset
 ALEPPO_CONFIG: DatasetConfig = DatasetConfig(
     source=DatasetSourceType.ALEPPO,
-    cache_path="aleppo",
+    cache_path="aleppo_2017",
     description="Aleppo dataset",
     required_files=["Data Tables"],
     url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Aleppo-(2017)",

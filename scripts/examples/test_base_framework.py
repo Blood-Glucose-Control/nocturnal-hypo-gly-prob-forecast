@@ -407,7 +407,7 @@ def example_training_simulation():
         early_stopping_patience=5,
         use_cpu=use_cpu,  # Set based on your hardware
         freeze_backbone=False,  # Explicitly ensure training is enabled
-        fit_strategy="from_scratch",  # Use from_scratch to force full training
+        training_mode="from_scratch",  # Use from_scratch to force full training
     )
 
     # LoRA for efficient training
@@ -504,7 +504,7 @@ def example_configuration_from_yaml():
         "batch_size": 64,
         "learning_rate": 1e-4,
         "num_epochs": 10,
-        "fit_strategy": "fine_tune",
+        "training_mode": "fine_tune",
         "fp16": True,
         "early_stopping_patience": 5,
     }
