@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Blood-Glucose-Control
+# Licensed under Custom Research License (see LICENSE file)
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
+
 """
 ⚠️  IMPORTANT NOTICE - INTERNAL USE ONLY ⚠️
 This dataset is for INTERNAL USE ONLY and will NOT be released to the public.

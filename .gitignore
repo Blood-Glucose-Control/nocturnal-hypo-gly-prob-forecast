@@ -69,6 +69,8 @@ cache/data/gluroo/processed/parquet/*
 
 scripts/watgpu_slurm/data_processing_scripts/results/
 
+# Cache directory (symlinked to shared location)
+cache
 cache/**/*.csv
 cache/**/*.txt
 cache/**/*.json

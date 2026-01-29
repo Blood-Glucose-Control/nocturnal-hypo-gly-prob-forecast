@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """
 Kaggle Bristol T1D Dataset Loader.
@@ -194,10 +194,13 @@ class BrisT1DDataLoader(DatasetBase):
                         shape_summary[(patient_id, sub_id)] = sub_df.shape
         return shape_summary
 
-    def load_data(self):
+    def load_data(self) -> None:
         """
         Load processed data from cache or process raw data and save to cache.
         Then split train/validation data.
+
+        Side Effects:
+            Sets self.processed_data, self.train_data, and self.validation_data.
         """
         logger.info("============================================================")
         logger.info("Beginning data loading process with the following parmeters:")

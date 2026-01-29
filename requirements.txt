@@ -41,6 +41,7 @@ seaborn
 skchange
 sktime
 #tf-keras
+tabulate
 torch
 tqdm
 transformers

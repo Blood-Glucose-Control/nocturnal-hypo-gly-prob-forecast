@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 import pandas as pd
 import os
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 repo = get_project_root()
-CACHE_DIR = repo / "cache" / "data" / "aleppo"
+CACHE_DIR = repo / "cache" / "data" / "aleppo_2017"
 DATA_TABLES = CACHE_DIR / "raw" / "Data Tables"
 DB_PATH = CACHE_DIR / "aleppo.db"
 
@@ -68,7 +68,7 @@ SELECT
     bolusType, normalBolus, expectedNormalBolus, extendedBolus, expectedExtendedBolus,
     bgInput, foodG, iob, cr, isf,
     bgMgdl,
-    rate, suprBasalType, suprRate
+    rate, basalDurationMins, suprBasalType, suprRate
 FROM (
     -- Bolus data
     SELECT
@@ -76,10 +76,10 @@ FROM (
         datetime(julianday((SELECT base_date FROM params)) + CAST(HDeviceBolus.DeviceDtTmDaysFromEnroll AS INTEGER) + (julianday(HDeviceBolus.DeviceTm) - julianday('00:00:00'))) AS date,
         'bolus' as tableType,
         HDeviceBolus.BolusType as bolusType,
-        Normal as normalBolus,
-        ExpectedNormal as expectedNormalBolus,
-        Extended as extendedBolus,
-        ExpectedExtended as expectedExtendedBolus,
+        HDeviceBolus.Normal as normalBolus,
+        HDeviceBolus.ExpectedNormal as expectedNormalBolus,
+        HDeviceBolus.Extended as extendedBolus,
+        HDeviceBolus.ExpectedExtended as expectedExtendedBolus,
         NULL as bgInput,
         NULL as foodG,
         NULL as iob,
@@ -87,6 +87,7 @@ FROM (
         NULL as isf,
         NULL as bgMgdl,
         NULL as rate,
+        NULL as basalDurationMins,
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceBolus
@@ -104,12 +105,13 @@ FROM (
         NULL as extendedBolus,
         NULL as expectedExtendedBolus,
         HDeviceWizard.BgInput as bgInput,
-        HDeviceWizard.CarbInput as foodG, --  Readme says this is in mg but I think it is in grams
+        HDeviceWizard.CarbInput as foodG,
         HDeviceWizard.InsulinOnBoard as iob,
         HDeviceWizard.InsulinCarbRatio as cr,
         HDeviceWizard.InsulinSensitivity as isf,
         NULL as bgMgdl,
         NULL as rate,
+        NULL as basalDurationMins,
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceWizard
@@ -133,6 +135,7 @@ FROM (
         NULL as isf,
         HDeviceCGM.GlucoseValue as bgMgdl,
         NULL as rate,
+        NULL as basalDurationMins,
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceCGM
@@ -158,6 +161,7 @@ FROM (
         NULL as isf,
         NULL as bgMgdl,
         HDeviceBasal.Rate as rate,
+        HDeviceBasal.Duration / 60000 as basalDurationMins,
         HDeviceBasal.SuprBasalType as suprBasalType,
         HDeviceBasal.SuprRate as suprRate
     FROM HDeviceBasal
@@ -226,7 +230,7 @@ def convert_to_csv(df):
     logger.info("Converting data to CSV")
     project_root = get_project_root()
     # TODO: Probably shouldn't hardcode this.
-    data_dir = project_root / "cache" / "data" / "aleppo" / "interim"
+    data_dir = project_root / "cache" / "data" / "aleppo_2017" / "interim"
     os.makedirs(data_dir, exist_ok=True)
     for pid in df["pid"].unique():
         df_pid = df[df["pid"] == pid]

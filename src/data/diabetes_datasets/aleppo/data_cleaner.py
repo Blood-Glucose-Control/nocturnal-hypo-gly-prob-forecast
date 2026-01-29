@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
@@ -194,7 +194,7 @@ def process_one_patient(
 
     # Debug only
     if debug:
-        debug_dir = get_project_root() / "cache" / "data" / "aleppo" / "debug"
+        debug_dir = get_project_root() / "cache" / "data" / "aleppo_2017" / "debug"
         os.makedirs(debug_dir, exist_ok=True)
         df.to_csv(debug_dir / f"p{pid}.csv", index=True)
     return df

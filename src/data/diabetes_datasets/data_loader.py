@@ -35,11 +35,10 @@ from src.data.diabetes_datasets import Brown2019DataLoader
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
-from src.data.diabetes_datasets import AleppoDataLoader
+from src.data.diabetes_datasets import Aleppo2017DataLoader
 from src.data.diabetes_datasets import Tamborlane2008DataLoader
 
 
-# TODO: Add train_percentage parameter
 @overload
 def get_loader(
     data_source_name: Literal["lynch_2022"],
@@ -99,7 +98,7 @@ def get_loader(
 
 @overload
 def get_loader(
-    data_source_name: Literal["aleppo"],
+    data_source_name: Literal["aleppo_2017"],
     dataset_type: str = "train",
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
@@ -108,7 +107,7 @@ def get_loader(
     config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
-) -> AleppoDataLoader: ...
+) -> Aleppo2017DataLoader: ...
 
 
 @overload
@@ -139,7 +138,7 @@ def get_loader(
 ) -> Union[
     BrisT1DDataLoader,
     GlurooDataLoader,
-    AleppoDataLoader,
+    Aleppo2017DataLoader,
     Lynch2022DataLoader,
     Brown2019DataLoader,
     Tamborlane2008DataLoader,
@@ -189,8 +188,8 @@ def get_loader(
             max_workers=max_workers,
             load_all=load_all,
         )
-    elif data_source_name == "aleppo":
-        return AleppoDataLoader(
+    elif data_source_name == "aleppo_2017":
+        return Aleppo2017DataLoader(
             keep_columns=keep_columns,
             use_cached=use_cached,
             train_percentage=train_percentage,
