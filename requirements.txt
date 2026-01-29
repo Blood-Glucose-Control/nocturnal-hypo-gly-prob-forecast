@@ -26,6 +26,7 @@ numpy
 orjson
 pandas
 pre-commit
+pyarrow>=14.0.0
 pydantic
 pyreadstat
 pytest

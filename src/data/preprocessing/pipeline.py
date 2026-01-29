@@ -128,9 +128,13 @@ def preprocessing_pipeline(
         )
 
     patient_df = df.copy(deep=True)
-    processed_df = create_physiological_features(
-        patient_df,
-        use_aggregation=use_aggregation,
-        basal_delivery_type=basal_delivery_type,
-    )
+    try:
+        processed_df = create_physiological_features(
+            patient_df,
+            use_aggregation=use_aggregation,
+            basal_delivery_type=basal_delivery_type,
+        )
+    except Exception as e:
+        logger.error(f"Error preprocessing patient {p_num}: {e}")
+        raise
     return processed_df
