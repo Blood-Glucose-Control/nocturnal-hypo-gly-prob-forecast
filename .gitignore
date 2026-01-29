@@ -76,7 +76,7 @@ cache/**/*.pkl
 cache/data/brown_2019/*
 cache/data/lynch_2022/*
 cache/data/tamborlane_2008/*
-cache/data/aleppo/*
+cache/data/aleppo_2017/*
 cache/data/colas_2019/*
 cache/data/hall_2018/*
 

@@ -43,6 +43,8 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     # Convert blood glucose from mg/dL to mmol/L
     df[ColumnNames.BG.value] = mg_dl_to_mmol_l(df, bgl_col="bg_mM")
 
+    # Single "datetime" column (renamed from "date"); convert for DatetimeIndex
+    df[ColumnNames.DATETIME.value] = pd.to_datetime(df[ColumnNames.DATETIME.value])
     # Set datetime as index (required by preprocessing pipeline)
     df = df.set_index(ColumnNames.DATETIME.value)
     df.index.name = ColumnNames.DATETIME.value
