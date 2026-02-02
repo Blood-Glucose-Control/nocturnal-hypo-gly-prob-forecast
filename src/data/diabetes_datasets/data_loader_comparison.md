@@ -129,7 +129,7 @@ This document compares the implemented properties and methods across all data lo
 
 ### Phase 1: Core Properties (Add to DatasetBase) - PARTIALLY COMPLETE
 1. ✅ `num_patients` - Now has default implementation in base class
-2. ✅ `patient_ids` - Now has default implementation in base class  
+2. ✅ `patient_ids` - Now has default implementation in base class
 3. ✅ `description` - Now abstract in base class, implemented in all except Gluroo
 4. ✅ `data_shape_summary` - Now abstract in base class, implemented in all except Gluroo
 5. ❌ `dataset_info` - Still missing from BrisT1D, Lynch2022, Gluroo
