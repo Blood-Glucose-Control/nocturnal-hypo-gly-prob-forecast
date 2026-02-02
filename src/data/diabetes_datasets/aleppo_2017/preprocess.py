@@ -68,7 +68,7 @@ SELECT
     bolusType, normalBolus, expectedNormalBolus, extendedBolus, expectedExtendedBolus,
     bgInput, foodG, iob, cr, isf,
     bgMgdl,
-    rate, suprBasalType, suprRate
+    rate, basalDurationMins, suprBasalType, suprRate
 FROM (
     -- Bolus data
     SELECT
@@ -87,6 +87,7 @@ FROM (
         NULL as isf,
         NULL as bgMgdl,
         NULL as rate,
+        NULL as basalDurationMins,
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceBolus
@@ -110,6 +111,7 @@ FROM (
         HDeviceWizard.InsulinSensitivity as isf,
         NULL as bgMgdl,
         NULL as rate,
+        NULL as basalDurationMins,
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceWizard
@@ -133,6 +135,7 @@ FROM (
         NULL as isf,
         HDeviceCGM.GlucoseValue as bgMgdl,
         NULL as rate,
+        NULL as basalDurationMins,
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceCGM
@@ -158,6 +161,7 @@ FROM (
         NULL as isf,
         NULL as bgMgdl,
         HDeviceBasal.Rate as rate,
+        HDeviceBasal.Duration / 60000 as basalDurationMins,
         HDeviceBasal.SuprBasalType as suprBasalType,
         HDeviceBasal.SuprRate as suprRate
     FROM HDeviceBasal
