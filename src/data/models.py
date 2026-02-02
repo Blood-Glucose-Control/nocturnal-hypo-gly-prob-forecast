@@ -21,7 +21,7 @@ class DatasetSourceType(str, Enum):
 # TODO: Add to the mean_cols list in sampling.py / ensure_regular_time_intervals_with_aggregation if the column is describing rate of change.
 class ColumnNames(str, Enum):
     BG = "bg_mM"
-    DATETIME = "datetime"
+    DATETIME = "datetime"  # This shoud be INDEX
     P_NUM = "p_num"
     DOSE_UNITS = "dose_units"
     BOLUS = "bolus"
