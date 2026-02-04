@@ -7,8 +7,7 @@ from src.models.base import ModelConfig, TrainingBackend
 class SundialConfig(ModelConfig):
     """Configuration class for Sundial models."""
     def __init__(self, **kwargs):
-        sundial_specific_params = {
-        }
+        sundial_specific_params = {"num_samples"}
 
         # Filter out Sundial-specific params from kwargs for parent class
         base_kwargs = {k: v for k, v in kwargs.items() if k not in sundial_specific_params}
