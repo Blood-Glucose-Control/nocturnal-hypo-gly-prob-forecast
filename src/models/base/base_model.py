@@ -1030,6 +1030,11 @@ def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
 
         config = ModelConfig.from_dict(config_dict)
         return ChronosForecaster(config)
+    elif model_type == "chronos2":
+        from src.models.chronos import Chronos2Forecaster, Chronos2Config
+
+        config = Chronos2Config(**config_dict)
+        return Chronos2Forecaster(config)
     elif model_type == "tsmixer":
         from src.models.tsmixer import TSMixerForecaster, TSMixerConfig
 
