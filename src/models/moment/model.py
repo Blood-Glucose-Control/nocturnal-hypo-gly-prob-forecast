@@ -90,11 +90,14 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             }
             config = MomentConfig(**essential_params)
 
+        # Set device BEFORE super().__init__() because _initialize_model() is called during init
+        use_cpu = getattr(config, "use_cpu", False)
+        self._device = torch.device("cuda" if torch.cuda.is_available() and not use_cpu else "cpu")
+        
         super().__init__(config, lora_config, distributed_config)
         self.config: MomentConfig = self.config
         self.preprocessor = None
         self.column_specifiers = None
-        self._device = torch.device("cuda" if torch.cuda.is_available() and not self.config.use_cpu else "cpu")
         self._target_col: Optional[str] = None
 
     # --- Properties (base contract) ---
@@ -346,11 +349,16 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         return loader, None, None
 
     def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
-        """Extract ground truth targets in same order as _prepare_training_data."""
+        """Extract ground truth targets in same order as _prepare_training_data.
+        
+        Returns shape (N, forecast_length) to match predict() output shape.
+        """
         pairs = self._get_context_target_pairs(test_data, require_target=True)
         if not pairs:
-            return np.array([])
-        return np.concatenate([p[1] for p in pairs], axis=0)
+            return np.array([]).reshape(0, self.config.forecast_length)
+        # Stack targets to match predict() output shape: (N, forecast_length)
+        targets = np.stack([p[1] for p in pairs], axis=0)
+        return targets
 
     # --- Public API ---
     def predict(
