@@ -91,6 +91,8 @@ def get_loader(
     train_percentage: float = ...,
     config: dict | None = None,
     parallel: bool = True,
+    max_workers: int = 3,
+    load_all: bool = False,
 ) -> GlurooDataLoader: ...
 
 
@@ -132,11 +134,12 @@ def get_loader(
     config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 3,
+    load_all: bool = False,
 ) -> Union[
     BrisT1DDataLoader,
     GlurooDataLoader,
-    Lynch2022DataLoader,
     Aleppo2017DataLoader,
+    Lynch2022DataLoader,
     Brown2019DataLoader,
     Tamborlane2008DataLoader,
 ]:
@@ -179,10 +182,11 @@ def get_loader(
     elif data_source_name == "gluroo":
         return GlurooDataLoader(
             keep_columns=keep_columns,
-            use_cached=use_cached,
-            num_validation_days=num_validation_days,
+            # num_validation_days=num_validation_days,
             config=config,
-            parallel=parallel,
+            # parallel=parallel,
+            max_workers=max_workers,
+            load_all=load_all,
         )
     elif data_source_name == "aleppo_2017":
         return Aleppo2017DataLoader(

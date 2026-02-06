@@ -104,7 +104,7 @@ class CacheManager:
 
     def ensure_raw_data(self, dataset_name: str, dataset_config: DatasetConfig) -> Path:
         """
-        Ensure raw data is available given a dataset configuration, fetching it if necessary.
+        Ensure raw data iwavailable given a dataset configuration, fetching it if necessary.
 
         Args:
             dataset_name (str): Name of the dataset
