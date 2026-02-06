@@ -36,7 +36,9 @@ HYPO_THRESHOLD_MMOL = 3.9
 DEFAULT_CONTEXT_HOURS_PLOT = 3
 MAX_PLOT_EXAMPLES = 8
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -54,9 +56,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
 
 
 def create_model_and_config(
-    model_type: str,
-    checkpoint: str = None,
-    **kwargs
+    model_type: str, checkpoint: str = None, **kwargs
 ) -> Tuple[BaseTimeSeriesFoundationModel, ModelConfig]:
     """Factory function to create model and config based on type.
 
@@ -88,8 +88,7 @@ def create_model_and_config(
 
     else:
         raise ValueError(
-            f"Unknown model type: {model_type}. "
-            f"Available: sundial, chronos, moirai"
+            f"Unknown model type: {model_type}. " f"Available: sundial, chronos, moirai"
         )
 
 
@@ -109,7 +108,7 @@ def iter_episodes(patient_df: pd.DataFrame, context_length: int, forecast_length
     total_length = context_length + forecast_length
     # Sliding window with stride = forecast_length (non-overlapping forecasts)
     for start in range(0, len(patient_df) - total_length + 1, forecast_length):
-        episode = patient_df.iloc[start:start + total_length]
+        episode = patient_df.iloc[start : start + total_length]
         context = episode.iloc[:context_length]
         target = episode["bg_mM"].values[context_length:]
         yield context, target
@@ -144,18 +143,18 @@ def compute_weighted_metrics(results: List[Dict[str, Any]]) -> Dict[str, float]:
     if not results:
         return {}
 
-    total_episodes = sum(r['episodes'] for r in results)
+    total_episodes = sum(r["episodes"] for r in results)
     overall_rmse = np.sqrt(
-        sum(r['rmse']**2 * r['episodes'] for r in results) / total_episodes
+        sum(r["rmse"] ** 2 * r["episodes"] for r in results) / total_episodes
     )
-    overall_mae = sum(r['mae'] * r['episodes'] for r in results) / total_episodes
-    overall_mape = sum(r['mape'] * r['episodes'] for r in results) / total_episodes
+    overall_mae = sum(r["mae"] * r["episodes"] for r in results) / total_episodes
+    overall_mape = sum(r["mape"] * r["episodes"] for r in results) / total_episodes
 
     return {
         "rmse": overall_rmse,
         "mae": overall_mae,
         "mape": overall_mape,
-        "mse": overall_rmse**2
+        "mse": overall_rmse**2,
     }
 
 
@@ -167,7 +166,7 @@ def plot_forecast_examples(
     context_length: int,
     forecast_length: int,
     is_finetuned: bool,
-    context_hours_to_show: int = DEFAULT_CONTEXT_HOURS_PLOT
+    context_hours_to_show: int = DEFAULT_CONTEXT_HOURS_PLOT,
 ):
     """Generate forecast visualization plots.
 
@@ -222,7 +221,7 @@ def plot_forecast_examples(
             ls="--",
             alpha=0.4,
             lw=1,
-            label="Hypo threshold"
+            label="Hypo threshold",
         )
 
         ax.set_ylabel("BG (mmol/L)", fontsize=9)
@@ -247,7 +246,7 @@ def plot_forecast_examples(
         f"{model_name.upper()} {mode_str} Forecasts - {dataset_name}\n"
         f"(Context: {context_length} steps, Forecast: {forecast_length} steps)",
         fontsize=12,
-        fontweight="bold"
+        fontweight="bold",
     )
     plt.tight_layout()
 
@@ -281,10 +280,7 @@ def get_patient_column(df: pd.DataFrame) -> str:
 
 
 def setup_output_directory(
-    model_name: str,
-    dataset_name: str,
-    checkpoint: str = None,
-    output_dir: str = None
+    model_name: str, dataset_name: str, checkpoint: str = None, output_dir: str = None
 ) -> Path:
     """Create and return output directory path.
 
@@ -324,49 +320,41 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default="sundial",
         choices=["sundial", "chronos", "moirai"],
-        help="Model type to use (ttm not yet supported - use example_holdout_ttm_workflow.py)"
+        help="Model type to use (ttm not yet supported - use example_holdout_ttm_workflow.py)",
     )
     parser.add_argument(
         "--model-config",
         type=str,
         default=None,
-        help="Path to model config YAML file (optional, CLI args override)"
+        help="Path to model config YAML file (optional, CLI args override)",
     )
     parser.add_argument(
-        "--dataset",
-        type=str,
-        default="kaggle_brisT1D",
-        help="Dataset name"
+        "--dataset", type=str, default="kaggle_brisT1D", help="Dataset name"
     )
     parser.add_argument(
         "--config-dir",
         type=str,
         default="configs/data/holdout_5pct",
-        help="Holdout config directory"
+        help="Holdout config directory",
     )
     parser.add_argument(
         "--checkpoint",
         type=str,
         default=None,
-        help="Path to fine-tuned checkpoint (if None, uses zero-shot)"
+        help="Path to fine-tuned checkpoint (if None, uses zero-shot)",
     )
-    parser.add_argument(
-        "--output-dir",
-        type=str,
-        default=None,
-        help="Output directory"
-    )
+    parser.add_argument("--output-dir", type=str, default=None, help="Output directory")
     parser.add_argument(
         "--context-length",
         type=int,
         default=512,
-        help="Context window length in steps (default: 512)"
+        help="Context window length in steps (default: 512)",
     )
     parser.add_argument(
         "--forecast-length",
         type=int,
         default=72,
-        help="Forecast horizon in steps (default: 72 = 6 hours at 5-min intervals)"
+        help="Forecast horizon in steps (default: 72 = 6 hours at 5-min intervals)",
     )
     return parser.parse_args()
 
@@ -377,7 +365,7 @@ def evaluate_patient(
     model: BaseTimeSeriesFoundationModel,
     context_length: int,
     forecast_length: int,
-    collect_examples: bool = False
+    collect_examples: bool = False,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Evaluate model on a single patient's data.
 
@@ -396,7 +384,9 @@ def evaluate_patient(
     patient_targets = []
     examples = []
 
-    for context_df, target in iter_episodes(patient_df, context_length, forecast_length):
+    for context_df, target in iter_episodes(
+        patient_df, context_length, forecast_length
+    ):
         context_values = context_df["bg_mM"].values
 
         # Skip episodes with NaN values
@@ -410,12 +400,14 @@ def evaluate_patient(
 
         # Store first valid example for plotting
         if collect_examples and len(patient_preds) == 1:
-            examples.append({
-                "patient": patient_id,
-                "context": context_values,
-                "target": target,
-                "pred": pred,
-            })
+            examples.append(
+                {
+                    "patient": patient_id,
+                    "context": context_values,
+                    "target": target,
+                    "pred": pred,
+                }
+            )
 
     if not patient_preds:
         logger.warning(f"  {patient_id}: No valid windows")
@@ -441,9 +433,7 @@ def evaluate_patient(
 
 
 def save_results(
-    results: Dict[str, Any],
-    all_results: List[Dict[str, Any]],
-    output_path: Path
+    results: Dict[str, Any], all_results: List[Dict[str, Any]], output_path: Path
 ):
     """Save evaluation results to JSON and CSV.
 
@@ -461,8 +451,7 @@ def save_results(
     # Save CSV
     if all_results:
         pd.DataFrame(all_results).to_csv(
-            output_path / "patient_metrics.csv",
-            index=False
+            output_path / "patient_metrics.csv", index=False
         )
 
 
@@ -471,10 +460,7 @@ def main():
 
     # Setup output directory
     output_path = setup_output_directory(
-        args.model,
-        args.dataset,
-        args.checkpoint,
-        args.output_dir
+        args.model, args.dataset, args.checkpoint, args.output_dir
     )
 
     context_length = args.context_length
@@ -515,9 +501,7 @@ def main():
     if args.model_config:
         logger.info(f"Model config file: {args.model_config}")
     model, _ = create_model_and_config(
-        args.model,
-        checkpoint=args.checkpoint,
-        **config_dict
+        args.model, checkpoint=args.checkpoint, **config_dict
     )
 
     # Evaluate each patient
@@ -535,7 +519,7 @@ def main():
             model,
             context_length,
             forecast_length,
-            collect_examples
+            collect_examples,
         )
 
         if patient_results:
@@ -548,7 +532,7 @@ def main():
     overall = compute_weighted_metrics(all_results)
 
     if overall:
-        total_episodes = sum(r['episodes'] for r in all_results)
+        total_episodes = sum(r["episodes"] for r in all_results)
         logger.info("\n" + "=" * 60)
         logger.info("OVERALL RESULTS")
         logger.info("=" * 60)
@@ -587,7 +571,7 @@ def main():
             args.dataset,
             context_length,
             forecast_length,
-            is_finetuned=bool(args.checkpoint)
+            is_finetuned=bool(args.checkpoint),
         )
 
     logger.info("\n" + "=" * 60)
