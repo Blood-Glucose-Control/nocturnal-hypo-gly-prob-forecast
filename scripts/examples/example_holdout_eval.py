@@ -139,8 +139,8 @@ def main():
     )
     parser.add_argument(
         "--model", type=str, default="sundial",
-        choices=["sundial", "ttm", "chronos", "moirai"],
-        help="Model type to use"
+        choices=["sundial", "chronos", "moirai"],
+        help="Model type to use (ttm not yet supported - use example_holdout_ttm_workflow.py)"
     )
     parser.add_argument(
         "--config", type=str, default=None,
