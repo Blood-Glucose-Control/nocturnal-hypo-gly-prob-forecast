@@ -27,7 +27,9 @@ logger = logging.getLogger(__name__)
 class SundialForecaster(BaseTimeSeriesFoundationModel):
     """Sundial forecaster implementation."""
 
-    def __init__(self, config: SundialConfig, lora_config=None, distributed_config=None):
+    def __init__(
+        self, config: SundialConfig, lora_config=None, distributed_config=None
+    ):
         """Initialize the Sundial forecaster.
         Args:
             config: Sundial configuration object
@@ -45,8 +47,7 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         info_print("Initializing Sundial model from thuml/sundial-base-128m...")
 
         self.model = AutoModelForCausalLM.from_pretrained(
-            "thuml/sundial-base-128m",
-            trust_remote_code=True
+            "thuml/sundial-base-128m", trust_remote_code=True
         )
         if self.model is None:
             error_print("Failed to load Sundial model.")
@@ -66,7 +67,7 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
     @property
     def supports_lora(self) -> bool:
         return False
-    
+
     def predict(self, data: pd.DataFrame, prediction_length: int) -> np.ndarray:
         """Make predictions given context data.
 
@@ -94,7 +95,7 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
             samples = self.model.generate(
                 seqs,
                 max_new_tokens=prediction_length,
-                num_samples=self.config.num_samples
+                num_samples=self.config.num_samples,
             )  # shape: (1, num_samples, prediction_length)
 
         samples = samples.cpu().numpy()[0]  # (num_samples, prediction_length)
