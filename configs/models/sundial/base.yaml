@@ -1,0 +1,11 @@
+# Sundial Model Configuration
+# Configuration for zero-shot evaluation with Sundial forecaster
+
+# Model-specific parameters
+num_samples: 100  # Number of samples to generate for median prediction
+
+# Notes:
+# - This config is for zero-shot evaluation only
+# - Fine-tuning is not yet supported for Sundial
+# - The model uses HuggingFace's "thuml/sundial-base-128m" checkpoint
+# - Predictions are made by generating num_samples and taking the median

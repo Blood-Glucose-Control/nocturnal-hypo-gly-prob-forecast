@@ -299,7 +299,7 @@ class BaseTimeSeriesFoundationModel(ABC):
     # Abstract methods that child classes must implement
     ## Abstract public API methods
     @abstractmethod
-    def predict(self, data: Any, batch_size: Optional[int] = None) -> np.ndarray:
+    def predict(self, data: pd.DataFrame, prediction_length: int) -> np.ndarray:
         """
         Make predictions on new data.
 
@@ -307,11 +307,12 @@ class BaseTimeSeriesFoundationModel(ABC):
         prediction logic and output format.
 
         Args:
-            data: Input data for prediction
-            batch_size: Batch size for prediction (defaults to config.batch_size)
+            data: DataFrame with 'bg_mM' column containing the context window.
+                  May include additional columns for multivariate models.
+            prediction_length: Number of future time steps to forecast.
 
         Returns:
-            Predictions as numpy array
+            Predictions as 1D numpy array of shape (prediction_length,)
         """
         pass
 
