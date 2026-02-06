@@ -67,69 +67,40 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
     def supports_lora(self) -> bool:
         return False
     
-    def predict(self, data: Any, batch_size: Optional[int] = None) -> np.ndarray:
+    def predict(self, data: pd.DataFrame, prediction_length: int) -> np.ndarray:
+        """Make predictions given context data.
+
+        Args:
+            data: DataFrame with 'bg_mM' column containing context window
+            prediction_length: Number of steps to forecast
+
+        Returns:
+            Forecast as 1D numpy array of length prediction_length
+        """
         if self.model is None:
             raise ValueError("Model not initialized. Call _initialize_model first.")
 
-        seqs = torch.tensor(data, dtype=torch.float32).unsqueeze(0).to(self.device)
+        # Extract BG values from DataFrame
+        bg_col = "bg_mM"
+        if bg_col not in data.columns:
+            raise ValueError(f"DataFrame must contain '{bg_col}' column")
+
+        context = data[bg_col].values
+
+        # Run inference
+        seqs = torch.tensor(context, dtype=torch.float32).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
             samples = self.model.generate(
                 seqs,
-                max_new_tokens=batch_size,
+                max_new_tokens=prediction_length,
                 num_samples=self.config.num_samples
             )  # shape: (1, num_samples, prediction_length)
 
         samples = samples.cpu().numpy()[0]  # (num_samples, prediction_length)
 
-        median = np.median(samples, axis=0)
-
-        return median
-
-    def predict_zero_shot(
-        self,
-        data: Any,
-        batch_size: Optional[int] = None,
-    ) -> np.ndarray:
-        """Make zero-shot predictions on DataFrame input.
-
-        Provides same interface as TTM's predict_zero_shot for workflow compatibility.
-        Extracts BG column from DataFrame and runs Sundial inference.
-
-        Args:
-            data: Input data for prediction (DataFrame with bg_mM column)
-            batch_size: Batch size for prediction (unused, kept for API compatibility)
-
-        Returns:
-            Model predictions as numpy array with shape (samples, forecast_length, 1)
-        """
-        info_print("Making zero-shot predictions with Sundial")
-
-        # Convert dict format to DataFrame if needed
-        if isinstance(data, dict):
-            data = pd.concat(data.values(), ignore_index=True)
-
-        # Extract BG column (Sundial is univariate)
-        bg_col = "bg_mM"
-        if bg_col not in data.columns:
-            raise ValueError(f"DataFrame must contain '{bg_col}' column for Sundial")
-
-        # Get context (all data up to forecast point)
-        context = data[bg_col].values[:self.config.context_length]
-
-        info_print(f"Context length: {len(context)}")
-        info_print(f"Forecast length: {self.config.forecast_length}")
-
-        # Run prediction using low-level predict()
-        predictions = self.predict(context, batch_size=self.config.forecast_length)
-
-        # Reshape to match TTM output format: (samples, forecast_length, channels)
-        # For single sample, single channel: (1, forecast_length, 1)
-        predictions = predictions.reshape(1, -1, 1)
-
-        info_print(f"Zero-shot predictions shape: {predictions.shape}")
-
-        return predictions
+        # Return median of samples
+        return np.median(samples, axis=0)
 
     # Stub implementations for abstract methods (zero-shot only)
     def _prepare_training_data(
