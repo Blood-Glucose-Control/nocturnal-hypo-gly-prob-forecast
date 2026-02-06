@@ -71,17 +71,6 @@ def create_model_and_config(
             model._load_checkpoint(checkpoint)
         return model, config
 
-    elif model_type == "ttm":
-        from src.models.ttm import TTMForecaster
-        from src.models.ttm.config import create_ttm_zero_shot_config
-        config = create_ttm_zero_shot_config(
-            forecast_length=kwargs.get("forecast_length", 72)
-        )
-        model = TTMForecaster(config)
-        if checkpoint:
-            model._load_checkpoint(checkpoint)
-        return model, config
-
     # Placeholder for future models
     elif model_type == "chronos":
         raise NotImplementedError("Chronos model not yet implemented")
