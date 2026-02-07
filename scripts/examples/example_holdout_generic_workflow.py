@@ -40,11 +40,10 @@ import json
 import logging
 import shutil
 import traceback
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any, Dict, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -56,7 +55,7 @@ from src.data.preprocessing.dataset_combiner import (
     print_dataset_column_table,
 )
 from src.data.preprocessing.imputation import impute_missing_values
-from src.models.base import DistributedConfig, GPUManager, ModelConfig
+from src.models.base import DistributedConfig, GPUManager
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -80,18 +79,21 @@ SUPPORTED_MODELS = {}
 
 def register_model(model_type: str):
     """Decorator to register a model type in the factory."""
+
     def decorator(cls):
         SUPPORTED_MODELS[model_type] = cls
         return cls
+
     return decorator
 
 
 @dataclass
 class GenericModelConfig:
     """Generic configuration that works across all model types.
-    
+
     This wraps the model-specific config and provides a unified interface.
     """
+
     model_type: str
     model_path: str
     context_length: int = 512
@@ -103,10 +105,10 @@ class GenericModelConfig:
     use_cpu: bool = False
     fp16: bool = True
     learning_rate: float = 1e-4
-    
+
     # Additional model-specific config can be passed as kwargs
     extra_config: Dict[str, Any] = None
-    
+
     def __post_init__(self):
         if self.extra_config is None:
             self.extra_config = {}
@@ -114,7 +116,7 @@ class GenericModelConfig:
 
 class ModelFactory:
     """Factory for creating model instances based on model type."""
-    
+
     @staticmethod
     def get_default_model_path(model_type: str) -> str:
         """Get the default model path for a given model type."""
@@ -125,26 +127,26 @@ class ModelFactory:
             # Add more defaults as models are implemented
         }
         return defaults.get(model_type, "")
-    
+
     @staticmethod
     def create_model(
         config: GenericModelConfig,
         distributed_config: Optional[DistributedConfig] = None,
     ):
         """Create a model instance based on the configuration.
-        
+
         Args:
             config: Generic model configuration
             distributed_config: Optional distributed training configuration
-            
+
         Returns:
             Model instance (type depends on model_type)
-            
+
         Raises:
             ValueError: If model_type is not supported
         """
         model_type = config.model_type.lower()
-        
+
         if model_type == "ttm":
             return ModelFactory._create_ttm_model(config, distributed_config)
         elif model_type == "chronos":
@@ -156,7 +158,7 @@ class ModelFactory:
                 f"Unsupported model type: {model_type}. "
                 f"Supported types: ttm, chronos, moment"
             )
-    
+
     @staticmethod
     def _create_ttm_model(
         config: GenericModelConfig,
@@ -164,7 +166,7 @@ class ModelFactory:
     ):
         """Create a TTM model instance."""
         from src.models.ttm import TTMForecaster, TTMConfig
-        
+
         ttm_config = TTMConfig(
             model_path=config.model_path,
             context_length=config.context_length,
@@ -178,9 +180,9 @@ class ModelFactory:
             learning_rate=config.learning_rate,
             **config.extra_config,
         )
-        
+
         return TTMForecaster(ttm_config, distributed_config=distributed_config)
-    
+
     @staticmethod
     def _create_chronos_model(
         config: GenericModelConfig,
@@ -190,7 +192,7 @@ class ModelFactory:
         # Import when needed to avoid dependency issues
         try:
             from src.models.chronos import ChronosForecaster, ChronosConfig
-            
+
             chronos_config = ChronosConfig(
                 model_path=config.model_path,
                 context_length=config.context_length,
@@ -202,13 +204,15 @@ class ModelFactory:
                 fp16=config.fp16,
                 **config.extra_config,
             )
-            
-            return ChronosForecaster(chronos_config, distributed_config=distributed_config)
+
+            return ChronosForecaster(
+                chronos_config, distributed_config=distributed_config
+            )
         except ImportError as e:
             raise ImportError(
                 f"Chronos model not available. Install chronos dependencies: {e}"
             )
-    
+
     @staticmethod
     def _create_moment_model(
         config: GenericModelConfig,
@@ -217,7 +221,7 @@ class ModelFactory:
         """Create a MOMENT model instance."""
         try:
             from src.models.moment import MomentForecaster, MomentConfig
-            
+
             moment_config = MomentConfig(
                 model_path=config.model_path,
                 context_length=config.context_length,
@@ -229,13 +233,15 @@ class ModelFactory:
                 fp16=config.fp16,
                 **config.extra_config,
             )
-            
-            return MomentForecaster(moment_config, distributed_config=distributed_config)
+
+            return MomentForecaster(
+                moment_config, distributed_config=distributed_config
+            )
         except ImportError as e:
             raise ImportError(
                 f"MOMENT model not available. Install moment dependencies: {e}"
             )
-    
+
     @staticmethod
     def create_zero_shot_config(
         model_type: str,
@@ -247,7 +253,7 @@ class ModelFactory:
         fp16: bool = True,
     ) -> GenericModelConfig:
         """Create a configuration for zero-shot evaluation.
-        
+
         Args:
             model_type: Type of model (ttm, chronos, moment)
             model_path: Path to pretrained model (uses default if None)
@@ -256,13 +262,13 @@ class ModelFactory:
             batch_size: Batch size for inference
             use_cpu: Force CPU usage
             fp16: Use mixed precision
-            
+
         Returns:
             GenericModelConfig configured for zero-shot evaluation
         """
         if model_path is None:
             model_path = ModelFactory.get_default_model_path(model_type)
-        
+
         return GenericModelConfig(
             model_type=model_type,
             model_path=model_path,
@@ -275,7 +281,7 @@ class ModelFactory:
             use_cpu=use_cpu,
             fp16=fp16,
         )
-    
+
     @staticmethod
     def create_finetune_config(
         model_type: str,
@@ -289,7 +295,7 @@ class ModelFactory:
         fp16: bool = True,
     ) -> GenericModelConfig:
         """Create a configuration for fine-tuning.
-        
+
         Args:
             model_type: Type of model (ttm, chronos, moment)
             model_path: Path to pretrained model (uses default if None)
@@ -300,13 +306,13 @@ class ModelFactory:
             learning_rate: Learning rate
             use_cpu: Force CPU usage
             fp16: Use mixed precision
-            
+
         Returns:
             GenericModelConfig configured for fine-tuning
         """
         if model_path is None:
             model_path = ModelFactory.get_default_model_path(model_type)
-        
+
         return GenericModelConfig(
             model_type=model_type,
             model_path=model_path,
@@ -320,7 +326,7 @@ class ModelFactory:
             fp16=fp16,
             learning_rate=learning_rate,
         )
-    
+
     @staticmethod
     def load_model(
         model_type: str,
@@ -328,22 +334,23 @@ class ModelFactory:
         config: GenericModelConfig,
     ):
         """Load a model from a checkpoint.
-        
+
         Args:
             model_type: Type of model (ttm, chronos, moment)
             model_path: Path to the saved model checkpoint
             config: GenericModelConfig used for loading
-            
+
         Returns:
             Loaded model instance
-            
+
         Raises:
             ValueError: If model_type is not supported
         """
         model_type_lower = model_type.lower()
-        
+
         if model_type_lower == "ttm":
             from src.models.ttm import TTMForecaster, TTMConfig
+
             ttm_config = TTMConfig(
                 model_path=config.model_path,
                 context_length=config.context_length,
@@ -360,6 +367,7 @@ class ModelFactory:
             return TTMForecaster.load(model_path, ttm_config)
         elif model_type_lower == "chronos":
             from src.models.chronos import ChronosForecaster, ChronosConfig
+
             chronos_config = ChronosConfig(
                 model_path=config.model_path,
                 context_length=config.context_length,
@@ -374,6 +382,7 @@ class ModelFactory:
             return ChronosForecaster.load(model_path, chronos_config)
         elif model_type_lower == "moment":
             from src.models.moment import MomentForecaster, MomentConfig
+
             moment_config = MomentConfig(
                 model_path=config.model_path,
                 context_length=config.context_length,
@@ -569,7 +578,7 @@ def _plot_forecasts(
         forecast_results: Dictionary from _generate_forecasts containing forecast data
         output_dir: Directory where plots will be saved
         phase_name: Identifier for this phase (e.g., "zero_shot", "after_training")
-        
+
     Returns:
         bool: True if plotting succeeded, False otherwise
     """
@@ -951,7 +960,9 @@ def step2_validate_holdout_configs(datasets: list, config_dir: str) -> bool:
     return True
 
 
-def step3_load_training_data(dataset_names: list, config_dir: str, output_dir: str = None):
+def step3_load_training_data(
+    dataset_names: list, config_dir: str, output_dir: str = None
+):
     """Step 3: Load and combine training data from multiple datasets."""
     logger.info(" ")
     logger.info("=" * 80)
@@ -981,7 +992,9 @@ def step3_load_training_data(dataset_names: list, config_dir: str, output_dir: s
             n_adjusted = len(meta.get("adjusted_patients", {}))
             n_filled = meta.get("nan_p_num_filled", 0)
             if n_skipped or n_adjusted or n_filled:
-                logger.info(f"  {ds_name}: {n_skipped} skipped, {n_adjusted} adjusted, {n_filled:,} NaN p_num filled")
+                logger.info(
+                    f"  {ds_name}: {n_skipped} skipped, {n_adjusted} adjusted, {n_filled:,} NaN p_num filled"
+                )
     # Print detailed column comparison table
     print_dataset_column_table(column_info, list(combined_data.columns))
 
@@ -1572,10 +1585,7 @@ stored in separate subdirectories for comparison.
         help="Holdout config directory",
     )
     parser.add_argument(
-        "--output-dir", 
-        type=str, 
-        default=None, 
-        help="Training output directory"
+        "--output-dir", type=str, default=None, help="Training output directory"
     )
     parser.add_argument(
         "--skip-training",
@@ -1600,9 +1610,7 @@ stored in separate subdirectories for comparison.
     # Set output directory
     if args.output_dir is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
-        args.output_dir = (
-            f"./trained_models/artifacts/_tsfm_testing/{timestamp}_{args.model_type}_holdout_workflow"
-        )
+        args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_{args.model_type}_holdout_workflow"
 
     logger.info("=" * 80)
     logger.info("🚀 GENERIC FORECASTER WORKFLOW DEMONSTRATION")
@@ -1636,7 +1644,9 @@ stored in separate subdirectories for comparison.
         # =====================================================================
         # STEP 3: Load and combine training data
         # =====================================================================
-        combined_train_data = step3_load_training_data(args.datasets, args.config_dir, args.output_dir)
+        combined_train_data = step3_load_training_data(
+            args.datasets, args.config_dir, args.output_dir
+        )
         training_columns = list(combined_train_data.columns)
 
         # =====================================================================
@@ -1661,14 +1671,14 @@ stored in separate subdirectories for comparison.
             model_path = Path(args.output_dir) / "model.pt"
             if model_path.exists():
                 logger.info(f"Loading existing model from: {model_path}")
-                
+
                 # Create a config for loading
                 config = ModelFactory.create_finetune_config(
                     model_type=args.model_type,
                     context_length=512,
                     forecast_length=96,
                 )
-                
+
                 model = step6_load_checkpoint(
                     model_type=args.model_type,
                     model_path=model_path,

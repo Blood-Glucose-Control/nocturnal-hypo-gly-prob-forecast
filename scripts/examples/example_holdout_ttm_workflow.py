@@ -65,7 +65,7 @@ logging.getLogger("src.utils").setLevel(logging.WARNING)
 
 
 def _generate_forecasts(
-    model: TTMForecaster, #TODO: Type hint should be child class of BaseTimeSeriesForecaster
+    model: TTMForecaster,  # TODO: Type hint should be child class of BaseTimeSeriesForecaster
     training_columns: list,
     dataset_names: list,
     config_dir: str,
@@ -445,7 +445,7 @@ def _plot_forecasts(
 
 
 def _evaluate_and_plot(
-    model: TTMForecaster, #TODO: Generic child of BaseTimeSeriesForecaster
+    model: TTMForecaster,  # TODO: Generic child of BaseTimeSeriesForecaster
     training_columns: list,
     dataset_names: list,
     config_dir: str,
@@ -622,7 +622,9 @@ def step2_validate_holdout_configs(datasets: list, config_dir: str):
     return True
 
 
-def step3_load_training_data(dataset_names: list, config_dir: str, output_dir: str = None):
+def step3_load_training_data(
+    dataset_names: list, config_dir: str, output_dir: str = None
+):
     """Step 3: Load and combine training data from multiple datasets."""
     logger.info(" ")
     logger.info("=" * 80)
@@ -652,7 +654,9 @@ def step3_load_training_data(dataset_names: list, config_dir: str, output_dir: s
             n_adjusted = len(meta.get("adjusted_patients", {}))
             n_filled = meta.get("nan_p_num_filled", 0)
             if n_skipped or n_adjusted or n_filled:
-                logger.info(f"  {ds_name}: {n_skipped} skipped, {n_adjusted} adjusted, {n_filled:,} NaN p_num filled")
+                logger.info(
+                    f"  {ds_name}: {n_skipped} skipped, {n_adjusted} adjusted, {n_filled:,} NaN p_num filled"
+                )
     # Print detailed column comparison table
     print_dataset_column_table(column_info, list(combined_data.columns))
 
@@ -939,7 +943,7 @@ def step5_train_model(
 
 def step6_load_checkpoint(
     model_path: Path,
-    config: TTMConfig, #TODO: Generic child of BaseTimeSeriesForecaster
+    config: TTMConfig,  # TODO: Generic child of BaseTimeSeriesForecaster
     training_columns: list,
     dataset_names: list,
     config_dir: str,
@@ -1000,7 +1004,7 @@ def step6_load_checkpoint(
 
 
 def step7_resume_training(
-    model: TTMForecaster, #TODO: change to generic child of BaseTimeSeriesForecaster
+    model: TTMForecaster,  # TODO: change to generic child of BaseTimeSeriesForecaster
     combined_data,
     dataset_names: list,
     training_columns: list,
@@ -1266,7 +1270,9 @@ stored in separate subdirectories for comparison.
         # =====================================================================
         # STEP 3: Load and combine training data
         # =====================================================================
-        combined_train_data = step3_load_training_data(args.datasets, args.config_dir, args.output_dir)
+        combined_train_data = step3_load_training_data(
+            args.datasets, args.config_dir, args.output_dir
+        )
         training_columns = list(combined_train_data.columns)
 
         # =====================================================================

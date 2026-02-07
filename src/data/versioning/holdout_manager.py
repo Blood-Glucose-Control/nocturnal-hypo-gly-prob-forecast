@@ -36,9 +36,9 @@ class HoldoutManager:
         self._train_patients: Optional[List[str]] = None
         self._holdout_patients: Optional[List[str]] = None
         self._split_metadata: Dict = {
-            "skipped_patients": {},   # patient_id -> reason string
+            "skipped_patients": {},  # patient_id -> reason string
             "adjusted_patients": {},  # patient_id -> adjustment details
-            "nan_p_num_filled": 0,    # count of NaN p_num values filled
+            "nan_p_num_filled": 0,  # count of NaN p_num values filled
         }
 
     def get_split_metadata(self) -> Dict:

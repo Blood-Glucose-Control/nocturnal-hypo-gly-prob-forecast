@@ -116,7 +116,7 @@ def create_hybrid_holdout_config(
         min_train_samples: Minimum samples per patient in training
         min_holdout_samples: Minimum samples per patient in holdout
         min_train_patients: Minimum number of patients in training
-        min_holdout_patients: Minimum number of patients in holdout 
+        min_holdout_patients: Minimum number of patients in holdout
     Returns:
         HoldoutConfig with hybrid strategy
     """
@@ -185,7 +185,7 @@ def generate_holdout_configs_for_datasets(
         min_holdout_patients: Minimum number of patients in holdout
 
     Returns:
-        Dictionary with 'success' mapping dataset names to success status and 
+        Dictionary with 'success' mapping dataset names to success status and
         'generated_files' list of paths to generated config files
     """
     output_dir.mkdir(parents=True, exist_ok=True)
