@@ -33,6 +33,22 @@ class DatasetRegistry:
         """
         self.holdout_config_dir = Path(holdout_config_dir)
         self._loaded_configs: Dict[str, HoldoutConfig] = {}
+        self._split_metadata: Dict[str, Dict] = {}  # dataset_name -> split metadata
+
+    def get_split_metadata(self, dataset_name: Optional[str] = None) -> Dict:
+        """Get split metadata (skipped/adjusted patients, NaN fills).
+
+        Args:
+            dataset_name: If provided, return metadata for that dataset only.
+                If None, return metadata for all datasets.
+
+        Returns:
+            Dict of split metadata. Per-dataset if dataset_name specified,
+            otherwise {dataset_name: metadata} for all datasets.
+        """
+        if dataset_name:
+            return self._split_metadata.get(dataset_name, {})
+        return self._split_metadata
 
     def get_holdout_config(self, dataset_name: str) -> Optional[HoldoutConfig]:
         """Load holdout configuration for a dataset.
@@ -108,6 +124,9 @@ class DatasetRegistry:
         if not all(validation.values()):
             logger.error(f"Split validation failed: {validation}")
             raise ValueError("Invalid data split detected")
+
+        # Store split metadata for later retrieval
+        self._split_metadata[dataset_name] = manager.get_split_metadata()
 
         logger.info(
             f"Loaded {dataset_name}: {len(train_data):,} train samples, "

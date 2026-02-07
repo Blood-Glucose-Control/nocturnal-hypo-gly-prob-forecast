@@ -1,0 +1,38 @@
+dataset_name: aleppo_2017
+holdout_type: hybrid
+description: 'Hybrid holdout strategy: 10% temporal split + 10% patient holdout. Holdout
+  patients: 22. Fixed seed=42 for reproducibility.'
+created_date: '2026-02-06T22:39:29.619715'
+version: '1.0'
+temporal_config:
+  holdout_percentage: 0.1
+  min_train_samples: 608
+  min_holdout_samples: 608
+patient_config:
+  holdout_patients:
+  - p139
+  - p5
+  - p87
+  - p67
+  - p11
+  - p227
+  - p40
+  - p157
+  - p200
+  - p155
+  - p55
+  - p23
+  - p250
+  - p243
+  - p14
+  - p213
+  - p93
+  - p70
+  - p275
+  - p145
+  - p110
+  - p74
+  holdout_percentage: null
+  min_train_patients: 10
+  min_holdout_patients: 20
+  random_seed: 42
