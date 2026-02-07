@@ -62,6 +62,10 @@ scripts/notebooks/**/*.csv
 trained_models/artifacts/*
 
 
+# Ignore sensative Groo files
+docs-internal/notebooks/0.04-cjr-gluroo_full_data_eda.ipynb
+
+
 models/*
 scripts/notebooks/AutogluonModels*
 cache/data/gluroo/processed/parquet/*

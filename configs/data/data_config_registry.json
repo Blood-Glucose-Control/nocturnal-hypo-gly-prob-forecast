@@ -1,0 +1,85 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Registry of data configuration generation runs",
+  "entries": [
+    {
+      "entry_id": "config_gen_20260206_233833",
+      "git": {
+        "branch": "aleppo_update",
+        "commit_hash": "88b7183b1693d42e630bd7d5ab6a4287a748c768",
+        "commit_short_hash": "88b7183",
+        "is_clean": false,
+        "uncommitted_changes": [
+          "M .gitignore",
+          " D configs/data/holdout/aleppo.yaml",
+          " D configs/data/holdout/gluroo.yaml",
+          " D configs/data/holdout/kaggle_brisT1D.yaml",
+          "D  docs-internal/notebooks/0.04-cjr-gluroo_full_data_eda.ipynb",
+          " M scripts/data_processing_scripts/generate_holdout_configs.py",
+          " M scripts/examples/example_holdout_ttm_workflow.py",
+          " M scripts/examples/run_holdout_ttm_workflow.sh",
+          " M src/data/diabetes_datasets/data_loader.py",
+          " M src/data/versioning/holdout_config.py",
+          " M src/data/versioning/holdout_utils.py",
+          " M src/models/ttm/model.py",
+          "?? configs/data/data_config_registry.json",
+          "?? configs/data/holdout/aleppo_2017.yaml",
+          "?? configs/data/holdout/brown_2019.yaml",
+          "?? configs/data/holdout/lynch_2022.yaml",
+          "?? configs/data/holdout/tamborlane_2008.yaml",
+          "?? configs/data/holdout_10pct/",
+          "?? scripts/data_processing_scripts/view_data_config_registry.py",
+          "?? scripts/examples/example_holdout_generic_workflow.py",
+          "?? scripts/examples/making_holdout_generic.md",
+          "?? scripts/examples/run_holdout_generic_workflow.sh",
+          "?? src/data/versioning/data_config_registry.py"
+        ],
+        "remote_url": "https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast.git"
+      },
+      "system": {
+        "user": "cjrisi",
+        "timestamp": "2026-02-06T23:38:33.302505",
+        "timestamp_utc": "2026-02-06T23:38:33.302537",
+        "hostname": "cjrisi-gluroo"
+      },
+      "config": {
+        "datasets": [
+          "lynch_2022",
+          "tamborlane_2008",
+          "brown_2019",
+          "aleppo_2017"
+        ],
+        "split_type": "hybrid",
+        "temporal_holdout_percentage": 0.1,
+        "patient_holdout_percentage": 0.1,
+        "random_seed": 42,
+        "output_directory": "configs/data/holdout_10pct",
+        "constraints": {
+          "min_train_samples": 608,
+          "min_holdout_samples": 608,
+          "min_train_patients": 10,
+          "min_holdout_patients": 20
+        }
+      },
+      "outputs": {
+        "generated_files": [
+          "configs/data/holdout_10pct/lynch_2022.yaml",
+          "configs/data/holdout_10pct/tamborlane_2008.yaml",
+          "configs/data/holdout_10pct/brown_2019.yaml",
+          "configs/data/holdout_10pct/aleppo_2017.yaml"
+        ],
+        "output_directory": "configs/data/holdout_10pct"
+      },
+      "additional_metadata": {
+        "success_status": {
+          "lynch_2022": true,
+          "tamborlane_2008": true,
+          "brown_2019": true,
+          "aleppo_2017": true
+        },
+        "num_datasets_processed": 4,
+        "num_successful": 4
+      }
+    }
+  ]
+}

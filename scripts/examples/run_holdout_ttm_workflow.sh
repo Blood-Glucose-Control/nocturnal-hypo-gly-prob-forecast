@@ -124,7 +124,7 @@ echo "==================================================================="
 echo ""
 
 # Build command - pass all datasets together
-CMD="python scripts/examples/example_holdout_ttm_workflow.py"
+CMD="python scripts/examples/example_holdout_ttm_workflow.py" # your own workflow script.
 CMD="$CMD --datasets $DATASETS"
 CMD="$CMD --config-dir $CONFIG_DIR"
 CMD="$CMD --output-dir $OUTPUT_BASE_DIR"

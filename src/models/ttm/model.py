@@ -138,7 +138,8 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         inverse_scale: bool = True,
         return_dict: bool = False,
     ) -> Union[np.ndarray, Dict[str, Any]]:
-        """Make predictions on new data.
+        """Make predictions on new data. This will be very specific to each child class.
+            When designing this, just consider what the final data shape should look like.
 
         Args:
             data: Input data for prediction
@@ -1153,9 +1154,13 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Configured TrainingArguments instance
         """
+        # Store checkpoints in a dedicated subdirectory to keep the output dir clean
+        checkpoint_dir = os.path.join(output_dir, "checkpoints")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+
         # Base training arguments
         base_args = {
-            "output_dir": output_dir,
+            "output_dir": checkpoint_dir,
             "learning_rate": self.config.learning_rate,
             "num_train_epochs": self.config.num_epochs,
             "per_device_train_batch_size": self.config.batch_size,

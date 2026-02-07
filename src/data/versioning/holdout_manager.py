@@ -35,6 +35,22 @@ class HoldoutManager:
         self.config = config
         self._train_patients: Optional[List[str]] = None
         self._holdout_patients: Optional[List[str]] = None
+        self._split_metadata: Dict = {
+            "skipped_patients": {},   # patient_id -> reason string
+            "adjusted_patients": {},  # patient_id -> adjustment details
+            "nan_p_num_filled": 0,    # count of NaN p_num values filled
+        }
+
+    def get_split_metadata(self) -> Dict:
+        """Get metadata about split adjustments and skipped patients.
+
+        Returns:
+            Dict with keys:
+                - skipped_patients: {patient_id: reason}
+                - adjusted_patients: {patient_id: details}
+                - nan_p_num_filled: count of NaN p_num values filled
+        """
+        return self._split_metadata
 
     def split_data(
         self,
@@ -57,6 +73,25 @@ class HoldoutManager:
             patient_data = self._split_by_patient(data, patient_col)
         else:
             patient_data = data
+
+        # Fill NaN patient IDs using the dict key (patient ID).
+        # Raw data from resampling/time-alignment can contain gap-fill rows
+        # where p_num and other original columns are NaN. Since each dict entry
+        # is keyed by the known patient ID, we can safely fill these.
+        if patient_col:
+            n_filled_total = 0
+            for patient_id, df in patient_data.items():
+                if patient_col in df.columns:
+                    n_nan = df[patient_col].isna().sum()
+                    if n_nan > 0:
+                        df[patient_col] = df[patient_col].fillna(patient_id)
+                        n_filled_total += n_nan
+            if n_filled_total > 0:
+                logger.info(
+                    f"Filled {n_filled_total:,} NaN {patient_col} values "
+                    f"using patient dict keys (gap-fill rows from resampling)"
+                )
+                self._split_metadata["nan_p_num_filled"] = int(n_filled_total)
 
         # Apply holdout strategy
         if self.config.holdout_type == HoldoutType.TEMPORAL:
@@ -122,6 +157,10 @@ class HoldoutManager:
                     f"Patient {patient_id} has only {n_train} training samples "
                     f"(min: {config.min_train_samples}). Skipping this patient."
                 )
+                self._split_metadata["skipped_patients"][patient_id] = (
+                    f"Only {n_train} training samples (min: {config.min_train_samples}), "
+                    f"total samples: {n_samples}"
+                )
                 continue
 
             if n_holdout < config.min_holdout_samples:
@@ -129,8 +168,28 @@ class HoldoutManager:
                     f"Patient {patient_id} has only {n_holdout} holdout samples "
                     f"(min: {config.min_holdout_samples}). Adjusting split."
                 )
+                self._split_metadata["adjusted_patients"][patient_id] = (
+                    f"Holdout adjusted from {n_holdout} to {config.min_holdout_samples} samples "
+                    f"(training reduced from {n_train} to {n_samples - config.min_holdout_samples}), "
+                    f"total samples: {n_samples}"
+                )
                 n_holdout = config.min_holdout_samples
                 n_train = n_samples - n_holdout
+
+                # After expanding holdout, check if training still meets minimum
+                if n_train < config.min_train_samples:
+                    logger.warning(
+                        f"Patient {patient_id}: after holdout adjustment, only {n_train} "
+                        f"training samples remain (min: {config.min_train_samples}). "
+                        f"Skipping this patient."
+                    )
+                    self._split_metadata["skipped_patients"][patient_id] = (
+                        f"After holdout adjustment: only {n_train} training samples "
+                        f"(min: {config.min_train_samples}), total samples: {n_samples}"
+                    )
+                    # Remove from adjusted since we're skipping entirely
+                    self._split_metadata["adjusted_patients"].pop(patient_id, None)
+                    continue
 
             # Split data
             train_df = df_sorted.iloc[:n_train].copy()
@@ -164,6 +223,20 @@ class HoldoutManager:
             f"Temporal split: {len(train_data):,} train samples, "
             f"{len(holdout_data):,} holdout samples from {len(train_dfs)} patients"
         )
+
+        n_skipped = len(self._split_metadata["skipped_patients"])
+        n_adjusted = len(self._split_metadata["adjusted_patients"])
+        if n_skipped > 0:
+            skipped_ids = list(self._split_metadata["skipped_patients"].keys())
+            logger.info(
+                f"  Skipped {n_skipped} patients (insufficient samples): {skipped_ids}"
+            )
+        if n_adjusted > 0:
+            adjusted_ids = list(self._split_metadata["adjusted_patients"].keys())
+            logger.info(
+                f"  Adjusted split for {n_adjusted} patients "
+                f"(holdout expanded to min): {adjusted_ids}"
+            )
 
         return train_data, holdout_data
 
@@ -284,9 +357,17 @@ class HoldoutManager:
             holdout_type=HoldoutType.TEMPORAL,
             temporal_config=temporal_config_backup,
         )
-        temp_manager = HoldoutManager(temp_config)
-        train_data, temporal_holdout_data = temp_manager.split_data(
+        temporal_temp_manager = HoldoutManager(temp_config)
+        train_data, temporal_holdout_data = temporal_temp_manager.split_data(
             train_patient_data, time_col=time_col
+        )
+
+        # Propagate metadata from temporal split's temp manager to the parent
+        self._split_metadata["skipped_patients"].update(
+            temporal_temp_manager._split_metadata["skipped_patients"]
+        )
+        self._split_metadata["adjusted_patients"].update(
+            temporal_temp_manager._split_metadata["adjusted_patients"]
         )
 
         # Combine temporal holdout with patient holdout
@@ -302,6 +383,21 @@ class HoldoutManager:
             f"\n" + " " * 23 + f"{len(holdout_data):,} holdout timesteps "
             f"({len(temporal_holdout_data):,} temporal + {len(holdout_patients_data):,} patient-based)"
         )
+
+        n_skipped = len(self._split_metadata["skipped_patients"])
+        n_adjusted = len(self._split_metadata["adjusted_patients"])
+        if n_skipped > 0:
+            skipped_ids = list(self._split_metadata["skipped_patients"].keys())
+            logger.info(
+                f"  Skipped {n_skipped} patients from temporal split "
+                f"(insufficient samples): {skipped_ids}"
+            )
+        if n_adjusted > 0:
+            adjusted_ids = list(self._split_metadata["adjusted_patients"].keys())
+            logger.info(
+                f"  Adjusted split for {n_adjusted} patients "
+                f"(holdout expanded to min): {adjusted_ids}"
+            )
 
         return train_data, holdout_data
 
