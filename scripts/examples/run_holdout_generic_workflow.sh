@@ -32,7 +32,7 @@
 #   MODEL_CONFIG="configs/models/ttm/fine_tune.yaml" DATASETS="lynch_2022 brown_2019" ./scripts/examples/run_holdout_generic_workflow.sh
 #
 # All datasets combined with specific model:
-#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="ttm" MODEL_CONFIG="configs/models/ttm/default.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
+#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="ttm" MODEL_CONFIG="configs/models/ttm/fine_tune.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 
 # =============================================================================
 # CONFIGURATION

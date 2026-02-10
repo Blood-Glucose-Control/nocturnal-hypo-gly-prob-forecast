@@ -21,11 +21,8 @@ warmup_steps: 1000
 weight_decay: 0.01
 
 input_features:
-  - cob
-  - carb_availability
   - insulin_availability
   - iob
-  - steps
 
 target_features:
   - bg_mM
@@ -38,7 +35,7 @@ split_config:
   val: 0.05
   test: 0.05
 
-num_input_channels: 5
+num_input_channels: 3
 num_output_channels: 1
 
 fp16: true
