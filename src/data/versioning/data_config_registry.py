@@ -14,6 +14,7 @@ Maintains a JSON registry of all data configuration generation runs with:
 
 import fcntl
 import getpass
+import hashlib
 import json
 import logging
 import os
@@ -51,9 +52,25 @@ class DataConfigRegistry:
         """
         self.registry_path = Path(registry_path)
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)
-        self._lock_path = self.registry_path.with_suffix(".lock")
+        self._lock_path = self._get_lock_path()
         self._sanitize = sanitize
         self._initialize_registry()
+
+    def _get_lock_path(self) -> Path:
+        """Get the lock file path in a temp directory.
+
+        Creates a unique but consistent lock file name based on the registry path,
+        placed in the system temp directory to avoid polluting tracked folders.
+
+        Returns:
+            Path to the lock file in temp directory
+        """
+        # Create a hash of the absolute registry path for a unique but consistent name
+        path_hash = hashlib.md5(str(self.registry_path.resolve()).encode()).hexdigest()[
+            :12
+        ]
+        lock_filename = f"data_config_registry_{path_hash}.lock"
+        return Path(tempfile.gettempdir()) / lock_filename
 
     @contextmanager
     def _file_lock(self) -> Generator[None, None, None]:
