@@ -129,6 +129,44 @@
         "num_datasets_processed": 1,
         "num_successful": 1
       }
+    },
+    {
+      "entry_id": "config_gen_20260210_182144",
+      "git": {
+        "branch": "aleppo_update",
+        "commit_hash": "482f0f6610cb27000e10a5992c0554e306b41e04",
+        "commit_short_hash": "482f0f6",
+        "is_clean": false
+      },
+      "config": {
+        "datasets": [
+          "tamborlane_2008"
+        ],
+        "split_type": "hybrid",
+        "temporal_holdout_percentage": 0.15,
+        "patient_holdout_percentage": 0.15,
+        "random_seed": 42,
+        "output_directory": "configs/data/holdout_15pct",
+        "constraints": {
+          "min_train_samples": 608,
+          "min_holdout_samples": 608,
+          "min_train_patients": 10,
+          "min_holdout_patients": 20
+        }
+      },
+      "outputs": {
+        "generated_files": [
+          "configs/data/holdout_15pct/tamborlane_2008.yaml"
+        ],
+        "output_directory": "configs/data/holdout_15pct"
+      },
+      "additional_metadata": {
+        "success_status": {
+          "tamborlane_2008": true
+        },
+        "num_datasets_processed": 1,
+        "num_successful": 1
+      }
     }
   ]
 }

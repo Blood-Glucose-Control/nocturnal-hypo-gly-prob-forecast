@@ -30,15 +30,29 @@ logger = logging.getLogger(__name__)
 class DataConfigRegistry:
     """Registry for tracking data configuration generation events."""
 
-    def __init__(self, registry_path: str = "configs/data/data_config_registry.json"):
+    # Fields that are excluded when sanitize=True
+    # These contain personally identifying or environment-specific information
+    SANITIZED_GIT_FIELDS = {"uncommitted_changes", "remote_url"}
+    SANITIZED_SYSTEM_FIELDS = {"user", "hostname", "timestamp", "timestamp_utc"}
+
+    def __init__(
+        self,
+        registry_path: str = "configs/data/data_config_registry.json",
+        sanitize: bool = True,
+    ):
         """Initialize data config registry with JSON file path.
 
         Args:
             registry_path: Path to the registry JSON file
+            sanitize: If True, exclude personally identifying information
+                (user, hostname, timestamps, uncommitted changes, remote URL)
+                from registry entries. Keeps reproducibility metadata like
+                git branch, commit hash, and is_clean status. Default: True
         """
         self.registry_path = Path(registry_path)
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock_path = self.registry_path.with_suffix(".lock")
+        self._sanitize = sanitize
         self._initialize_registry()
 
     @contextmanager
@@ -173,12 +187,33 @@ class DataConfigRegistry:
 
         return git_info
 
+    def _sanitize_git_info(self, git_info: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove PII fields from git info if sanitization is enabled.
+
+        Keeps: branch, commit_hash, commit_short_hash, is_clean
+        Removes: uncommitted_changes, remote_url
+
+        Args:
+            git_info: Full git metadata dictionary
+
+        Returns:
+            Sanitized git info (or original if sanitize=False)
+        """
+        if not self._sanitize:
+            return git_info
+
+        return {k: v for k, v in git_info.items() if k not in self.SANITIZED_GIT_FIELDS}
+
     def _get_system_info(self) -> Dict[str, str]:
         """Get system and user information.
 
         Returns:
-            Dictionary containing system metadata
+            Dictionary containing system metadata (empty if sanitize=True)
         """
+        if self._sanitize:
+            # Return empty dict - no PII collected
+            return {}
+
         system_info = {
             "user": getpass.getuser(),
             "timestamp": datetime.now().isoformat(),
@@ -234,11 +269,13 @@ class DataConfigRegistry:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         entry_id = f"config_gen_{timestamp}"
 
-        # Gather all metadata
+        # Gather all metadata (sanitized if enabled)
+        git_info = self._sanitize_git_info(self._get_git_info())
+        system_info = self._get_system_info()
+
         entry = {
             "entry_id": entry_id,
-            "git": self._get_git_info(),
-            "system": self._get_system_info(),
+            "git": git_info,
             "config": {
                 "datasets": datasets,
                 "split_type": split_type,
@@ -259,6 +296,10 @@ class DataConfigRegistry:
             },
         }
 
+        # Add system info only if not sanitized (non-empty)
+        if system_info:
+            entry["system"] = system_info
+
         # Add any additional metadata
         if additional_metadata:
             entry["additional_metadata"] = additional_metadata
@@ -270,9 +311,10 @@ class DataConfigRegistry:
             self._atomic_write_json(registry_data)
 
         logger.info(f"Registered config generation with ID: {entry_id}")
-        logger.info(f"Git branch: {entry['git']['branch']}")
-        logger.info(f"Git clean: {entry['git']['is_clean']}")
-        logger.info(f"User: {entry['system']['user']}")
+        logger.info(f"Git branch: {git_info.get('branch')}")
+        logger.info(f"Git clean: {git_info.get('is_clean')}")
+        if not self._sanitize:
+            logger.info(f"User: {system_info.get('user')}")
 
         return entry_id
 
@@ -369,21 +411,28 @@ class DataConfigRegistry:
 
         for entry in entries:
             datasets.update(entry["config"]["datasets"])
-            if entry["git"]["branch"]:
+            if entry["git"].get("branch"):
                 branches.add(entry["git"]["branch"])
-            users.add(entry["system"]["user"])
+            # Handle sanitized entries without system info
+            if "system" in entry and entry["system"].get("user"):
+                users.add(entry["system"]["user"])
 
-        summary = f"""
-Data Config Registry Summary
-=============================
-Total entries: {total_entries}
-Unique datasets: {len(datasets)}
-Git branches used: {len(branches)}
-Users: {len(users)}
+        # Build summary based on available data
+        summary_lines = [
+            "Data Config Registry Summary",
+            "=============================",
+            f"Total entries: {total_entries}",
+            f"Unique datasets: {len(datasets)}",
+            f"Git branches used: {len(branches)}",
+        ]
 
-Datasets: {', '.join(sorted(datasets))}
-Recent branches: {', '.join(sorted(branches))}
-        """.strip()
+        if users:
+            summary_lines.append(f"Users: {len(users)}")
+
+        summary_lines.append(f"\nDatasets: {', '.join(sorted(datasets))}")
+        summary_lines.append(f"Recent branches: {', '.join(sorted(branches))}")
+
+        summary = "\n".join(summary_lines)
 
         return summary
 
@@ -401,13 +450,15 @@ Recent branches: {', '.join(sorted(branches))}
         # Flatten entries for CSV export
         rows = []
         for entry in registry_data["entries"]:
+            # Handle sanitized entries without system info
+            system_info = entry.get("system", {})
             row = {
                 "entry_id": entry["entry_id"],
-                "timestamp": entry["system"]["timestamp"],
-                "user": entry["system"]["user"],
-                "git_branch": entry["git"]["branch"],
-                "git_commit": entry["git"]["commit_short_hash"],
-                "git_clean": entry["git"]["is_clean"],
+                "timestamp": system_info.get("timestamp"),
+                "user": system_info.get("user"),
+                "git_branch": entry["git"].get("branch"),
+                "git_commit": entry["git"].get("commit_short_hash"),
+                "git_clean": entry["git"].get("is_clean"),
                 "datasets": ",".join(entry["config"]["datasets"]),
                 "split_type": entry["config"]["split_type"],
                 "temporal_pct": entry["config"]["temporal_holdout_percentage"],
