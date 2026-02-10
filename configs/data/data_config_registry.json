@@ -167,6 +167,44 @@
         "num_datasets_processed": 1,
         "num_successful": 1
       }
+    },
+    {
+      "entry_id": "config_gen_20260210_190225",
+      "git": {
+        "branch": "aleppo_update",
+        "commit_hash": "11c3d825a7c90b1044cff3db7fff47febc24f39f",
+        "commit_short_hash": "11c3d82",
+        "is_clean": false
+      },
+      "config": {
+        "datasets": [
+          "brown_2019"
+        ],
+        "split_type": "hybrid",
+        "temporal_holdout_percentage": 0.15,
+        "patient_holdout_percentage": 0.15,
+        "random_seed": 42,
+        "output_directory": "configs/data/holdout_15pct",
+        "constraints": {
+          "min_train_samples": 608,
+          "min_holdout_samples": 608,
+          "min_train_patients": 10,
+          "min_holdout_patients": 20
+        }
+      },
+      "outputs": {
+        "generated_files": [
+          "configs/data/holdout_15pct/brown_2019.yaml"
+        ],
+        "output_directory": "configs/data/holdout_15pct"
+      },
+      "additional_metadata": {
+        "success_status": {
+          "brown_2019": true
+        },
+        "num_datasets_processed": 1,
+        "num_successful": 1
+      }
     }
   ]
 }

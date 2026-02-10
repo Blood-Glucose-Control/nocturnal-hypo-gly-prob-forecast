@@ -168,10 +168,11 @@ def main():
         entries = registry.get_entries_by_dataset(args.dataset)
         print(f"Found {len(entries)} entries for dataset '{args.dataset}'")
         for entry in entries:
+            system_info = entry.get("system", {})
             print(f"\nEntry ID: {entry['entry_id']}")
-            print(f"Timestamp: {entry['system']['timestamp']}")
-            print(f"User: {entry['system']['user']}")
-            print(f"Branch: {entry['git']['branch']}")
+            print(f"Timestamp: {system_info.get('timestamp', 'N/A')}")
+            print(f"User: {system_info.get('user', 'N/A')}")
+            print(f"Branch: {entry['git'].get('branch', 'N/A')}")
             print(f"Datasets: {', '.join(entry['config']['datasets'])}")
         return
 
@@ -180,9 +181,10 @@ def main():
         entries = registry.get_entries_by_branch(args.branch)
         print(f"Found {len(entries)} entries for branch '{args.branch}'")
         for entry in entries:
+            system_info = entry.get("system", {})
             print(f"\nEntry ID: {entry['entry_id']}")
-            print(f"Timestamp: {entry['system']['timestamp']}")
-            print(f"User: {entry['system']['user']}")
+            print(f"Timestamp: {system_info.get('timestamp', 'N/A')}")
+            print(f"User: {system_info.get('user', 'N/A')}")
             print(f"Datasets: {', '.join(entry['config']['datasets'])}")
         return
 
@@ -191,10 +193,11 @@ def main():
         entries = registry.get_recent_entries(args.recent)
         print(f"Most recent {len(entries)} entries:\n")
         for entry in entries:
+            system_info = entry.get("system", {})
             print(f"Entry ID: {entry['entry_id']}")
-            print(f"Timestamp: {entry['system']['timestamp']}")
-            print(f"User: {entry['system']['user']}")
-            print(f"Branch: {entry['git']['branch']}")
+            print(f"Timestamp: {system_info.get('timestamp', 'N/A')}")
+            print(f"User: {system_info.get('user', 'N/A')}")
+            print(f"Branch: {entry['git'].get('branch', 'N/A')}")
             print(f"Datasets: {', '.join(entry['config']['datasets'])}")
             print(f"Split Type: {entry['config']['split_type']}")
             print(f"Generated Files: {len(entry['outputs']['generated_files'])}")
