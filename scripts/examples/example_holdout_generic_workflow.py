@@ -1298,8 +1298,12 @@ def step4_zero_shot_evaluation(
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             logger.info("✓ GPU memory cleared after zero-shot evaluation")
-    except Exception:
-        pass
+    except Exception as exc:
+        # Best-effort GPU cleanup: log and continue without failing the workflow
+        logger.debug(
+            "Skipping GPU memory cleanup after zero-shot evaluation due to error: %s",
+            exc,
+        )
 
 
 def step5_train_model(
