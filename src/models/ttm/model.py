@@ -651,8 +651,24 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # expandable_segments:True allows memory segments to grow/shrink dynamically,
         # making freed memory actually reclaimable. This is safe and stable since
         # PyTorch 2.1 with no performance downside.
+        #
+        # NOTE: This is a fallback for users running the training module directly.
+        # For reliable configuration, set PYTORCH_ALLOC_CONF in your shell/runner
+        # script BEFORE invoking Python (e.g., in run_holdout_generic_workflow.sh).
+        # Setting it here may not take effect if CUDA was already initialized.
         if "PYTORCH_ALLOC_CONF" not in os.environ:
             os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
+            # Check if CUDA allocator was already initialized (setting won't take effect)
+            import torch
+
+            if torch.cuda.is_initialized():
+                logger.warning(
+                    "PYTORCH_ALLOC_CONF was set after CUDA initialization. "
+                    "The 'expandable_segments:True' setting may not take effect. "
+                    "For reliable memory fragmentation prevention, set "
+                    "PYTORCH_ALLOC_CONF in your shell before running Python."
+                )
+
         info_print("Starting TTM training using HuggingFace Trainer...")
         # Prepare data loaders (splits based on config)
         train_loader, val_loader, test_loader = self._prepare_training_data(train_data)
