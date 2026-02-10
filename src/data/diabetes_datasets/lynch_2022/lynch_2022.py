@@ -63,7 +63,6 @@ class Lynch2022DataLoader(DatasetBase):
         parallel: Whether to use parallel processing.
         max_workers: Maximum number of workers for parallel processing.
         generic_patient_start_date: Starting date for all patients.
-        config: Optional configuration dictionary.
 
     Example:
         >>> loader = Lynch2022DataLoader(use_cached=True)
@@ -98,7 +97,6 @@ class Lynch2022DataLoader(DatasetBase):
             train_percentage: Percentage of data to use for training (default 0.9).
                 Note: Currently not implemented.
             dataset_type: Type of dataset to load ('train' or 'test')
-            config: Optional configuration dictionary. Note: Currently not implemented.
             parallel: Whether to use parallel processing (default True)
             generic_patient_start_date: Starting date for patients (default 2024-01-01)
             max_workers: Maximum number of workers for parallel processing (default 14)

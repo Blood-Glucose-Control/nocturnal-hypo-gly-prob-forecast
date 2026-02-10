@@ -45,6 +45,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+import yaml
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -112,6 +114,42 @@ class GenericModelConfig:
     def __post_init__(self):
         if self.extra_config is None:
             self.extra_config = {}
+
+
+def load_model_config_from_yaml(config_path: str) -> Dict[str, Any]:
+    """Load model configuration from a YAML file.
+
+    Reads a YAML model config file (e.g., configs/models/ttm/default.yaml)
+    and returns it as a dictionary. These values are used to configure the
+    model-specific config (TTMConfig, ChronosConfig, etc.).
+
+    Args:
+        config_path: Path to the YAML configuration file.
+
+    Returns:
+        Dictionary of configuration parameters from the YAML file.
+
+    Raises:
+        FileNotFoundError: If the config file does not exist.
+        yaml.YAMLError: If the file is not valid YAML.
+    """
+    config_path = Path(config_path)
+    if not config_path.exists():
+        raise FileNotFoundError(f"Model config file not found: {config_path}")
+
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+
+    if config is None:
+        logger.warning(f"Model config file is empty: {config_path}")
+        return {}
+
+    logger.info(f"Loaded model config from: {config_path}")
+    logger.info(f"  Parameters specified: {len(config)}")
+    for key, value in config.items():
+        logger.info(f"    {key}: {value}")
+
+    return config
 
 
 class ModelFactory:
@@ -251,6 +289,7 @@ class ModelFactory:
         batch_size: int = 2048,
         use_cpu: bool = False,
         fp16: bool = True,
+        extra_config: Optional[Dict[str, Any]] = None,
     ) -> GenericModelConfig:
         """Create a configuration for zero-shot evaluation.
 
@@ -262,69 +301,129 @@ class ModelFactory:
             batch_size: Batch size for inference
             use_cpu: Force CPU usage
             fp16: Use mixed precision
+            extra_config: Additional model-specific config from YAML file
 
         Returns:
             GenericModelConfig configured for zero-shot evaluation
         """
-        if model_path is None:
-            model_path = ModelFactory.get_default_model_path(model_type)
+        # Start with YAML config as base, then override with explicit args
+        yaml_config = dict(extra_config) if extra_config else {}
+
+        # Extract top-level params from YAML (CLI args override these)
+        resolved_model_path = model_path or yaml_config.pop(
+            "model_path", ModelFactory.get_default_model_path(model_type)
+        )
+        resolved_context = yaml_config.pop("context_length", context_length)
+        resolved_forecast = yaml_config.pop("forecast_length", forecast_length)
+        resolved_batch = yaml_config.pop("batch_size", batch_size)
+
+        # Remove params that are forced for zero-shot
+        for key in [
+            "num_epochs",
+            "training_mode",
+            "freeze_backbone",
+            "use_cpu",
+            "fp16",
+            "learning_rate",
+        ]:
+            yaml_config.pop(key, None)
 
         return GenericModelConfig(
             model_type=model_type,
-            model_path=model_path,
-            context_length=context_length,
-            forecast_length=forecast_length,
-            batch_size=batch_size,
+            model_path=resolved_model_path,
+            context_length=resolved_context,
+            forecast_length=resolved_forecast,
+            batch_size=resolved_batch,
             num_epochs=0,
             training_mode="zero_shot",
             freeze_backbone=True,
             use_cpu=use_cpu,
             fp16=fp16,
+            extra_config=yaml_config,  # Remaining TTM-specific params
         )
 
     @staticmethod
     def create_finetune_config(
         model_type: str,
         model_path: Optional[str] = None,
-        context_length: int = 512,
-        forecast_length: int = 96,
-        batch_size: int = 2048,
-        num_epochs: int = 1,
-        learning_rate: float = 1e-4,
+        context_length: int = None,
+        forecast_length: int = None,
+        batch_size: int = None,
+        num_epochs: int = None,
+        learning_rate: float = None,
         use_cpu: bool = False,
         fp16: bool = True,
+        extra_config: Optional[Dict[str, Any]] = None,
     ) -> GenericModelConfig:
         """Create a configuration for fine-tuning.
 
+        Parameters are resolved in priority order: CLI args > YAML config > defaults.
+
         Args:
             model_type: Type of model (ttm, chronos, moment)
-            model_path: Path to pretrained model (uses default if None)
-            context_length: Number of historical time steps
-            forecast_length: Number of future time steps to predict
-            batch_size: Batch size for training
-            num_epochs: Number of training epochs
-            learning_rate: Learning rate
+            model_path: Path to pretrained model (uses YAML or default if None)
+            context_length: Number of historical time steps (CLI override)
+            forecast_length: Number of future time steps to predict (CLI override)
+            batch_size: Batch size for training (CLI override)
+            num_epochs: Number of training epochs (CLI override)
+            learning_rate: Learning rate (CLI override)
             use_cpu: Force CPU usage
             fp16: Use mixed precision
+            extra_config: Additional model-specific config from YAML file
 
         Returns:
             GenericModelConfig configured for fine-tuning
         """
-        if model_path is None:
-            model_path = ModelFactory.get_default_model_path(model_type)
+        # Start with YAML config as base
+        yaml_config = dict(extra_config) if extra_config else {}
+
+        # Resolve top-level params: CLI arg > YAML > default
+        resolved_model_path = model_path or yaml_config.pop(
+            "model_path", ModelFactory.get_default_model_path(model_type)
+        )
+        resolved_context = (
+            context_length
+            if context_length is not None
+            else yaml_config.pop("context_length", 512)
+        )
+        resolved_forecast = (
+            forecast_length
+            if forecast_length is not None
+            else yaml_config.pop("forecast_length", 96)
+        )
+        resolved_batch = (
+            batch_size
+            if batch_size is not None
+            else yaml_config.pop("batch_size", 2048)
+        )
+        resolved_epochs = (
+            num_epochs if num_epochs is not None else yaml_config.pop("num_epochs", 1)
+        )
+        resolved_lr = (
+            learning_rate
+            if learning_rate is not None
+            else yaml_config.pop("learning_rate", 1e-4)
+        )
+        resolved_mode = yaml_config.pop("training_mode", "fine_tune")
+        resolved_freeze = yaml_config.pop("freeze_backbone", False)
+
+        # Remove hardware params from extra_config (handled by CLI)
+        yaml_config.pop("use_cpu", None)
+        yaml_config.pop("fp16", None)
 
         return GenericModelConfig(
             model_type=model_type,
-            model_path=model_path,
-            context_length=context_length,
-            forecast_length=forecast_length,
-            batch_size=batch_size,
-            num_epochs=num_epochs,
-            training_mode="fine_tune",
-            freeze_backbone=False,
+            model_path=resolved_model_path,
+            context_length=resolved_context,
+            forecast_length=resolved_forecast,
+            batch_size=resolved_batch,
+            num_epochs=resolved_epochs,
+            training_mode=resolved_mode,
+            freeze_backbone=resolved_freeze,
             use_cpu=use_cpu,
             fp16=fp16,
-            learning_rate=learning_rate,
+            learning_rate=resolved_lr,
+            extra_config=yaml_config,  # Remaining model-specific params
         )
 
     @staticmethod
@@ -1119,6 +1218,7 @@ def step4_zero_shot_evaluation(
     config_dir: str,
     output_dir: str,
     batch_size: int = 2048,
+    model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Step 4: Zero-shot evaluation using pretrained model (no fine-tuning).
 
@@ -1132,6 +1232,8 @@ def step4_zero_shot_evaluation(
         training_columns: Column names from training data
         config_dir: Holdout config directory
         output_dir: Output directory
+        batch_size: Batch size for inference
+        model_config_overrides: Optional dict of model-specific config from YAML
 
     Note: This step creates a temporary model just for zero-shot evaluation.
     Step 5 will create a fresh model for fine-tuning.
@@ -1155,11 +1257,10 @@ def step4_zero_shot_evaluation(
     # Create zero-shot configuration using the factory
     config = ModelFactory.create_zero_shot_config(
         model_type=model_type,
-        context_length=512,
-        forecast_length=96,
         batch_size=batch_size,
         use_cpu=use_cpu,
         fp16=gpu_info["gpu_available"] and not use_cpu,
+        extra_config=model_config_overrides,
     )
 
     logger.info("Zero-shot model config:")
@@ -1199,6 +1300,7 @@ def step5_train_model(
     output_dir: str,
     num_epochs: int = 1,
     batch_size: int = 2048,
+    model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Any, GenericModelConfig, Dict, Path]:
     """Step 5: Fine-tune model on combined dataset.
 
@@ -1212,6 +1314,8 @@ def step5_train_model(
         config_dir: Holdout config directory
         output_dir: Output directory
         num_epochs: Number of training epochs
+        batch_size: Batch size for training
+        model_config_overrides: Optional dict of model-specific config from YAML
 
     Returns:
         tuple: (model, config, results, model_path) - Trained model, config, training results, and save path
@@ -1232,12 +1336,11 @@ def step5_train_model(
     # Create fine-tuning configuration using the factory
     config = ModelFactory.create_finetune_config(
         model_type=model_type,
-        context_length=512,
-        forecast_length=96,
         batch_size=batch_size,
         num_epochs=num_epochs,
         use_cpu=use_cpu,
         fp16=gpu_info["gpu_available"] and not use_cpu,
+        extra_config=model_config_overrides,
     )
 
     logger.info("Fine-tuning config:")

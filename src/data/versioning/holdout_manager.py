@@ -363,11 +363,12 @@ class HoldoutManager:
         )
 
         # Propagate metadata from temporal split's temp manager to the parent
+        temp_metadata = temporal_temp_manager.get_split_metadata()
         self._split_metadata["skipped_patients"].update(
-            temporal_temp_manager._split_metadata["skipped_patients"]
+            temp_metadata["skipped_patients"]
         )
         self._split_metadata["adjusted_patients"].update(
-            temporal_temp_manager._split_metadata["adjusted_patients"]
+            temp_metadata["adjusted_patients"]
         )
 
         # Combine temporal holdout with patient holdout

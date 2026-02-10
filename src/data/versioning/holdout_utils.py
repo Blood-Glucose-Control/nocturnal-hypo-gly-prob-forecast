@@ -17,7 +17,7 @@ and used programmatically in workflows.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Any
 
 import pandas as pd
 from tabulate import tabulate
@@ -170,7 +170,7 @@ def generate_holdout_configs_for_datasets(
     min_holdout_samples: int = 608,
     min_train_patients: int = 5,
     min_holdout_patients: int = 5,
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """Generate holdout configurations for multiple datasets.
 
     Args:
