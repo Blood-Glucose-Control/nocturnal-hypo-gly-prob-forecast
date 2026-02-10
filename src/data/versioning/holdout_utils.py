@@ -100,10 +100,10 @@ def create_hybrid_holdout_config(
     temporal_pct: float,
     patient_pct: float,
     seed: int,
-    min_train_samples: int = 50,
-    min_holdout_samples: int = 96,
-    min_train_patients: int = 2,
-    min_holdout_patients: int = 1,
+    min_train_samples: int = 608,
+    min_holdout_samples: int = 608,
+    min_train_patients: int = 10,
+    min_holdout_patients: int = 10,
 ) -> HoldoutConfig:
     """Create hybrid holdout configuration with both temporal and patient splits.
 
