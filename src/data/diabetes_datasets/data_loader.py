@@ -154,8 +154,6 @@ def get_loader(
         use_cached (bool): Whether to use cached data if available. Default: False
         num_validation_days (int): Number of days to use for validation. Default: 20
         train_percentage (float): Percentage of the data to use for training. Default: 0.9
-        config (dict | None): Additional configuration parameters for the data loader.
-                            Default: None
 
     Returns:
         DatasetBase: A data loader instance implementing the DatasetBase interface.
@@ -176,7 +174,6 @@ def get_loader(
         return GlurooDataLoader(
             keep_columns=keep_columns,
             # num_validation_days=num_validation_days,
-            config=config,
             # parallel=parallel,
             max_workers=max_workers,
             load_all=load_all,
@@ -211,7 +208,7 @@ def get_loader(
             dataset_type=dataset_type,
             parallel=parallel,
             max_workers=max_workers,
-            extract_features=config.get("extract_features", True) if config else True,
+            extract_features=True,
         )
     else:
         raise ValueError(f"Invalid dataset_name: {data_source_name}.")
