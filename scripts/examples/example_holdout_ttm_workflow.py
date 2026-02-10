@@ -26,7 +26,7 @@ Usage:
     sbatch --export=DATASETS="aleppo brown_2019",EPOCHS=2 scripts/examples/run_holdout_ttm_workflow.sh
 
     # Direct python call (for testing)
-    python scripts/examples/example_holdout_ttm_workflow.py --datasets lynch_2022 brown_2019 lynch_2022 tamborlane_2008 --config-dir configs/data/holdout_10pct --epochs 1
+    python scripts/examples/example_holdout_ttm_workflow.py --datasets lynch_2022 brown_2019 tamborlane_2008 --config-dir configs/data/holdout_10pct --epochs 1
 """
 
 import argparse
@@ -1129,19 +1129,21 @@ def step8_full_holdout_evaluation(
             holdout_patients = holdout_data[patient_col].unique()
             logger.info(f"  Holdout patients: {len(holdout_patients)}")
 
-        # Prepare data for evaluation (remove non-numeric columns)
-        exclude_cols = ["datetime", "p_num", "id", "source_dataset"]
-        numeric_cols = [col for col in holdout_data.columns if col not in exclude_cols]
-        holdout_data_numeric = holdout_data[numeric_cols].copy()
+        # Pass full holdout data to evaluate() - the model's _prepare_inference_data()
+        # needs id/timestamp columns (p_num, datetime) for ForecastDFDataset.
+        # Only exclude non-feature metadata columns like source_dataset.
+        eval_data = holdout_data.drop(
+            columns=["source_dataset"], errors="ignore"
+        ).copy()
 
-        logger.info(f"  Numeric columns for evaluation: {len(numeric_cols)}")
-        logger.info(f"  Holdout data shape: {holdout_data_numeric.shape}")
+        logger.info(f"  Columns for evaluation: {list(eval_data.columns)}")
+        logger.info(f"  Holdout data shape: {eval_data.shape}")
 
         # Evaluate using the evaluate() method
         try:
             logger.info("  Running evaluation on holdout set...")
 
-            eval_results = model.evaluate(test_data=holdout_data_numeric)
+            eval_results = model.evaluate(test_data=eval_data)
 
             logger.info(f"  ✓ Evaluation completed for {dataset_name}")
             logger.info("  Metrics:")

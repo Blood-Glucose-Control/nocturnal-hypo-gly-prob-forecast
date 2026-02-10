@@ -28,11 +28,8 @@ gradient_clip_val: 1.0
 # --- Data Features ---
 # Input features (observable columns) fed to the model alongside the target
 input_features:
-  - cob
-  - carb_availability
   - insulin_availability
   - iob
-  - steps
 
 # Target feature(s) the model predicts
 target_features:
@@ -40,7 +37,6 @@ target_features:
 
 # --- Data Preprocessing ---
 scaler_type: "standard"          # "standard", "minmax", "robust"
-imputation_strategy: "mean"      # "mean", "median", "forward_fill"
 resolution_min: 5                # Data resolution in minutes (5 for CGM)
 
 # --- Data Splitting ---
@@ -53,15 +49,15 @@ fewshot_percent: 5               # % of training data for few-shot learning
 
 # --- Model Channels ---
 # Must match the number of input_features and target_features
-num_input_channels: 5
+num_input_channels: 3
 num_output_channels: 1
 # prediction_filter_length: null  # Optional: filter length for predictions
 
 # --- Evaluation & Checkpointing ---
 eval_strategy: "steps"
-eval_steps: 1000
-save_steps: 2000
-logging_steps: 100
+eval_steps: 2000
+save_steps: 4000
+logging_steps: 500
 early_stopping_patience: 10
 metric_for_best_model: "eval_loss"
 greater_is_better: false

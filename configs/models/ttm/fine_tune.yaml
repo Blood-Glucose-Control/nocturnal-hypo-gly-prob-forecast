@@ -31,7 +31,6 @@ target_features:
   - bg_mM
 
 scaler_type: "standard"
-imputation_strategy: "mean"
 resolution_min: 5
 
 split_config:

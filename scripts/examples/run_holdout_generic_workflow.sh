@@ -27,8 +27,12 @@
 #   CUDA_VISIBLE_DEVICES=0 ./scripts/examples/run_holdout_generic_workflow.sh
 #   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="chronos" ./scripts/examples/run_holdout_generic_workflow.sh
 #
+# With model config YAML (specify TTM parameters like features, scaler, split, etc.):
+#   MODEL_CONFIG="configs/models/ttm/default.yaml" ./scripts/examples/run_holdout_generic_workflow.sh
+#   MODEL_CONFIG="configs/models/ttm/fine_tune.yaml" DATASETS="lynch_2022 brown_2019" ./scripts/examples/run_holdout_generic_workflow.sh
+#
 # All datasets combined with specific model:
-#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="ttm" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
+#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="ttm" MODEL_CONFIG="configs/models/ttm/default.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 
 # =============================================================================
 # CONFIGURATION
@@ -44,9 +48,10 @@ RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 : ${CONFIG_DIR:="configs/data/holdout_5pct"}
 : ${OUTPUT_BASE_DIR:="trained_models/artifacts/_tsfm_testing/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_holdout_workflow"}
 : ${SKIP_TRAINING:="true"}
-: ${EPOCHS:="20"}
+: ${EPOCHS:="1"}
 : ${BATCH_SIZE:="4096"}
 : ${MODEL_TYPE:="ttm"}  # Model type: ttm, chronos, moment, etc.
+: ${MODEL_CONFIG:=""}   # Path to model YAML config (e.g., configs/models/ttm/default.yaml)
 
 # =============================================================================
 # ENVIRONMENT SETUP
@@ -67,6 +72,7 @@ echo "  Output base dir: $OUTPUT_BASE_DIR"
 echo "  Skip training: $SKIP_TRAINING"
 echo "  Epochs: $EPOCHS"
 echo "  Batch size: $BATCH_SIZE"
+echo "  Model config: ${MODEL_CONFIG:-None (using defaults)}"
 echo "========================================="
 echo ""
 
@@ -115,8 +121,17 @@ if command -v nvidia-smi &> /dev/null; then
     nvidia-smi --query-gpu=index,name,memory.total,compute_cap --format=csv 2>/dev/null || echo "  No NVIDIA GPU detected or driver issue"
     export CUDA_DEVICE_ORDER=PCI_BUS_ID  # Ensure CUDA indices match nvidia-smi ordering
     export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+    # Use expandable memory segments to prevent GPU memory fragmentation.
+    # PyTorch's default allocator reserves fixed-size blocks that can't be merged
+    # when freed, causing "reserved but unallocated" memory to accumulate.
+    # expandable_segments:True lets segments grow/shrink dynamically, so freed
+    # memory is actually reclaimable. This prevents OOM errors during the
+    # train→evaluate transition where tensor sizes change significantly.
+    # Safe to always enable (stable since PyTorch 2.1, no performance downside).
+    export PYTORCH_ALLOC_CONF=${PYTORCH_ALLOC_CONF:-"expandable_segments:True"}
     echo "  CUDA_DEVICE_ORDER: $CUDA_DEVICE_ORDER"
     echo "  CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+    echo "  PYTORCH_ALLOC_CONF: $PYTORCH_ALLOC_CONF"
 else
     echo "  No NVIDIA GPU detected, will use CPU"
     export CUDA_VISIBLE_DEVICES=""
@@ -158,6 +173,9 @@ CMD="$CMD --config-dir $CONFIG_DIR"
 CMD="$CMD --output-dir $OUTPUT_BASE_DIR"
 CMD="$CMD --epochs $EPOCHS"
 CMD="$CMD --batch-size $BATCH_SIZE"
+if [ -n "$MODEL_CONFIG" ]; then
+    CMD="$CMD --model-config $MODEL_CONFIG"
+fi
 if [ "$SKIP_TRAINING" = "true" ]; then
     CMD="$CMD --skip-training"
 fi
@@ -172,6 +190,9 @@ echo "    --config-dir $CONFIG_DIR \\"
 echo "    --output-dir $OUTPUT_BASE_DIR \\"
 echo "    --epochs $EPOCHS \\"
 echo "    --batch-size $BATCH_SIZE \\"
+if [ -n "$MODEL_CONFIG" ]; then
+    echo "    --model-config $MODEL_CONFIG \\"
+fi
 if [ "$SKIP_TRAINING" = "true" ]; then
     echo "    --skip-training"
 else

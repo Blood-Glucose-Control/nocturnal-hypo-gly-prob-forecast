@@ -1290,6 +1290,17 @@ def step4_zero_shot_evaluation(
     logger.info("✓ Zero-shot evaluation completed")
     # Note: We don't return the model - step5 will create a fresh one for training
 
+    # Explicitly free GPU memory before step 5 creates a new model
+    del model
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            logger.info("✓ GPU memory cleared after zero-shot evaluation")
+    except Exception:
+        pass
+
 
 def step5_train_model(
     model_type: str,
@@ -1591,19 +1602,21 @@ def step8_full_holdout_evaluation(
             holdout_patients = holdout_data[patient_col].dropna().unique()
             logger.info(f"  Holdout patients: {len(holdout_patients)}")
 
-        # Prepare data for evaluation (remove non-numeric columns)
-        exclude_cols = ["datetime", "p_num", "id", "source_dataset"]
-        numeric_cols = [col for col in holdout_data.columns if col not in exclude_cols]
-        holdout_data_numeric = holdout_data[numeric_cols].copy()
+        # Pass full holdout data to evaluate() - the model's _prepare_inference_data()
+        # needs id/timestamp columns (p_num, datetime) for ForecastDFDataset.
+        # Only exclude non-feature metadata columns like source_dataset.
+        eval_data = holdout_data.drop(
+            columns=["source_dataset"], errors="ignore"
+        ).copy()
 
-        logger.info(f"  Numeric columns for evaluation: {len(numeric_cols)}")
-        logger.info(f"  Holdout data shape: {holdout_data_numeric.shape}")
+        logger.info(f"  Columns for evaluation: {list(eval_data.columns)}")
+        logger.info(f"  Holdout data shape: {eval_data.shape}")
 
         # Evaluate using the evaluate() method
         try:
             logger.info("  Running evaluation on holdout set...")
 
-            eval_results = model.evaluate(test_data=holdout_data_numeric)
+            eval_results = model.evaluate(test_data=eval_data)
 
             logger.info(f"  ✓ Evaluation completed for {dataset_name}")
             logger.info("  Metrics:")
@@ -1623,7 +1636,7 @@ def step8_full_holdout_evaluation(
             all_results[dataset_name] = None
 
     # Summary
-    logger.info("\n" + "=" * 80)
+    logger.info("=" * 80)
     logger.info("Full Holdout Evaluation Summary")
     logger.info("=" * 80)
     for dataset_name, results in all_results.items():
@@ -1707,6 +1720,14 @@ stored in separate subdirectories for comparison.
         default=2048,
         help="Batch size for training and inference (default: 2048)",
     )
+    parser.add_argument(
+        "--model-config",
+        type=str,
+        default=None,
+        help="Path to model YAML config file (e.g., configs/models/ttm/default.yaml). "
+        "Specifies model-specific parameters like input_features, scaler_type, "
+        "split_config, etc. CLI args (--epochs, --batch-size) override YAML values.",
+    )
 
     args = parser.parse_args()
 
@@ -1714,6 +1735,11 @@ stored in separate subdirectories for comparison.
     if args.output_dir is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
         args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_{args.model_type}_holdout_workflow"
+
+    # Load model config from YAML if provided
+    model_config_overrides = None
+    if args.model_config:
+        model_config_overrides = load_model_config_from_yaml(args.model_config)
 
     logger.info("=" * 80)
     logger.info("🚀 GENERIC FORECASTER WORKFLOW DEMONSTRATION")
@@ -1723,11 +1749,19 @@ stored in separate subdirectories for comparison.
     logger.info(f"Datasets: {', '.join(args.datasets)}")
     logger.info(f"Config dir: {args.config_dir}")
     logger.info(f"Output dir: {args.output_dir}")
+    logger.info(f"Model config: {args.model_config or 'None (using defaults)'}")
     logger.info(f"Epochs per phase: {args.epochs}")
     logger.info(f"Skip training: {args.skip_training}")
     logger.info("=" * 80)
 
     try:
+        # Copy model config YAML to output artifacts for reproducibility
+        if args.model_config:
+            output_path = Path(args.output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+            model_config_dest = output_path / "model_config.yaml"
+            shutil.copy2(args.model_config, model_config_dest)
+            logger.info(f"✓ Model config copied to: {model_config_dest}")
         # =====================================================================
         # STEP 1: Check/generate holdout configs
         # =====================================================================
@@ -1762,6 +1796,7 @@ stored in separate subdirectories for comparison.
             config_dir=args.config_dir,
             output_dir=args.output_dir,
             batch_size=args.batch_size,
+            model_config_overrides=model_config_overrides,
         )
 
         if args.skip_training:
@@ -1775,11 +1810,10 @@ stored in separate subdirectories for comparison.
             if model_path.exists():
                 logger.info(f"Loading existing model from: {model_path}")
 
-                # Create a config for loading
+                # Create a config for loading (use YAML if provided)
                 config = ModelFactory.create_finetune_config(
                     model_type=args.model_type,
-                    context_length=512,
-                    forecast_length=96,
+                    extra_config=model_config_overrides,
                 )
 
                 model = step6_load_checkpoint(
@@ -1810,6 +1844,7 @@ stored in separate subdirectories for comparison.
                 output_dir=args.output_dir,
                 num_epochs=args.epochs,
                 batch_size=args.batch_size,
+                model_config_overrides=model_config_overrides,
             )
 
             # =====================================================================
@@ -1853,7 +1888,7 @@ stored in separate subdirectories for comparison.
         # =====================================================================
         # WORKFLOW COMPLETE
         # =====================================================================
-        logger.info("\n" + "=" * 80)
+        logger.info("=" * 80)
         logger.info("✅ WORKFLOW COMPLETED SUCCESSFULLY!")
         logger.info("=" * 80)
         logger.info(f"Model type: {args.model_type.upper()}")
@@ -1875,9 +1910,9 @@ stored in separate subdirectories for comparison.
         logger.info("End of: example_holdout_generic_workflow.py")
 
     except KeyboardInterrupt:
-        logger.info("\n\n🛑 Workflow interrupted by user")
+        logger.info("🛑 Workflow interrupted by user")
     except Exception as e:
-        logger.error(f"\n\n❌ Workflow failed: {e}")
+        logger.error(f"❌ Workflow failed: {e}")
         traceback.print_exc()
 
 
