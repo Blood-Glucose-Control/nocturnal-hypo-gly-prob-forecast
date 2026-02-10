@@ -1309,8 +1309,8 @@ def step5_train_model(
     training_columns: list,
     config_dir: str,
     output_dir: str,
-    num_epochs: int = 1,
-    batch_size: int = 2048,
+    num_epochs: Optional[int] = None,
+    batch_size: Optional[int] = None,
     model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Any, GenericModelConfig, Dict, Path]:
     """Step 5: Fine-tune model on combined dataset.
@@ -1324,8 +1324,8 @@ def step5_train_model(
         training_columns: Column names from training data
         config_dir: Holdout config directory
         output_dir: Output directory
-        num_epochs: Number of training epochs
-        batch_size: Batch size for training
+        num_epochs: Number of training epochs (None = use YAML or default)
+        batch_size: Batch size for training (None = use YAML or default)
         model_config_overrides: Optional dict of model-specific config from YAML
 
     Returns:
@@ -1336,7 +1336,9 @@ def step5_train_model(
     logger.info("STEP 5: Fine-tune Model")
     logger.info(f"Model type: {model_type}")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info(f"Epochs: {num_epochs}")
+    logger.info(
+        f"Epochs: {num_epochs if num_epochs is not None else 'from YAML or default'}"
+    )
     logger.info("=" * 80)
 
     # GPU setup
@@ -1479,7 +1481,7 @@ def step7_resume_training(
     training_columns: list,
     config_dir: str,
     output_dir: str,
-    num_epochs: int = 1,
+    num_epochs: Optional[int] = None,
 ) -> Tuple[Any, Dict, Path]:
     """Step 7: Resume training on loaded model for additional epochs.
 
@@ -1502,7 +1504,9 @@ def step7_resume_training(
     logger.info("=" * 80)
     logger.info("STEP 7: Resume Training on Loaded Model")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info(f"Additional epochs: {num_epochs}")
+    logger.info(
+        f"Additional epochs: {num_epochs if num_epochs is not None else 'from YAML or default'}"
+    )
     logger.info("=" * 80)
 
     # Check if model has training history from previous training
@@ -1527,7 +1531,8 @@ def step7_resume_training(
 
     print(f"\n>>> Resuming training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {resumed_output_dir}")
-    print(f">>> Training with {num_epochs} additional epoch(s)...\n")
+    epochs_display = num_epochs if num_epochs is not None else "configured"
+    print(f">>> Training with {epochs_display} additional epoch(s)...\n")
 
     try:
         # Continue training (fit() is implemented by child class)
@@ -1711,14 +1716,16 @@ stored in separate subdirectories for comparison.
     parser.add_argument(
         "--epochs",
         type=int,
-        default=1,
-        help="Number of training epochs per phase (default: 1)",
+        default=None,
+        help="Number of training epochs per phase. Overrides YAML config value. "
+        "Falls back to YAML num_epochs, then default (1) if not set.",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=2048,
-        help="Batch size for training and inference (default: 2048)",
+        default=None,
+        help="Batch size for training and inference. Overrides YAML config value. "
+        "Falls back to YAML batch_size, then default (2048) if not set.",
     )
     parser.add_argument(
         "--model-config",
@@ -1726,7 +1733,7 @@ stored in separate subdirectories for comparison.
         default=None,
         help="Path to model YAML config file (e.g., configs/models/ttm/default.yaml). "
         "Specifies model-specific parameters like input_features, scaler_type, "
-        "split_config, etc. CLI args (--epochs, --batch-size) override YAML values.",
+        "split_config, etc. Explicit CLI args (--epochs, --batch-size) override YAML values.",
     )
 
     args = parser.parse_args()
@@ -1750,7 +1757,9 @@ stored in separate subdirectories for comparison.
     logger.info(f"Config dir: {args.config_dir}")
     logger.info(f"Output dir: {args.output_dir}")
     logger.info(f"Model config: {args.model_config or 'None (using defaults)'}")
-    logger.info(f"Epochs per phase: {args.epochs}")
+    logger.info(
+        f"Epochs per phase: {args.epochs if args.epochs is not None else 'from YAML or default'}"
+    )
     logger.info(f"Skip training: {args.skip_training}")
     logger.info("=" * 80)
 

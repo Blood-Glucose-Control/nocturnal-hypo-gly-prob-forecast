@@ -48,8 +48,8 @@ RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 : ${CONFIG_DIR:="configs/data/holdout_5pct"}
 : ${OUTPUT_BASE_DIR:="trained_models/artifacts/_tsfm_testing/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_holdout_workflow"}
 : ${SKIP_TRAINING:="true"}
-: ${EPOCHS:="1"}
-: ${BATCH_SIZE:="4096"}
+: ${EPOCHS:=""}          # Leave empty to use YAML config value; set to override (e.g., EPOCHS=10)
+: ${BATCH_SIZE:=""}      # Leave empty to use YAML config value; set to override (e.g., BATCH_SIZE=4096)
 : ${MODEL_TYPE:="ttm"}  # Model type: ttm, chronos, moment, etc.
 : ${MODEL_CONFIG:=""}   # Path to model YAML config (e.g., configs/models/ttm/default.yaml)
 
@@ -70,8 +70,8 @@ echo "  Datasets: $DATASETS"
 echo "  Config dir: $CONFIG_DIR"
 echo "  Output base dir: $OUTPUT_BASE_DIR"
 echo "  Skip training: $SKIP_TRAINING"
-echo "  Epochs: $EPOCHS"
-echo "  Batch size: $BATCH_SIZE"
+echo "  Epochs: ${EPOCHS:-from YAML or default}"
+echo "  Batch size: ${BATCH_SIZE:-from YAML or default}"
 echo "  Model config: ${MODEL_CONFIG:-None (using defaults)}"
 echo "========================================="
 echo ""
@@ -171,8 +171,12 @@ CMD="$CMD --model-type $MODEL_TYPE"
 CMD="$CMD --datasets $DATASETS"
 CMD="$CMD --config-dir $CONFIG_DIR"
 CMD="$CMD --output-dir $OUTPUT_BASE_DIR"
-CMD="$CMD --epochs $EPOCHS"
-CMD="$CMD --batch-size $BATCH_SIZE"
+if [ -n "$EPOCHS" ]; then
+    CMD="$CMD --epochs $EPOCHS"
+fi
+if [ -n "$BATCH_SIZE" ]; then
+    CMD="$CMD --batch-size $BATCH_SIZE"
+fi
 if [ -n "$MODEL_CONFIG" ]; then
     CMD="$CMD --model-config $MODEL_CONFIG"
 fi
@@ -188,8 +192,12 @@ echo "    --model-type $MODEL_TYPE \\"
 echo "    --datasets $DATASETS \\"
 echo "    --config-dir $CONFIG_DIR \\"
 echo "    --output-dir $OUTPUT_BASE_DIR \\"
-echo "    --epochs $EPOCHS \\"
-echo "    --batch-size $BATCH_SIZE \\"
+if [ -n "$EPOCHS" ]; then
+    echo "    --epochs $EPOCHS \\"
+fi
+if [ -n "$BATCH_SIZE" ]; then
+    echo "    --batch-size $BATCH_SIZE \\"
+fi
 if [ -n "$MODEL_CONFIG" ]; then
     echo "    --model-config $MODEL_CONFIG \\"
 fi
