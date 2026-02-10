@@ -174,19 +174,6 @@ class Lynch2022DataLoader(DatasetBase):
             return []
         return list(self.processed_data.keys())
 
-    @property
-    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
-        """Get shape summary for each patient's data.
-        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
-        """
-        if not self.processed_data:
-            return {}
-        return {
-            patient_id: df.shape
-            for patient_id, df in self.processed_data.items()
-            if isinstance(df, pd.DataFrame)
-        }
-
     def to_dataframe(self) -> pd.DataFrame:
         """
         Flatten processed_data into a single DataFrame.

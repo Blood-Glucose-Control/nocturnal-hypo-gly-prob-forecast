@@ -109,16 +109,33 @@ class DatasetBase(ABC):
         return list(self.processed_data.keys()) if self.processed_data else []
 
     @property
-    @abstractmethod
     def data_shape_summary(self) -> dict:
         """Get a summary of the data shape.
 
+        Returns a dict mapping patient_id (or (patient_id, sub_id) for nested data)
+        to shape tuple (rows, cols).
+
+        For test data with nested structure {patient_id: {sub_id: DataFrame}},
+        returns {(patient_id, sub_id): shape}.
+        For train/validation data {patient_id: DataFrame}, returns {patient_id: shape}.
+
         Returns:
-            dict: A dictionary summarizing the shape of the dataset
+            dict: A dictionary summarizing the shape of the dataset.
+                  Empty dict if no processed data is loaded.
         """
-        raise NotImplementedError(
-            "'data_shape_summary()' must be implemented by subclass"
-        )
+        if not self.processed_data:
+            return {}
+
+        result = {}
+        for patient_id, patient_data in self.processed_data.items():
+            if isinstance(patient_data, dict):
+                # Nested structure (test data)
+                for sub_id, df in patient_data.items():
+                    if isinstance(df, pd.DataFrame):
+                        result[(patient_id, sub_id)] = df.shape
+            elif isinstance(patient_data, pd.DataFrame):
+                result[patient_id] = patient_data.shape
+        return result
 
     # Public Abstract Methods
     @abstractmethod

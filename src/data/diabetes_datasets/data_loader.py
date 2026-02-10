@@ -47,7 +47,6 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 14,
 ) -> Lynch2022DataLoader: ...
@@ -61,7 +60,6 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 14,
 ) -> Brown2019DataLoader: ...
@@ -75,7 +73,6 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 14,
 ) -> BrisT1DDataLoader: ...
@@ -89,7 +86,6 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 14,
     load_all: bool = False,
@@ -104,7 +100,6 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 14,
 ) -> Aleppo2017DataLoader: ...
@@ -118,7 +113,6 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 7,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 14,
 ) -> Tamborlane2008DataLoader: ...
@@ -131,7 +125,6 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = 0.9,
-    config: dict | None = None,
     parallel: bool = True,
     max_workers: int = 14,
     load_all: bool = False,
