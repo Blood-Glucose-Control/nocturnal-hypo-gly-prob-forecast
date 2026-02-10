@@ -78,13 +78,12 @@ class DataConfigRegistry:
 
         Uses fcntl.flock for advisory locking on Unix systems.
         """
-        lock_file = open(self._lock_path, "w")
-        try:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-            yield
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-            lock_file.close()
+        with open(self._lock_path, "w") as lock_file:
+            try:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     def _atomic_write_json(self, data: Dict[str, Any]) -> None:
         """Atomically write JSON data to the registry file.
