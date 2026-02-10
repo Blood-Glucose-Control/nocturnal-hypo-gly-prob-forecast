@@ -12,13 +12,17 @@ Maintains a JSON registry of all data configuration generation runs with:
 - Generated output files
 """
 
+import fcntl
 import getpass
 import json
 import logging
+import os
 import subprocess
+import tempfile
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +38,54 @@ class DataConfigRegistry:
         """
         self.registry_path = Path(registry_path)
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock_path = self.registry_path.with_suffix(".lock")
         self._initialize_registry()
+
+    @contextmanager
+    def _file_lock(self) -> Generator[None, None, None]:
+        """Context manager for file-based locking to prevent concurrent access.
+
+        Uses fcntl.flock for advisory locking on Unix systems.
+        """
+        lock_file = open(self._lock_path, "w")
+        try:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            lock_file.close()
+
+    def _atomic_write_json(self, data: Dict[str, Any]) -> None:
+        """Atomically write JSON data to the registry file.
+
+        Writes to a temporary file first, then renames to the target path.
+        This ensures the registry is never left in a partially-written state.
+
+        Args:
+            data: Dictionary to write as JSON
+        """
+        # Create temp file in the same directory to ensure same filesystem for atomic rename
+        dir_path = self.registry_path.parent
+        fd, temp_path = tempfile.mkstemp(suffix=".tmp", dir=dir_path)
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(data, f, indent=2)
+            # Atomic rename (on POSIX systems)
+            os.replace(temp_path, self.registry_path)
+        except Exception:
+            # Clean up temp file on failure
+            if os.path.exists(temp_path):
+                os.unlink(temp_path)
+            raise
+
+    def _read_registry(self) -> Dict[str, Any]:
+        """Read the registry JSON file.
+
+        Returns:
+            Dictionary containing registry data
+        """
+        with open(self.registry_path, "r") as f:
+            return json.load(f)
 
     def _initialize_registry(self):
         """Create registry JSON file if it doesn't exist."""
@@ -44,9 +95,11 @@ class DataConfigRegistry:
                 "description": "Registry of data configuration generation runs",
                 "entries": [],
             }
-            with open(self.registry_path, "w") as f:
-                json.dump(initial_data, f, indent=2)
-            logger.info(f"Initialized new registry at {self.registry_path}")
+            with self._file_lock():
+                # Double-check after acquiring lock (another process may have created it)
+                if not self.registry_path.exists():
+                    self._atomic_write_json(initial_data)
+                    logger.info(f"Initialized new registry at {self.registry_path}")
 
     def _get_git_info(self) -> Dict[str, Any]:
         """Get git repository information.
@@ -210,16 +263,11 @@ class DataConfigRegistry:
         if additional_metadata:
             entry["additional_metadata"] = additional_metadata
 
-        # Load existing registry
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
-
-        # Add new entry
-        registry_data["entries"].append(entry)
-
-        # Save updated registry
-        with open(self.registry_path, "w") as f:
-            json.dump(registry_data, f, indent=2)
+        # Atomically update registry with file locking
+        with self._file_lock():
+            registry_data = self._read_registry()
+            registry_data["entries"].append(entry)
+            self._atomic_write_json(registry_data)
 
         logger.info(f"Registered config generation with ID: {entry_id}")
         logger.info(f"Git branch: {entry['git']['branch']}")
@@ -237,8 +285,8 @@ class DataConfigRegistry:
         Returns:
             Dictionary containing entry data or None if not found
         """
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
+        with self._file_lock():
+            registry_data = self._read_registry()
 
         for entry in registry_data["entries"]:
             if entry["entry_id"] == entry_id:
@@ -255,8 +303,8 @@ class DataConfigRegistry:
         Returns:
             List of entry dictionaries
         """
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
+        with self._file_lock():
+            registry_data = self._read_registry()
 
         entries = registry_data["entries"]
         return entries[-n:] if len(entries) > n else entries
@@ -270,8 +318,8 @@ class DataConfigRegistry:
         Returns:
             List of entry dictionaries containing the dataset
         """
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
+        with self._file_lock():
+            registry_data = self._read_registry()
 
         matching_entries = []
         for entry in registry_data["entries"]:
@@ -289,8 +337,8 @@ class DataConfigRegistry:
         Returns:
             List of entry dictionaries from the specified branch
         """
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
+        with self._file_lock():
+            registry_data = self._read_registry()
 
         matching_entries = []
         for entry in registry_data["entries"]:
@@ -305,8 +353,8 @@ class DataConfigRegistry:
         Returns:
             Formatted string with registry summary
         """
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
+        with self._file_lock():
+            registry_data = self._read_registry()
 
         entries = registry_data["entries"]
         total_entries = len(entries)
@@ -347,8 +395,8 @@ Recent branches: {', '.join(sorted(branches))}
         """
         import pandas as pd
 
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
+        with self._file_lock():
+            registry_data = self._read_registry()
 
         # Flatten entries for CSV export
         rows = []
@@ -383,22 +431,21 @@ Recent branches: {', '.join(sorted(branches))}
         Returns:
             True if entry was deleted, False if not found
         """
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
+        with self._file_lock():
+            registry_data = self._read_registry()
 
-        initial_count = len(registry_data["entries"])
-        registry_data["entries"] = [
-            entry for entry in registry_data["entries"] if entry["entry_id"] != entry_id
-        ]
+            initial_count = len(registry_data["entries"])
+            registry_data["entries"] = [
+                entry for entry in registry_data["entries"] if entry["entry_id"] != entry_id
+            ]
 
-        if len(registry_data["entries"]) < initial_count:
-            with open(self.registry_path, "w") as f:
-                json.dump(registry_data, f, indent=2)
-            logger.info(f"Deleted entry: {entry_id}")
-            return True
-        else:
-            logger.warning(f"Entry ID '{entry_id}' not found")
-            return False
+            if len(registry_data["entries"]) < initial_count:
+                self._atomic_write_json(registry_data)
+                logger.info(f"Deleted entry: {entry_id}")
+                return True
+            else:
+                logger.warning(f"Entry ID '{entry_id}' not found")
+                return False
 
     def delete_entries_by_dataset(self, dataset_name: str) -> int:
         """Delete all registry entries for a specific dataset.
@@ -409,23 +456,22 @@ Recent branches: {', '.join(sorted(branches))}
         Returns:
             Number of entries deleted
         """
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
+        with self._file_lock():
+            registry_data = self._read_registry()
 
-        initial_count = len(registry_data["entries"])
-        registry_data["entries"] = [
-            entry
-            for entry in registry_data["entries"]
-            if dataset_name not in entry["config"]["datasets"]
-        ]
+            initial_count = len(registry_data["entries"])
+            registry_data["entries"] = [
+                entry
+                for entry in registry_data["entries"]
+                if dataset_name not in entry["config"]["datasets"]
+            ]
 
-        deleted_count = initial_count - len(registry_data["entries"])
-        if deleted_count > 0:
-            with open(self.registry_path, "w") as f:
-                json.dump(registry_data, f, indent=2)
-            logger.info(f"Deleted {deleted_count} entries for dataset '{dataset_name}'")
-        else:
-            logger.info(f"No entries found for dataset '{dataset_name}'")
+            deleted_count = initial_count - len(registry_data["entries"])
+            if deleted_count > 0:
+                self._atomic_write_json(registry_data)
+                logger.info(f"Deleted {deleted_count} entries for dataset '{dataset_name}'")
+            else:
+                logger.info(f"No entries found for dataset '{dataset_name}'")
 
         return deleted_count
 
@@ -438,23 +484,22 @@ Recent branches: {', '.join(sorted(branches))}
         Returns:
             Number of entries deleted
         """
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
+        with self._file_lock():
+            registry_data = self._read_registry()
 
-        initial_count = len(registry_data["entries"])
-        registry_data["entries"] = [
-            entry
-            for entry in registry_data["entries"]
-            if entry["git"]["branch"] != branch_name
-        ]
+            initial_count = len(registry_data["entries"])
+            registry_data["entries"] = [
+                entry
+                for entry in registry_data["entries"]
+                if entry["git"]["branch"] != branch_name
+            ]
 
-        deleted_count = initial_count - len(registry_data["entries"])
-        if deleted_count > 0:
-            with open(self.registry_path, "w") as f:
-                json.dump(registry_data, f, indent=2)
-            logger.info(f"Deleted {deleted_count} entries from branch '{branch_name}'")
-        else:
-            logger.info(f"No entries found for branch '{branch_name}'")
+            deleted_count = initial_count - len(registry_data["entries"])
+            if deleted_count > 0:
+                self._atomic_write_json(registry_data)
+                logger.info(f"Deleted {deleted_count} entries from branch '{branch_name}'")
+            else:
+                logger.info(f"No entries found for branch '{branch_name}'")
 
         return deleted_count
 
@@ -474,14 +519,11 @@ Recent branches: {', '.join(sorted(branches))}
             )
             return False
 
-        with open(self.registry_path, "r") as f:
-            registry_data = json.load(f)
-
-        entry_count = len(registry_data["entries"])
-        registry_data["entries"] = []
-
-        with open(self.registry_path, "w") as f:
-            json.dump(registry_data, f, indent=2)
+        with self._file_lock():
+            registry_data = self._read_registry()
+            entry_count = len(registry_data["entries"])
+            registry_data["entries"] = []
+            self._atomic_write_json(registry_data)
 
         logger.info(f"Cleared registry - deleted {entry_count} entries")
         return True
