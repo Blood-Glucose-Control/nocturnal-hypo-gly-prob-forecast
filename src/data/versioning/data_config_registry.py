@@ -436,7 +436,9 @@ Recent branches: {', '.join(sorted(branches))}
 
             initial_count = len(registry_data["entries"])
             registry_data["entries"] = [
-                entry for entry in registry_data["entries"] if entry["entry_id"] != entry_id
+                entry
+                for entry in registry_data["entries"]
+                if entry["entry_id"] != entry_id
             ]
 
             if len(registry_data["entries"]) < initial_count:
@@ -469,7 +471,9 @@ Recent branches: {', '.join(sorted(branches))}
             deleted_count = initial_count - len(registry_data["entries"])
             if deleted_count > 0:
                 self._atomic_write_json(registry_data)
-                logger.info(f"Deleted {deleted_count} entries for dataset '{dataset_name}'")
+                logger.info(
+                    f"Deleted {deleted_count} entries for dataset '{dataset_name}'"
+                )
             else:
                 logger.info(f"No entries found for dataset '{dataset_name}'")
 
@@ -497,7 +501,9 @@ Recent branches: {', '.join(sorted(branches))}
             deleted_count = initial_count - len(registry_data["entries"])
             if deleted_count > 0:
                 self._atomic_write_json(registry_data)
-                logger.info(f"Deleted {deleted_count} entries from branch '{branch_name}'")
+                logger.info(
+                    f"Deleted {deleted_count} entries from branch '{branch_name}'"
+                )
             else:
                 logger.info(f"No entries found for branch '{branch_name}'")
 
