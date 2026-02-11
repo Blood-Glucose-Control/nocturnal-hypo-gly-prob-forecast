@@ -1,42 +1,55 @@
 #!/usr/bin/env python3
 """
-End-to-end example: Holdout system with TTM training and evaluation.
+End-to-end example: Holdout system with GENERIC model training and evaluation.
 
-This script demonstrates the complete TTMForecaster workflow including:
-1. Generate holdout configurations
-2. Validate configurations
-3. Load and combine training data from multiple datasets
-4. Zero-shot evaluation (pretrained model, no fine-tuning)
-5. Fine-tune model for one epoch and evaluate
-6. Load checkpointed model and evaluate (verify save/load works)
-7. Resume training on loaded model and evaluate
-8. Full holdout evaluation on all datasets
+This script demonstrates a complete workflow that can work with different
+time series foundation models (TTM, Chronos, Moment, etc.) by using the
+base class interfaces.
+
+This is a refactored version of example_holdout_ttm_workflow.py that:
+- Supports multiple model types via --model-type argument
+- Uses generic base class interfaces (BaseTimeSeriesFoundationModel, ModelConfig)
+- Can be extended to support new model types by implementing the model factory
+
+Workflow Steps:
+  1. Check holdout configs exist
+  2. Validate holdout configs
+  3. Load and combine training data from multiple datasets
+  4. Zero-shot evaluation (pretrained model, no fine-tuning)
+  5. Fine-tune model for specified epochs
+  6. Load model from checkpoint (verify save/load works)
+  7. Resume training on loaded model
+  8. Full holdout evaluation on all datasets
 
 Usage:
-    # Run with default settings (combine all 4 datasets, 5% holdout, 1 epoch)
-    sbatch scripts/examples/run_holdout_ttm_workflow.sh
+    # Run with default settings (TTM model)
+    python scripts/examples/example_holdout_generic_workflow.py --datasets lynch_2022 brown_2019
 
-    # Run with specific datasets combined
-    sbatch --export=DATASETS="lynch_2022 aleppo" scripts/examples/run_holdout_ttm_workflow.sh
+    # Run with specific model type
+    python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 aleppo_2017
 
-    # Use different config directory
-    sbatch --export=DATASETS="lynch_2022 brown_2019",CONFIG_DIR="configs/data/holdout" scripts/examples/run_holdout_ttm_workflow.sh
+    # Skip training (only zero-shot evaluation)
+    python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 --skip-training
 
-    # Customize number of epochs
-    sbatch --export=DATASETS="aleppo brown_2019",EPOCHS=2 scripts/examples/run_holdout_ttm_workflow.sh
-
-    # Direct python call (for testing)
-    python scripts/examples/example_holdout_ttm_workflow.py --datasets lynch_2022 brown_2019 tamborlane_2008 --config-dir configs/data/holdout_10pct --epochs 1
+    # Use shell wrapper for local execution:
+    ./scripts/examples/run_holdout_generic_workflow.sh
 """
 
 import argparse
 import json
 import logging
 import shutil
-from pathlib import Path
+import traceback
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
+
+import yaml
+
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.data.preprocessing.dataset_combiner import (
@@ -45,19 +58,448 @@ from src.data.preprocessing.dataset_combiner import (
 )
 from src.data.preprocessing.imputation import impute_missing_values
 from src.models.base import DistributedConfig, GPUManager
-from src.models.ttm import TTMForecaster, TTMConfig
-from src.models.ttm.config import create_ttm_zero_shot_config
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# Suppress verbose logging from data processing modules (but not versioning)
+# Suppress verbose logging from data processing modules
 logging.getLogger("src.data.preprocessing").setLevel(logging.WARNING)
 logging.getLogger("src.data.diabetes_datasets").setLevel(logging.WARNING)
 logging.getLogger("src.models").setLevel(logging.WARNING)
 logging.getLogger("src.utils").setLevel(logging.WARNING)
+
+
+# =============================================================================
+# MODEL FACTORY: Generic model creation based on model type
+# =============================================================================
+
+# Registry of supported model types
+SUPPORTED_MODELS = {}
+
+
+def register_model(model_type: str):
+    """Decorator to register a model type in the factory."""
+
+    def decorator(cls):
+        SUPPORTED_MODELS[model_type] = cls
+        return cls
+
+    return decorator
+
+
+@dataclass
+class GenericModelConfig:
+    """Generic configuration that works across all model types.
+
+    This wraps the model-specific config and provides a unified interface.
+    """
+
+    model_type: str
+    model_path: str
+    context_length: int = 512
+    forecast_length: int = 96
+    batch_size: int = 2048
+    num_epochs: int = 1
+    training_mode: str = "fine_tune"  # "zero_shot", "fine_tune", "from_scratch"
+    freeze_backbone: bool = False
+    use_cpu: bool = False
+    fp16: bool = True
+    learning_rate: float = 1e-4
+
+    # Additional model-specific config can be passed as kwargs
+    extra_config: Dict[str, Any] = None
+
+    def __post_init__(self):
+        if self.extra_config is None:
+            self.extra_config = {}
+
+
+def load_model_config_from_yaml(config_path: str) -> Dict[str, Any]:
+    """Load model configuration from a YAML file.
+
+    Reads a YAML model config file (e.g., configs/models/ttm/default.yaml)
+    and returns it as a dictionary. These values are used to configure the
+    model-specific config (TTMConfig, ChronosConfig, etc.).
+
+    Args:
+        config_path: Path to the YAML configuration file.
+
+    Returns:
+        Dictionary of configuration parameters from the YAML file.
+
+    Raises:
+        FileNotFoundError: If the config file does not exist.
+        yaml.YAMLError: If the file is not valid YAML.
+    """
+    config_path = Path(config_path)
+    if not config_path.exists():
+        raise FileNotFoundError(f"Model config file not found: {config_path}")
+
+    with open(config_path, "r") as f:
+        config = yaml.safe_load(f)
+
+    if config is None:
+        logger.warning(f"Model config file is empty: {config_path}")
+        return {}
+
+    logger.info(f"Loaded model config from: {config_path}")
+    logger.info(f"  Parameters specified: {len(config)}")
+    for key, value in config.items():
+        logger.info(f"    {key}: {value}")
+
+    return config
+
+
+class ModelFactory:
+    """Factory for creating model instances based on model type."""
+
+    @staticmethod
+    def get_default_model_path(model_type: str) -> str:
+        """Get the default model path for a given model type."""
+        defaults = {
+            "ttm": "ibm-granite/granite-timeseries-ttm-r2",
+            "chronos": "amazon/chronos-t5-small",
+            "moment": "AutonLab/MOMENT-1-small",
+            # Add more defaults as models are implemented
+        }
+        return defaults.get(model_type, "")
+
+    @staticmethod
+    def create_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a model instance based on the configuration.
+
+        Args:
+            config: Generic model configuration
+            distributed_config: Optional distributed training configuration
+
+        Returns:
+            Model instance (type depends on model_type)
+
+        Raises:
+            ValueError: If model_type is not supported
+        """
+        model_type = config.model_type.lower()
+
+        if model_type == "ttm":
+            return ModelFactory._create_ttm_model(config, distributed_config)
+        elif model_type == "chronos":
+            return ModelFactory._create_chronos_model(config, distributed_config)
+        elif model_type == "moment":
+            return ModelFactory._create_moment_model(config, distributed_config)
+        else:
+            raise ValueError(
+                f"Unsupported model type: {model_type}. "
+                f"Supported types: ttm, chronos, moment"
+            )
+
+    @staticmethod
+    def _create_ttm_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a TTM model instance."""
+        from src.models.ttm import TTMForecaster, TTMConfig
+
+        ttm_config = TTMConfig(
+            model_path=config.model_path,
+            context_length=config.context_length,
+            forecast_length=config.forecast_length,
+            batch_size=config.batch_size,
+            num_epochs=config.num_epochs,
+            training_mode=config.training_mode,
+            freeze_backbone=config.freeze_backbone,
+            use_cpu=config.use_cpu,
+            fp16=config.fp16,
+            learning_rate=config.learning_rate,
+            **config.extra_config,
+        )
+
+        return TTMForecaster(ttm_config, distributed_config=distributed_config)
+
+    @staticmethod
+    def _create_chronos_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a Chronos model instance."""
+        # Import when needed to avoid dependency issues
+        try:
+            from src.models.chronos import ChronosForecaster, ChronosConfig
+
+            chronos_config = ChronosConfig(
+                model_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                use_cpu=config.use_cpu,
+                fp16=config.fp16,
+                **config.extra_config,
+            )
+
+            return ChronosForecaster(
+                chronos_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"Chronos model not available. Install chronos dependencies: {e}"
+            )
+
+    @staticmethod
+    def _create_moment_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a MOMENT model instance."""
+        try:
+            from src.models.moment import MomentForecaster, MomentConfig
+
+            moment_config = MomentConfig(
+                model_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                use_cpu=config.use_cpu,
+                fp16=config.fp16,
+                **config.extra_config,
+            )
+
+            return MomentForecaster(
+                moment_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"MOMENT model not available. Install moment dependencies: {e}"
+            )
+
+    @staticmethod
+    def create_zero_shot_config(
+        model_type: str,
+        model_path: Optional[str] = None,
+        context_length: int = 512,
+        forecast_length: int = 96,
+        batch_size: int = 2048,
+        use_cpu: bool = False,
+        fp16: bool = True,
+        extra_config: Optional[Dict[str, Any]] = None,
+    ) -> GenericModelConfig:
+        """Create a configuration for zero-shot evaluation.
+
+        Args:
+            model_type: Type of model (ttm, chronos, moment)
+            model_path: Path to pretrained model (uses default if None)
+            context_length: Number of historical time steps
+            forecast_length: Number of future time steps to predict
+            batch_size: Batch size for inference
+            use_cpu: Force CPU usage
+            fp16: Use mixed precision
+            extra_config: Additional model-specific config from YAML file
+
+        Returns:
+            GenericModelConfig configured for zero-shot evaluation
+        """
+        # Start with YAML config as base, then override with explicit args
+        yaml_config = dict(extra_config) if extra_config else {}
+
+        # Extract top-level params from YAML (CLI args override these)
+        resolved_model_path = model_path or yaml_config.pop(
+            "model_path", ModelFactory.get_default_model_path(model_type)
+        )
+        resolved_context = yaml_config.pop("context_length", context_length)
+        resolved_forecast = yaml_config.pop("forecast_length", forecast_length)
+        resolved_batch = yaml_config.pop("batch_size", batch_size)
+
+        # Remove params that are forced for zero-shot
+        for key in [
+            "num_epochs",
+            "training_mode",
+            "freeze_backbone",
+            "use_cpu",
+            "fp16",
+            "learning_rate",
+        ]:
+            yaml_config.pop(key, None)
+
+        return GenericModelConfig(
+            model_type=model_type,
+            model_path=resolved_model_path,
+            context_length=resolved_context,
+            forecast_length=resolved_forecast,
+            batch_size=resolved_batch,
+            num_epochs=0,
+            training_mode="zero_shot",
+            freeze_backbone=True,
+            use_cpu=use_cpu,
+            fp16=fp16,
+            extra_config=yaml_config,  # Remaining TTM-specific params
+        )
+
+    @staticmethod
+    def create_finetune_config(
+        model_type: str,
+        model_path: Optional[str] = None,
+        context_length: int = None,
+        forecast_length: int = None,
+        batch_size: int = None,
+        num_epochs: int = None,
+        learning_rate: float = None,
+        use_cpu: bool = False,
+        fp16: bool = True,
+        extra_config: Optional[Dict[str, Any]] = None,
+    ) -> GenericModelConfig:
+        """Create a configuration for fine-tuning.
+
+        Parameters are resolved in priority order: CLI args > YAML config > defaults.
+
+        Args:
+            model_type: Type of model (ttm, chronos, moment)
+            model_path: Path to pretrained model (uses YAML or default if None)
+            context_length: Number of historical time steps (CLI override)
+            forecast_length: Number of future time steps to predict (CLI override)
+            batch_size: Batch size for training (CLI override)
+            num_epochs: Number of training epochs (CLI override)
+            learning_rate: Learning rate (CLI override)
+            use_cpu: Force CPU usage
+            fp16: Use mixed precision
+            extra_config: Additional model-specific config from YAML file
+
+        Returns:
+            GenericModelConfig configured for fine-tuning
+        """
+        # Start with YAML config as base
+        yaml_config = dict(extra_config) if extra_config else {}
+
+        # Resolve top-level params: CLI arg > YAML > default
+        resolved_model_path = model_path or yaml_config.pop(
+            "model_path", ModelFactory.get_default_model_path(model_type)
+        )
+        resolved_context = (
+            context_length
+            if context_length is not None
+            else yaml_config.pop("context_length", 512)
+        )
+        resolved_forecast = (
+            forecast_length
+            if forecast_length is not None
+            else yaml_config.pop("forecast_length", 96)
+        )
+        resolved_batch = (
+            batch_size
+            if batch_size is not None
+            else yaml_config.pop("batch_size", 2048)
+        )
+        resolved_epochs = (
+            num_epochs if num_epochs is not None else yaml_config.pop("num_epochs", 1)
+        )
+        resolved_lr = (
+            learning_rate
+            if learning_rate is not None
+            else yaml_config.pop("learning_rate", 1e-4)
+        )
+        resolved_mode = yaml_config.pop("training_mode", "fine_tune")
+        resolved_freeze = yaml_config.pop("freeze_backbone", False)
+
+        # Remove hardware params from extra_config (handled by CLI)
+        yaml_config.pop("use_cpu", None)
+        yaml_config.pop("fp16", None)
+
+        return GenericModelConfig(
+            model_type=model_type,
+            model_path=resolved_model_path,
+            context_length=resolved_context,
+            forecast_length=resolved_forecast,
+            batch_size=resolved_batch,
+            num_epochs=resolved_epochs,
+            training_mode=resolved_mode,
+            freeze_backbone=resolved_freeze,
+            use_cpu=use_cpu,
+            fp16=fp16,
+            learning_rate=resolved_lr,
+            extra_config=yaml_config,  # Remaining model-specific params
+        )
+
+    @staticmethod
+    def load_model(
+        model_type: str,
+        model_path: str,
+        config: GenericModelConfig,
+    ):
+        """Load a model from a checkpoint.
+
+        Args:
+            model_type: Type of model (ttm, chronos, moment)
+            model_path: Path to the saved model checkpoint
+            config: GenericModelConfig used for loading
+
+        Returns:
+            Loaded model instance
+
+        Raises:
+            ValueError: If model_type is not supported
+        """
+        model_type_lower = model_type.lower()
+
+        if model_type_lower == "ttm":
+            from src.models.ttm import TTMForecaster, TTMConfig
+
+            ttm_config = TTMConfig(
+                model_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                freeze_backbone=config.freeze_backbone,
+                use_cpu=config.use_cpu,
+                fp16=config.fp16,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+            return TTMForecaster.load(model_path, ttm_config)
+        elif model_type_lower == "chronos":
+            from src.models.chronos import ChronosForecaster, ChronosConfig
+
+            chronos_config = ChronosConfig(
+                model_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                use_cpu=config.use_cpu,
+                fp16=config.fp16,
+                **config.extra_config,
+            )
+            return ChronosForecaster.load(model_path, chronos_config)
+        elif model_type_lower == "moment":
+            from src.models.moment import MomentForecaster, MomentConfig
+
+            moment_config = MomentConfig(
+                model_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                use_cpu=config.use_cpu,
+                fp16=config.fp16,
+                **config.extra_config,
+            )
+            return MomentForecaster.load(model_path, moment_config)
+        else:
+            raise ValueError(
+                f"Unsupported model type for loading: {model_type}. "
+                f"Supported types: ttm, chronos, moment"
+            )
+
 
 # =============================================================================
 # HELPER FUNCTIONS: Prediction Generation and Plotting
@@ -65,18 +507,18 @@ logging.getLogger("src.utils").setLevel(logging.WARNING)
 
 
 def _generate_forecasts(
-    model: TTMForecaster,  # TODO: Type hint should be child class of BaseTimeSeriesForecaster
+    model,  # BaseTimeSeriesFoundationModel or compatible
     training_columns: list,
     dataset_names: list,
     config_dir: str,
     output_dir: str,
     phase_name: str,
     zero_shot: bool = False,
-):
+) -> Optional[Dict[str, Dict]]:
     """Helper: Generate forecasts using the model and holdout data.
 
     Args:
-        model: TTM forecaster (trained or pretrained)
+        model: Forecaster model (TTM, Chronos, Moment, etc.)
         training_columns: List of column names used during training
         dataset_names: List of dataset names to generate forecasts for
         config_dir: Directory containing holdout configurations
@@ -132,7 +574,7 @@ def _generate_forecasts(
 
             logger.info(f"  Forecast data shape: {forecast_data.shape}")
 
-            # Keep necessary columns for TTM preprocessing (p_num, datetime)
+            # Keep necessary columns for preprocessing (p_num, datetime)
             # Only remove source_dataset if present
             exclude_cols = ["source_dataset"]
             forecast_cols_for_model = [
@@ -210,8 +652,6 @@ def _generate_forecasts(
                     str(dt) for dt in forecast_datetimes
                 ]
 
-            import json
-
             with open(predictions_json, "w") as f:
                 json.dump(predictions_data, f, indent=2)
 
@@ -222,8 +662,6 @@ def _generate_forecasts(
 
     except Exception as e:
         logger.error(f"  ✗ Failed to generate forecasts: {e}")
-        import traceback
-
         traceback.print_exc()
         return None
 
@@ -232,13 +670,16 @@ def _plot_forecasts(
     forecast_results: dict,
     output_dir: str,
     phase_name: str,
-):
+) -> bool:
     """Helper: Create plots and save forecast visualizations.
 
     Args:
         forecast_results: Dictionary from _generate_forecasts containing forecast data
         output_dir: Directory where plots will be saved
         phase_name: Identifier for this phase (e.g., "zero_shot", "after_training")
+
+    Returns:
+        bool: True if plotting succeeded, False otherwise
     """
     logger.info(f"  Plotting forecasts for phase: {phase_name}")
 
@@ -247,8 +688,6 @@ def _plot_forecasts(
         return False
 
     try:
-        import pandas as pd
-
         # Create forecast output directory with phase identifier
         forecast_dir = Path(output_dir) / "forecasts" / phase_name
         forecast_dir.mkdir(parents=True, exist_ok=True)
@@ -396,7 +835,7 @@ def _plot_forecasts(
 
             plt.close()
 
-            # Save forecast data to CSV with datetime if available
+            # Save forecast data to CSV
             forecast_csv_path = forecast_dir / f"{phase_name}_{dataset_name}_data.csv"
             if use_datetime_axis:
                 all_datetimes = list(historical_dts) + list(
@@ -438,28 +877,26 @@ def _plot_forecasts(
 
     except Exception as e:
         logger.error(f"  ✗ Failed to plot forecasts: {e}")
-        import traceback
-
         traceback.print_exc()
         return False
 
 
 def _evaluate_and_plot(
-    model: TTMForecaster,  # TODO: Generic child of BaseTimeSeriesForecaster
+    model,  # BaseTimeSeriesFoundationModel or compatible
     training_columns: list,
     dataset_names: list,
     config_dir: str,
     output_dir: str,
     phase_name: str,
     zero_shot: bool = False,
-):
+) -> Optional[Dict]:
     """Helper: Generate forecasts and plots for a given phase.
 
     This is the main helper that combines forecast generation and plotting.
     Called after each major workflow phase (zero-shot, training, loading, etc.)
 
     Args:
-        model: TTM forecaster
+        model: Forecaster model
         training_columns: List of column names from training data
         dataset_names: List of dataset names
         config_dir: Holdout config directory
@@ -505,7 +942,7 @@ def step1_generate_holdout_configs(
     config_dir: str = "configs/data/holdout",
     output_dir: str | None = None,
     datasets: list | None = None,
-):
+) -> bool:
     """Step 1: Generate holdout configurations and copy to artifacts directory."""
     logger.info("=" * 80)
     logger.info("STEP 1: Generate Holdout Configurations")
@@ -550,7 +987,7 @@ def step1_generate_holdout_configs(
         return False
 
 
-def step2_validate_holdout_configs(datasets: list, config_dir: str):
+def step2_validate_holdout_configs(datasets: list, config_dir: str) -> bool:
     """Step 2: Validate holdout configurations for all datasets with comprehensive checks."""
     logger.info(" ")
     logger.info("=" * 80)
@@ -775,16 +1212,28 @@ def step3_load_training_data(
 
 
 def step4_zero_shot_evaluation(
+    model_type: str,
     dataset_names: list,
     training_columns: list,
     config_dir: str,
     output_dir: str,
-):
+    batch_size: int = 2048,
+    model_config_overrides: Optional[Dict[str, Any]] = None,
+) -> None:
     """Step 4: Zero-shot evaluation using pretrained model (no fine-tuning).
 
-    This demonstrates the TTM's pretrained capabilities on glucose forecasting
+    This demonstrates the model's pretrained capabilities on glucose forecasting
     before any domain-specific fine-tuning. Uses the proper zero-shot configuration
     with freeze_backbone=True and num_epochs=0.
+
+    Args:
+        model_type: Type of model to use (ttm, chronos, moment)
+        dataset_names: List of dataset names
+        training_columns: Column names from training data
+        config_dir: Holdout config directory
+        output_dir: Output directory
+        batch_size: Batch size for inference
+        model_config_overrides: Optional dict of model-specific config from YAML
 
     Note: This step creates a temporary model just for zero-shot evaluation.
     Step 5 will create a fresh model for fine-tuning.
@@ -792,6 +1241,7 @@ def step4_zero_shot_evaluation(
     logger.info(" ")
     logger.info("=" * 80)
     logger.info("STEP 4: Zero-Shot Evaluation (Pretrained Model)")
+    logger.info(f"Model type: {model_type}")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
     logger.info("=" * 80)
 
@@ -804,19 +1254,17 @@ def step4_zero_shot_evaluation(
     distributed_config = DistributedConfig(enabled=False)
     use_cpu = not gpu_info["gpu_available"]
 
-    # Use proper zero-shot configuration
-    # This sets training_mode="zero_shot", freeze_backbone=True, num_epochs=0
-    # Following tsfm_public pattern: TinyTimeMixerForPrediction.from_pretrained(...)
-    config = create_ttm_zero_shot_config(
-        model_path="ibm-granite/granite-timeseries-ttm-r2",
-        context_length=512,
-        forecast_length=96,
-        batch_size=2048,
+    # Create zero-shot configuration using the factory
+    config = ModelFactory.create_zero_shot_config(
+        model_type=model_type,
+        batch_size=batch_size,
         use_cpu=use_cpu,
         fp16=gpu_info["gpu_available"] and not use_cpu,
+        extra_config=model_config_overrides,
     )
 
     logger.info("Zero-shot model config:")
+    logger.info(f"  Model type: {config.model_type}")
     logger.info(f"  Context length: {config.context_length}")
     logger.info(f"  Forecast length: {config.forecast_length}")
     logger.info(f"  Model path: {config.model_path}")
@@ -824,9 +1272,9 @@ def step4_zero_shot_evaluation(
     logger.info(f"  Freeze backbone: {config.freeze_backbone}")
     logger.info(f"  Num epochs: {config.num_epochs}")
 
-    # Create model (loads pretrained weights with frozen backbone)
-    model = TTMForecaster(config, distributed_config=distributed_config)
-    logger.info("✓ Pretrained TTM model loaded (zero-shot mode)")
+    # Create model using the factory
+    model = ModelFactory.create_model(config, distributed_config=distributed_config)
+    logger.info(f"✓ Pretrained {model_type.upper()} model loaded (zero-shot mode)")
 
     # Evaluate and plot for zero-shot phase
     _evaluate_and_plot(
@@ -842,35 +1290,59 @@ def step4_zero_shot_evaluation(
     logger.info("✓ Zero-shot evaluation completed")
     # Note: We don't return the model - step5 will create a fresh one for training
 
+    # Explicitly free GPU memory before step 5 creates a new model
+    del model
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            logger.info("✓ GPU memory cleared after zero-shot evaluation")
+    except Exception as exc:
+        # Best-effort GPU cleanup: log and continue without failing the workflow
+        logger.debug(
+            "Skipping GPU memory cleanup after zero-shot evaluation due to error: %s",
+            exc,
+        )
+
 
 def step5_train_model(
-    combined_data,
+    model_type: str,
+    combined_data: pd.DataFrame,
     dataset_names: list,
     training_columns: list,
     config_dir: str,
     output_dir: str,
-    num_epochs: int = 1,
-):
-    """Step 5: Fine-tune TTM model on combined dataset.
+    num_epochs: Optional[int] = None,
+    batch_size: Optional[int] = None,
+    model_config_overrides: Optional[Dict[str, Any]] = None,
+) -> Tuple[Any, GenericModelConfig, Dict, Path]:
+    """Step 5: Fine-tune model on combined dataset.
 
     Creates a fresh model configured for fine-tuning (not zero-shot).
 
     Args:
+        model_type: Type of model to use (ttm, chronos, moment)
         combined_data: Combined training DataFrame
         dataset_names: List of dataset names
         training_columns: Column names from training data
         config_dir: Holdout config directory
         output_dir: Output directory
-        num_epochs: Number of training epochs
+        num_epochs: Number of training epochs (None = use YAML or default)
+        batch_size: Batch size for training (None = use YAML or default)
+        model_config_overrides: Optional dict of model-specific config from YAML
 
     Returns:
         tuple: (model, config, results, model_path) - Trained model, config, training results, and save path
     """
     logger.info(" ")
     logger.info("=" * 80)
-    logger.info("STEP 5: Fine-tune TTM Model")
+    logger.info("STEP 5: Fine-tune Model")
+    logger.info(f"Model type: {model_type}")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info(f"Epochs: {num_epochs}")
+    logger.info(
+        f"Epochs: {num_epochs if num_epochs is not None else 'from YAML or default'}"
+    )
     logger.info("=" * 80)
 
     # GPU setup
@@ -878,20 +1350,18 @@ def step5_train_model(
     distributed_config = DistributedConfig(enabled=False)
     use_cpu = not gpu_info["gpu_available"]
 
-    # Create a fresh model configured for fine-tuning (not zero-shot)
-    config = TTMConfig(
-        model_path="ibm-granite/granite-timeseries-ttm-r2",
-        context_length=512,
-        forecast_length=96,
-        batch_size=2048,
+    # Create fine-tuning configuration using the factory
+    config = ModelFactory.create_finetune_config(
+        model_type=model_type,
+        batch_size=batch_size,
         num_epochs=num_epochs,
-        training_mode="fine_tune",
-        freeze_backbone=False,  # Trainable for fine-tuning
         use_cpu=use_cpu,
         fp16=gpu_info["gpu_available"] and not use_cpu,
+        extra_config=model_config_overrides,
     )
 
     logger.info("Fine-tuning config:")
+    logger.info(f"  Model type: {config.model_type}")
     logger.info(f"  Context length: {config.context_length}")
     logger.info(f"  Forecast length: {config.forecast_length}")
     logger.info(f"  Model path: {config.model_path}")
@@ -899,9 +1369,9 @@ def step5_train_model(
     logger.info(f"  Freeze backbone: {config.freeze_backbone}")
     logger.info(f"  Num epochs: {config.num_epochs}")
 
-    # Create fresh model for fine-tuning
-    model = TTMForecaster(config, distributed_config=distributed_config)
-    logger.info("✓ Fresh TTM model created for fine-tuning")
+    # Create fresh model for fine-tuning using the factory
+    model = ModelFactory.create_model(config, distributed_config=distributed_config)
+    logger.info(f"✓ Fresh {model_type.upper()} model created for fine-tuning")
 
     print(f"\n>>> Starting training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {output_dir}")
@@ -910,13 +1380,13 @@ def step5_train_model(
     logger.info(f"Output directory: {output_dir}")
 
     try:
-        # Train the model
+        # Train the model (fit() is implemented by each model type)
         results = model.fit(train_data=combined_data, output_dir=output_dir)
         print("\n>>> Training completed successfully\n")
         logger.info("✓ Training completed")
         logger.info(f"  Results: {list(results.keys())}")
 
-        # Save model checkpoint
+        # Save model checkpoint (save() is implemented by base class)
         model_path = Path(output_dir) / "model.pt"
         model_path.parent.mkdir(parents=True, exist_ok=True)
         model.save(str(model_path))
@@ -942,27 +1412,29 @@ def step5_train_model(
 
 
 def step6_load_checkpoint(
+    model_type: str,
     model_path: Path,
-    config: TTMConfig,  # TODO: Generic child of BaseTimeSeriesForecaster
+    config: GenericModelConfig,
     training_columns: list,
     dataset_names: list,
     config_dir: str,
     output_dir: str,
-):
+) -> Optional[Any]:
     """Step 6: Load model from checkpoint and verify it works.
 
     This step demonstrates that the model can be saved and loaded correctly.
 
     Args:
+        model_type: Type of model (ttm, chronos, moment)
         model_path: Path to the saved model checkpoint
-        config: TTMConfig for loading the model
+        config: GenericModelConfig for loading the model
         training_columns: Column names from training data
         dataset_names: List of dataset names
         config_dir: Holdout config directory
         output_dir: Output directory
 
     Returns:
-        TTMForecaster: Loaded model
+        Loaded model instance, or None if loading failed
     """
     logger.info(" ")
     logger.info("=" * 80)
@@ -980,7 +1452,12 @@ def step6_load_checkpoint(
 
     try:
         # Load using the class method
-        model = TTMForecaster.load(str(model_path), config)
+        # Create a temporary model via factory to access the correct class's load()
+        model = ModelFactory.load_model(
+            model_type=model_type,
+            model_path=str(model_path),
+            config=config,
+        )
         logger.info(f"✓ Model loaded from: {model_path}")
 
         # Evaluate and plot after loading (to verify it works)
@@ -997,27 +1474,26 @@ def step6_load_checkpoint(
 
     except Exception as e:
         logger.error(f"✗ Failed to load model: {e}")
-        import traceback
-
         traceback.print_exc()
         return None
 
 
 def step7_resume_training(
-    model: TTMForecaster,  # TODO: change to generic child of BaseTimeSeriesForecaster
-    combined_data,
+    model,  # BaseTimeSeriesFoundationModel or compatible
+    combined_data: pd.DataFrame,
     dataset_names: list,
     training_columns: list,
     config_dir: str,
     output_dir: str,
-    num_epochs: int = 1,
-):
+    num_epochs: Optional[int] = None,
+) -> Tuple[Any, Dict, Path]:
     """Step 7: Resume training on loaded model for additional epochs.
 
     This demonstrates the ability to continue training from a checkpoint.
+    The training_history attribute comes from the base class.
 
     Args:
-        model: Loaded TTM model
+        model: Loaded model instance
         combined_data: Training data
         dataset_names: List of dataset names
         training_columns: Column names from training data
@@ -1032,10 +1508,13 @@ def step7_resume_training(
     logger.info("=" * 80)
     logger.info("STEP 7: Resume Training on Loaded Model")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info(f"Additional epochs: {num_epochs}")
+    logger.info(
+        f"Additional epochs: {num_epochs if num_epochs is not None else 'from YAML or default'}"
+    )
     logger.info("=" * 80)
 
     # Check if model has training history from previous training
+    # training_history comes from the base class
     if hasattr(model, "training_history"):
         logger.info("✓ Model has training history from previous training")
         if isinstance(model.training_history, dict) and model.training_history:
@@ -1056,10 +1535,11 @@ def step7_resume_training(
 
     print(f"\n>>> Resuming training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {resumed_output_dir}")
-    print(f">>> Training with {num_epochs} additional epoch(s)...\n")
+    epochs_display = num_epochs if num_epochs is not None else "configured"
+    print(f">>> Training with {epochs_display} additional epoch(s)...\n")
 
     try:
-        # Continue training
+        # Continue training (fit() is implemented by child class)
         results = model.fit(
             train_data=combined_data, output_dir=str(resumed_output_dir)
         )
@@ -1067,8 +1547,8 @@ def step7_resume_training(
         logger.info("✓ Resumed training completed")
         logger.info(f"  Results: {list(results.keys())}")
 
-        # Save the model after resumed training
-        model_path = resumed_output_dir / "model.pt"
+        # Save the model after resumed training (save() is from base class)
+        model_path = resumed_output_dir / "resumed_model.pt"
         model.save(str(model_path))
         logger.info(f"✓ Resumed model saved to: {model_path}")
         logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
@@ -1092,15 +1572,17 @@ def step7_resume_training(
 
 
 def step8_full_holdout_evaluation(
-    model: TTMForecaster, dataset_names: list, config_dir: str
-):
+    model,  # BaseTimeSeriesFoundationModel or compatible
+    dataset_names: list,
+    config_dir: str,
+) -> Dict[str, Any]:
     """Step 8: Full evaluation on holdout sets for all datasets.
 
-    This performs the comprehensive evaluation using Trainer.evaluate()
-    on the complete holdout data for each dataset.
+    This performs the comprehensive evaluation using the model's evaluate()
+    method on the complete holdout data for each dataset.
 
     Args:
-        model: Trained TTM model
+        model: Trained model instance
         dataset_names: List of dataset names
         config_dir: Holdout config directory
 
@@ -1126,7 +1608,7 @@ def step8_full_holdout_evaluation(
         # Log dataset info
         if "p_num" in holdout_data.columns or "id" in holdout_data.columns:
             patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
-            holdout_patients = holdout_data[patient_col].unique()
+            holdout_patients = holdout_data[patient_col].dropna().unique()
             logger.info(f"  Holdout patients: {len(holdout_patients)}")
 
         # Pass full holdout data to evaluate() - the model's _prepare_inference_data()
@@ -1159,13 +1641,11 @@ def step8_full_holdout_evaluation(
 
         except Exception as e:
             logger.error(f"  ✗ Evaluation failed for {dataset_name}: {e}")
-            import traceback
-
             traceback.print_exc()
             all_results[dataset_name] = None
 
     # Summary
-    logger.info("\n" + "=" * 80)
+    logger.info("=" * 80)
     logger.info("Full Holdout Evaluation Summary")
     logger.info("=" * 80)
     for dataset_name, results in all_results.items():
@@ -1187,22 +1667,34 @@ def step8_full_holdout_evaluation(
 # =============================================================================
 def main():
     parser = argparse.ArgumentParser(
-        description="End-to-end holdout workflow demonstrating all TTMForecaster capabilities",
+        description="End-to-end holdout workflow for time series foundation models",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Workflow Steps:
-  1. Check holdout configs exist : GENERIC
-  2. Validate holdout configs : GENERIC
-  3. Load and combine training data : GENERIC
+  1. Check holdout configs exist
+  2. Validate holdout configs
+  3. Load and combine training data
   4. Zero-shot evaluation (pretrained model, no fine-tuning)
   5. Fine-tune model for specified epochs
   6. Load model from checkpoint (verify save/load works)
   7. Resume training on loaded model
   8. Full holdout evaluation on all datasets
 
+Supported Model Types:
+  - ttm: IBM Granite TTM (TinyTimeMixer)
+  - chronos: Amazon Chronos
+  - moment: AutonLab MOMENT
+
 Each evaluation phase (4, 5, 6, 7) generates predictions and plots
 stored in separate subdirectories for comparison.
         """,
+    )
+    parser.add_argument(
+        "--model-type",
+        type=str,
+        default="ttm",
+        choices=["ttm", "chronos", "moment"],
+        help="Type of model to use (default: ttm)",
     )
     parser.add_argument(
         "--datasets",
@@ -1228,8 +1720,24 @@ stored in separate subdirectories for comparison.
     parser.add_argument(
         "--epochs",
         type=int,
-        default=1,
-        help="Number of training epochs per phase (default: 1)",
+        default=None,
+        help="Number of training epochs per phase. Overrides YAML config value. "
+        "Falls back to YAML num_epochs, then default (1) if not set.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="Batch size for training and inference. Overrides YAML config value. "
+        "Falls back to YAML batch_size, then default (2048) if not set.",
+    )
+    parser.add_argument(
+        "--model-config",
+        type=str,
+        default=None,
+        help="Path to model YAML config file (e.g., configs/models/ttm/default.yaml). "
+        "Specifies model-specific parameters like input_features, scaler_type, "
+        "split_config, etc. Explicit CLI args (--epochs, --batch-size) override YAML values.",
     )
 
     args = parser.parse_args()
@@ -1237,22 +1745,36 @@ stored in separate subdirectories for comparison.
     # Set output directory
     if args.output_dir is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
-        args.output_dir = (
-            f"./trained_models/artifacts/_tsfm_testing/{timestamp}_holdout_workflow"
-        )
+        args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_{args.model_type}_holdout_workflow"
+
+    # Load model config from YAML if provided
+    model_config_overrides = None
+    if args.model_config:
+        model_config_overrides = load_model_config_from_yaml(args.model_config)
 
     logger.info("=" * 80)
-    logger.info("🚀 TTM FORECASTER COMPLETE WORKFLOW DEMONSTRATION")
-    logger.info("Start of: example_holdout_ttm_workflow.py")
+    logger.info("🚀 GENERIC FORECASTER WORKFLOW DEMONSTRATION")
+    logger.info("Start of: example_holdout_generic_workflow.py")
     logger.info("=" * 80)
+    logger.info(f"Model type: {args.model_type.upper()}")
     logger.info(f"Datasets: {', '.join(args.datasets)}")
     logger.info(f"Config dir: {args.config_dir}")
     logger.info(f"Output dir: {args.output_dir}")
-    logger.info(f"Epochs per phase: {args.epochs}")
+    logger.info(f"Model config: {args.model_config or 'None (using defaults)'}")
+    logger.info(
+        f"Epochs per phase: {args.epochs if args.epochs is not None else 'from YAML or default'}"
+    )
     logger.info(f"Skip training: {args.skip_training}")
     logger.info("=" * 80)
 
     try:
+        # Copy model config YAML to output artifacts for reproducibility
+        if args.model_config:
+            output_path = Path(args.output_dir)
+            output_path.mkdir(parents=True, exist_ok=True)
+            model_config_dest = output_path / "model_config.yaml"
+            shutil.copy2(args.model_config, model_config_dest)
+            logger.info(f"✓ Model config copied to: {model_config_dest}")
         # =====================================================================
         # STEP 1: Check/generate holdout configs
         # =====================================================================
@@ -1281,10 +1803,13 @@ stored in separate subdirectories for comparison.
         # STEP 4: Zero-shot evaluation (pretrained model, no fine-tuning)
         # =====================================================================
         step4_zero_shot_evaluation(
+            model_type=args.model_type,
             dataset_names=args.datasets,
             training_columns=training_columns,
             config_dir=args.config_dir,
             output_dir=args.output_dir,
+            batch_size=args.batch_size,
+            model_config_overrides=model_config_overrides,
         )
 
         if args.skip_training:
@@ -1297,14 +1822,15 @@ stored in separate subdirectories for comparison.
             model_path = Path(args.output_dir) / "model.pt"
             if model_path.exists():
                 logger.info(f"Loading existing model from: {model_path}")
-                # Create a config for loading (same as fine-tuning config)
-                # gpu_info = GPUManager.get_gpu_info()
-                config = TTMConfig(
-                    model_path="ibm-granite/granite-timeseries-ttm-r2",
-                    context_length=512,
-                    forecast_length=96,
+
+                # Create a config for loading (use YAML if provided)
+                config = ModelFactory.create_finetune_config(
+                    model_type=args.model_type,
+                    extra_config=model_config_overrides,
                 )
+
                 model = step6_load_checkpoint(
+                    model_type=args.model_type,
                     model_path=model_path,
                     config=config,
                     training_columns=training_columns,
@@ -1323,18 +1849,22 @@ stored in separate subdirectories for comparison.
             # STEP 5: Fine-tune model for one epoch
             # =====================================================================
             model, config, train_results, model_path = step5_train_model(
+                model_type=args.model_type,
                 combined_data=combined_train_data,
                 dataset_names=args.datasets,
                 training_columns=training_columns,
                 config_dir=args.config_dir,
                 output_dir=args.output_dir,
                 num_epochs=args.epochs,
+                batch_size=args.batch_size,
+                model_config_overrides=model_config_overrides,
             )
 
             # =====================================================================
             # STEP 6: Load model from checkpoint (verify save/load works)
             # =====================================================================
             model = step6_load_checkpoint(
+                model_type=args.model_type,
                 model_path=model_path,
                 config=config,
                 training_columns=training_columns,
@@ -1371,32 +1901,31 @@ stored in separate subdirectories for comparison.
         # =====================================================================
         # WORKFLOW COMPLETE
         # =====================================================================
-        logger.info("\n" + "=" * 80)
+        logger.info("=" * 80)
         logger.info("✅ WORKFLOW COMPLETED SUCCESSFULLY!")
         logger.info("=" * 80)
+        logger.info(f"Model type: {args.model_type.upper()}")
         logger.info(f"Output directory: {args.output_dir}")
         logger.info("Generated artifacts:")
-        logger.info("  - predictions/zero_shot/          : Zero-shot predictions")
+        logger.info("  - predictions/0_zero_shot/       : Zero-shot predictions")
         if not args.skip_training:
             logger.info(
-                "  - predictions/after_training/     : Post-training predictions"
+                "  - predictions/1_after_training/  : Post-training predictions"
             )
-            logger.info("  - predictions/after_loading/      : Post-load predictions")
+            logger.info("  - predictions/2_after_loading/   : Post-load predictions")
             logger.info(
-                "  - predictions/after_resumed_training/ : Post-resume predictions"
+                "  - predictions/3_after_resumed_training/ : Post-resume predictions"
             )
-            logger.info("  - model.pt                         : Initial trained model")
-            logger.info("  - resumed_training/model.pt        : Resumed training model")
-        logger.info("  - forecasts/*/                     : Forecast plots per phase")
+            logger.info("  - model.pt                       : Initial trained model")
+            logger.info("  - resumed_training/model.pt      : Resumed training model")
+        logger.info("  - forecasts/*/                   : Forecast plots per phase")
         logger.info("=" * 80)
-        logger.info("End of: example_holdout_ttm_workflow.py")
+        logger.info("End of: example_holdout_generic_workflow.py")
 
     except KeyboardInterrupt:
-        logger.info("\n\n🛑 Workflow interrupted by user")
+        logger.info("🛑 Workflow interrupted by user")
     except Exception as e:
-        logger.error(f"\n\n❌ Workflow failed: {e}")
-        import traceback
-
+        logger.error(f"❌ Workflow failed: {e}")
         traceback.print_exc()
 
 

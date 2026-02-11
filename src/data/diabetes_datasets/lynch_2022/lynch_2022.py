@@ -37,21 +37,70 @@ logger = logging.getLogger(__name__)
 
 
 class Lynch2022DataLoader(DatasetBase):
-    """Data loader for the Lynch 2022 IOBP2 RCT dataset."""
+    """Data loader for the Lynch 2022 IOBP2 RCT dataset.
+
+    This class handles loading, processing, and caching of the Lynch 2022
+    dataset, which contains continuous glucose monitoring data from the IOBP2
+    (Insulin-Only Bionic Pancreas Pivotal Trial Extension Study) randomized
+    controlled trial.
+
+    The study evaluated a transition from standard-of-care management of Type 1
+    diabetes to use of the insulin-only configuration of the iLet® bionic
+    pancreas in adults and children (age 6-71 years).
+
+    Key features of this dataset:
+        - n = 440 participants using insulin aspart, lispro, or fast-acting aspart
+        - 13-week study duration
+        - CGM data from both standard-of-care and bionic pancreas periods
+        - Supports both train and test dataset types
+
+    Attributes:
+        keep_columns: Specific columns to load from the dataset.
+        dataset_type: Type of dataset ('train' or 'test').
+        use_cached: Whether to use cached processed data if available.
+        num_validation_days: Number of days to use for validation.
+        train_percentage: Percentage of data to use for training.
+        parallel: Whether to use parallel processing.
+        max_workers: Maximum number of workers for parallel processing.
+        generic_patient_start_date: Starting date for all patients.
+
+    Example:
+        >>> loader = Lynch2022DataLoader(use_cached=True)
+        >>> pretraining_dict = loader.processed_data
+    """
 
     def __init__(
         self,
+        # Data Selection
         keep_columns: list[str] | None = None,
+        dataset_type: str = "train",
+        # Caching
         use_cached: bool = True,
+        # Train/validation splitting
         num_validation_days: int = 20,
         train_percentage: float = 0.9,
-        dataset_type: str = "train",
-        config: dict | None = None,
+        # Parallel processing
         parallel: bool = True,
+        max_workers: int = 14,
+        # Date normalization (if applicable)
         generic_patient_start_date: pd.Timestamp = pd.Timestamp("2024-01-01"),
-        max_workers: int = 3,
+        # Dataset-specific parameters
     ):
-        """Initialize the Lynch 2022 data loader."""
+        """
+        Initialize the Lynch 2022 data loader.
+
+        Args:
+            keep_columns: Specific columns to load from the dataset. If specified,
+                'datetime' will be automatically added if not present.
+            use_cached: Whether to use cached processed data if available (default True)
+            num_validation_days: Number of days to use for validation (default 20)
+            train_percentage: Percentage of data to use for training (default 0.9).
+                Note: Currently not implemented.
+            dataset_type: Type of dataset to load ('train' or 'test')
+            parallel: Whether to use parallel processing (default True)
+            generic_patient_start_date: Starting date for patients (default 2024-01-01)
+            max_workers: Maximum number of workers for parallel processing (default 14)
+        """
         # Ensure 'datetime' is included in keep_columns if specified
         if keep_columns is not None and "datetime" not in keep_columns:
             keep_columns = keep_columns + ["datetime"]
@@ -85,14 +134,31 @@ class Lynch2022DataLoader(DatasetBase):
         logger.info(
             f"Use of train_percentage parameter is currently not implemented: {train_percentage}"
         )
-        logger.info(
-            f"Use of configuration parameter is currently not implemented: {config}"
-        )
         self.load_data()
 
     @property
     def dataset_name(self):
         return "lynch_2022"
+
+    @property
+    def description(self):
+        """Return a description of the dataset.
+
+        Returns:
+            str: Human-readable description of study.
+        """
+        return """
+                Objective: 'To evaluate a transition from standard-of-care (SC) management of type 1 diabetes
+                    (any insulin delivery method including hybrid closed-loop systems plus real-time continuous
+                    glucose monitoring [CGM]) to use of the insulin-only configuration of the iLet® bionic
+                    pancreas (BP) in 90 adults and children (age 6–71 years).'
+                Title: 'The Insulin-Only Bionic Pancreas Pivotal Trial Extension Study: A Multi-Center Single-Arm
+                    Evaluation of the Insulin-Only Configuration of the Bionic Pancreas in Adults and Youth with
+                    Type 1 Diabetes'
+                n = 440 participants using either insulin aspart, insulin lispro, or fast-acting insulin aspart
+                Duration: 13 weeks
+                Paper: https://journals.sagepub.com/doi/full/10.1089/dia.2022.0341
+            """
 
     @property
     def num_patients(self) -> int:
@@ -107,26 +173,6 @@ class Lynch2022DataLoader(DatasetBase):
         if self.processed_data is None:
             return []
         return list(self.processed_data.keys())
-
-    @property
-    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
-        """Get shape summary for each patient's data.
-        For test data, patient_df may be a nested dictionary, e.g.:
-            {patient_id: {sub_id: DataFrame}}
-        For train/validation data, patient_df is a DataFrame.
-        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
-        """
-        if not isinstance(self.processed_data, dict):
-            return {}
-        shape_summary = {}
-        for patient_id, patient_df in self.processed_data.items():
-            if isinstance(patient_df, pd.DataFrame):
-                shape_summary[patient_id] = patient_df.shape
-            elif isinstance(patient_df, dict):
-                for sub_id, sub_df in patient_df.items():
-                    if isinstance(sub_df, pd.DataFrame):
-                        shape_summary[(patient_id, sub_id)] = sub_df.shape
-        return shape_summary
 
     def to_dataframe(self) -> pd.DataFrame:
         """

@@ -1,0 +1,41 @@
+dataset_name: brown_2019
+holdout_type: hybrid
+description: 'Hybrid holdout strategy: 15% temporal split + 15% patient holdout. Holdout
+  patients: 25. Fixed seed=42 for reproducibility.'
+created_date: '2026-02-10T19:02:25.631096'
+version: '1.0'
+temporal_config:
+  holdout_percentage: 0.15
+  min_train_samples: 608
+  min_holdout_samples: 608
+patient_config:
+  holdout_patients:
+  - '92'
+  - '57'
+  - '42'
+  - '149'
+  - '122'
+  - '14'
+  - '8'
+  - '128'
+  - '45'
+  - '29'
+  - '171'
+  - '95'
+  - '134'
+  - '91'
+  - '107'
+  - '120'
+  - '161'
+  - '93'
+  - '51'
+  - '103'
+  - '27'
+  - '60'
+  - '146'
+  - '86'
+  - '126'
+  holdout_percentage: 0.15
+  min_train_patients: 10
+  min_holdout_patients: 20
+  random_seed: 42
