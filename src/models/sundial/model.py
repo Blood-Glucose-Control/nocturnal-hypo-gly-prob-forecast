@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 class SundialForecaster(BaseTimeSeriesFoundationModel):
     """Sundial forecaster implementation."""
 
+    config: SundialConfig  # Override base class typing
+
     def __init__(
         self, config: SundialConfig, lora_config=None, distributed_config=None
     ):
@@ -39,9 +41,6 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         # Call parent (this will call _initialize_model)
         super().__init__(config, lora_config, distributed_config)
 
-        # Type annotation to help linter understand config type
-        self.config: SundialConfig = self.config
-
     def _initialize_model(self) -> None:
         """Load the Sundial model from HuggingFace."""
         info_print("Initializing Sundial model from thuml/sundial-base-128m...")
@@ -53,7 +52,10 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
             error_print("Failed to load Sundial model.")
             raise ValueError("Model loading failed.")
 
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        use_cuda = torch.cuda.is_available() and not getattr(
+            self.config, "use_cpu", False
+        )
+        self.device = "cuda" if use_cuda else "cpu"
         self.model.to(self.device)
         self.model.eval()
 
