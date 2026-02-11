@@ -2,7 +2,8 @@
 # Licensed under Custom Research License (see LICENSE file)
 # For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
-from src.data.diabetes_datasets.aleppo.preprocess import create_aleppo_csv
+from src.data.models import DatasetSourceType
+from src.data.diabetes_datasets.aleppo_2017.preprocess import create_aleppo_csv
 from src.data.diabetes_datasets.dataset_base import DatasetBase
 from src.data.cache_manager import get_cache_manager
 
@@ -26,27 +27,66 @@ PATIENT_COUNT = 226
 # TODO: ISF/CR is not dropped in the dataset. We could use this to calculate slope of the glucose curve.
 # to give models some hints about trend of the glucose curve.
 class Aleppo2017DataLoader(DatasetBase):
+    """Data loader for the Aleppo 2017 (REPLACE-BG) CGM dataset.
+
+    This class handles loading, processing, and caching of the Aleppo 2017
+    dataset, which contains continuous glucose monitoring data from the
+    REPLACE-BG randomized trial comparing CGM with and without routine blood
+    glucose monitoring in adults with well-controlled Type 1 diabetes.
+
+    The study evaluated whether CGM without confirmatory blood glucose
+    monitoring (BGM) is as safe and effective as using CGM adjunctive to BGM.
+
+    Key features of this dataset:
+        - n = 226 participants (149 CGM-only, 77 CGM + BGM control)
+        - 6-month study duration using Dexcom G4 CGM
+        - CGM data from adults with well-controlled T1D
+        - Useful for comparing CGM-only vs CGM+BGM treatment approaches
+
+    Attributes:
+        keep_columns: Specific columns to load from the dataset.
+        use_cached: Whether to use cached processed data if available.
+        num_validation_days: Number of days to use for validation.
+        train_percentage: Percentage of data to use for training.
+        parallel: Whether to use parallel processing.
+        max_workers: Maximum number of workers for parallel processing.
+        config: Optional configuration dictionary.
+
+    Example:
+        >>> loader = Aleppo2017DataLoader(use_cached=True)
+        >>> pretraining_dict = loader.processed_data
+    """
+
     def __init__(
         self,
+        # Data Selection
         keep_columns: list[str] | None = None,
-        dataset_type: str = "train",
-        num_validation_days: int = 20,
+        # Caching
         use_cached: bool = True,
+        # Train/validation splitting
+        num_validation_days: int = 20,
         train_percentage: float = 0.9,
-        config: dict | None = None,
+        # Parallel processing
         parallel: bool = True,
-        max_workers: int = 10,
+        max_workers: int = 14,
+        # Date normalization (if applicable)
+        # Dataset-specific parameters
     ):
         """
+        Initialize the Aleppo 2017 data loader.
+
         Args:
-            keep_columns (list): List of columns to keep from the raw data.
-            train_percentage (float): Percentage of the data to use for training.
-            use_cached (bool): Whether to use cached data. WARNING: Processing data takes a VERY LONG TIME.
+            keep_columns: Specific columns to load from the dataset
+            num_validation_days: Number of days to use for validation (default 20)
+            use_cached: Whether to use cached processed data if available (default True).
+                WARNING: Processing data from scratch takes a VERY LONG TIME.
+            train_percentage: Percentage of data to use for training (default 0.9)
+            parallel: Whether to use parallel processing (default True)
+            max_workers: Maximum number of workers for parallel processing (default 10)
         """
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
         self.train_percentage = train_percentage
-        self.dataset_type = dataset_type
         self.cache_manager = get_cache_manager()
         self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
         self.raw_data_path = None
@@ -54,25 +94,126 @@ class Aleppo2017DataLoader(DatasetBase):
         self.parallel = parallel
         self.max_workers = max_workers
 
-        logger.info(
-            f"Initializing AleppoDataLoader with use_cached={use_cached} and dataset_type={dataset_type}"
-        )
-        logger.info(
-            f"Currently not used: dataset_type: {dataset_type}, config: {config}"
-        )
+        logger.info(f"Initializing AleppoDataLoader with use_cached={use_cached}.")
         self.load_data()
 
     @property
     def dataset_name(self):
-        # return Dataset.ALEPPO.value
-        return "aleppo_2017"
+        return DatasetSourceType.ALEPPO_2017.value
 
     @property
     def description(self):
         return """
-                The purpose of this study was to determine whether the use of continuous glucose monitoring (CGM) without blood glucose monitoring (BGM) measurements is as safe and effective as using CGM with BGM in adults (25-40) with type 1 diabetes.
-                The total sample size was 225 participants. The Dexcom G4 was used to continuously monitor glucose levels for a span of 6 months.
-           """
+                Objective: 'To determine whether the use of continuous glucose monitoring (CGM) without confirmatory
+                    blood glucose monitoring (BGM) measurements is as safe and effective as using CGM adjunctive to
+                    BGM in adults with well-controlled type 1 diabetes (T1D).'
+                Title: 'REPLACE-BG: A Randomized Trial Comparing Continuous Glucose Monitoring With and Without
+                    Routine Blood Glucose Monitoring in Adults With Well-Controlled Type 1 Diabetes'
+                n = 226 participants.
+                    - 149 CGM-only
+                    - 77 CGM + BGM (control)
+                Paper: https://diabetesjournals.org/care/article-abstract/40/4/538/3687/REPLACE-BG-A-Randomized-Trial-Comparing-Continuous?redirectedFrom=fulltext
+                Notes: The Dexcom G4 was used to continuously monitor glucose levels for a span of 6 months.
+            """
+
+    @property
+    def num_patients(self) -> int:
+        """Get the number of patients in the dataset.
+
+        Returns:
+            int: The count of processed patients, or 0 if no data is loaded.
+        """
+        return len(self.processed_data) if self.processed_data else 0
+
+    @property
+    def patient_ids(self) -> list[str]:
+        """Get list of patient IDs in the dataset.
+
+        Returns:
+            list[str]: List of patient ID strings, or empty list if no data.
+        """
+        return list(self.processed_data.keys()) if self.processed_data else []
+
+    @property
+    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
+        """Get shape summary for each patient's data.
+        For test data, patient_df may be a nested dictionary, e.g.:
+            {patient_id: {sub_id: DataFrame}}
+        For train/validation data, patient_df is a DataFrame.
+        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
+        """
+        if not self.processed_data:
+            return {}
+        return {
+            patient_id: df.shape
+            for patient_id, df in self.processed_data.items()
+            if isinstance(df, pd.DataFrame)
+        }
+
+    @property
+    def dataset_info(self) -> dict[str, object]:
+        """Get comprehensive information about the dataset.
+
+        Returns:
+            dict[str, object]: Dictionary containing dataset statistics and metadata
+                including dataset_name, num_patients, patient_ids, train_percentage,
+                parallel, max_workers, and optionally train_shapes, num_train_patients,
+                and num_validation_patients.
+        """
+        info = {
+            "dataset_name": self.dataset_name,
+            "num_patients": self.num_patients,
+            "patient_ids": self.patient_ids,
+            "train_percentage": self.train_percentage,
+            "parallel": self.parallel,
+            "max_workers": self.max_workers,
+        }
+        return info
+
+    # ==================== Public Methods ====================
+
+    def get_patient_data(self, patient_id: str) -> pd.DataFrame | None:
+        """Get processed data for a specific patient.
+
+        Args:
+            patient_id: Patient identifier string.
+
+        Returns:
+            DataFrame for the patient, or None if not found.
+        """
+        if not self.processed_data:
+            return None
+        return self.processed_data.get(patient_id)
+
+    def get_combined_data(self, data_type: str = "all") -> pd.DataFrame:
+        """Combine all patients' data into a single DataFrame.
+
+        Args:
+            data_type: One of 'all', 'train', 'validation'.
+
+        Returns:
+            Combined DataFrame with patient data indexed by (patient_id, datetime).
+
+        Raises:
+            ValueError: If invalid data_type or no data available.
+        """
+        if data_type == "all":
+            data_dict = self.processed_data
+        elif data_type == "train":
+            data_dict = self.train_data
+        elif data_type == "validation":
+            data_dict = self.validation_data
+        else:
+            raise ValueError(
+                f"Invalid data_type: {data_type}. Use 'all', 'train', or 'validation'."
+            )
+
+        if not data_dict:
+            raise ValueError(f"No {data_type} data available.")
+
+        return pd.concat(
+            data_dict.values(), keys=data_dict.keys(), names=["patient_id"]
+        )
 
     def load_data(self) -> None:
         """
@@ -120,7 +261,9 @@ class Aleppo2017DataLoader(DatasetBase):
         3.Save the processed data to the cache.
         """
 
-        processed_path = self.cache_manager.get_processed_data_path(self.dataset_name)
+        processed_path = self.cache_manager.get_absolute_path_by_type(
+            self.dataset_name, "processed"
+        )
         processed_path.parent.mkdir(
             parents=True, exist_ok=True
         )  # Create parent directory

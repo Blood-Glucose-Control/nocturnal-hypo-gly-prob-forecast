@@ -26,10 +26,11 @@ Usage:
     sbatch --export=DATASETS="aleppo brown_2019",EPOCHS=2 scripts/examples/run_holdout_ttm_workflow.sh
 
     # Direct python call (for testing)
-    python scripts/examples/example_holdout_ttm_workflow.py --datasets lynch_2022 brown_2019 --config-dir configs/data/holdout_5pct --epochs 1
+    python scripts/examples/example_holdout_ttm_workflow.py --datasets lynch_2022 brown_2019 tamborlane_2008 --config-dir configs/data/holdout_10pct --epochs 1
 """
 
 import argparse
+import json
 import logging
 import shutil
 from pathlib import Path
@@ -64,7 +65,7 @@ logging.getLogger("src.utils").setLevel(logging.WARNING)
 
 
 def _generate_forecasts(
-    model: TTMForecaster,
+    model: TTMForecaster,  # TODO: Type hint should be child class of BaseTimeSeriesForecaster
     training_columns: list,
     dataset_names: list,
     config_dir: str,
@@ -107,9 +108,16 @@ def _generate_forecasts(
             # Load holdout data
             holdout_data = registry.load_holdout_data_only(dataset_name)
 
-            # Get first patient
+            # Get first patient (skip NaN p_num rows from gap-fill)
             patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
-            first_patient = holdout_data[patient_col].iloc[0]
+            valid_patients = holdout_data[patient_col].dropna()
+            if valid_patients.empty:
+                logger.warning(
+                    f"  No valid patient IDs found in holdout data for {dataset_name}. "
+                    f"All {len(holdout_data)} rows have NaN {patient_col}. Skipping."
+                )
+                continue
+            first_patient = valid_patients.iloc[0]
             patient_data = holdout_data[holdout_data[patient_col] == first_patient]
 
             logger.info(f"  First holdout patient: {first_patient}")
@@ -437,7 +445,7 @@ def _plot_forecasts(
 
 
 def _evaluate_and_plot(
-    model: TTMForecaster,
+    model: TTMForecaster,  # TODO: Generic child of BaseTimeSeriesForecaster
     training_columns: list,
     dataset_names: list,
     config_dir: str,
@@ -614,7 +622,9 @@ def step2_validate_holdout_configs(datasets: list, config_dir: str):
     return True
 
 
-def step3_load_training_data(dataset_names: list, config_dir: str):
+def step3_load_training_data(
+    dataset_names: list, config_dir: str, output_dir: str = None
+):
     """Step 3: Load and combine training data from multiple datasets."""
     logger.info(" ")
     logger.info("=" * 80)
@@ -627,6 +637,26 @@ def step3_load_training_data(dataset_names: list, config_dir: str):
     combined_data, column_info = combine_datasets_for_training(
         dataset_names=dataset_names, registry=registry, config_dir=config_dir
     )
+
+    # Save split metadata (skipped/adjusted patients) to output dir
+    split_metadata = registry.get_split_metadata()
+    if split_metadata and output_dir:
+        metadata_dir = Path(output_dir)
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        metadata_path = metadata_dir / "split_metadata.json"
+        with open(metadata_path, "w") as f:
+            json.dump(split_metadata, f, indent=2)
+        logger.info(f"✓ Split metadata saved to: {metadata_path}")
+
+        # Log summary
+        for ds_name, meta in split_metadata.items():
+            n_skipped = len(meta.get("skipped_patients", {}))
+            n_adjusted = len(meta.get("adjusted_patients", {}))
+            n_filled = meta.get("nan_p_num_filled", 0)
+            if n_skipped or n_adjusted or n_filled:
+                logger.info(
+                    f"  {ds_name}: {n_skipped} skipped, {n_adjusted} adjusted, {n_filled:,} NaN p_num filled"
+                )
     # Print detailed column comparison table
     print_dataset_column_table(column_info, list(combined_data.columns))
 
@@ -913,7 +943,7 @@ def step5_train_model(
 
 def step6_load_checkpoint(
     model_path: Path,
-    config: TTMConfig,
+    config: TTMConfig,  # TODO: Generic child of BaseTimeSeriesForecaster
     training_columns: list,
     dataset_names: list,
     config_dir: str,
@@ -974,7 +1004,7 @@ def step6_load_checkpoint(
 
 
 def step7_resume_training(
-    model: TTMForecaster,
+    model: TTMForecaster,  # TODO: change to generic child of BaseTimeSeriesForecaster
     combined_data,
     dataset_names: list,
     training_columns: list,
@@ -1099,19 +1129,21 @@ def step8_full_holdout_evaluation(
             holdout_patients = holdout_data[patient_col].unique()
             logger.info(f"  Holdout patients: {len(holdout_patients)}")
 
-        # Prepare data for evaluation (remove non-numeric columns)
-        exclude_cols = ["datetime", "p_num", "id", "source_dataset"]
-        numeric_cols = [col for col in holdout_data.columns if col not in exclude_cols]
-        holdout_data_numeric = holdout_data[numeric_cols].copy()
+        # Pass full holdout data to evaluate() - the model's _prepare_inference_data()
+        # needs id/timestamp columns (p_num, datetime) for ForecastDFDataset.
+        # Only exclude non-feature metadata columns like source_dataset.
+        eval_data = holdout_data.drop(
+            columns=["source_dataset"], errors="ignore"
+        ).copy()
 
-        logger.info(f"  Numeric columns for evaluation: {len(numeric_cols)}")
-        logger.info(f"  Holdout data shape: {holdout_data_numeric.shape}")
+        logger.info(f"  Columns for evaluation: {list(eval_data.columns)}")
+        logger.info(f"  Holdout data shape: {eval_data.shape}")
 
         # Evaluate using the evaluate() method
         try:
             logger.info("  Running evaluation on holdout set...")
 
-            eval_results = model.evaluate(test_data=holdout_data_numeric)
+            eval_results = model.evaluate(test_data=eval_data)
 
             logger.info(f"  ✓ Evaluation completed for {dataset_name}")
             logger.info("  Metrics:")
@@ -1159,9 +1191,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Workflow Steps:
-  1. Check holdout configs exist
-  2. Validate holdout configs
-  3. Load and combine training data
+  1. Check holdout configs exist : GENERIC
+  2. Validate holdout configs : GENERIC
+  3. Load and combine training data : GENERIC
   4. Zero-shot evaluation (pretrained model, no fine-tuning)
   5. Fine-tune model for specified epochs
   6. Load model from checkpoint (verify save/load works)
@@ -1240,7 +1272,9 @@ stored in separate subdirectories for comparison.
         # =====================================================================
         # STEP 3: Load and combine training data
         # =====================================================================
-        combined_train_data = step3_load_training_data(args.datasets, args.config_dir)
+        combined_train_data = step3_load_training_data(
+            args.datasets, args.config_dir, args.output_dir
+        )
         training_columns = list(combined_train_data.columns)
 
         # =====================================================================
