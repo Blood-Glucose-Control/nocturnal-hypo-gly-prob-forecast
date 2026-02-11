@@ -36,8 +36,8 @@ class TemporalHoldoutConfig:
     """
 
     holdout_percentage: float = 0.2  # 20% of data at the end
-    min_train_samples: int = 100  # Minimum samples required in training set
-    min_holdout_samples: int = 20  # Minimum samples required in holdout set
+    min_train_samples: int = 608  # Minimum samples required in training set
+    min_holdout_samples: int = 608  # Minimum samples required in holdout set
 
     def __post_init__(self):
         """Validate configuration."""
@@ -68,8 +68,8 @@ class PatientHoldoutConfig:
     holdout_percentage: Optional[float] = (
         None  # Alternative: percentage of patients to hold out
     )
-    min_train_patients: int = 3  # Minimum patients required for training
-    min_holdout_patients: int = 1  # Minimum patients required for holdout
+    min_train_patients: int = 10  # Minimum patients required for training
+    min_holdout_patients: int = 10  # Minimum patients required for holdout
     random_seed: int = 42  # Seed for reproducible patient selection
 
     def __post_init__(self):
