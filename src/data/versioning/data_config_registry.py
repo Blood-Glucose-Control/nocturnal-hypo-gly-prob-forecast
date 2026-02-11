@@ -12,7 +12,7 @@ Maintains a JSON registry of all data configuration generation runs with:
 - Generated output files
 """
 
-import fcntl
+import fcntl  # TODO: Replace with cross-platform file lock if needed (e.g. portalocker) this is UNIX only.
 import getpass
 import hashlib
 import json
@@ -46,9 +46,11 @@ class DataConfigRegistry:
         Args:
             registry_path: Path to the registry JSON file
             sanitize: If True, exclude personally identifying information
-                (user, hostname, timestamps, uncommitted changes, remote URL)
-                from registry entries. Keeps reproducibility metadata like
-                git branch, commit hash, and is_clean status. Default: True
+                (user, hostname, explicit timestamp fields, uncommitted changes,
+                remote URL) from registry entries. Keeps reproducibility metadata
+                like git branch, commit hash, and is_clean status. Note: entry_id
+                still uses a timestamp suffix for uniqueness and ordering.
+                Default: True
         """
         self.registry_path = Path(registry_path)
         self.registry_path.parent.mkdir(parents=True, exist_ok=True)

@@ -1548,7 +1548,7 @@ def step7_resume_training(
         logger.info(f"  Results: {list(results.keys())}")
 
         # Save the model after resumed training (save() is from base class)
-        model_path = resumed_output_dir / "model.pt"
+        model_path = resumed_output_dir / "resumed_model.pt"
         model.save(str(model_path))
         logger.info(f"✓ Resumed model saved to: {model_path}")
         logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
