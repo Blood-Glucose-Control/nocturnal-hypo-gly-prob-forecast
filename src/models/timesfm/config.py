@@ -72,16 +72,17 @@ class TimesFMConfig(ModelConfig):
     device: str = "cpu"
     use_cpu: bool = False
 
-    # Training parameters (for future adapter support)
+    # Training/finetuning parameters
     output_dir: Optional[str] = None
     num_epochs: int = 10
     learning_rate: float = 1e-4
+    weight_decay: float = 0.01
+    freq_type: int = 0  # Sampling frequency: 0=high (5-min CGM)
+    train_split: float = 0.8  # Train/val split within training data (holdout is separate)
     use_lora: bool = False
 
     def __post_init__(self):
         """Validate configuration after initialization."""
-        super().__post_init__()
-
         # Synchronize aliases
         if self.model_path and not self.checkpoint_path:
             self.checkpoint_path = self.model_path
