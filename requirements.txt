@@ -38,11 +38,11 @@ PyWavelets
 ruff>=0.3.0
 scikit-learn
 seaborn
-skchange
 sktime
 #tf-keras
 tabulate
 torch
+toto-ts  # Datadog's Toto time series foundation model
 tqdm
 transformers
 # transformers==4.49.0

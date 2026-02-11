@@ -829,7 +829,9 @@ class BaseTimeSeriesFoundationModel(ABC):
             "q_proj",
             "k_proj",
             "v_proj",
-            "o_proj",  # Attention projections
+            "o_proj",  # Attention projections (LLaMA-style)
+            "wQKV",
+            "wO",  # Toto attention layers
             "gate_proj",
             "up_proj",
             "down_proj",  # Feed-forward layers
@@ -1025,6 +1027,11 @@ def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
 
         config = TTMConfig(**config_dict)
         return TTMForecaster(config)
+    elif model_type == "toto":
+        from src.models.toto import TotoForecaster, TotoConfig
+
+        config = TotoConfig(**config_dict)
+        return TotoForecaster(config)
     elif model_type == "chronos":
         from src.models.chronos.model import ChronosForecaster
 
