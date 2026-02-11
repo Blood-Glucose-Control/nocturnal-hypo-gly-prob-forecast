@@ -17,7 +17,7 @@ and used programmatically in workflows.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Any
 
 import pandas as pd
 from tabulate import tabulate
@@ -100,8 +100,10 @@ def create_hybrid_holdout_config(
     temporal_pct: float,
     patient_pct: float,
     seed: int,
-    min_train_samples: int = 50,
-    min_holdout_samples: int = 96,
+    min_train_samples: int = 608,
+    min_holdout_samples: int = 608,
+    min_train_patients: int = 10,
+    min_holdout_patients: int = 10,
 ) -> HoldoutConfig:
     """Create hybrid holdout configuration with both temporal and patient splits.
 
@@ -113,7 +115,8 @@ def create_hybrid_holdout_config(
         seed: Random seed for patient selection
         min_train_samples: Minimum samples per patient in training
         min_holdout_samples: Minimum samples per patient in holdout
-
+        min_train_patients: Minimum number of patients in training
+        min_holdout_patients: Minimum number of patients in holdout
     Returns:
         HoldoutConfig with hybrid strategy
     """
@@ -133,8 +136,9 @@ def create_hybrid_holdout_config(
 
     patient_config = PatientHoldoutConfig(
         holdout_patients=holdout_patients,
-        min_train_patients=2,
-        min_holdout_patients=1,
+        holdout_percentage=patient_pct,
+        min_train_patients=min_train_patients,
+        min_holdout_patients=min_holdout_patients,
         random_seed=seed,
     )
 
@@ -164,7 +168,9 @@ def generate_holdout_configs_for_datasets(
     seed: int = 42,
     min_train_samples: int = 608,
     min_holdout_samples: int = 608,
-) -> Dict[str, bool]:
+    min_train_patients: int = 5,
+    min_holdout_patients: int = 5,
+) -> Dict[str, Any]:
     """Generate holdout configurations for multiple datasets.
 
     Args:
@@ -175,16 +181,21 @@ def generate_holdout_configs_for_datasets(
         seed: Random seed for reproducibility
         min_train_samples: Minimum samples per patient in training
         min_holdout_samples: Minimum samples per patient in holdout
+        min_train_patients: Minimum number of patients in training
+        min_holdout_patients: Minimum number of patients in holdout
 
     Returns:
-        Dictionary mapping dataset names to success status
+        Dictionary with 'success' mapping dataset names to success status and
+        'generated_files' list of paths to generated config files
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     results = {}
+    generated_files = []
 
     for dataset_name in datasets:
         try:
-            logger.info(f"\n{'='*60}")
+            logger.info("\n")
+            logger.info(f"{'='*60}")
             logger.info(f"Processing dataset: {dataset_name}")
             logger.info(f"{'='*60}")
 
@@ -204,6 +215,8 @@ def generate_holdout_configs_for_datasets(
                 seed=seed,
                 min_train_samples=min_train_samples,
                 min_holdout_samples=min_holdout_samples,
+                min_train_patients=min_train_patients,
+                min_holdout_patients=min_holdout_patients,
             )
 
             # Save config
@@ -212,6 +225,7 @@ def generate_holdout_configs_for_datasets(
             logger.info(f"✓ Saved configuration to: {config_path}")
 
             results[dataset_name] = True
+            generated_files.append(str(config_path))
 
         except Exception as e:
             logger.error(f"✗ Failed to process {dataset_name}: {e}")
@@ -220,7 +234,7 @@ def generate_holdout_configs_for_datasets(
             logger.debug(traceback.format_exc())
             results[dataset_name] = False
 
-    return results
+    return {"success": results, "generated_files": generated_files}
 
 
 # ============================================================================

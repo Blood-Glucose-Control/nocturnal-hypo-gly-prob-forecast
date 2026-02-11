@@ -27,8 +27,6 @@ class TTMTrainingConfig:
             "huber", or "custom_ttm".
         scaler_type: Data normalization method. Options: "standard", "minmax",
             or "robust".
-        imputation_strategy: Strategy for handling missing values. Options:
-            "mean", "median", or "forward_fill".
     """
 
     # TTM specific training parameters
@@ -41,7 +39,6 @@ class TTMTrainingConfig:
 
     # TTM preprocessing
     scaler_type: str = "standard"  # "standard", "minmax", "robust"
-    imputation_strategy: str = "mean"  # "mean", "median", "forward_fill"
 
 
 @dataclass
@@ -103,7 +100,6 @@ class TTMConfig(ModelConfig):
         use_tracking_callback: Enable experiment tracking.
         find_optimal_lr: Run learning rate finder.
         scaler_type: Data normalization method ("standard", "minmax", "robust").
-        imputation_strategy: Missing value handling ("mean", "median", "forward_fill").
         input_features: List of input feature column names.
         target_features: List of target column names.
         split_config: Train/val/test split ratios dictionary.
@@ -129,7 +125,6 @@ class TTMConfig(ModelConfig):
         # Extract TTM-specific parameters before calling parent
         ttm_specific_params = {
             "scaler_type",
-            "imputation_strategy",
             "input_features",
             "target_features",
             "split_config",
@@ -162,7 +157,6 @@ class TTMConfig(ModelConfig):
 
         # TTM Data Configuration
         self.scaler_type = kwargs.get("scaler_type", "standard")
-        self.imputation_strategy = kwargs.get("imputation_strategy", "mean")
 
         self.input_features = kwargs.get(
             "input_features",
@@ -211,7 +205,6 @@ class TTMConfig(ModelConfig):
             find_optimal_lr=self.find_optimal_lr,
             loss_function=self.loss_function,
             scaler_type=self.scaler_type,
-            imputation_strategy=self.imputation_strategy,
         )
 
     def to_data_config(self) -> TTMDataConfig:
@@ -339,7 +332,6 @@ def create_default_ttm_config(**overrides) -> TTMConfig:
         "weight_decay": 0.01,
         # TTM-specific
         "scaler_type": "standard",
-        "imputation_strategy": "mean",
         "freeze_backbone": False,
         "use_tracking_callback": True,
         # Data configuration
