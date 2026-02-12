@@ -162,6 +162,7 @@ class ModelFactory:
             "ttm": "ibm-granite/granite-timeseries-ttm-r2",
             "chronos": "amazon/chronos-t5-small",
             "moment": "AutonLab/MOMENT-1-small",
+            "timesfm": "google/timesfm-2.0-500m-pytorch",
             # Add more defaults as models are implemented
         }
         return defaults.get(model_type, "")
@@ -191,10 +192,12 @@ class ModelFactory:
             return ModelFactory._create_chronos_model(config, distributed_config)
         elif model_type == "moment":
             return ModelFactory._create_moment_model(config, distributed_config)
+        elif model_type == "timesfm":
+            return ModelFactory._create_timesfm_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, moment"
+                f"Supported types: ttm, chronos, moment, timesfm"
             )
 
     @staticmethod
@@ -278,6 +281,35 @@ class ModelFactory:
         except ImportError as e:
             raise ImportError(
                 f"MOMENT model not available. Install moment dependencies: {e}"
+            )
+
+    @staticmethod
+    def _create_timesfm_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a TimesFM model instance."""
+        try:
+            from src.models.timesfm import TimesFMForecaster, TimesFMConfig
+
+            timesfm_config = TimesFMConfig(
+                checkpoint_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                horizon_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                use_cpu=config.use_cpu,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+
+            return TimesFMForecaster(
+                timesfm_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"TimesFM model not available. Install with: pip install timesfm==1.3.0: {e}"
             )
 
     @staticmethod
@@ -494,10 +526,25 @@ class ModelFactory:
                 **config.extra_config,
             )
             return MomentForecaster.load(model_path, moment_config)
+        elif model_type_lower == "timesfm":
+            from src.models.timesfm import TimesFMForecaster, TimesFMConfig
+
+            timesfm_config = TimesFMConfig(
+                checkpoint_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                horizon_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                use_cpu=config.use_cpu,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+            return TimesFMForecaster.load(model_path, timesfm_config)
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, moment"
+                f"Supported types: ttm, chronos, moment, timesfm"
             )
 
 
@@ -582,11 +629,19 @@ def _generate_forecasts(
             ]
             forecast_data_for_model = forecast_data[forecast_cols_for_model].copy()
 
+            # TimesFM expects context-only input (no internal windowing),
+            # Pass only the context portion to avoid data leakage
+            model_type = getattr(model.config, "model_type", "").lower()
+            if model_type == "timesfm":
+                predict_data = forecast_data_for_model.iloc[:context_length].copy()
+            else:
+                predict_data = forecast_data_for_model
+
             # Generate predictions
             if zero_shot:
-                predictions_raw = model.predict_zero_shot(forecast_data_for_model)
+                predictions_raw = model.predict_zero_shot(predict_data)
             else:
-                predictions_raw = model.predict(forecast_data_for_model)
+                predictions_raw = model.predict(predict_data)
 
             # TTM returns predictions in shape (samples, forecast_length, num_channels)
             # For univariate glucose prediction, we need channel 0
@@ -1219,7 +1274,7 @@ def step4_zero_shot_evaluation(
     output_dir: str,
     batch_size: int = 2048,
     model_config_overrides: Optional[Dict[str, Any]] = None,
-) -> None:
+) -> Any:
     """Step 4: Zero-shot evaluation using pretrained model (no fine-tuning).
 
     This demonstrates the model's pretrained capabilities on glucose forecasting
@@ -1227,7 +1282,7 @@ def step4_zero_shot_evaluation(
     with freeze_backbone=True and num_epochs=0.
 
     Args:
-        model_type: Type of model to use (ttm, chronos, moment)
+        model_type: Type of model to use (ttm, chronos, moment, timesfm)
         dataset_names: List of dataset names
         training_columns: Column names from training data
         config_dir: Holdout config directory
@@ -1235,8 +1290,9 @@ def step4_zero_shot_evaluation(
         batch_size: Batch size for inference
         model_config_overrides: Optional dict of model-specific config from YAML
 
-    Note: This step creates a temporary model just for zero-shot evaluation.
-    Step 5 will create a fresh model for fine-tuning.
+    Returns:
+        The loaded zero-shot model instance. With --skip-training, this model
+        is reused for step 8 evaluation. Otherwise, it is freed before step 5.
     """
     logger.info(" ")
     logger.info("=" * 80)
@@ -1288,22 +1344,8 @@ def step4_zero_shot_evaluation(
     )
 
     logger.info("✓ Zero-shot evaluation completed")
-    # Note: We don't return the model - step5 will create a fresh one for training
 
-    # Explicitly free GPU memory before step 5 creates a new model
-    del model
-    try:
-        import torch
-
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            logger.info("✓ GPU memory cleared after zero-shot evaluation")
-    except Exception as exc:
-        # Best-effort GPU cleanup: log and continue without failing the workflow
-        logger.debug(
-            "Skipping GPU memory cleanup after zero-shot evaluation due to error: %s",
-            exc,
-        )
+    return model
 
 
 def step5_train_model(
@@ -1684,6 +1726,7 @@ Supported Model Types:
   - ttm: IBM Granite TTM (TinyTimeMixer)
   - chronos: Amazon Chronos
   - moment: AutonLab MOMENT
+  - timesfm: Google TimesFM 2.0 (500M)
 
 Each evaluation phase (4, 5, 6, 7) generates predictions and plots
 stored in separate subdirectories for comparison.
@@ -1693,7 +1736,7 @@ stored in separate subdirectories for comparison.
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "moment"],
+        choices=["ttm", "chronos", "moment", "timesfm"],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(
@@ -1802,7 +1845,7 @@ stored in separate subdirectories for comparison.
         # =====================================================================
         # STEP 4: Zero-shot evaluation (pretrained model, no fine-tuning)
         # =====================================================================
-        step4_zero_shot_evaluation(
+        zero_shot_model = step4_zero_shot_evaluation(
             model_type=args.model_type,
             dataset_names=args.datasets,
             training_columns=training_columns,
@@ -1818,10 +1861,11 @@ stored in separate subdirectories for comparison.
             logger.info("⏭️  SKIPPING TRAINING STEPS (--skip-training flag set)")
             logger.info("=" * 80)
 
-            # Try to load existing model for evaluation
+            # If a previously trained model exists, load it for step 8.
+            # Otherwise, reuse the zero-shot model for step 8 evaluation.
             model_path = Path(args.output_dir) / "model.pt"
             if model_path.exists():
-                logger.info(f"Loading existing model from: {model_path}")
+                logger.info(f"Loading existing trained model from: {model_path}")
 
                 # Create a config for loading (use YAML if provided)
                 config = ModelFactory.create_finetune_config(
@@ -1842,9 +1886,23 @@ stored in separate subdirectories for comparison.
                     logger.error("Failed to load existing model")
                     return
             else:
-                logger.info("No existing model found, skipping evaluation steps")
-                return
+                logger.info(
+                    "No existing trained model found, "
+                    "using zero-shot model for step 8 evaluation"
+                )
+                model = zero_shot_model
         else:
+            # Free zero-shot model GPU memory before step 5 creates a new model
+            del zero_shot_model
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    logger.info("✓ GPU memory cleared after zero-shot evaluation")
+            except Exception:
+                pass
+
             # =====================================================================
             # STEP 5: Fine-tune model for one epoch
             # =====================================================================

@@ -75,7 +75,7 @@ class TimesFMConfig(ModelConfig):
     # Training/finetuning parameters
     output_dir: Optional[str] = None
     num_epochs: int = 10
-    learning_rate: float = 1e-4
+    learning_rate: float = 1e-5
     weight_decay: float = 0.01
     freq_type: int = 0  # Sampling frequency: 0=high (5-min CGM)
     train_split: float = 0.8  # Train/val split within training data (holdout is separate)
@@ -88,6 +88,16 @@ class TimesFMConfig(ModelConfig):
 
     def __post_init__(self):
         """Validate configuration after initialization."""
+        # Handle None values from generic workflow (when CLI args not specified)
+        if self.batch_size is None:
+            self.batch_size = self.per_core_batch_size
+        if self.per_core_batch_size is None:
+            self.per_core_batch_size = self.batch_size
+        if self.horizon_length is None:
+            self.horizon_length = self.forecast_length
+        if self.forecast_length is None:
+            self.forecast_length = self.horizon_length
+
         # Synchronize aliases
         if self.model_path and not self.checkpoint_path:
             self.checkpoint_path = self.model_path
@@ -95,12 +105,10 @@ class TimesFMConfig(ModelConfig):
             self.model_path = self.checkpoint_path
 
         if self.forecast_length != self.horizon_length:
-            # If they differ, use forecast_length as the source of truth
-            self.horizon_length = self.forecast_length  # TODO: The config synchronization logic contains a potential issue. When forecast_length and horizon_length differ, forecast_length is used as the source of truth. However, if both are explicitly set to different values by the user, this will silently override horizon_length which could lead to unexpected behavior. Consider raising a warning or error when both are set to different values.
+            self.horizon_length = self.forecast_length
 
         if self.batch_size != self.per_core_batch_size:
-            # If they differ, use batch_size as the source of truth
-            self.per_core_batch_size = self.batch_size  # TODO: The config synchronization logic contains a potential issue. When forecast_length and horizon_length differ, forecast_length is used as the source of truth. However, if both are explicitly set to different values by the user, this will silently override horizon_length which could lead to unexpected behavior. Consider raising a warning or error when both are set to different values.
+            self.per_core_batch_size = self.batch_size
 
         # Set use_cpu based on device
         if self.device == "cpu":

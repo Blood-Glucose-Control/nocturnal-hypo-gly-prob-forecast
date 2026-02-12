@@ -200,6 +200,119 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         return forecast
 
+    def predict_zero_shot(
+        self, data: pd.DataFrame, prediction_length: Optional[int] = None
+    ) -> np.ndarray:
+        """Zero-shot prediction.
+
+        TimesFM uses pretrained weights directly, so zero-shot and regular
+        prediction are identical.
+        """
+        return self.predict(data, prediction_length)
+
+    def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
+        """Extract ground truth bg_mM values from the end of the test data.
+
+        Returns the last horizon_length values of the bg_mM column, which
+        represent the actual future values to compare forecasts against.
+        """
+        if isinstance(test_data, pd.DataFrame) and "bg_mM" in test_data.columns:
+            values = test_data["bg_mM"].dropna().values.astype(np.float32)
+            return values[-self.config.horizon_length :]
+        raise ValueError("test_data must be a DataFrame with 'bg_mM' column")
+
+    def evaluate(
+        self,
+        test_data: Any,
+        batch_size: Optional[int] = None,
+        return_predictions: bool = False,
+    ) -> Dict[str, Any]:
+        """Evaluate TimesFM on test data using rolling-window evaluation.
+
+        Creates non-overlapping (context, target) windows per patient,
+        batch-predicts all windows, and computes aggregate metrics.
+        """
+        if self.model is None:
+            raise ValueError("Model not initialized.")
+        if not isinstance(test_data, pd.DataFrame) or "bg_mM" not in test_data.columns:
+            raise ValueError("test_data must be a DataFrame with 'bg_mM' column")
+
+        cl = self.config.context_length
+        hl = self.config.horizon_length
+        total_len = cl + hl
+
+        # Detect patient column
+        patient_col = next(
+            (c for c in ["p_num", "id"] if c in test_data.columns), None
+        )
+
+        # Collect (context, target) windows across all patients
+        context_windows: List[List[float]] = []
+        target_windows: List[np.ndarray] = []
+
+        if patient_col:
+            patients = test_data[patient_col].dropna().unique()
+        else:
+            patients = [None]  # Treat as single series
+
+        for pid in patients:
+            if pid is not None:
+                patient_data = test_data[test_data[patient_col] == pid]
+            else:
+                patient_data = test_data
+
+            values = patient_data["bg_mM"].values.astype(np.float32)
+
+            # Non-overlapping windows (stride = horizon_length)
+            for start in range(0, len(values) - total_len + 1, hl):
+                context = values[start : start + cl]
+                target = values[start + cl : start + total_len]
+
+                # Skip windows with NaN values
+                if np.isnan(context).any() or np.isnan(target).any():
+                    continue
+
+                context_windows.append(context.tolist())
+                target_windows.append(target)
+
+        num_patients = len(patients)
+        num_windows = len(context_windows)
+
+        if num_windows == 0:
+            raise ValueError(
+                f"No valid evaluation windows found. Need at least "
+                f"{total_len} contiguous non-NaN bg_mM values per patient."
+            )
+
+        info_print(
+            f"Evaluating {num_windows} windows across {num_patients} patient(s)"
+        )
+
+        # Batch forecast all windows at once
+        freq_list = [0] * num_windows
+        point_forecast, _ = self.model.forecast(
+            inputs=context_windows, freq=freq_list
+        )
+
+        # Collect predictions
+        all_preds = []
+        for forecast in point_forecast:
+            pred = np.array(forecast).flatten()[:hl]
+            all_preds.append(pred)
+
+        y_pred = np.concatenate(all_preds)
+        y_true = np.concatenate(target_windows)
+
+        metrics = self._compute_metrics(y_pred, y_true)
+        metrics["num_windows"] = num_windows
+        metrics["num_patients"] = num_patients
+
+        if return_predictions:
+            metrics["predictions"] = all_preds
+            metrics["ground_truth"] = target_windows
+
+        return metrics
+
     def _initialize_model(self) -> None:
         """Load the TimesFM model.
 
@@ -531,9 +644,15 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         internal_model = self.model._model
         info_print(f"Internal model type: {type(internal_model).__name__}")
 
+        # Truncate predictions to match target length before computing loss.
+        def _truncated_mse(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+            target_len = target.shape[-1]
+            return torch.mean((pred[:, :target_len] - target) ** 2)
+
         finetuner = TimesFMFinetuner(
             model=internal_model,
             config=ft_config,
+            loss_fn=_truncated_mse,
         )
 
         # Run finetuning
