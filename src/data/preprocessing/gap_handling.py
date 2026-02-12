@@ -183,6 +183,12 @@ def _segment_single_patient(
             f"got {type(patient_df.index).__name__}"
         )
 
+    if bg_col not in patient_df.columns:
+        raise ValueError(
+            f"Patient {patient_id}: missing required column '{bg_col}'. "
+            f"Available columns: {list(patient_df.columns)}"
+        )
+
     df = patient_df.sort_index().copy()
     stats.total_rows_original = len(df)
 
@@ -194,20 +200,18 @@ def _segment_single_patient(
     stats.detected_interval_mins = interval_mins
 
     # Count NaN before interpolation
-    if bg_col in df.columns:
-        stats.total_nan_before = int(df[bg_col].isna().sum())
+    stats.total_nan_before = int(df[bg_col].isna().sum())
 
     # Step 1: Interpolate small gaps
     max_gap_rows = imputation_threshold_mins // interval_mins
-    nan_runs_before = _find_nan_runs(df[bg_col]) if bg_col in df.columns else []
-    df = _interpolate_small_gaps(df, max_gap_rows)
+    nan_runs_before = _find_nan_runs(df[bg_col])
+    df = _interpolate_small_gaps(df, max_gap_rows, bg_col)
 
     # Count NaN after interpolation and compute gap stats
-    if bg_col in df.columns:
-        stats.total_nan_after_interp = int(df[bg_col].isna().sum())
-        nan_runs_after = _find_nan_runs(df[bg_col])
-        stats.num_gaps_interpolated = len(nan_runs_before) - len(nan_runs_after)
-        stats.num_gaps_segmented = len(nan_runs_after)
+    stats.total_nan_after_interp = int(df[bg_col].isna().sum())
+    nan_runs_after = _find_nan_runs(df[bg_col])
+    stats.num_gaps_interpolated = len(nan_runs_before) - len(nan_runs_after)
+    stats.num_gaps_segmented = len(nan_runs_after)
 
     # Step 2: Segment at remaining gaps
     segments, num_discarded = _segment_at_remaining_gaps(
@@ -237,6 +241,8 @@ def _detect_interval(df: pd.DataFrame) -> int:
         if interval > 0:
             return interval
     except (ValueError, IndexError):
+        # get_most_common_time_interval can fail on irregular/sparse data;
+        # fall back to the default 5-min CGM interval below.
         pass
 
     return DEFAULT_FALLBACK_INTERVAL_MINS
@@ -276,9 +282,14 @@ def _find_nan_runs(series: pd.Series) -> list[tuple[int, int, int]]:
 def _interpolate_small_gaps(
     df: pd.DataFrame,
     max_gap_rows: int,
+    bg_col: str = DEFAULT_BG_COL,
 ) -> pd.DataFrame:
     """
     Linearly interpolate NaN runs that are <= max_gap_rows long (all-or-nothing).
+
+    Only the blood glucose column is interpolated. Other numeric columns
+    (e.g., bolus, food, steps) are left untouched — linear interpolation
+    would create fractional values that are physiologically meaningless.
 
     Only gaps whose entire length fits within the threshold are interpolated.
     Gaps exceeding the threshold are left completely untouched — no partial
@@ -288,37 +299,37 @@ def _interpolate_small_gaps(
         df: DataFrame (on regular grid) possibly containing NaN runs.
         max_gap_rows: Maximum consecutive NaN count to interpolate.
             Gaps with more NaN than this are left as-is.
+        bg_col: Blood glucose column to interpolate. Only this column
+            is modified; all other columns are preserved as-is.
 
     Returns:
-        DataFrame with small gaps filled by linear interpolation.
+        DataFrame with small BG gaps filled by linear interpolation.
     """
-    if max_gap_rows <= 0:
+    if max_gap_rows <= 0 or bg_col not in df.columns:
         return df
 
     df = df.copy()
-    numeric_cols = df.select_dtypes(include=[np.number]).columns
 
-    for col in numeric_cols:
-        nan_runs = _find_nan_runs(df[col])
-        if not nan_runs:
-            continue
+    nan_runs = _find_nan_runs(df[bg_col])
+    if not nan_runs:
+        return df
 
-        # Mark positions belonging to large gaps — these must stay NaN
-        large_gap_mask = np.zeros(len(df), dtype=bool)
-        for start, end, length in nan_runs:
-            if length > max_gap_rows:
-                large_gap_mask[start:end] = True
+    # Mark positions belonging to large gaps — these must stay NaN
+    large_gap_mask = np.zeros(len(df), dtype=bool)
+    for start, end, length in nan_runs:
+        if length > max_gap_rows:
+            large_gap_mask[start:end] = True
 
-        # Interpolate all internal NaN (small gaps get filled correctly
-        # using their immediate non-NaN neighbors as anchors).
-        # limit_area="inside" = only fill NaN that sit between two real values;
-        # leading/trailing NaN with no anchor on one side are left untouched.
-        interpolated = df[col].interpolate(method="linear", limit_area="inside")
+    # Interpolate all internal NaN (small gaps get filled correctly
+    # using their immediate non-NaN neighbors as anchors).
+    # limit_area="inside" = only fill NaN that sit between two real values;
+    # leading/trailing NaN with no anchor on one side are left untouched.
+    interpolated = df[bg_col].interpolate(method="linear", limit_area="inside")
 
-        # Restore NaN at large gap positions
-        interpolated.values[large_gap_mask] = np.nan
+    # Restore NaN at large gap positions
+    interpolated.values[large_gap_mask] = np.nan
 
-        df[col] = interpolated
+    df[bg_col] = interpolated
 
     return df
 
@@ -345,12 +356,6 @@ def _segment_at_remaining_gaps(
     Returns:
         Tuple of (segments dict, count of discarded segments).
     """
-    if bg_col not in df.columns:
-        # No BG column to check - return as single segment if long enough
-        if len(df) >= min_segment_length:
-            return {f"{patient_id}_seg_0": df}, 0
-        return {}, 1
-
     is_nan = df[bg_col].isna()
 
     if not is_nan.any():

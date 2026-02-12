@@ -124,6 +124,12 @@ class TestEdgeCasesAndContracts:
         with pytest.raises(ValueError, match="DatetimeIndex"):
             segment_all_patients({"p1": df})
 
+    def test_missing_bg_col_raises_value_error(self):
+        idx = pd.date_range("2024-01-01", periods=5, freq="5min")
+        df = pd.DataFrame({"other_col": [1.0, 2.0, 3.0, 4.0, 5.0]}, index=idx)
+        with pytest.raises(ValueError, match="missing required column"):
+            segment_all_patients({"p1": df})
+
     def test_all_nan_patient_returns_no_segments(self):
         df = _make_series_df([np.nan] * 20)
         result = segment_all_patients({"p1": df}, min_segment_length=1)
@@ -145,6 +151,26 @@ class TestEdgeCasesAndContracts:
         assert "p2_seg_0" in result
         assert "p2_seg_1" in result
         assert len(result) == 3
+
+    def test_non_bg_numeric_columns_not_interpolated(self):
+        """
+        bg_mM: [4.0, NaN, NaN, NaN, 8.0] — small gap, interpolated
+        bolus: [1.0, NaN, NaN, NaN, 2.0] — should NOT be interpolated
+        """
+        idx = pd.date_range("2024-01-01", periods=5, freq="5min")
+        df = pd.DataFrame(
+            {
+                "bg_mM": [4.0, np.nan, np.nan, np.nan, 8.0],
+                "bolus": [1.0, np.nan, np.nan, np.nan, 2.0],
+            },
+            index=idx,
+        )
+        df.index.name = "datetime"
+        result = _interpolate_small_gaps(df, max_gap_rows=3)
+        # bg_mM filled
+        assert result["bg_mM"].isna().sum() == 0
+        # bolus untouched — still has 3 NaN
+        assert result["bolus"].isna().sum() == 3
 
     def test_input_data_not_mutated(self):
         df = _make_series_df([1.0, np.nan, np.nan, 4.0, 5.0])
