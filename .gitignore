@@ -171,6 +171,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venvs/
 .noctprob-venv/
 env/
 venv/
