@@ -8,11 +8,48 @@ This project focuses on blood glucose control and forecasting research using fou
 
 1. **Fork and clone** the repository
 2. **Set up environment**: `python -m venv .noctprob-venv && source .noctprob-venv/bin/activate`
-3. **Install dependencies**: `pip install -r requirements.txt`
+3. **Install dependencies**: `pip install -e .`
 4. **Run tests**: `pytest tests/`
 5. **Create feature branch**: `git checkout -b feature/your-feature`
 6. **Make changes** and commit with conventional commit format
 7. **Submit pull request**
+
+## Environment Setup
+
+This project uses **two types of virtual environments**:
+
+### General Development (`.noctprob-venv`)
+For notebooks, data exploration, and non-model work:
+```bash
+python -m venv .noctprob-venv
+source .noctprob-venv/bin/activate
+pip install -e .
+```
+
+### Model-Specific Environments (`.venvs/<model>/`)
+Different foundation models require different package versions (e.g., `transformers`). Use model-specific environments for training and inference:
+
+```bash
+# Set up and activate a model environment (creates venv on first run)
+source scripts/setup_model_env.sh ttm
+source scripts/setup_model_env.sh sundial
+
+# Deactivate when done
+deactivate
+```
+
+Available models are defined in `pyproject.toml` under `[project.optional-dependencies]`. To add a new model, add an entry there and run:
+```bash
+source scripts/setup_model_env.sh <new-model>
+```
+
+**When to use which:**
+| Task | Environment |
+|------|-------------|
+| Data exploration, notebooks | `.noctprob-venv` |
+| Running tests | `.noctprob-venv` |
+| TTM model training/inference | `source scripts/setup_model_env.sh ttm` |
+| Other model training | `source scripts/setup_model_env.sh <model>` |
 
 ## What Can You Contribute?
 
