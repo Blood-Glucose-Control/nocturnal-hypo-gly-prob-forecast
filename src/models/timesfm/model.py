@@ -38,6 +38,10 @@ class TimesFMDataset(Dataset):
         context_length: Number of past timesteps for context
         horizon_length: Number of future timesteps to predict
         freq_type: Frequency type (0=high/5-min, 1=medium/hourly, 2=low/weekly+)
+        stride: Step size between windows. Default=horizon_length for non-overlapping.
+                Use stride=1 for maximum overlap (slow), stride=horizon_length for fast training.
+        max_samples: Maximum number of samples to create. None=unlimited.
+                     Samples are uniformly distributed across the series if capped.
     """
 
     def __init__(
@@ -46,6 +50,8 @@ class TimesFMDataset(Dataset):
         context_length: int,
         horizon_length: int,
         freq_type: int = 0,
+        stride: Optional[int] = None,
+        max_samples: Optional[int] = None,
     ):
         if freq_type not in [0, 1, 2]:
             raise ValueError("freq_type must be 0, 1, or 2")
@@ -54,14 +60,27 @@ class TimesFMDataset(Dataset):
         self.context_length = context_length
         self.horizon_length = horizon_length
         self.freq_type = freq_type
+        # Default stride to horizon_length for non-overlapping windows
+        self.stride = stride if stride is not None else horizon_length
+        self.max_samples = max_samples
         self._prepare_samples()
 
     def _prepare_samples(self) -> None:
-        """Create sliding window samples from the time series."""
+        """Create sliding window samples from the time series with stride."""
         self.samples: List[Tuple[np.ndarray, np.ndarray]] = []
         total_length = self.context_length + self.horizon_length
 
-        for start_idx in range(0, len(self.series) - total_length + 1):
+        # Collect all possible window start indices
+        all_indices = list(range(0, len(self.series) - total_length + 1, self.stride))
+
+        # If max_samples is set and we have more windows, subsample uniformly
+        if self.max_samples is not None and len(all_indices) > self.max_samples:
+            # Uniformly sample indices to maintain temporal distribution
+            step = len(all_indices) / self.max_samples
+            selected_indices = [all_indices[int(i * step)] for i in range(self.max_samples)]
+            all_indices = selected_indices
+
+        for start_idx in all_indices:
             end_idx = start_idx + self.context_length
             x_context = self.series[start_idx:end_idx]
             x_future = self.series[end_idx : end_idx + self.horizon_length]
@@ -160,19 +179,20 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         # Take last context_length values
         context = context[-self.config.context_length :]
 
-        # TimesFM v2.5 API: forecast(horizon, inputs)
-        # Returns tuple of (point_forecast, quantile_forecasts)
+        # Convert to list of lists format expected by v1.x
+        context_list = [context.tolist()]
         point_forecast, _ = self.model.forecast(
-            horizon=prediction_length,
-            inputs=[context],  # List of 1D numpy arrays
+            inputs=context_list,
+            freq=[0],  # 0 = high frequency (5-min data)
         )
-
-        # Extract forecast from result (first element since we passed single input)
         forecast = point_forecast[0]
 
         # Ensure it's a 1D numpy array
-        if forecast.ndim > 1:
-            forecast = forecast.flatten()
+        if isinstance(forecast, np.ndarray):
+            if forecast.ndim > 1:
+                forecast = forecast.flatten()
+        else:
+            forecast = np.array(forecast).flatten()
 
         # Truncate to requested prediction_length if needed
         if len(forecast) > prediction_length:
@@ -181,44 +201,54 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         return forecast
 
     def _initialize_model(self) -> None:
-        """Load the TimesFM model from HuggingFace."""
+        """Load the TimesFM model.
+
+        Uses the v1.x API (TimesFmHparams/TimesFmCheckpoint) which is required
+        for finetuning and provides access to the internal model via _model.
+        """
         info_print("Initializing TimesFM model...")
 
         try:
             import timesfm
 
-            # Determine device
+            cuda_available = torch.cuda.is_available()
             self.device = (
                 "cuda"
-                if torch.cuda.is_available() and not self.config.use_cpu
+                if cuda_available and not self.config.use_cpu
                 else "cpu"
             )
+            info_print(f"Selected device: {self.device}")
 
-            # Initialize TimesFM using the correct v2.5 API
-            # TimesFM_2p5_200M_torch is the main model class
-            checkpoint = self.config.checkpoint_path or "google/timesfm-2.5-200m-pytorch"
+            if not (hasattr(timesfm, "TimesFm") and hasattr(timesfm, "TimesFmHparams")):
+                raise AttributeError(
+                    "Could not find TimesFM v1.x API classes (TimesFm, TimesFmHparams). "
+                    "Install with: pip install timesfm==1.3.0"
+                )
+
+            checkpoint = self.config.checkpoint_path or "google/timesfm-2.0-500m-pytorch"
             info_print(f"Loading TimesFM from: {checkpoint}")
 
-            self.model = timesfm.TimesFM_2p5_200M_torch.from_pretrained(checkpoint)
+            # Determine backend
+            backend = "gpu" if self.device == "cuda" else "cpu"
 
-            # Compile the model with forecast config (required for v2.5)
-            self.model.compile(
-                timesfm.ForecastConfig(
-                    max_context=self.config.context_length,
-                    max_horizon=self.config.horizon_length,
-                    normalize_inputs=True,
-                    use_continuous_quantile_head=True,
-                    force_flip_invariance=True,
-                    infer_is_positive=True,
-                    fix_quantile_crossing=True,
-                )
+            self.model = timesfm.TimesFm(
+                hparams=timesfm.TimesFmHparams(
+                    backend=backend,
+                    per_core_batch_size=self.config.per_core_batch_size,
+                    horizon_len=self.config.horizon_length,
+                    num_layers=self.config.num_layers,
+                    use_positional_embedding=False,
+                    context_len=self.config.context_length,
+                ),
+                checkpoint=timesfm.TimesFmCheckpoint(
+                    huggingface_repo_id=checkpoint,
+                ),
             )
-
-            info_print(f"TimesFM model initialized and compiled on {self.device}")
+            info_print(f"TimesFM initialized on {self.device}")
 
         except ImportError:
             error_print(
-                "timesfm package not installed. Install with: pip install timesfm"
+                "timesfm package not installed. Install with: pip install timesfm==1.3.0"
             )
             raise
         except Exception as e:
@@ -267,18 +297,24 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         info_print(f"Train samples: {len(train_series):,}, Val samples: {len(val_series):,}")
 
-        # Create datasets
+        stride = self.config.window_stride or self.config.horizon_length
+
+        # Create datasets with stride and max_samples for efficient training
         train_dataset = TimesFMDataset(
             series=train_series,
             context_length=self.config.context_length,
             horizon_length=self.config.horizon_length,
             freq_type=self.config.freq_type,
+            stride=stride,
+            max_samples=self.config.max_train_windows,
         )
         val_dataset = TimesFMDataset(
             series=val_series,
             context_length=self.config.context_length,
             horizon_length=self.config.horizon_length,
             freq_type=self.config.freq_type,
+            stride=stride,
+            max_samples=self.config.max_val_windows,
         )
 
         info_print(f"Train windows: {len(train_dataset):,}, Val windows: {len(val_dataset):,}")
@@ -333,7 +369,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 from safetensors.torch import save_file
 
                 # Get the internal PyTorch module's state dict
-                internal_model = self.model.model
+                internal_model = self.model._model
                 state_dict = internal_model.state_dict()
 
                 # Save using safetensors format
@@ -343,7 +379,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
             except ImportError:
                 # Fallback to PyTorch native format
-                internal_model = self.model.model
+                internal_model = self.model._model
                 weights_path = os.path.join(output_dir, "timesfm_finetuned.pt")
                 torch.save(internal_model.state_dict(), weights_path)
                 info_print(f"Finetuned weights saved to {weights_path} (PyTorch format)")
@@ -382,7 +418,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                         from safetensors.torch import load_file
 
                         state_dict = load_file(safetensors_path)
-                        self.model.model.load_state_dict(state_dict)
+                        self.model._model.load_state_dict(state_dict)
                         self.is_fitted = True
                         info_print(f"Finetuned weights loaded from {safetensors_path}")
                     except Exception as e:
@@ -391,7 +427,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
                 elif os.path.exists(pytorch_path):
                     state_dict = torch.load(pytorch_path, map_location=self.device)
-                    self.model.model.load_state_dict(state_dict)
+                    self.model._model.load_state_dict(state_dict)
                     self.is_fitted = True
                     info_print(f"Finetuned weights loaded from {pytorch_path}")
 
@@ -406,9 +442,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def _train_model(
         self, train_data: Any, output_dir: str, **kwargs
     ) -> Dict[str, Any]:
-        """Execute TimesFM finetuning.
-
-        Finetunes the internal PyTorch model using the training data.
+        """Execute TimesFM finetuning using official TimesFMFinetuner.
 
         Args:
             train_data: Training data (DataFrame or dict of DataFrames)
@@ -416,112 +450,110 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             **kwargs: Additional arguments
 
         Returns:
-            Dictionary with training history (train_loss, val_loss per epoch)
+            Dictionary with training history
         """
-        info_print("Starting TimesFM finetuning...")
+        info_print("Starting TimesFM finetuning with official finetuner...")
 
-        # Prepare data loaders
-        train_loader, val_loader, _ = self._prepare_training_data(train_data)
+        # Import the official finetuning code
+        try:
+            from finetuning.finetuning_torch import FinetuningConfig, TimesFMFinetuner
+        except ImportError:
+            error_print(
+                "Official finetuning code not found. "
+                "Please copy finetuning/ folder from timesfm repo."
+            )
+            raise
 
-        # Access the internal PyTorch module
-        internal_model = self.model.model  # TimesFM_2p5_200M_torch_module (nn.Module)
-        internal_model.train()
+        # Prepare time series data
+        info_print("Preparing training data...")
+        if isinstance(train_data, dict):
+            all_values = []
+            for patient_id, df in train_data.items():
+                if "bg_mM" in df.columns:
+                    values = df["bg_mM"].dropna().values
+                    all_values.append(values)
+            series = np.concatenate(all_values)
+        elif isinstance(train_data, pd.DataFrame):
+            if "bg_mM" not in train_data.columns:
+                raise ValueError("DataFrame must contain 'bg_mM' column")
+            series = train_data["bg_mM"].dropna().values
+        else:
+            raise ValueError(f"train_data must be DataFrame or dict, got {type(train_data)}")
 
-        # Get device from internal model
-        device = next(internal_model.parameters()).device
-        info_print(f"Training on device: {device}")
+        series = series.astype(np.float32)
+        info_print(f"Total samples: {len(series):,}")
 
-        # Setup optimizer
-        optimizer = torch.optim.Adam(
-            internal_model.parameters(),
-            lr=self.config.learning_rate,
-            weight_decay=self.config.weight_decay,
+        # Split into train/val
+        train_size = int(len(series) * self.config.train_split)
+        train_series = series[:train_size]
+        val_series = series[train_size:]
+        info_print(f"Train: {len(train_series):,}, Val: {len(val_series):,}")
+
+        # Determine stride (default to horizon_length for non-overlapping windows)
+        stride = self.config.window_stride or self.config.horizon_length
+        info_print(f"Window stride: {stride} (horizon_length={self.config.horizon_length})")
+        info_print(f"Max train windows: {self.config.max_train_windows:,}")
+        info_print(f"Max val windows: {self.config.max_val_windows:,}")
+
+        # Create PyTorch Dataset objects for finetuning
+        # Uses stride and max_samples to control dataset size
+        train_dataset = TimesFMDataset(
+            series=train_series,
+            context_length=self.config.context_length,
+            horizon_length=self.config.horizon_length,
+            freq_type=self.config.freq_type,
+            stride=stride,
+            max_samples=self.config.max_train_windows,
+        )
+        val_dataset = TimesFMDataset(
+            series=val_series,
+            context_length=self.config.context_length,
+            horizon_length=self.config.horizon_length,
+            freq_type=self.config.freq_type,
+            stride=stride,
+            max_samples=self.config.max_val_windows,
         )
 
-        # Loss function (MSE)
-        def compute_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-            """Compute MSE loss between predictions and targets."""
-            return torch.mean((predictions - targets) ** 2)
+        info_print(f"Train dataset: {len(train_dataset):,} windows (capped from stride)")
+        info_print(f"Val dataset: {len(val_dataset):,} windows (capped from stride)")
 
-        # Training history
-        history = {"train_loss": [], "val_loss": []}
+        # Configure finetuning
+        ft_config = FinetuningConfig(
+            batch_size=self.config.batch_size,
+            num_epochs=self.config.num_epochs,
+            learning_rate=self.config.learning_rate,
+            freq_type=self.config.freq_type,
+            use_wandb=False,
+            device="cuda" if self.device == "cuda" else "cpu",
+        )
 
+        # Get the internal PyTorch model for finetuning
+        internal_model = self.model._model
+        info_print(f"Internal model type: {type(internal_model).__name__}")
+
+        finetuner = TimesFMFinetuner(
+            model=internal_model,
+            config=ft_config,
+        )
+
+        # Run finetuning
         info_print(f"Training for {self.config.num_epochs} epochs...")
         info_print(f"Batch size: {self.config.batch_size}, LR: {self.config.learning_rate}")
 
-        for epoch in range(self.config.num_epochs):
-            # Training phase
-            internal_model.train()
-            train_losses = []
+        results = finetuner.finetune(
+            train_dataset=train_dataset,
+            val_dataset=val_dataset,
+        )
 
-            for batch in train_loader:
-                x_context, x_padding, freq, x_future = [t.to(device) for t in batch]
-
-                # Forward pass through internal model
-                # Returns: (input_emb, output_emb, output_ts, output_quantile), caches
-                outputs, _ = internal_model(x_context, x_padding)
-                output_ts = outputs[2]  # Point forecast: shape (B, num_patches, output_patch_len, num_quantiles)
-
-                # Get the last patch prediction (mean/point estimate is index 0)
-                # Shape: (B, output_patch_len)
-                predictions = output_ts[:, -1, :, 0]
-
-                # Truncate predictions to match target length if needed
-                pred_len = min(predictions.shape[-1], x_future.shape[-1])
-                predictions = predictions[:, :pred_len]
-                targets = x_future[:, :pred_len]
-
-                # Compute loss
-                loss = compute_loss(predictions, targets)
-
-                # Backward pass
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-                train_losses.append(loss.item())
-
-            avg_train_loss = np.mean(train_losses)
-
-            # Validation phase
-            internal_model.eval()
-            val_losses = []
-
-            with torch.no_grad():
-                for batch in val_loader:
-                    x_context, x_padding, freq, x_future = [t.to(device) for t in batch]
-
-                    outputs, _ = internal_model(x_context, x_padding)
-                    output_ts = outputs[2]
-                    predictions = output_ts[:, -1, :, 0]
-
-                    pred_len = min(predictions.shape[-1], x_future.shape[-1])
-                    predictions = predictions[:, :pred_len]
-                    targets = x_future[:, :pred_len]
-
-                    loss = compute_loss(predictions, targets)
-                    val_losses.append(loss.item())
-
-            avg_val_loss = np.mean(val_losses)
-
-            history["train_loss"].append(avg_train_loss)
-            history["val_loss"].append(avg_val_loss)
-
-            info_print(
-                f"Epoch {epoch + 1}/{self.config.num_epochs}: "
-                f"Train Loss = {avg_train_loss:.4f}, Val Loss = {avg_val_loss:.4f}"
-            )
-
-        # Mark as fitted before saving
         self.is_fitted = True
 
-        # Save the finetuned model
+        # Save checkpoint
         os.makedirs(output_dir, exist_ok=True)
         self._save_checkpoint(output_dir)
 
         info_print(f"Finetuning complete. Model saved to {output_dir}")
 
-        return {"history": history, "train_loss": history["train_loss"], "val_loss": history["val_loss"]}
+        return results
 
 
 def create_timesfm_model(

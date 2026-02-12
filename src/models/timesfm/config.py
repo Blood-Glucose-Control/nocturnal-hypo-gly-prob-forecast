@@ -58,18 +58,18 @@ class TimesFMConfig(ModelConfig):
     # Model architecture parameters
     input_patch_len: int = 32
     output_patch_len: int = 128
-    num_layers: int = 20
+    num_layers: int = 50
     model_dims: int = 1280
 
     # Inference parameters
     backend: str = "cpu"  # Options: 'cpu', 'gpu', 'tpu'
-    per_core_batch_size: int = 32
-    batch_size: int = 32  # Alias for per_core_batch_size
+    per_core_batch_size: int = 128
+    batch_size: int = 128
     quantiles: List[float] = field(default_factory=lambda: [0.1, 0.5, 0.9])
 
     # System parameters
     use_cached_model: bool = True
-    device: str = "cpu"
+    device: str = "auto"  # Options: 'auto', 'cpu', 'cuda'
     use_cpu: bool = False
 
     # Training/finetuning parameters
@@ -80,6 +80,11 @@ class TimesFMConfig(ModelConfig):
     freq_type: int = 0  # Sampling frequency: 0=high (5-min CGM)
     train_split: float = 0.8  # Train/val split within training data (holdout is separate)
     use_lora: bool = False
+
+    # Finetuning data sampling parameters (for faster training)
+    window_stride: Optional[int] = None  # Stride between windows. None=horizon_length (non-overlapping)
+    max_train_windows: int = 50000
+    max_val_windows: int = 10000
 
     def __post_init__(self):
         """Validate configuration after initialization."""
