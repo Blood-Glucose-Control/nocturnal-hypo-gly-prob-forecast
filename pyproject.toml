@@ -39,6 +39,7 @@ dependencies = [
     "sktime",
     "tabulate",
     "torch",
+    "transformers",
     "tqdm",
 
     # Visualization
