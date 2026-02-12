@@ -172,6 +172,181 @@ class TestEdgeCasesAndContracts:
         # bolus untouched — still has 3 NaN
         assert result["bolus"].isna().sum() == 3
 
+    def test_gaps_in_non_bg_columns_do_not_trigger_segmentation(self):
+        """
+        bg_mM: [5.0, 5.5, 6.0, 6.5, 7.0] — complete, no gaps
+        dose_units: [1.0, NaN, NaN, NaN, 2.0] — large gap in event column
+        food_g: [10.0, NaN, NaN, NaN, NaN] — trailing NaN in event column
+
+        Should produce 1 segment (not 2+), since bg_mM is continuous.
+        Event columns retain their NaN (no fractional interpolation).
+        """
+        idx = pd.date_range("2024-01-01", periods=20, freq="5min")
+        df = pd.DataFrame(
+            {
+                "bg_mM": [
+                    5.0,
+                    5.5,
+                    6.0,
+                    6.5,
+                    7.0,
+                    8.0,
+                    9.0,
+                    10.0,
+                    11.0,
+                    12.0,
+                    11.0,
+                    10.0,
+                    9.0,
+                    8.0,
+                    7.0,
+                    6.0,
+                    5.0,
+                    4.0,
+                    3.0,
+                    2.0,
+                ],
+                "dose_units": [
+                    1.0,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    2.0,
+                ],
+                "food_g": [
+                    10.0,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                ],
+            },
+            index=idx,
+        )
+        df.index.name = "datetime"
+        result = segment_all_patients(
+            {"p1": df}, imputation_threshold_mins=10, min_segment_length=1
+        )
+        # Single segment — gaps in non-BG columns don't split
+        assert len(result) == 1
+        assert "p1_seg_0" in result
+        # BG values preserved
+        np.testing.assert_array_almost_equal(
+            result["p1_seg_0"]["bg_mM"].values,
+            [
+                5.0,
+                5.5,
+                6.0,
+                6.5,
+                7.0,
+                8.0,
+                9.0,
+                10.0,
+                11.0,
+                12.0,
+                11.0,
+                10.0,
+                9.0,
+                8.0,
+                7.0,
+                6.0,
+                5.0,
+                4.0,
+                3.0,
+                2.0,
+            ],
+        )
+        # Event columns still have NaN (not interpolated to fractional values)
+        assert result["p1_seg_0"]["dose_units"].isna().sum() == 18
+        assert result["p1_seg_0"]["food_g"].isna().sum() == 19
+
+    def test_segmentation_only_at_bg_gaps_not_event_gaps(self):
+        """
+        bg_mM: [1, 2, 3, NaN×5, 9, 10] — large gap triggers segmentation
+        steps: [100, NaN×8, 1000] — gap spans both segments
+
+        Should produce 2 segments based on bg_mM gap only.
+        steps column NaN preserved in both segments.
+        """
+        idx = pd.date_range("2024-01-01", periods=10, freq="5min")
+        df = pd.DataFrame(
+            {
+                "bg_mM": [
+                    1.0,
+                    2.0,
+                    3.0,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    9.0,
+                    10.0,
+                ],
+                "steps": [
+                    100.0,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    np.nan,
+                    1000.0,
+                ],
+            },
+            index=idx,
+        )
+        df.index.name = "datetime"
+        result = segment_all_patients(
+            {"p1": df}, imputation_threshold_mins=10, min_segment_length=1
+        )
+        # Two segments from bg_mM gap
+        assert len(result) == 2
+        # First segment: bg values [1, 2, 3], steps has 2 NaN
+        np.testing.assert_array_almost_equal(
+            result["p1_seg_0"]["bg_mM"].values, [1.0, 2.0, 3.0]
+        )
+        assert result["p1_seg_0"]["steps"].iloc[0] == 100.0
+        assert result["p1_seg_0"]["steps"].isna().sum() == 2
+        # Second segment: bg values [9, 10], steps has 1 NaN
+        np.testing.assert_array_almost_equal(
+            result["p1_seg_1"]["bg_mM"].values, [9.0, 10.0]
+        )
+        assert result["p1_seg_1"]["steps"].iloc[-1] == 1000.0
+        assert result["p1_seg_1"]["steps"].isna().sum() == 1
+
     def test_input_data_not_mutated(self):
         df = _make_series_df([1.0, np.nan, np.nan, 4.0, 5.0])
         df_copy = df.copy()

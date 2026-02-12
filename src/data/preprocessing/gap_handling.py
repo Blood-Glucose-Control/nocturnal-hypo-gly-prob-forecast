@@ -240,10 +240,14 @@ def _detect_interval(df: pd.DataFrame) -> int:
         interval = get_most_common_time_interval(df)
         if interval > 0:
             return interval
-    except (ValueError, IndexError):
-        # get_most_common_time_interval can fail on irregular/sparse data;
-        # fall back to the default 5-min CGM interval below.
-        pass
+    except (ValueError, IndexError) as exc:
+        logger.warning(
+            "Failed to detect sampling interval for DataFrame with %d rows; "
+            "falling back to %d minutes. Error: %s",
+            len(df),
+            DEFAULT_FALLBACK_INTERVAL_MINS,
+            exc,
+        )
 
     return DEFAULT_FALLBACK_INTERVAL_MINS
 
