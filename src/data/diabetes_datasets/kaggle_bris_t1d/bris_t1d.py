@@ -41,55 +41,50 @@ logger = logging.getLogger(__name__)
 
 
 class BrisT1DDataLoader(DatasetBase):
-    """
-    Data loader for the Bristol T1D diabetes dataset from Kaggle.
+    """Data loader for the Bristol T1D diabetes dataset from Kaggle.
 
-    This class handles loading, processing, and caching of the Bristol T1D dataset.
-    It supports both train and test datasets with different processing pipelines
-    for each. The train data is stored as a dictionary mapping patient IDs to
-    DataFrames, while test data is organized as a nested dictionary by patient ID
-    and row ID.
+    This class handles loading, processing, and caching of the Bristol T1D
+    dataset from the Kaggle blood glucose prediction competition. It supports
+    both train and test datasets with different processing pipelines.
 
-    The loader supports intelligent caching at multiple levels:
-    - Raw data caching to avoid re-downloading
-    - Processed data caching to avoid re-processing
-    - Train/validation split caching for consistent splits
+    The competition focused on predicting blood glucose levels using CGM and
+    insulin/carbohydrate intake data from Type 1 diabetes patients.
+
+    Key features of this dataset:
+        - Competition dataset with train/test split for prediction tasks
+        - CGM data with insulin and carbohydrate information
+        - Multi-level caching (raw, processed, train/validation splits)
+        - Test data organized as prediction instances per patient
 
     Attributes:
-        keep_columns (list[str] | None): Specific columns to load from the dataset
-        num_validation_days (int): Number of days to use for validation
-        use_cached (bool): Whether to use cached processed data if available
-        dataset_type (str): Type of dataset ('train' or 'test')
-        parallel (bool): Whether to use parallel processing
-        generic_patient_start_date (pd.Timestamp): Starting date for all patients
-        max_workers (int): Maximum number of workers for parallel processing
-        processed_data (dict[str, pd.DataFrame] | dict[str, dict[str, pd.DataFrame]]):
-            The processed dataset - dict for train, nested dict for test
-        train_data (dict[str, pd.DataFrame] | None): Training subset (when dataset_type is 'train')
-        validation_data (dict[str, pd.DataFrame] | None): Validation subset (when dataset_type is 'train')
-        test_data (dict[str, dict[str, pd.DataFrame]] | None): Test data (when dataset_type is 'test')
-        train_dt_col_type (type): Data type of the datetime index in training data
-        val_dt_col_type (type): Data type of the datetime index in validation data
-        num_train_days (int): Number of unique days across all training data
-        raw_data (pd.DataFrame): The original unprocessed dataset loaded from file
+        keep_columns: Specific columns to load from the dataset.
+        dataset_type: Type of dataset ('train' or 'test').
+        use_cached: Whether to use cached processed data if available.
+        num_validation_days: Number of days to use for validation.
+        parallel: Whether to use parallel processing.
+        max_workers: Maximum number of workers for parallel processing.
+        generic_patient_start_date: Starting date for all patients.
 
-    Properties:
-        dataset_name (str): Returns "kaggle_brisT1D"
-        num_patients (int): Number of patients in the dataset
-        patient_ids (list[str]): List of patient IDs
-        train_data_shape_summary (dict[str, tuple[int, int]]): Shape summary for train data by patient
-        test_data_shape_summary (dict[tuple[str, str], tuple[int, int]]): Shape summary for test data by (patient_id, sub_id)
+    Example:
+        >>> loader = BrisT1DDataLoader(use_cached=True)
+        >>> pretraining_dict = loader.processed_data
     """
 
     def __init__(
         self,
+        # Data Selection
         keep_columns: list[str] | None = None,
-        num_validation_days: int = 20,
+        # Caching
         use_cached: bool = True,
+        # Train/validation splitting
         dataset_type: str = "train",
+        num_validation_days: int = 20,
+        # Parallel processing
         parallel: bool = True,
+        max_workers: int = 14,
+        # Date normalization (if applicable)
         generic_patient_start_date: pd.Timestamp = pd.Timestamp("2024-01-01"),
-        max_workers: int = 3,
+        # Dataset-specific parameters
     ):
         """
         Initialize the Bristol T1D data loader.
@@ -109,7 +104,7 @@ class BrisT1DDataLoader(DatasetBase):
             generic_patient_start_date (pd.Timestamp, optional): Starting date to use for
                 all patients when creating datetime columns. Defaults to "2024-01-01".
             max_workers (int, optional): Maximum number of workers for parallel processing.
-                Defaults to 3.
+                Defaults to 14.
         """
         # Ensure 'datetime' is included in keep_columns if specified
         if keep_columns is not None:
@@ -147,6 +142,18 @@ class BrisT1DDataLoader(DatasetBase):
         return "kaggle_brisT1D"
 
     @property
+    def description(self):
+        return """
+                The BrisT1D dataset features both device data from the T1D management systems and smartwatches used by participants,
+                as well as transcripts of monthly interviews and focus groups conducted during the study.
+                The device data is provided in a processed state, for usability and more rapid analysis, and in a raw
+                state, for in-depth exploration of novel insights captured in the study.
+                Paper: https://doi.org/10.48550/arXiv.2507.17757
+                Duration: 6 months
+                Participants: 24 T1D young adults (18-26 years)
+           """
+
+    @property
     def num_patients(self) -> int:
         """Get the number of patients in the dataset."""
         if self.processed_data is None:
@@ -159,6 +166,19 @@ class BrisT1DDataLoader(DatasetBase):
         if self.processed_data is None:
             return []
         return list(self.processed_data.keys())
+
+    @property
+    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
+        """Get shape summary for each patient's data.
+        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
+        """
+        if not self.processed_data:
+            return {}
+        return {
+            patient_id: df.shape
+            for patient_id, df in self.processed_data.items()
+            if isinstance(df, pd.DataFrame)
+        }
 
     @property
     def train_data_shape_summary(self) -> dict[str, tuple[int, int]]:

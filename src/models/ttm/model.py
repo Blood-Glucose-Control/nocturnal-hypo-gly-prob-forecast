@@ -138,7 +138,8 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         inverse_scale: bool = True,
         return_dict: bool = False,
     ) -> Union[np.ndarray, Dict[str, Any]]:
-        """Make predictions on new data.
+        """Make predictions on new data. This will be very specific to each child class.
+            When designing this, just consider what the final data shape should look like.
 
         Args:
             data: Input data for prediction
@@ -642,6 +643,32 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         import os
 
         os.environ["TQDM_MININTERVAL"] = "30"  # Update progress bar every 30 seconds
+
+        # Prevent GPU memory fragmentation. PyTorch's default CUDA allocator uses
+        # fixed-size blocks that can't be merged when freed, causing "reserved but
+        # unallocated" memory to grow over time (especially when switching between
+        # training and evaluation, which produce different tensor sizes).
+        # expandable_segments:True allows memory segments to grow/shrink dynamically,
+        # making freed memory actually reclaimable. This is safe and stable since
+        # PyTorch 2.1 with no performance downside.
+        #
+        # NOTE: This is a fallback for users running the training module directly.
+        # For reliable configuration, set PYTORCH_ALLOC_CONF in your shell/runner
+        # script BEFORE invoking Python (e.g., in run_holdout_generic_workflow.sh).
+        # Setting it here may not take effect if CUDA was already initialized.
+        if "PYTORCH_ALLOC_CONF" not in os.environ:
+            os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
+            # Check if CUDA allocator was already initialized (setting won't take effect)
+            import torch
+
+            if torch.cuda.is_initialized():
+                logger.warning(
+                    "PYTORCH_ALLOC_CONF was set after CUDA initialization. "
+                    "The 'expandable_segments:True' setting may not take effect. "
+                    "For reliable memory fragmentation prevention, set "
+                    "PYTORCH_ALLOC_CONF in your shell before running Python."
+                )
+
         info_print("Starting TTM training using HuggingFace Trainer...")
         # Prepare data loaders (splits based on config)
         train_loader, val_loader, test_loader = self._prepare_training_data(train_data)
@@ -688,10 +715,26 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             info_print("Warning: Could not access trainer.state")
 
         # Evaluate on test set if provided
+        # Note: This evaluation can be memory-intensive for large test sets
+        # because HF Trainer accumulates all prediction tensors on GPU.
+        # Free training state first to maximize available memory.
         test_metrics = {}
         if test_loader is not None:
-            test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
-            info_print(f"Test metrics: {test_metrics}")
+            import torch
+
+            # Clear training-related GPU cache before evaluation
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            try:
+                test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
+                info_print(f"Test metrics: {test_metrics}")
+            except torch.cuda.OutOfMemoryError:
+                info_print(
+                    "Warning: Test evaluation skipped due to GPU OOM. "
+                    "This is non-fatal — full holdout evaluation runs separately in step 8."
+                )
+                # Clear the failed allocation
+                torch.cuda.empty_cache()
 
         return {
             "train_metrics": train_result.metrics,
@@ -1153,9 +1196,13 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Configured TrainingArguments instance
         """
+        # Store checkpoints in a dedicated subdirectory to keep the output dir clean
+        checkpoint_dir = os.path.join(output_dir, "checkpoints")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+
         # Base training arguments
         base_args = {
-            "output_dir": output_dir,
+            "output_dir": checkpoint_dir,
             "learning_rate": self.config.learning_rate,
             "num_train_epochs": self.config.num_epochs,
             "per_device_train_batch_size": self.config.batch_size,

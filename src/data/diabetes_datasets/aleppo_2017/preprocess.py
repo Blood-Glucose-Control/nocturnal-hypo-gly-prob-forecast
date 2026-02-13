@@ -68,7 +68,7 @@ SELECT
     bolusType, normalBolus, expectedNormalBolus, extendedBolus, expectedExtendedBolus,
     bgInput, foodG, iob, cr, isf,
     bgMgdl,
-    rate, suprBasalType, suprRate
+    rate, basalDurationMins, suprBasalType, suprRate
 FROM (
     -- Bolus data
     SELECT
@@ -76,10 +76,10 @@ FROM (
         datetime(julianday((SELECT base_date FROM params)) + CAST(HDeviceBolus.DeviceDtTmDaysFromEnroll AS INTEGER) + (julianday(HDeviceBolus.DeviceTm) - julianday('00:00:00'))) AS date,
         'bolus' as tableType,
         HDeviceBolus.BolusType as bolusType,
-        Normal as normalBolus,
-        ExpectedNormal as expectedNormalBolus,
-        Extended as extendedBolus,
-        ExpectedExtended as expectedExtendedBolus,
+        HDeviceBolus.Normal as normalBolus,
+        HDeviceBolus.ExpectedNormal as expectedNormalBolus,
+        HDeviceBolus.Extended as extendedBolus,
+        HDeviceBolus.ExpectedExtended as expectedExtendedBolus,
         NULL as bgInput,
         NULL as foodG,
         NULL as iob,
@@ -87,6 +87,7 @@ FROM (
         NULL as isf,
         NULL as bgMgdl,
         NULL as rate,
+        NULL as basalDurationMins,
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceBolus
@@ -104,12 +105,13 @@ FROM (
         NULL as extendedBolus,
         NULL as expectedExtendedBolus,
         HDeviceWizard.BgInput as bgInput,
-        HDeviceWizard.CarbInput as foodG, --  Readme says this is in mg but I think it is in grams
+        HDeviceWizard.CarbInput as foodG,
         HDeviceWizard.InsulinOnBoard as iob,
         HDeviceWizard.InsulinCarbRatio as cr,
         HDeviceWizard.InsulinSensitivity as isf,
         NULL as bgMgdl,
         NULL as rate,
+        NULL as basalDurationMins,
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceWizard
@@ -133,6 +135,7 @@ FROM (
         NULL as isf,
         HDeviceCGM.GlucoseValue as bgMgdl,
         NULL as rate,
+        NULL as basalDurationMins,
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceCGM
@@ -158,6 +161,7 @@ FROM (
         NULL as isf,
         NULL as bgMgdl,
         HDeviceBasal.Rate as rate,
+        HDeviceBasal.Duration / 60000 as basalDurationMins,
         HDeviceBasal.SuprBasalType as suprBasalType,
         HDeviceBasal.SuprRate as suprRate
     FROM HDeviceBasal

@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Lock files (runtime artifacts from DataConfigRegistry)
+*.lock
+
 # Distribution / packaging
 .Python
 build/
@@ -61,10 +64,33 @@ src/data/diabetes_datasets/**/processed/*
 scripts/notebooks/**/*.csv
 trained_models/artifacts/*
 
+
+# Ignore sensative Groo files
+docs-internal/notebooks/0.04-cjr-gluroo_full_data_eda.ipynb
+
+
+models/*
+scripts/notebooks/AutogluonModels*
+cache/data/gluroo/processed/parquet/*
+
+
 scripts/watgpu_slurm/data_processing_scripts/results/
 
 # Cache directory (symlinked to shared location)
 cache
+cache/**/*.csv
+cache/**/*.txt
+cache/**/*.json
+cache/**/*.pkl
+cache/data/brown_2019/*
+cache/data/lynch_2022/*
+cache/data/tamborlane_2008/*
+cache/data/aleppo_2017/*
+cache/data/colas_2019/*
+cache/data/hall_2018/*
+
+# Permissive for the cached data
+!cache/data/kaggle_brisT1D/processed/train/train.csv
 
 
 
@@ -145,6 +171,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venvs/
 .noctprob-venv/
 env/
 venv/
