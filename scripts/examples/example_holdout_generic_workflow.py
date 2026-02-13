@@ -1080,7 +1080,7 @@ def step2_validate_holdout_configs(datasets: list, config_dir: str) -> bool:
         logger.info(f"✓ Config loaded: {config.holdout_type.value}")
         if config.temporal_config:
             logger.info(
-                f"  Temporal holdout: {config.temporal_config.holdout_percentage*100}%"
+                f"  Temporal holdout: {config.temporal_config.holdout_percentage * 100}%"
             )
         if config.patient_config:
             logger.info(
@@ -1433,7 +1433,7 @@ def step5_train_model(
         model_path.parent.mkdir(parents=True, exist_ok=True)
         model.save(str(model_path))
         logger.info(f"✓ Model saved to: {model_path}")
-        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024 * 1024):.2f} MB")
 
         # Evaluate and plot after training
         _evaluate_and_plot(
@@ -1490,7 +1490,7 @@ def step6_load_checkpoint(
         return None
     else:
         logger.info(f"✓ Model file found: {model_path}")
-        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024 * 1024):.2f} MB")
 
     try:
         # Load using the class method
@@ -1593,7 +1593,7 @@ def step7_resume_training(
         model_path = resumed_output_dir / "resumed_model.pt"
         model.save(str(model_path))
         logger.info(f"✓ Resumed model saved to: {model_path}")
-        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024 * 1024):.2f} MB")
 
         # Evaluate and plot after resumed training
         _evaluate_and_plot(

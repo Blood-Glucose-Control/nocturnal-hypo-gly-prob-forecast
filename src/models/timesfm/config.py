@@ -78,11 +78,15 @@ class TimesFMConfig(ModelConfig):
     learning_rate: float = 1e-5
     weight_decay: float = 0.01
     freq_type: int = 0  # Sampling frequency: 0=high (5-min CGM)
-    train_split: float = 0.8  # Train/val split within training data (holdout is separate)
+    train_split: float = (
+        0.8  # Train/val split within training data (holdout is separate)
+    )
     use_lora: bool = False
 
     # Finetuning data sampling parameters (for faster training)
-    window_stride: Optional[int] = None  # Stride between windows. None=horizon_length (non-overlapping)
+    window_stride: Optional[int] = (
+        None  # Stride between windows. None=horizon_length (non-overlapping)
+    )
     max_train_windows: int = 50000
     max_val_windows: int = 10000
 

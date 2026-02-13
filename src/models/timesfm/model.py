@@ -77,7 +77,9 @@ class TimesFMDataset(Dataset):
         if self.max_samples is not None and len(all_indices) > self.max_samples:
             # Uniformly sample indices to maintain temporal distribution
             step = len(all_indices) / self.max_samples
-            selected_indices = [all_indices[int(i * step)] for i in range(self.max_samples)]
+            selected_indices = [
+                all_indices[int(i * step)] for i in range(self.max_samples)
+            ]
             all_indices = selected_indices
 
         for start_idx in all_indices:
@@ -242,9 +244,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         total_len = cl + hl
 
         # Detect patient column
-        patient_col = next(
-            (c for c in ["p_num", "id"] if c in test_data.columns), None
-        )
+        patient_col = next((c for c in ["p_num", "id"] if c in test_data.columns), None)
 
         # Collect (context, target) windows across all patients
         context_windows: List[List[float]] = []
@@ -284,15 +284,11 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 f"{total_len} contiguous non-NaN bg_mM values per patient."
             )
 
-        info_print(
-            f"Evaluating {num_windows} windows across {num_patients} patient(s)"
-        )
+        info_print(f"Evaluating {num_windows} windows across {num_patients} patient(s)")
 
         # Batch forecast all windows at once
         freq_list = [0] * num_windows
-        point_forecast, _ = self.model.forecast(
-            inputs=context_windows, freq=freq_list
-        )
+        point_forecast, _ = self.model.forecast(inputs=context_windows, freq=freq_list)
 
         # Collect predictions
         all_preds = []
@@ -326,9 +322,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
             cuda_available = torch.cuda.is_available()
             self.device = (
-                "cuda"
-                if cuda_available and not self.config.use_cpu
-                else "cpu"
+                "cuda" if cuda_available and not self.config.use_cpu else "cpu"
             )
             info_print(f"Selected device: {self.device}")
 
@@ -338,7 +332,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                     "Install with: pip install timesfm==1.3.0"
                 )
 
-            checkpoint = self.config.checkpoint_path or "google/timesfm-2.0-500m-pytorch"
+            checkpoint = (
+                self.config.checkpoint_path or "google/timesfm-2.0-500m-pytorch"
+            )
             info_print(f"Loading TimesFM from: {checkpoint}")
 
             # Determine backend
@@ -398,7 +394,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 raise ValueError("DataFrame must contain 'bg_mM' column")
             series = train_data["bg_mM"].dropna().values
         else:
-            raise ValueError(f"train_data must be DataFrame or dict, got {type(train_data)}")
+            raise ValueError(
+                f"train_data must be DataFrame or dict, got {type(train_data)}"
+            )
 
         series = series.astype(np.float32)
         info_print(f"Total samples: {len(series):,}")
@@ -408,7 +406,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         train_series = series[:train_size]
         val_series = series[train_size:]
 
-        info_print(f"Train samples: {len(train_series):,}, Val samples: {len(val_series):,}")
+        info_print(
+            f"Train samples: {len(train_series):,}, Val samples: {len(val_series):,}"
+        )
 
         stride = self.config.window_stride or self.config.horizon_length
 
@@ -430,7 +430,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             max_samples=self.config.max_val_windows,
         )
 
-        info_print(f"Train windows: {len(train_dataset):,}, Val windows: {len(val_dataset):,}")
+        info_print(
+            f"Train windows: {len(train_dataset):,}, Val windows: {len(val_dataset):,}"
+        )
 
         # Create DataLoaders
         train_loader = DataLoader(
@@ -495,7 +497,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 internal_model = self.model._model
                 weights_path = os.path.join(output_dir, "timesfm_finetuned.pt")
                 torch.save(internal_model.state_dict(), weights_path)
-                info_print(f"Finetuned weights saved to {weights_path} (PyTorch format)")
+                info_print(
+                    f"Finetuned weights saved to {weights_path} (PyTorch format)"
+                )
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load model checkpoint.
@@ -523,7 +527,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
             if is_finetuned:
                 # Try to load finetuned weights
-                safetensors_path = os.path.join(model_dir, "timesfm_finetuned.safetensors")
+                safetensors_path = os.path.join(
+                    model_dir, "timesfm_finetuned.safetensors"
+                )
                 pytorch_path = os.path.join(model_dir, "timesfm_finetuned.pt")
 
                 if os.path.exists(safetensors_path):
@@ -548,7 +554,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                     error_print(
                         f"Config indicates finetuned model but no weights found in {model_dir}"
                     )
-                    raise FileNotFoundError(f"No finetuned weights found in {model_dir}")
+                    raise FileNotFoundError(
+                        f"No finetuned weights found in {model_dir}"
+                    )
         else:
             info_print(f"No TimesFM config found at {model_dir}, using default config")
 
@@ -591,7 +599,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 raise ValueError("DataFrame must contain 'bg_mM' column")
             series = train_data["bg_mM"].dropna().values
         else:
-            raise ValueError(f"train_data must be DataFrame or dict, got {type(train_data)}")
+            raise ValueError(
+                f"train_data must be DataFrame or dict, got {type(train_data)}"
+            )
 
         series = series.astype(np.float32)
         info_print(f"Total samples: {len(series):,}")
@@ -604,7 +614,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         # Determine stride (default to horizon_length for non-overlapping windows)
         stride = self.config.window_stride or self.config.horizon_length
-        info_print(f"Window stride: {stride} (horizon_length={self.config.horizon_length})")
+        info_print(
+            f"Window stride: {stride} (horizon_length={self.config.horizon_length})"
+        )
         info_print(f"Max train windows: {self.config.max_train_windows:,}")
         info_print(f"Max val windows: {self.config.max_val_windows:,}")
 
@@ -627,7 +639,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             max_samples=self.config.max_val_windows,
         )
 
-        info_print(f"Train dataset: {len(train_dataset):,} windows (capped from stride)")
+        info_print(
+            f"Train dataset: {len(train_dataset):,} windows (capped from stride)"
+        )
         info_print(f"Val dataset: {len(val_dataset):,} windows (capped from stride)")
 
         # Configure finetuning
@@ -657,7 +671,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         # Run finetuning
         info_print(f"Training for {self.config.num_epochs} epochs...")
-        info_print(f"Batch size: {self.config.batch_size}, LR: {self.config.learning_rate}")
+        info_print(
+            f"Batch size: {self.config.batch_size}, LR: {self.config.learning_rate}"
+        )
 
         results = finetuner.finetune(
             train_dataset=train_dataset,
