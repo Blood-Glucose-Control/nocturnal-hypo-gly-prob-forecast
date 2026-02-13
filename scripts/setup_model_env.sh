@@ -9,7 +9,7 @@
 #   source scripts/setup_model_env.sh sundial
 #
 # Available models (defined as optional deps in pyproject.toml):
-#   ttm, sundial
+#   ttm, sundial, timesfm
 
 MODEL="${1:?Usage: source scripts/setup_model_env.sh <model>}"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Error: Must be run from within a git repository"; return 1 2>/dev/null || exit 1; }
