@@ -16,6 +16,19 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Error: Must 
 VENVS_DIR="${REPO_ROOT}/.venvs"
 VENV_PATH="${VENVS_DIR}/${MODEL}"
 
+# Find Python 3.12 (required for package compatibility)
+if command -v python3.12 &>/dev/null; then
+    PYTHON_CMD="python3.12"
+elif [ -x "${REPO_ROOT}/.noctprob-venv/bin/python" ]; then
+    PYTHON_CMD="${REPO_ROOT}/.noctprob-venv/bin/python"
+else
+    echo "Error: Python 3.12 not found."
+    echo "Install python3.12 or ensure .noctprob-venv exists with Python 3.12"
+    return 1 2>/dev/null || exit 1
+fi
+
+echo "Using Python: ${PYTHON_CMD} ($(${PYTHON_CMD} --version 2>&1))"
+
 # Validate model name exists in pyproject.toml [project.optional-dependencies]
 OPT_DEPS=$(sed -n '/^\[project.optional-dependencies\]/,/^\[/p' "${REPO_ROOT}/pyproject.toml" 2>/dev/null | tail -n +2)
 if ! echo "${OPT_DEPS}" | grep -qF "${MODEL} = ["; then
@@ -27,21 +40,41 @@ fi
 
 if [ ! -d "${VENV_PATH}" ]; then
     echo "Creating new venv for '${MODEL}' at ${VENV_PATH}..."
-    if ! python3 -m venv "${VENV_PATH}"; then
+
+    # Try venv first, fall back to virtualenv if ensurepip not available
+    if ${PYTHON_CMD} -m venv "${VENV_PATH}" 2>/dev/null; then
+        echo "Created environment using venv"
+    elif command -v virtualenv &>/dev/null; then
+        echo "venv failed (python3-venv not installed), using virtualenv..."
+        virtualenv -p "${PYTHON_CMD}" "${VENV_PATH}" || {
+            echo "Error: Failed to create virtual environment with virtualenv"
+            return 1 2>/dev/null || exit 1
+        }
+    else
         echo "Error: Failed to create virtual environment."
-        echo "You may need to install python3-venv:"
-        echo "  apt install python3.12-venv  (or your Python version)"
+        echo "venv requires python3-venv package, and virtualenv is not installed."
         echo ""
-        echo "Alternative: Install into your existing environment:"
-        echo "  source .noctprob-venv/bin/activate && pip install -e '.[${MODEL}]'"
+        echo "Options:"
+        echo "  1. Install virtualenv: pip install virtualenv"
+        echo "  2. Ask admin to install: sudo apt install python3.12-venv"
+        echo "  3. Use conda: conda create -n ${MODEL} python=3.12 && conda activate ${MODEL} && pip install -e '.[${MODEL}]'"
         return 1 2>/dev/null || exit 1
     fi
+
     source "${VENV_PATH}/bin/activate"
     pip install --upgrade pip
     echo "Installing project with [${MODEL}] dependencies..."
     pip install -e ".[${MODEL}]" || { echo "Error: Failed to install dependencies"; return 1 2>/dev/null || exit 1; }
     echo ""
     echo "Done! Environment '${MODEL}' is ready and activated."
+elif [ ! -f "${VENV_PATH}/bin/activate" ]; then
+    # Directory exists but is broken (no activate script)
+    echo "Warning: Found broken venv at ${VENV_PATH} (missing activate script)"
+    echo "Removing and recreating..."
+    rm -rf "${VENV_PATH}"
+    # Re-run this script to create fresh
+    source "${REPO_ROOT}/scripts/setup_model_env.sh" "${MODEL}"
+    return $? 2>/dev/null || exit $?
 else
     source "${VENV_PATH}/bin/activate"
     echo "Activated existing '${MODEL}' environment."

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
-End-to-end example: Holdout system with GENERIC model training and evaluation.
+End-to-end example: Holdout system with GENERIC model training.
 
-This script demonstrates a complete workflow that can work with different
-time series foundation models (TTM, Chronos, Moment, etc.) by using the
+This script demonstrates a complete training workflow that can work with different
+time series foundation models (TTM, Chronos, Moment, Sundial, etc.) by using the
 base class interfaces.
+
+For evaluation after training, use the dedicated holdout_eval.py script which
+provides model-agnostic evaluation with standardized benchmarking.
 
 This is a refactored version of example_holdout_ttm_workflow.py that:
 - Supports multiple model types via --model-type argument
@@ -19,7 +22,6 @@ Workflow Steps:
   5. Fine-tune model for specified epochs
   6. Load model from checkpoint (verify save/load works)
   7. Resume training on loaded model
-  8. Full holdout evaluation on all datasets
 
 Usage:
     # Run with default settings (TTM model)
@@ -27,6 +29,9 @@ Usage:
 
     # Run with specific model type
     python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 aleppo_2017
+
+    # Run with Sundial (zero-shot only, no training support yet)
+    python scripts/examples/example_holdout_generic_workflow.py --model-type sundial --datasets lynch_2022 --skip-training
 
     # Skip training (only zero-shot evaluation)
     python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 --skip-training
@@ -162,7 +167,7 @@ class ModelFactory:
             "ttm": "ibm-granite/granite-timeseries-ttm-r2",
             "chronos": "amazon/chronos-t5-small",
             "moment": "AutonLab/MOMENT-1-small",
-            # Add more defaults as models are implemented
+            "sundial": "thuml/sundial-base-128m",
         }
         return defaults.get(model_type, "")
 
@@ -191,10 +196,12 @@ class ModelFactory:
             return ModelFactory._create_chronos_model(config, distributed_config)
         elif model_type == "moment":
             return ModelFactory._create_moment_model(config, distributed_config)
+        elif model_type == "sundial":
+            return ModelFactory._create_sundial_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, moment"
+                f"Supported types: ttm, chronos, moment, sundial"
             )
 
     @staticmethod
@@ -279,6 +286,24 @@ class ModelFactory:
             raise ImportError(
                 f"MOMENT model not available. Install moment dependencies: {e}"
             )
+
+    @staticmethod
+    def _create_sundial_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a Sundial model instance."""
+        from src.models.sundial import SundialForecaster, SundialConfig
+
+        sundial_config = SundialConfig(
+            context_length=config.context_length,
+            forecast_length=config.forecast_length,
+            num_samples=config.extra_config.get("num_samples", 100)
+            if config.extra_config
+            else 100,
+        )
+
+        return SundialForecaster(sundial_config, distributed_config=distributed_config)
 
     @staticmethod
     def create_zero_shot_config(
@@ -1571,97 +1596,6 @@ def step7_resume_training(
         raise
 
 
-def step8_full_holdout_evaluation(
-    model,  # BaseTimeSeriesFoundationModel or compatible
-    dataset_names: list,
-    config_dir: str,
-) -> Dict[str, Any]:
-    """Step 8: Full evaluation on holdout sets for all datasets.
-
-    This performs the comprehensive evaluation using the model's evaluate()
-    method on the complete holdout data for each dataset.
-
-    Args:
-        model: Trained model instance
-        dataset_names: List of dataset names
-        config_dir: Holdout config directory
-
-    Returns:
-        dict: Mapping of dataset names to evaluation results
-    """
-    logger.info(" ")
-    logger.info("=" * 80)
-    logger.info("STEP 8: Full Holdout Evaluation")
-    logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info("=" * 80)
-
-    registry = DatasetRegistry(holdout_config_dir=config_dir)
-    all_results = {}
-
-    for dataset_name in dataset_names:
-        logger.info(f"\n--- Evaluating holdout for: {dataset_name} ---")
-
-        # Load holdout data
-        holdout_data = registry.load_holdout_data_only(dataset_name)
-        logger.info(f"✓ Holdout data loaded: {len(holdout_data):,} samples")
-
-        # Log dataset info
-        if "p_num" in holdout_data.columns or "id" in holdout_data.columns:
-            patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
-            holdout_patients = holdout_data[patient_col].dropna().unique()
-            logger.info(f"  Holdout patients: {len(holdout_patients)}")
-
-        # Pass full holdout data to evaluate() - the model's _prepare_inference_data()
-        # needs id/timestamp columns (p_num, datetime) for ForecastDFDataset.
-        # Only exclude non-feature metadata columns like source_dataset.
-        eval_data = holdout_data.drop(
-            columns=["source_dataset"], errors="ignore"
-        ).copy()
-
-        logger.info(f"  Columns for evaluation: {list(eval_data.columns)}")
-        logger.info(f"  Holdout data shape: {eval_data.shape}")
-
-        # Evaluate using the evaluate() method
-        try:
-            logger.info("  Running evaluation on holdout set...")
-
-            eval_results = model.evaluate(test_data=eval_data)
-
-            logger.info(f"  ✓ Evaluation completed for {dataset_name}")
-            logger.info("  Metrics:")
-
-            # Log all metrics from evaluation
-            for key, value in eval_results.items():
-                if isinstance(value, (int, float)):
-                    logger.info(f"    - {key}: {value:.6f}")
-                else:
-                    logger.info(f"    - {key}: {value}")
-
-            all_results[dataset_name] = eval_results
-
-        except Exception as e:
-            logger.error(f"  ✗ Evaluation failed for {dataset_name}: {e}")
-            traceback.print_exc()
-            all_results[dataset_name] = None
-
-    # Summary
-    logger.info("=" * 80)
-    logger.info("Full Holdout Evaluation Summary")
-    logger.info("=" * 80)
-    for dataset_name, results in all_results.items():
-        if results is not None:
-            # Find primary metric (usually MSE or loss)
-            primary_metric = results.get("eval_loss", results.get("mse", "N/A"))
-            if isinstance(primary_metric, float):
-                logger.info(f"  {dataset_name}: eval_loss = {primary_metric:.6f}")
-            else:
-                logger.info(f"  {dataset_name}: {primary_metric}")
-        else:
-            logger.info(f"  {dataset_name}: FAILED")
-
-    return all_results
-
-
 # =============================================================================
 # MAIN WORKFLOW
 # =============================================================================
@@ -1678,14 +1612,17 @@ Workflow Steps:
   5. Fine-tune model for specified epochs
   6. Load model from checkpoint (verify save/load works)
   7. Resume training on loaded model
-  8. Full holdout evaluation on all datasets
+
+For evaluation after training, use:
+  python scripts/examples/holdout_eval.py --model ttm --dataset <name> --checkpoint <path>
 
 Supported Model Types:
   - ttm: IBM Granite TTM (TinyTimeMixer)
   - chronos: Amazon Chronos
   - moment: AutonLab MOMENT
+  - sundial: THU Sundial (zero-shot only)
 
-Each evaluation phase (4, 5, 6, 7) generates predictions and plots
+Each training phase (4, 5, 6, 7) generates predictions and plots
 stored in separate subdirectories for comparison.
         """,
     )
@@ -1693,7 +1630,7 @@ stored in separate subdirectories for comparison.
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "moment"],
+        choices=["ttm", "chronos", "moment", "sundial"],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(
@@ -1888,15 +1825,6 @@ stored in separate subdirectories for comparison.
                 output_dir=args.output_dir,
                 num_epochs=args.epochs,
             )
-
-        # =====================================================================
-        # STEP 8: Full holdout evaluation on all datasets
-        # =====================================================================
-        step8_full_holdout_evaluation(
-            model=model,
-            dataset_names=args.datasets,
-            config_dir=args.config_dir,
-        )
 
         # =====================================================================
         # WORKFLOW COMPLETE

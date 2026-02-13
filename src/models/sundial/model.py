@@ -70,18 +70,24 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
     def supports_lora(self) -> bool:
         return False
 
-    def predict(self, data: pd.DataFrame, prediction_length: int) -> np.ndarray:
+    def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
         """Make predictions given context data.
+
+        Uses self.config.forecast_length to determine the prediction horizon,
+        following sklearn/PyTorch conventions where model configuration is
+        set at initialization time.
 
         Args:
             data: DataFrame with 'bg_mM' column containing context window
-            prediction_length: Number of steps to forecast
+            **kwargs: Additional options (unused for Sundial zero-shot)
 
         Returns:
-            Forecast as 1D numpy array of length prediction_length
+            Forecast as 1D numpy array of shape (forecast_length,)
         """
         if self.model is None:
             raise ValueError("Model not initialized. Call _initialize_model first.")
+
+        forecast_length = self.config.forecast_length
 
         # Extract BG values from DataFrame
         bg_col = "bg_mM"
@@ -96,9 +102,9 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         with torch.no_grad():
             samples = self.model.generate(
                 seqs,
-                max_new_tokens=prediction_length,
+                max_new_tokens=forecast_length,
                 num_samples=self.config.num_samples,
-            )  # shape: (1, num_samples, prediction_length)
+            )  # shape: (1, num_samples, forecast_length)
 
         samples = samples.cpu().numpy()[0]  # (num_samples, prediction_length)
 

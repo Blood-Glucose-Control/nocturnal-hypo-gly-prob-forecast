@@ -1,0 +1,61 @@
+{
+  "model": "sundial",
+  "mode": "zero-shot",
+  "checkpoint": null,
+  "dataset": "lynch_2022",
+  "timestamp": "2026-02-13T01:14:45.290892",
+  "config": {
+    "config_file": "configs/models/sundial/base.yaml",
+    "context_length": 512,
+    "forecast_length": 96,
+    "num_samples": 100
+  },
+  "overall": {
+    "rmse": 3.2135879442517896,
+    "mae": 2.2134524817102483,
+    "mape": 23.918272704346844,
+    "mse": 10.327147475440443
+  },
+  "per_patient": [
+    {
+      "patient": "lynch_47",
+      "episodes": 1,
+      "mse": 5.763226194509406,
+      "rmse": 2.400672029767791,
+      "mae": 1.966809213558833,
+      "mape": 26.25022078757896
+    },
+    {
+      "patient": "lynch_280",
+      "episodes": 1,
+      "mse": 54.98343577326975,
+      "rmse": 7.415081643061643,
+      "mae": 5.865444526672363,
+      "mape": 52.03250467415125
+    },
+    {
+      "patient": "lynch_261",
+      "episodes": 8,
+      "mse": 5.689163857416875,
+      "rmse": 2.385196817333294,
+      "mae": 1.7515833302090564,
+      "mape": 21.624403840515352
+    },
+    {
+      "patient": "lynch_113",
+      "episodes": 1,
+      "mse": 11.569935792935766,
+      "rmse": 3.4014608321919226,
+      "mae": 2.760304909944535,
+      "mape": 19.512321196478503
+    },
+    {
+      "patient": "lynch_593",
+      "episodes": 1,
+      "mse": 6.095861085235401,
+      "rmse": 2.4689797660643964,
+      "mae": 1.9562044886747998,
+      "mape": 16.228995069830596
+    }
+  ]
+}

@@ -7,8 +7,8 @@ Uses fixed-size episodes (context_length + forecast_length) for consistent
 evaluation across all models.
 
 Usage:
-    python scripts/examples/holdout_eval.py --model sundial --dataset kaggle_brisT1D
-    python scripts/examples/holdout_eval.py --model ttm --dataset kaggle_brisT1D
+    python scripts/examples/holdout_eval.py --model sundial --dataset brown_2019
+    python scripts/examples/holdout_eval.py --model ttm --dataset brown_2019
     python scripts/examples/holdout_eval.py --model sundial --context-length 512 --forecast-length 72
     python scripts/examples/holdout_eval.py --model sundial --model-config configs/models/sundial.yaml
     python scripts/examples/holdout_eval.py --model sundial --checkpoint path/to/checkpoint
@@ -17,6 +17,8 @@ Usage:
 import argparse
 import json
 import logging
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Tuple, Any, Dict, List
@@ -28,6 +30,7 @@ import yaml
 
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.models.base import BaseTimeSeriesFoundationModel, ModelConfig
+from src.evaluation.metrics import compute_regression_metrics
 
 # Constants
 SAMPLING_INTERVAL_MINUTES = 5
@@ -69,16 +72,34 @@ def create_model_and_config(
         Tuple of (model, config)
     """
     if model_type == "sundial":
-        ####### An example of what this could look like for Sundial #######
-        # from src.models.sundial import SundialForecaster, SundialConfig
-        # config = SundialConfig(
-        #     num_samples=kwargs.get("num_samples", 100)
-        # )
-        # model = SundialForecaster(config)
-        # if checkpoint:
-        #     model._load_checkpoint(checkpoint)
-        # return model, config
-        raise NotImplementedError("Sundial model not yet implemented")
+        from src.models.sundial import SundialForecaster, SundialConfig
+
+        config = SundialConfig(
+            forecast_length=kwargs.get("forecast_length", 72),
+            num_samples=kwargs.get("num_samples", 100),
+        )
+        model = SundialForecaster(config)
+        if checkpoint:
+            model._load_checkpoint(checkpoint)
+        return model, config
+
+    elif model_type == "ttm":
+        from src.models.ttm import TTMForecaster, TTMConfig
+
+        config = TTMConfig(
+            model_path=kwargs.get(
+                "model_path", "ibm-granite/granite-timeseries-ttm-r2"
+            ),
+            context_length=kwargs.get("context_length", 512),
+            forecast_length=kwargs.get("forecast_length", 72),
+            batch_size=kwargs.get("batch_size", 64),
+            training_mode="zero_shot",
+            freeze_backbone=True,
+        )
+        model = TTMForecaster(config)
+        if checkpoint:
+            model._load_checkpoint(checkpoint)
+        return model, config
 
     elif model_type == "chronos":
         raise NotImplementedError("Chronos model not yet implemented")
@@ -88,7 +109,8 @@ def create_model_and_config(
 
     else:
         raise ValueError(
-            f"Unknown model type: {model_type}. " f"Available: sundial, chronos, moirai"
+            f"Unknown model type: {model_type}. "
+            f"Available: sundial, ttm, chronos, moirai"
         )
 
 
@@ -117,6 +139,8 @@ def iter_episodes(patient_df: pd.DataFrame, context_length: int, forecast_length
 def compute_metrics(predictions: np.ndarray, targets: np.ndarray) -> Dict[str, float]:
     """Compute evaluation metrics.
 
+    Wrapper around shared metrics utility for backwards compatibility.
+
     Args:
         predictions: Predicted values
         targets: Ground truth values
@@ -124,11 +148,7 @@ def compute_metrics(predictions: np.ndarray, targets: np.ndarray) -> Dict[str, f
     Returns:
         Dictionary with rmse, mae, mape, mse
     """
-    mse = np.mean((predictions - targets) ** 2)
-    rmse = np.sqrt(mse)
-    mae = np.mean(np.abs(predictions - targets))
-    mape = np.mean(np.abs((predictions - targets) / (targets + 1e-8))) * 100
-    return {"rmse": rmse, "mae": mae, "mape": mape, "mse": mse}
+    return compute_regression_metrics(predictions, targets)
 
 
 def compute_weighted_metrics(results: List[Dict[str, Any]]) -> Dict[str, float]:
@@ -280,13 +300,20 @@ def get_patient_column(df: pd.DataFrame) -> str:
 
 
 def setup_output_directory(
-    model_name: str, dataset_name: str, checkpoint: str = None, output_dir: str = None
+    model_name: str,
+    dataset_name: str,
+    context_length: int,
+    forecast_length: int,
+    checkpoint: str = None,
+    output_dir: str = None,
 ) -> Path:
     """Create and return output directory path.
 
     Args:
         model_name: Name of the model
         dataset_name: Name of the dataset
+        context_length: Context window length in steps
+        forecast_length: Forecast horizon in steps
         checkpoint: Optional checkpoint path
         output_dir: Optional custom output directory
 
@@ -297,13 +324,82 @@ def setup_output_directory(
         timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
         mode = "finetuned" if checkpoint else "zeroshot"
         output_dir = (
-            f"./trained_models/artifacts/{model_name}_eval/"
+            f"./experiments/standard_forecasting/"
+            f"{context_length}ctx_{forecast_length}fh/{model_name}/"
             f"{timestamp}_{dataset_name}_{mode}"
         )
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     return output_path
+
+
+def get_git_commit_hash() -> str:
+    """Get the current git commit hash.
+
+    Returns:
+        Short git commit hash, or 'unknown' if not in a git repository
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "unknown"
+
+
+def save_experiment_config(
+    args: argparse.Namespace,
+    model_config: Dict[str, Any],
+    output_path: Path,
+) -> None:
+    """Save experiment configuration for reproducibility.
+
+    Args:
+        args: Parsed command line arguments
+        model_config: Model-specific configuration dictionary
+        output_path: Output directory path
+    """
+    # Build reproducibility command
+    cmd_parts = ["python", "scripts/examples/holdout_eval.py"]
+    cmd_parts.extend(["--model", args.model])
+    cmd_parts.extend(["--dataset", args.dataset])
+    cmd_parts.extend(["--config-dir", args.config_dir])
+    cmd_parts.extend(["--context-length", str(args.context_length)])
+    cmd_parts.extend(["--forecast-length", str(args.forecast_length)])
+    if args.checkpoint:
+        cmd_parts.extend(["--checkpoint", args.checkpoint])
+    if args.model_config:
+        cmd_parts.extend(["--model-config", args.model_config])
+
+    config = {
+        "cli_args": {
+            "model": args.model,
+            "dataset": args.dataset,
+            "config_dir": args.config_dir,
+            "checkpoint": args.checkpoint,
+            "context_length": args.context_length,
+            "forecast_length": args.forecast_length,
+            "model_config": args.model_config,
+            "output_dir": args.output_dir,
+        },
+        "model_config": model_config,
+        "environment": {
+            "git_commit": get_git_commit_hash(),
+            "python_version": sys.version.split()[0],
+            "timestamp": datetime.now().isoformat(),
+        },
+        "reproducibility_command": " ".join(cmd_parts),
+    }
+
+    config_file = output_path / "experiment_configs.json"
+    with open(config_file, "w") as f:
+        json.dump(config, f, indent=2)
+    logger.info(f"Experiment config saved to: {config_file}")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -319,8 +415,8 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="sundial",
-        choices=["sundial", "chronos", "moirai"],
-        help="Model type to use (ttm not yet supported - use example_holdout_ttm_workflow.py)",
+        choices=["sundial", "ttm", "chronos", "moirai"],
+        help="Model type to use for evaluation",
     )
     parser.add_argument(
         "--model-config",
@@ -328,9 +424,7 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="Path to model config YAML file (optional, CLI args override)",
     )
-    parser.add_argument(
-        "--dataset", type=str, default="kaggle_brisT1D", help="Dataset name"
-    )
+    parser.add_argument("--dataset", type=str, default="brown_", help="Dataset name")
     parser.add_argument(
         "--config-dir",
         type=str,
@@ -393,8 +487,8 @@ def evaluate_patient(
         if np.isnan(context_values).any() or np.isnan(target).any():
             continue
 
-        # Predict using unified interface
-        pred = model.predict(context_df, forecast_length)
+        # Predict using unified interface (forecast_length is set in model config)
+        pred = model.predict(context_df)
         patient_preds.append(pred)
         patient_targets.append(target)
 
@@ -425,7 +519,7 @@ def evaluate_patient(
     }
 
     logger.info(
-        f"  {patient_id}: RMSE={metrics['rmse']:.3f}, "
+        f" Pid {patient_id}: RMSE={metrics['rmse']:.3f}, "
         f"MAE={metrics['mae']:.3f} ({len(patient_preds)} episodes)"
     )
 
@@ -458,13 +552,18 @@ def save_results(
 def main():
     args = parse_arguments()
 
-    # Setup output directory
-    output_path = setup_output_directory(
-        args.model, args.dataset, args.checkpoint, args.output_dir
-    )
-
     context_length = args.context_length
     forecast_length = args.forecast_length
+
+    # Setup output directory
+    output_path = setup_output_directory(
+        args.model,
+        args.dataset,
+        context_length,
+        forecast_length,
+        args.checkpoint,
+        args.output_dir,
+    )
 
     # Log configuration
     logger.info("=" * 60)
@@ -500,9 +599,19 @@ def main():
     logger.info(f"\n--- Initializing {args.model.upper()} ---")
     if args.model_config:
         logger.info(f"Model config file: {args.model_config}")
+
+    # CLI args override config file values
+    model_kwargs = {
+        **config_dict,
+        "context_length": context_length,
+        "forecast_length": forecast_length,
+    }
     model, _ = create_model_and_config(
-        args.model, checkpoint=args.checkpoint, **config_dict
+        args.model, checkpoint=args.checkpoint, **model_kwargs
     )
+
+    # Save experiment configuration for reproducibility
+    save_experiment_config(args, model_kwargs, output_path)
 
     # Evaluate each patient
     logger.info("\n--- Running Evaluation ---")
@@ -533,7 +642,8 @@ def main():
 
     if overall:
         total_episodes = sum(r["episodes"] for r in all_results)
-        logger.info("\n" + "=" * 60)
+        logger.info("\n")
+        logger.info("=" * 60)
         logger.info("OVERALL RESULTS")
         logger.info("=" * 60)
         logger.info(f"RMSE: {overall['rmse']:.3f}")
@@ -549,7 +659,7 @@ def main():
         "dataset": args.dataset,
         "timestamp": datetime.now().isoformat(),
         "config": {
-            "config_file": args.config,
+            "config_file": args.model_config,
             "context_length": context_length,
             "forecast_length": forecast_length,
             **config_dict,
@@ -574,7 +684,8 @@ def main():
             is_finetuned=bool(args.checkpoint),
         )
 
-    logger.info("\n" + "=" * 60)
+    logger.info("\n")
+    logger.info("=" * 60)
     logger.info("EVALUATION COMPLETE")
     logger.info("=" * 60)
 

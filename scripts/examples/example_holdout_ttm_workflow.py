@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-End-to-end example: Holdout system with TTM training and evaluation.
+End-to-end example: Holdout system with TTM training.
 
-This script demonstrates the complete TTMForecaster workflow including:
+This script demonstrates the complete TTMForecaster training workflow including:
 1. Generate holdout configurations
 2. Validate configurations
 3. Load and combine training data from multiple datasets
@@ -10,7 +10,9 @@ This script demonstrates the complete TTMForecaster workflow including:
 5. Fine-tune model for one epoch and evaluate
 6. Load checkpointed model and evaluate (verify save/load works)
 7. Resume training on loaded model and evaluate
-8. Full holdout evaluation on all datasets
+
+For evaluation after training, use the dedicated holdout_eval.py script which
+provides model-agnostic evaluation with standardized benchmarking.
 
 Usage:
     # Run with default settings (combine all 4 datasets, 5% holdout, 1 epoch)
@@ -1091,97 +1093,6 @@ def step7_resume_training(
         raise
 
 
-def step8_full_holdout_evaluation(
-    model: TTMForecaster, dataset_names: list, config_dir: str
-):
-    """Step 8: Full evaluation on holdout sets for all datasets.
-
-    This performs the comprehensive evaluation using Trainer.evaluate()
-    on the complete holdout data for each dataset.
-
-    Args:
-        model: Trained TTM model
-        dataset_names: List of dataset names
-        config_dir: Holdout config directory
-
-    Returns:
-        dict: Mapping of dataset names to evaluation results
-    """
-    logger.info(" ")
-    logger.info("=" * 80)
-    logger.info("STEP 8: Full Holdout Evaluation")
-    logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info("=" * 80)
-
-    registry = DatasetRegistry(holdout_config_dir=config_dir)
-    all_results = {}
-
-    for dataset_name in dataset_names:
-        logger.info(f"\n--- Evaluating holdout for: {dataset_name} ---")
-
-        # Load holdout data
-        holdout_data = registry.load_holdout_data_only(dataset_name)
-        logger.info(f"✓ Holdout data loaded: {len(holdout_data):,} samples")
-
-        # Log dataset info
-        if "p_num" in holdout_data.columns or "id" in holdout_data.columns:
-            patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
-            holdout_patients = holdout_data[patient_col].unique()
-            logger.info(f"  Holdout patients: {len(holdout_patients)}")
-
-        # Pass full holdout data to evaluate() - the model's _prepare_inference_data()
-        # needs id/timestamp columns (p_num, datetime) for ForecastDFDataset.
-        # Only exclude non-feature metadata columns like source_dataset.
-        eval_data = holdout_data.drop(
-            columns=["source_dataset"], errors="ignore"
-        ).copy()
-
-        logger.info(f"  Columns for evaluation: {list(eval_data.columns)}")
-        logger.info(f"  Holdout data shape: {eval_data.shape}")
-
-        # Evaluate using the evaluate() method
-        try:
-            logger.info("  Running evaluation on holdout set...")
-
-            eval_results = model.evaluate(test_data=eval_data)
-
-            logger.info(f"  ✓ Evaluation completed for {dataset_name}")
-            logger.info("  Metrics:")
-
-            # Log all metrics from evaluation
-            for key, value in eval_results.items():
-                if isinstance(value, (int, float)):
-                    logger.info(f"    - {key}: {value:.6f}")
-                else:
-                    logger.info(f"    - {key}: {value}")
-
-            all_results[dataset_name] = eval_results
-
-        except Exception as e:
-            logger.error(f"  ✗ Evaluation failed for {dataset_name}: {e}")
-            import traceback
-
-            traceback.print_exc()
-            all_results[dataset_name] = None
-
-    # Summary
-    logger.info("\n" + "=" * 80)
-    logger.info("Full Holdout Evaluation Summary")
-    logger.info("=" * 80)
-    for dataset_name, results in all_results.items():
-        if results is not None:
-            # Find primary metric (usually MSE or loss)
-            primary_metric = results.get("eval_loss", results.get("mse", "N/A"))
-            if isinstance(primary_metric, float):
-                logger.info(f"  {dataset_name}: eval_loss = {primary_metric:.6f}")
-            else:
-                logger.info(f"  {dataset_name}: {primary_metric}")
-        else:
-            logger.info(f"  {dataset_name}: FAILED")
-
-    return all_results
-
-
 # =============================================================================
 # MAIN WORKFLOW
 # =============================================================================
@@ -1358,15 +1269,6 @@ stored in separate subdirectories for comparison.
                 output_dir=args.output_dir,
                 num_epochs=args.epochs,
             )
-
-        # =====================================================================
-        # STEP 8: Full holdout evaluation on all datasets
-        # =====================================================================
-        step8_full_holdout_evaluation(
-            model=model,
-            dataset_names=args.datasets,
-            config_dir=args.config_dir,
-        )
 
         # =====================================================================
         # WORKFLOW COMPLETE
