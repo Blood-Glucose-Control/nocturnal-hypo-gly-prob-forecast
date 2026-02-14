@@ -21,7 +21,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple, Any, Dict, List
+from typing import Optional, Tuple, Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -59,7 +59,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
 
 
 def create_model_and_config(
-    model_type: str, checkpoint: str = None, **kwargs
+    model_type: str, checkpoint: Optional[str] = None, **kwargs
 ) -> Tuple[BaseTimeSeriesFoundationModel, ModelConfig]:
     """Factory function to create model and config based on type.
 
@@ -304,8 +304,8 @@ def setup_output_directory(
     dataset_name: str,
     context_length: int,
     forecast_length: int,
-    checkpoint: str = None,
-    output_dir: str = None,
+    checkpoint: Optional[str] = None,
+    output_dir: Optional[str] = None,
 ) -> Path:
     """Create and return output directory path.
 
@@ -424,7 +424,9 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="Path to model config YAML file (optional, CLI args override)",
     )
-    parser.add_argument("--dataset", type=str, default="brown_", help="Dataset name")
+    parser.add_argument(
+        "--dataset", type=str, default="brown_2019", help="Dataset name"
+    )
     parser.add_argument(
         "--config-dir",
         type=str,
@@ -460,7 +462,7 @@ def evaluate_patient(
     context_length: int,
     forecast_length: int,
     collect_examples: bool = False,
-) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
     """Evaluate model on a single patient's data.
 
     Args:

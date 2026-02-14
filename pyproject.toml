@@ -59,8 +59,8 @@ dependencies = [
 
 [project.optional-dependencies]
 ttm = [
-    "granite-tsfm[notebooks] @ git+https://github.com/ibm-granite/granite-tsfm.git@v0.2.22",
-    "transformers",
+    "granite-tsfm[notebooks] @ git+https://github.com/ibm-granite/granite-tsfm.git@v0.3.3",
+    "transformers[torch]==4.56.0",
 ]
 sundial = [
     "transformers==4.40.1",

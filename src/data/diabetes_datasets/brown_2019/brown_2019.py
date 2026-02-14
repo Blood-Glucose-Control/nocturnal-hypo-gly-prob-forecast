@@ -72,7 +72,7 @@ def _process_single_patient(args: tuple) -> tuple[str, pd.DataFrame]:
             f"Patient {patient_id} preprocessing failed: {e}. Using cleaned data."
         )
 
-    return str(int(patient_id)), patient_df
+    return str(patient_id), patient_df
 
 
 class Brown2019DataLoader(DatasetBase):

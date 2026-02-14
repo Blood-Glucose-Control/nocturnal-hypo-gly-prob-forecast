@@ -10,31 +10,31 @@ temporal_config:
   min_holdout_samples: 608
 patient_config:
   holdout_patients:
-  - '92'
-  - '57'
-  - '42'
-  - '149'
-  - '122'
-  - '14'
-  - '8'
-  - '128'
-  - '45'
-  - '29'
-  - '171'
-  - '95'
-  - '134'
-  - '91'
-  - '107'
-  - '120'
-  - '161'
-  - '93'
-  - '51'
-  - '103'
-  - '27'
-  - '60'
-  - '146'
-  - '86'
-  - '126'
+  - bro_92
+  - bro_57
+  - bro_42
+  - bro_149
+  - bro_122
+  - bro_14
+  - bro_8
+  - bro_128
+  - bro_45
+  - bro_29
+  - bro_171
+  - bro_95
+  - bro_134
+  - bro_91
+  - bro_107
+  - bro_120
+  - bro_161
+  - bro_93
+  - bro_51
+  - bro_103
+  - bro_27
+  - bro_60
+  - bro_146
+  - bro_86
+  - bro_126
   holdout_percentage: 0.15
   min_train_patients: 10
   min_holdout_patients: 20

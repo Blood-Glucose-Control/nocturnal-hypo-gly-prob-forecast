@@ -9,6 +9,8 @@ import logging
 import pandas as pd
 from typing import Dict, Tuple, Any
 
+from src.data.utils.patient_id import format_patient_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -82,12 +84,14 @@ def clean_tamborlane_2008_data(df: pd.DataFrame) -> pd.DataFrame:
             data["date"].astype(str) + " " + data["time"].astype(str), errors="coerce"
         )
 
-    # Ensure patient ID column exists and is string type
+    # Ensure patient ID column exists and apply standardized format: tam_###
     if "p_num" in data.columns:
-        data["p_num"] = data["p_num"].astype(str)
+        data["p_num"] = data["p_num"].apply(
+            lambda x: format_patient_id("tamborlane_2008", x)
+        )
     else:
         logger.warning("No patient ID column found, will assign generic ID")
-        data["p_num"] = "patient_001"
+        data["p_num"] = "tam_001"
 
     # Convert glucose from mg/dL to mmol/L for consistency
     if "bg_mg_dl" in data.columns:

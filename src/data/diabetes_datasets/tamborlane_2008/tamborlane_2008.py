@@ -331,6 +331,11 @@ class Tamborlane2008DataLoader(DatasetBase):
         # Determine the raw data path
         if self.raw_data_path:
             raw_data_path = self.raw_data_path
+        elif self.cache_manager:
+            # Use cache manager to get the proper path
+            raw_data_path = self.cache_manager.get_absolute_path_by_type(
+                self.dataset_name, "raw"
+            )
         else:
             # Try default cache location
             raw_data_path = Path("cache/data/tamborlane_2008/raw")
