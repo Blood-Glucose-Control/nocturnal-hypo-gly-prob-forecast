@@ -10,28 +10,28 @@ temporal_config:
   min_holdout_samples: 10
 patient_config:
   holdout_patients:
-  - '142'
-  - '431'
-  - '98'
-  - '134'
-  - '94'
-  - '428'
-  - '42'
-  - '92'
-  - '239'
-  - '34'
-  - '54'
-  - '291'
-  - '430'
-  - '425'
-  - '81'
-  - '479'
-  - '116'
-  - '238'
-  - '165'
-  - '13'
-  - '379'
-  - '35'
+  - tam_142
+  - tam_431
+  - tam_98
+  - tam_134
+  - tam_94
+  - tam_428
+  - tam_42
+  - tam_92
+  - tam_239
+  - tam_34
+  - tam_54
+  - tam_291
+  - tam_430
+  - tam_425
+  - tam_81
+  - tam_479
+  - tam_116
+  - tam_238
+  - tam_165
+  - tam_13
+  - tam_379
+  - tam_35
   holdout_percentage: null
   min_train_patients: 2
   min_holdout_patients: 1

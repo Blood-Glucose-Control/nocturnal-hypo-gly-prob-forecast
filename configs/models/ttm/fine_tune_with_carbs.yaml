@@ -1,0 +1,55 @@
+# =============================================================================
+# TTM (TinyTimeMixer) - Fine-Tuning with Insulin + Carbs
+# =============================================================================
+# Fine-tuning configuration that includes both insulin and carbohydrate features.
+# Use with datasets that have carb data: lynch_2022, aleppo_2017
+#
+# Usage:
+#   MODEL_TYPE="ttm" \
+#   MODEL_CONFIG="configs/models/ttm/fine_tune_with_carbs.yaml" \
+#   DATASETS="lynch_2022 aleppo_2017" \
+#   SKIP_TRAINING="false" \
+#   ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+model_path: "ibm-granite/granite-timeseries-ttm-r2"
+context_length: 512
+forecast_length: 96
+
+training_mode: "fine_tune"
+freeze_backbone: false
+learning_rate: 1.0e-4
+batch_size: 8192
+num_epochs: 250
+warmup_steps: 1000
+weight_decay: 0.01
+
+# Insulin features
+#   - iob: Insulin on board (estimated active insulin)
+#   - insulin_availability: Rate of insulin becoming available
+# Carb features
+#   - cob: Carbs on board (estimated undigested carbs)
+#   - carb_availability: Rate of carbs becoming available
+input_features:
+  - iob
+  - insulin_availability
+  - cob
+  - carb_availability
+
+target_features:
+  - bg_mM
+
+scaler_type: "standard"
+resolution_min: 5
+
+split_config:
+  train: 0.9
+  val: 0.05
+  test: 0.05
+
+# 1 target (bg_mM) + 4 input features = 5 channels
+num_input_channels: 5
+num_output_channels: 1
+
+fp16: true
+loss_function: "mse"

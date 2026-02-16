@@ -398,7 +398,9 @@ class Lynch2022DataLoader(DatasetBase):
 
     def load_raw(self):
         """Load the raw Lynch dataset directly from the SAS tables."""
-        raw_data_path = self.cache_manager.get_raw_data_path(self.dataset_name)
+        raw_data_path = self.cache_manager.get_absolute_path_by_type(
+            self.dataset_name, "raw"
+        )
         sas_base = raw_data_path / "IOBP2 RCT Public Dataset" / "Data Tables in SAS"
 
         if not sas_base.exists():
