@@ -15,7 +15,7 @@ forecast_length: 96
 training_mode: "fine_tune"
 freeze_backbone: false
 learning_rate: 1.0e-4
-batch_size: 8192[]
+batch_size: 8192
 num_epochs: 250
 warmup_steps: 1000
 weight_decay: 0.01

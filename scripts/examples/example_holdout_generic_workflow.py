@@ -1687,14 +1687,14 @@ stored in separate subdirectories for comparison.
     parser.add_argument(
         "--epochs",
         type=int,
-        default=1,
-        help="Number of training epochs per phase (default: 1)",
+        default=None,
+        help="Number of training epochs per phase (default: from YAML config, or 1)",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=2048,
-        help="Batch size for training and inference (default: 2048)",
+        default=None,
+        help="Batch size for training and inference (default: from YAML config, or 2048)",
     )
     parser.add_argument(
         "--model-config",

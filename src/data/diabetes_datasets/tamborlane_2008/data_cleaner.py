@@ -91,7 +91,7 @@ def clean_tamborlane_2008_data(df: pd.DataFrame) -> pd.DataFrame:
         )
     else:
         logger.warning("No patient ID column found, will assign generic ID")
-        data["p_num"] = "tam_001"
+        data["p_num"] = "tam_1"
 
     # Convert glucose from mg/dL to mmol/L for consistency
     if "bg_mg_dl" in data.columns:
