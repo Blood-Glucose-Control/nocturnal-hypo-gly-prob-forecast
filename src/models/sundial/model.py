@@ -18,9 +18,6 @@ from src.models.sundial.config import SundialConfig
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
 from src.utils.logging_helper import info_print, error_print
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 
@@ -45,8 +42,12 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         """Load the Sundial model from HuggingFace."""
         info_print("Initializing Sundial model from thuml/sundial-base-128m...")
 
+        # trust_remote_code required for Sundial's custom generation logic
+        # Pinned to commit 6b0133d (Jan 2025 release) for security and reproducibility
         self.model = AutoModelForCausalLM.from_pretrained(
-            "thuml/sundial-base-128m", trust_remote_code=True
+            "thuml/sundial-base-128m",
+            revision="6b0133d3a7ba9c513ad67993f9227142c4664a42",
+            trust_remote_code=True,
         )
         if self.model is None:
             error_print("Failed to load Sundial model.")
