@@ -14,7 +14,7 @@ import pandas as pd
 
 from src.models.base import BaseTimeSeriesFoundationModel
 from src.evaluation.metrics import compute_regression_metrics
-from src.utils.logging import error_print
+from src.utils.logging_helper import error_print
 
 
 class ModelEvaluator:
