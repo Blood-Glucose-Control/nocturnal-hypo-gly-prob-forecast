@@ -1,0 +1,50 @@
+dataset_name: lynch_2022
+holdout_type: hybrid
+description: 'Hybrid holdout strategy: 10% temporal split + 10% patient holdout. Holdout
+  patients: 34. Fixed seed=42 for reproducibility.'
+created_date: '2026-02-14T01:40:15.790980'
+version: '1.0'
+temporal_config:
+  holdout_percentage: 0.1
+  min_train_samples: 608
+  min_holdout_samples: 608
+patient_config:
+  holdout_patients:
+  - lyn_586
+  - lyn_553
+  - lyn_282
+  - lyn_321
+  - lyn_574
+  - lyn_556
+  - lyn_227
+  - lyn_36
+  - lyn_462
+  - lyn_451
+  - lyn_300
+  - lyn_507
+  - lyn_539
+  - lyn_60
+  - lyn_514
+  - lyn_234
+  - lyn_486
+  - lyn_6
+  - lyn_307
+  - lyn_349
+  - lyn_591
+  - lyn_502
+  - lyn_154
+  - lyn_166
+  - lyn_9
+  - lyn_101
+  - lyn_121
+  - lyn_184
+  - lyn_564
+  - lyn_312
+  - lyn_557
+  - lyn_245
+  - lyn_176
+  - lyn_576
+  holdout_percentage: 0.1
+  min_train_patients: 10
+  min_holdout_patients: 10
+  random_seed: 42

@@ -10,17 +10,17 @@ temporal_config:
   min_holdout_samples: 10
 patient_config:
   holdout_patients:
-  - p140
-  - p33
-  - p203
-  - p288
-  - p277
-  - p73
-  - p74
-  - p41
-  - p164
-  - p135
-  - p39
+  - ale_140
+  - ale_33
+  - ale_203
+  - ale_288
+  - ale_277
+  - ale_73
+  - ale_74
+  - ale_41
+  - ale_164
+  - ale_135
+  - ale_39
   holdout_percentage: null
   min_train_patients: 2
   min_holdout_patients: 1

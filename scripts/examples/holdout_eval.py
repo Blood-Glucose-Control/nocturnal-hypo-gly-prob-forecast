@@ -7,8 +7,8 @@ Uses fixed-size episodes (context_length + forecast_length) for consistent
 evaluation across all models.
 
 Usage:
-    python scripts/examples/holdout_eval.py --model sundial --dataset kaggle_brisT1D
-    python scripts/examples/holdout_eval.py --model ttm --dataset kaggle_brisT1D
+    python scripts/examples/holdout_eval.py --model sundial --dataset brown_2019
+    python scripts/examples/holdout_eval.py --model ttm --dataset brown_2019
     python scripts/examples/holdout_eval.py --model sundial --context-length 512 --forecast-length 72
     python scripts/examples/holdout_eval.py --model sundial --model-config configs/models/sundial.yaml
     python scripts/examples/holdout_eval.py --model sundial --checkpoint path/to/checkpoint
@@ -17,9 +17,12 @@ Usage:
 import argparse
 import json
 import logging
+import os
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple, Any, Dict, List
+from typing import Optional, Tuple, Any, Dict, List
 
 import numpy as np
 import pandas as pd
@@ -28,6 +31,7 @@ import yaml
 
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.models.base import BaseTimeSeriesFoundationModel, ModelConfig
+from src.evaluation.metrics import compute_regression_metrics
 
 # Constants
 SAMPLING_INTERVAL_MINUTES = 5
@@ -36,10 +40,31 @@ HYPO_THRESHOLD_MMOL = 3.9
 DEFAULT_CONTEXT_HOURS_PLOT = 3
 MAX_PLOT_EXAMPLES = 8
 
+# Configure root logger for console output
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+
+def setup_file_logging(output_path: Path) -> Path:
+    """Add file handler to logger for saving logs to output directory.
+
+    Args:
+        output_path: Directory to save log file
+
+    Returns:
+        Path to the log file
+    """
+    log_file = output_path / "evaluation.log"
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    )
+    # Add to root logger so all loggers write to file
+    logging.getLogger().addHandler(file_handler)
+    return log_file
 
 
 def load_config(config_path: str) -> Dict[str, Any]:
@@ -56,7 +81,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
 
 
 def create_model_and_config(
-    model_type: str, checkpoint: str = None, **kwargs
+    model_type: str, checkpoint: Optional[str] = None, **kwargs
 ) -> Tuple[BaseTimeSeriesFoundationModel, ModelConfig]:
     """Factory function to create model and config based on type.
 
@@ -67,18 +92,143 @@ def create_model_and_config(
 
     Returns:
         Tuple of (model, config)
+
+    Note:
+        When checkpoint is provided, the saved config is used as base.
+        CLI overrides are validated:
+        - batch_size: always allowed (inference-only setting)
+        - forecast_length: allowed if <= saved value (truncate predictions)
+        - context_length: must match saved value (affects model architecture)
     """
     if model_type == "sundial":
-        ####### An example of what this could look like for Sundial #######
-        # from src.models.sundial import SundialForecaster, SundialConfig
-        # config = SundialConfig(
-        #     num_samples=kwargs.get("num_samples", 100)
-        # )
-        # model = SundialForecaster(config)
-        # if checkpoint:
-        #     model._load_checkpoint(checkpoint)
-        # return model, config
-        raise NotImplementedError("Sundial model not yet implemented")
+        from src.models.sundial import SundialForecaster, SundialConfig
+
+        if checkpoint:
+            # Load model with saved config
+            model = SundialForecaster.load(checkpoint)
+            config = model.config
+
+            # Apply valid overrides
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = SundialConfig(
+                forecast_length=kwargs.get("forecast_length", 96),
+                num_samples=kwargs.get("num_samples", 100),
+            )
+            model = SundialForecaster(config)
+        return model, config
+
+    elif model_type == "ttm":
+        from src.models.ttm import TTMForecaster, TTMConfig
+        from src.models.base.base_model import ModelConfig
+        import dataclasses
+
+        if checkpoint:
+            # Load config from training_metadata.json (config.json is overwritten by TSFM)
+            metadata_path = os.path.join(checkpoint, "training_metadata.json")
+            if os.path.exists(metadata_path):
+                with open(metadata_path, "r") as f:
+                    metadata = json.load(f)
+                saved_config = metadata.get("config", {})
+            else:
+                logger.warning(
+                    f"No training_metadata.json found in {checkpoint}, using defaults"
+                )
+                saved_config = {}
+
+            # Get valid field names from ModelConfig (TTMConfig uses **kwargs)
+            base_fields = {f.name for f in dataclasses.fields(ModelConfig)}
+            # TTM-specific fields handled by TTMConfig.__init__
+            ttm_fields = {
+                "scaler_type",
+                "input_features",
+                "target_features",
+                "split_config",
+                "fewshot_percent",
+                "num_input_channels",
+                "num_output_channels",
+                "prediction_filter_length",
+                "resolution_min",
+                "use_tracking_callback",
+                "find_optimal_lr",
+                "logging_dir",
+            }
+            valid_fields = base_fields | ttm_fields | {"model_path", "training_mode"}
+
+            # Filter to only known fields
+            filtered_config = {
+                k: v for k, v in saved_config.items() if k in valid_fields
+            }
+            filtered_config["model_path"] = (
+                checkpoint  # Override to load from checkpoint
+            )
+            filtered_config["training_mode"] = "fine_tune"
+
+            # Log any ignored fields
+            ignored = set(saved_config.keys()) - valid_fields
+            if ignored:
+                logger.debug(
+                    f"Ignoring unknown config fields from checkpoint: {ignored}"
+                )
+
+            config = TTMConfig(**filtered_config)
+
+            # Apply valid overrides
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+
+            if "context_length" in kwargs:
+                requested = kwargs["context_length"]
+                if requested != config.context_length:
+                    logger.warning(
+                        f"context_length mismatch: requested {requested}, "
+                        f"model trained with {config.context_length}. "
+                        f"Using saved value."
+                    )
+
+            # Create model with config and load checkpoint
+            model = TTMForecaster(config)
+            model._load_checkpoint(checkpoint)
+            model.is_fitted = True
+        else:
+            config = TTMConfig(
+                model_path=kwargs.get(
+                    "model_path", "ibm-granite/granite-timeseries-ttm-r2"
+                ),
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                batch_size=kwargs.get("batch_size", 256),
+                training_mode="zero_shot",
+                freeze_backbone=True,
+            )
+            model = TTMForecaster(config)
+        return model, config
 
     elif model_type == "chronos":
         raise NotImplementedError("Chronos model not yet implemented")
@@ -88,7 +238,8 @@ def create_model_and_config(
 
     else:
         raise ValueError(
-            f"Unknown model type: {model_type}. " f"Available: sundial, chronos, moirai"
+            f"Unknown model type: {model_type}. "
+            f"Available: sundial, ttm, chronos, moirai"
         )
 
 
@@ -117,6 +268,8 @@ def iter_episodes(patient_df: pd.DataFrame, context_length: int, forecast_length
 def compute_metrics(predictions: np.ndarray, targets: np.ndarray) -> Dict[str, float]:
     """Compute evaluation metrics.
 
+    Wrapper around shared metrics utility for backwards compatibility.
+
     Args:
         predictions: Predicted values
         targets: Ground truth values
@@ -124,11 +277,7 @@ def compute_metrics(predictions: np.ndarray, targets: np.ndarray) -> Dict[str, f
     Returns:
         Dictionary with rmse, mae, mape, mse
     """
-    mse = np.mean((predictions - targets) ** 2)
-    rmse = np.sqrt(mse)
-    mae = np.mean(np.abs(predictions - targets))
-    mape = np.mean(np.abs((predictions - targets) / (targets + 1e-8))) * 100
-    return {"rmse": rmse, "mae": mae, "mape": mape, "mse": mse}
+    return compute_regression_metrics(predictions, targets)
 
 
 def compute_weighted_metrics(results: List[Dict[str, Any]]) -> Dict[str, float]:
@@ -280,13 +429,20 @@ def get_patient_column(df: pd.DataFrame) -> str:
 
 
 def setup_output_directory(
-    model_name: str, dataset_name: str, checkpoint: str = None, output_dir: str = None
+    model_name: str,
+    dataset_name: str,
+    context_length: int,
+    forecast_length: int,
+    checkpoint: Optional[str] = None,
+    output_dir: Optional[str] = None,
 ) -> Path:
     """Create and return output directory path.
 
     Args:
         model_name: Name of the model
         dataset_name: Name of the dataset
+        context_length: Context window length in steps
+        forecast_length: Forecast horizon in steps
         checkpoint: Optional checkpoint path
         output_dir: Optional custom output directory
 
@@ -297,13 +453,82 @@ def setup_output_directory(
         timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
         mode = "finetuned" if checkpoint else "zeroshot"
         output_dir = (
-            f"./trained_models/artifacts/{model_name}_eval/"
+            f"./experiments/standard_forecasting/"
+            f"{context_length}ctx_{forecast_length}fh/{model_name}/"
             f"{timestamp}_{dataset_name}_{mode}"
         )
 
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     return output_path
+
+
+def get_git_commit_hash() -> str:
+    """Get the current git commit hash.
+
+    Returns:
+        Short git commit hash, or 'unknown' if not in a git repository
+    """
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return "unknown"
+
+
+def save_experiment_config(
+    args: argparse.Namespace,
+    model_config: Dict[str, Any],
+    output_path: Path,
+) -> None:
+    """Save experiment configuration for reproducibility.
+
+    Args:
+        args: Parsed command line arguments
+        model_config: Model-specific configuration dictionary
+        output_path: Output directory path
+    """
+    # Build reproducibility command
+    cmd_parts = ["python", "scripts/examples/holdout_eval.py"]
+    cmd_parts.extend(["--model", args.model])
+    cmd_parts.extend(["--dataset", args.dataset])
+    cmd_parts.extend(["--config-dir", args.config_dir])
+    cmd_parts.extend(["--context-length", str(args.context_length)])
+    cmd_parts.extend(["--forecast-length", str(args.forecast_length)])
+    if args.checkpoint:
+        cmd_parts.extend(["--checkpoint", args.checkpoint])
+    if args.model_config:
+        cmd_parts.extend(["--model-config", args.model_config])
+
+    config = {
+        "cli_args": {
+            "model": args.model,
+            "dataset": args.dataset,
+            "config_dir": args.config_dir,
+            "checkpoint": args.checkpoint,
+            "context_length": args.context_length,
+            "forecast_length": args.forecast_length,
+            "model_config": args.model_config,
+            "output_dir": args.output_dir,
+        },
+        "model_config": model_config,
+        "environment": {
+            "git_commit": get_git_commit_hash(),
+            "python_version": sys.version.split()[0],
+            "timestamp": datetime.now().isoformat(),
+        },
+        "reproducibility_command": " ".join(cmd_parts),
+    }
+
+    config_file = output_path / "experiment_configs.json"
+    with open(config_file, "w") as f:
+        json.dump(config, f, indent=2)
+    logger.info(f"Experiment config saved to: {config_file}")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -319,8 +544,8 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="sundial",
-        choices=["sundial", "chronos", "moirai"],
-        help="Model type to use (ttm not yet supported - use example_holdout_ttm_workflow.py)",
+        choices=["sundial", "ttm", "chronos", "moirai"],
+        help="Model type to use for evaluation",
     )
     parser.add_argument(
         "--model-config",
@@ -329,7 +554,7 @@ def parse_arguments() -> argparse.Namespace:
         help="Path to model config YAML file (optional, CLI args override)",
     )
     parser.add_argument(
-        "--dataset", type=str, default="kaggle_brisT1D", help="Dataset name"
+        "--dataset", type=str, default="brown_2019", help="Dataset name"
     )
     parser.add_argument(
         "--config-dir",
@@ -347,14 +572,14 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--context-length",
         type=int,
-        default=512,
-        help="Context window length in steps (default: 512)",
+        default=None,
+        help="Context window length in steps (default: from checkpoint or 512)",
     )
     parser.add_argument(
         "--forecast-length",
         type=int,
-        default=72,
-        help="Forecast horizon in steps (default: 72 = 6 hours at 5-min intervals)",
+        default=None,
+        help="Forecast horizon in steps (default: from checkpoint or 96)",
     )
     return parser.parse_args()
 
@@ -366,7 +591,7 @@ def evaluate_patient(
     context_length: int,
     forecast_length: int,
     collect_examples: bool = False,
-) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]]]:
     """Evaluate model on a single patient's data.
 
     Args:
@@ -393,8 +618,18 @@ def evaluate_patient(
         if np.isnan(context_values).any() or np.isnan(target).any():
             continue
 
-        # Predict using unified interface
-        pred = model.predict(context_df, forecast_length)
+        # Predict using unified interface (forecast_length is set in model config)
+        pred = model.predict(context_df)
+
+        # Handle multi-dimensional predictions: (batch, forecast_length, channels)
+        # Extract only the target channel (first channel = bg_mM) and flatten
+        if pred.ndim == 3:
+            # Shape (batch, forecast_length, channels) -> (forecast_length,)
+            pred = pred[0, :, 0]  # First batch, all timesteps, first channel
+        elif pred.ndim == 2:
+            # Shape (batch, forecast_length) -> (forecast_length,)
+            pred = pred.flatten()
+
         patient_preds.append(pred)
         patient_targets.append(target)
 
@@ -425,7 +660,7 @@ def evaluate_patient(
     }
 
     logger.info(
-        f"  {patient_id}: RMSE={metrics['rmse']:.3f}, "
+        f" Pid {patient_id}: RMSE={metrics['rmse']:.3f}, "
         f"MAE={metrics['mae']:.3f} ({len(patient_preds)} episodes)"
     )
 
@@ -458,20 +693,36 @@ def save_results(
 def main():
     args = parse_arguments()
 
-    # Setup output directory
-    output_path = setup_output_directory(
-        args.model, args.dataset, args.checkpoint, args.output_dir
-    )
+    # Load config from file if provided
+    config_dict = load_config(args.model_config) if args.model_config else {}
 
-    context_length = args.context_length
-    forecast_length = args.forecast_length
+    # Prepare model kwargs - only include CLI args if explicitly specified
+    model_kwargs = {**config_dict}
+    if args.context_length is not None:
+        model_kwargs["context_length"] = args.context_length
+    if args.forecast_length is not None:
+        model_kwargs["forecast_length"] = args.forecast_length
 
-    # Log configuration
+    # Initialize model first - when loading checkpoint, saved config is used as base
+    # with CLI overrides validated and applied
     logger.info("=" * 60)
     logger.info("MODEL-AGNOSTIC HOLDOUT EVALUATION")
     logger.info("=" * 60)
     logger.info(f"Model: {args.model}")
     logger.info(f"Mode: {'Fine-tuned' if args.checkpoint else 'Zero-shot'}")
+
+    if args.model_config:
+        logger.info(f"Model config file: {args.model_config}")
+
+    logger.info(f"\n--- Initializing {args.model.upper()} ---")
+    model, config = create_model_and_config(
+        args.model, checkpoint=args.checkpoint, **model_kwargs
+    )
+
+    # Use actual config values (may differ from CLI args if loading checkpoint)
+    context_length = config.context_length
+    forecast_length = config.forecast_length
+
     logger.info(f"Dataset: {args.dataset}")
     logger.info(
         f"Context: {context_length} steps "
@@ -481,7 +732,54 @@ def main():
         f"Forecast: {forecast_length} steps "
         f"({forecast_length / STEPS_PER_HOUR:.1f} hours)"
     )
+
+    # Setup output directory (after we know actual config values)
+    output_path = setup_output_directory(
+        args.model,
+        args.dataset,
+        context_length,
+        forecast_length,
+        args.checkpoint,
+        args.output_dir,
+    )
+
+    # Setup file logging to capture all evaluation output
+    log_file = setup_file_logging(output_path)
     logger.info(f"Output: {output_path}")
+    logger.info(f"Log file: {log_file}")
+
+    # Re-log configuration now that file logging is active
+    logger.info("=" * 60)
+    logger.info("EVALUATION CONFIGURATION")
+    logger.info("=" * 60)
+    logger.info(f"Model: {args.model}")
+    logger.info(f"Mode: {'Fine-tuned' if args.checkpoint else 'Zero-shot'}")
+    logger.info(f"Dataset: {args.dataset}")
+    logger.info(f"Checkpoint: {args.checkpoint}")
+    logger.info(
+        f"Context: {context_length} steps ({context_length / STEPS_PER_HOUR:.1f} hours)"
+    )
+    logger.info(
+        f"Forecast: {forecast_length} steps ({forecast_length / STEPS_PER_HOUR:.1f} hours)"
+    )
+
+    # Log CLI override info
+    if args.context_length is not None:
+        if args.context_length != context_length:
+            logger.info(
+                f"CLI context_length={args.context_length} was ignored (using checkpoint value)"
+            )
+        else:
+            logger.info(f"CLI context_length={args.context_length} applied")
+    if args.forecast_length is not None:
+        if args.forecast_length != forecast_length:
+            logger.info(
+                f"CLI forecast_length={args.forecast_length} was ignored (using checkpoint value)"
+            )
+        else:
+            logger.info(
+                f"CLI forecast_length={args.forecast_length} applied (override from checkpoint)"
+            )
 
     # Load holdout data
     logger.info("\n--- Loading Holdout Data ---")
@@ -493,15 +791,15 @@ def main():
     logger.info(f"Holdout patients: {list(patients)}")
     logger.info(f"Total samples: {len(holdout_data):,}")
 
-    # Load config from file if provided
-    config_dict = load_config(args.model_config) if args.model_config else {}
-
-    # Initialize model
-    logger.info(f"\n--- Initializing {args.model.upper()} ---")
-    if args.model_config:
-        logger.info(f"Model config file: {args.model_config}")
-    model, _ = create_model_and_config(
-        args.model, checkpoint=args.checkpoint, **config_dict
+    # Save experiment configuration for reproducibility
+    save_experiment_config(
+        args,
+        {
+            "context_length": context_length,
+            "forecast_length": forecast_length,
+            **config_dict,
+        },
+        output_path,
     )
 
     # Evaluate each patient
@@ -533,7 +831,8 @@ def main():
 
     if overall:
         total_episodes = sum(r["episodes"] for r in all_results)
-        logger.info("\n" + "=" * 60)
+        logger.info("\n")
+        logger.info("=" * 60)
         logger.info("OVERALL RESULTS")
         logger.info("=" * 60)
         logger.info(f"RMSE: {overall['rmse']:.3f}")
@@ -549,7 +848,7 @@ def main():
         "dataset": args.dataset,
         "timestamp": datetime.now().isoformat(),
         "config": {
-            "config_file": args.config,
+            "config_file": args.model_config,
             "context_length": context_length,
             "forecast_length": forecast_length,
             **config_dict,
@@ -574,10 +873,15 @@ def main():
             is_finetuned=bool(args.checkpoint),
         )
 
-    logger.info("\n" + "=" * 60)
+    logger.info("\n")
+    logger.info("=" * 60)
     logger.info("EVALUATION COMPLETE")
     logger.info("=" * 60)
 
 
 if __name__ == "__main__":
+    # Use single GPU to avoid DataParallel issues
+    import os
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # Use GPU 1 (Blackwell)
     main()

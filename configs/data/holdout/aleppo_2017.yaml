@@ -10,28 +10,28 @@ temporal_config:
   min_holdout_samples: 608
 patient_config:
   holdout_patients:
-  - p139
-  - p5
-  - p87
-  - p67
-  - p11
-  - p227
-  - p40
-  - p157
-  - p200
-  - p155
-  - p55
-  - p23
-  - p250
-  - p243
-  - p14
-  - p213
-  - p93
-  - p70
-  - p275
-  - p145
-  - p110
-  - p74
+  - ale_139
+  - ale_5
+  - ale_87
+  - ale_67
+  - ale_11
+  - ale_227
+  - ale_40
+  - ale_157
+  - ale_200
+  - ale_155
+  - ale_55
+  - ale_23
+  - ale_250
+  - ale_243
+  - ale_14
+  - ale_213
+  - ale_93
+  - ale_70
+  - ale_275
+  - ale_145
+  - ale_110
+  - ale_74
   holdout_percentage: null
   min_train_patients: 10
   min_holdout_patients: 20

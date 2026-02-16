@@ -158,6 +158,18 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         if not self.is_fitted or self.model is None:
             raise ValueError("Model must be fitted before making predictions")
 
+        # For zero-shot mode without preprocessor, use predict_zero_shot
+        if self.preprocessor is None and self.config.training_mode == "zero_shot":
+            info_print("Using zero-shot prediction path (no preprocessor)")
+            predictions = self.predict_zero_shot(data, batch_size)
+            if return_dict:
+                return {
+                    "predictions": predictions,
+                    "model_config": self.config.to_dict(),
+                    "n_samples": len(predictions),
+                }
+            return predictions
+
         # Prepare data for inference using the fitted preprocessor
         # Falls back to training data prep if preprocessor not available (e.g., loaded model)
         try:
@@ -225,7 +237,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             Predictions inverse-scaled to original units
         """
         if self.preprocessor is None:
-            info_print("No preprocessor available, returning predictions as-is")
+            logger.warning(
+                "No preprocessor available - predictions will be returned in SCALED units (z-scores). "
+                "This will cause incorrect metrics if comparing to unscaled ground truth."
+            )
             return predictions
 
         if not self.preprocessor.scaling:
@@ -233,7 +248,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             return predictions
 
         if len(self.preprocessor.target_scaler_dict) == 0:
-            info_print("No scalers trained, returning predictions as-is")
+            logger.warning(
+                "No scalers trained in preprocessor - predictions will be returned in SCALED units. "
+                "The preprocessor may not have been fitted correctly during training."
+            )
             return predictions
 
         # Get the target scaler
@@ -247,6 +265,19 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             info_print(f"Using scaler key: {scaler_key}")
 
         scaler = self.preprocessor.target_scaler_dict[scaler_key]
+
+        # Log scaler parameters for debugging
+        if hasattr(scaler, "mean_"):
+            scaler_mean = (
+                scaler.mean_[0] if hasattr(scaler.mean_, "__len__") else scaler.mean_
+            )
+            scaler_scale = (
+                scaler.scale_[0] if hasattr(scaler.scale_, "__len__") else scaler.scale_
+            )
+            debug_print(
+                f"Using scaler with mean={scaler_mean:.4f}, scale={scaler_scale:.4f} "
+                f"(key: {scaler_key})"
+            )
 
         # Handle different prediction shapes
         original_shape = predictions.shape
@@ -337,6 +368,8 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 info_print("Freezing all parameters for zero-shot evaluation")
                 for param in ttm_model.parameters():
                     param.requires_grad = False
+                # Zero-shot models are ready to predict without training
+                self.is_fitted = True
             else:
                 # For any training scenario (fine_tune, from_scratch), enable gradients
                 info_print(
@@ -391,7 +424,38 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         # Use the existing preprocessor to scale the data (without retraining)
         # preprocess() applies the fitted scalers
-        scaled_data = self.preprocessor.preprocess(data)
+        try:
+            scaled_data = self.preprocessor.preprocess(data)
+        except AttributeError as e:
+            # Preprocessor from older tsfm_public version - incompatible with current version
+            logger.warning(
+                f"Preprocessor version incompatibility: {e}. "
+                "The checkpoint was trained with an older tsfm_public version. "
+                "Attempting manual scaling using target_scaler_dict."
+            )
+            # Manually apply scaling using target_scaler_dict
+            scaled_data = data.copy()
+
+            # Get scaler key - use first available if we don't have per-sample ID matching
+            if len(self.preprocessor.target_scaler_dict) > 0:
+                scaler_key = next(iter(self.preprocessor.target_scaler_dict.keys()))
+                scaler = self.preprocessor.target_scaler_dict[scaler_key]
+
+                # Scale target columns using (value - mean) / scale
+                for i, target_col in enumerate(self.preprocessor.target_columns):
+                    if target_col in scaled_data.columns:
+                        mean_val = scaler.mean_[i] if hasattr(scaler, "mean_") else 0
+                        scale_val = scaler.scale_[i] if hasattr(scaler, "scale_") else 1
+                        scaled_data[target_col] = (
+                            scaled_data[target_col] - mean_val
+                        ) / scale_val
+                        info_print(
+                            f"Manually scaled {target_col} with mean={mean_val:.4f}, scale={scale_val:.4f}"
+                        )
+            else:
+                logger.warning(
+                    "No scalers available in target_scaler_dict, using data as-is"
+                )
 
         # Create ForecastDFDataset for inference using the preprocessor's column specs
         inference_dataset = ForecastDFDataset(
@@ -546,11 +610,28 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Save the preprocessor for inference (critical for new/holdout patients)
         # Using pickle because tsfm_public's save_pretrained uses json.dumps(sort_keys=True)
         # which fails when preprocessor has mixed key types (float patient IDs + string keys)
+        # Save to BOTH root and model.pt to handle different load scenarios
         if self.preprocessor is not None:
+            # Save to root directory (primary location for _load_checkpoint)
             preprocessor_path = os.path.join(output_dir, "preprocessor.pkl")
             with open(preprocessor_path, "wb") as f:
                 pickle.dump(self.preprocessor, f)
             info_print(f"Preprocessor saved to {preprocessor_path}")
+
+            # Also save to model.pt if it exists (for consistency with HF Trainer structure)
+            model_pt_dir = os.path.join(output_dir, "model.pt")
+            if os.path.exists(model_pt_dir):
+                preprocessor_path_model_pt = os.path.join(
+                    model_pt_dir, "preprocessor.pkl"
+                )
+                with open(preprocessor_path_model_pt, "wb") as f:
+                    pickle.dump(self.preprocessor, f)
+                info_print(f"Preprocessor also saved to {preprocessor_path_model_pt}")
+        else:
+            logger.warning(
+                "Preprocessor is None - not saved. "
+                "This will cause inference to return scaled predictions instead of original units."
+            )
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load model checkpoint.
@@ -595,14 +676,25 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             info_print(f"TTM model checkpoint loaded from {model_dir}")
 
             # Load the preprocessor if saved (critical for inference on holdout patients)
-            # Try pickle format first (new), then fall back to pretrained format (legacy)
+            # Try multiple locations as save structure can vary:
+            # 1. Direct in model_dir (new format)
+            # 2. In model.pt subdirectory (HuggingFace Trainer creates this)
+            # 3. preprocessor/ subdirectory (legacy TSFM format)
             preprocessor_pkl_path = os.path.join(model_dir, "preprocessor.pkl")
+            preprocessor_pkl_model_pt = os.path.join(
+                model_dir, "model.pt", "preprocessor.pkl"
+            )
             preprocessor_dir = os.path.join(model_dir, "preprocessor")
 
             if os.path.exists(preprocessor_pkl_path):
                 with open(preprocessor_pkl_path, "rb") as f:
                     self.preprocessor = pickle.load(f)
                 info_print(f"Preprocessor loaded from {preprocessor_pkl_path}")
+            elif os.path.exists(preprocessor_pkl_model_pt):
+                # HuggingFace Trainer sometimes saves to model.pt subdirectory
+                with open(preprocessor_pkl_model_pt, "rb") as f:
+                    self.preprocessor = pickle.load(f)
+                info_print(f"Preprocessor loaded from {preprocessor_pkl_model_pt}")
             elif os.path.exists(preprocessor_dir):
                 # Legacy format - try from_pretrained
                 self.preprocessor = TimeSeriesPreprocessor.from_pretrained(
@@ -612,9 +704,15 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                     f"Preprocessor loaded from {preprocessor_dir} (legacy format)"
                 )
             else:
-                info_print(
-                    f"No preprocessor found at {model_dir}, inference may require refitting"
+                logger.warning(
+                    f"No preprocessor found at {model_dir}. "
+                    "Predictions will return SCALED values (z-scores) instead of original units. "
+                    "This will cause incorrect metrics if comparing to unscaled ground truth. "
+                    "Ensure preprocessor.pkl was saved during training."
                 )
+
+            # Mark model as fitted since we successfully loaded a trained checkpoint
+            self.is_fitted = True
 
         except Exception as e:
             error_print(f"Failed to load model checkpoint: {str(e)}")
@@ -697,6 +795,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Save the model
         trainer.save_model(output_dir=output_dir)
 
+        # Save the preprocessor (critical for inference on holdout patients)
+        self._save_checkpoint(output_dir)
+
         # Get training history directly from trainer.state (in memory)
         # This is more reliable than reading from file since trainer_state.json
         # is only saved in checkpoint directories, not at output_dir root
@@ -753,9 +854,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
     ) -> np.ndarray:
         """Make zero-shot predictions without fine-tuning.
 
-        Uses the tsfm_public pattern: create a TimeSeriesPreprocessor,
-        use get_datasets() to prepare the data, then use Trainer.predict()
-        directly on the dataset.
+        For small context windows (single episodes), uses ForecastDFDataset directly
+        with manual standardization instead of get_datasets() which requires
+        train/val/test splitting.
 
         Args:
             data: Input data for prediction (DataFrame)
@@ -765,6 +866,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             Model predictions as numpy array
         """
         import tempfile
+        from tsfm_public.toolkit.dataset import ForecastDFDataset
 
         info_print("Making zero-shot predictions with TTM")
 
@@ -776,38 +878,52 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         if self.column_specifiers is None:
             self.column_specifiers = self._create_column_specifiers(data)
 
-        # Create preprocessor for zero-shot inference
-        tsp = TimeSeriesPreprocessor(
-            **self.column_specifiers,
+        # Get target column(s)
+        target_cols = self.column_specifiers.get("target_columns", [])
+
+        # Manually standardize the target column(s) for the context window
+        scaled_data = data.copy()
+        scaler_params = {}  # Store mean/std for inverse scaling
+
+        for col in target_cols:
+            if col in scaled_data.columns:
+                col_data = scaled_data[col].dropna()
+                if len(col_data) > 0:
+                    mean_val = col_data.mean()
+                    std_val = col_data.std()
+                    if std_val == 0 or pd.isna(std_val):
+                        std_val = 1.0  # Avoid division by zero
+                    scaled_data[col] = (scaled_data[col] - mean_val) / std_val
+                    scaler_params[col] = {"mean": mean_val, "std": std_val}
+                    info_print(
+                        f"Zero-shot scaling {col}: mean={mean_val:.4f}, std={std_val:.4f}"
+                    )
+
+        # Create ForecastDFDataset directly (no train/val/test split needed)
+        inference_dataset = ForecastDFDataset(
+            data=scaled_data,
+            id_columns=self.column_specifiers.get("id_columns", []),
+            timestamp_column=self.column_specifiers.get("timestamp_column", "datetime"),
+            target_columns=target_cols,
+            observable_columns=self.column_specifiers.get("observable_columns", []),
+            control_columns=self.column_specifiers.get("control_columns", []),
+            conditional_columns=self.column_specifiers.get("conditional_columns", []),
+            static_categorical_columns=self.column_specifiers.get(
+                "static_categorical_columns", []
+            ),
             context_length=self.config.context_length,
             prediction_length=self.config.forecast_length,
-            scaling=True,
-            encode_categorical=False,
-            scaler_type=ScalerType.STANDARD.value,  # type: ignore[arg-type]
         )
 
-        # Use get_datasets to prepare data (handles preprocessor fitting internally)
-        # Use a split that puts all data in test for inference
-        split_config = {"train": 0.33, "test": 0.33, "val": 0.34}
-
-        # Check for resolution_prefix_tuning on model config
-        use_freq_token = False
-        if self.model is not None and hasattr(self.model, "config"):
-            model_config = getattr(self.model, "config", None)
-            if model_config is not None and hasattr(
-                model_config, "resolution_prefix_tuning"
-            ):
-                use_freq_token = bool(
-                    getattr(model_config, "resolution_prefix_tuning", False)
-                )
-        info_print(f"Passing the following dataset to get_dataset: \n {data}")
-        dset_train, dset_val, dset_test = get_datasets(  # type: ignore[misc]
-            tsp,
-            data,
-            split_config,  # type: ignore[arg-type]
-            use_frequency_token=use_freq_token,
+        info_print(
+            f"Created zero-shot inference dataset with {len(inference_dataset)} samples"
         )
-        info_print("Data prepared for zero-shot inference")
+
+        if len(inference_dataset) == 0:
+            raise ValueError(
+                "No valid samples created from input data for zero-shot prediction"
+            )
+
         # Create temporary directory for trainer output
         temp_dir = tempfile.mkdtemp()
 
@@ -824,7 +940,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         # Get predictions using trainer.predict()
         info_print("Generating zero-shot predictions...")
-        predictions_output = zeroshot_trainer.predict(dset_test)
+        predictions_output = zeroshot_trainer.predict(inference_dataset)
 
         # Extract predictions from output
         # predictions_output.predictions is a tuple: (forecasts, embeddings)
@@ -838,9 +954,26 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         info_print(f"Zero-shot predictions shape (scaled): {predictions.shape}")
 
-        # Inverse scale predictions back to original units
-        # The preprocessor (tsp) was used to scale the data, so we use it to inverse scale
-        predictions = self._inverse_scale_zero_shot_predictions(predictions, tsp)
+        # Inverse scale predictions back to original units using stored scaler params
+        if scaler_params and len(target_cols) > 0:
+            # Assume first target column corresponds to channel 0
+            first_target = target_cols[0]
+            if first_target in scaler_params:
+                mean_val = scaler_params[first_target]["mean"]
+                std_val = scaler_params[first_target]["std"]
+
+                # Handle different prediction shapes
+                if len(predictions.shape) == 3:
+                    # Shape: (samples, forecast_len, channels) - scale channel 0
+                    predictions[:, :, 0] = predictions[:, :, 0] * std_val + mean_val
+                elif len(predictions.shape) == 2:
+                    predictions = predictions * std_val + mean_val
+                elif len(predictions.shape) == 1:
+                    predictions = predictions * std_val + mean_val
+
+                info_print(
+                    f"Inverse scaled with mean={mean_val:.4f}, std={std_val:.4f}"
+                )
 
         info_print(f"Zero-shot predictions shape (unscaled): {predictions.shape}")
 
@@ -956,19 +1089,17 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Default mappings - adapt these to your data structure
         # NOTE: target_columns are the ONLY columns that will be forecasted by the model
         # control_columns, observable_columns, and conditional_columns are used as INPUT features only
+
+        # Use input_features from config instead of hardcoded list
+        observable_cols = (
+            self.config.input_features if self.config.input_features else []
+        )
+
         column_specifiers: ColumnSpecifiers = {
             "id_columns": [ColumnNames.P_NUM.value],
             "timestamp_column": ColumnNames.DATETIME.value,
-            "target_columns": [ColumnNames.BG.value],  # Only forecast blood glucose
-            "observable_columns": [
-                # Observable columns: known in the past, unknown in the future
-                # These are used as inputs but NOT forecasted
-                ColumnNames.STEPS.value,
-                ColumnNames.COB.value,
-                ColumnNames.CARB_AVAILABILITY.value,
-                ColumnNames.INSULIN_AVAILABILITY.value,
-                ColumnNames.IOB.value,
-            ],
+            "target_columns": self.config.target_features,  # Use config target features
+            "observable_columns": observable_cols,  # Use config input features
             "control_columns": [],  # Control columns: known in past AND future (we don't have any)
             "conditional_columns": [],
             "static_categorical_columns": [],
