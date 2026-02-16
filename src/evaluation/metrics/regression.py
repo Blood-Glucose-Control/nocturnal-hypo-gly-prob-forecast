@@ -7,7 +7,6 @@ from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
     mean_squared_error,
-    root_mean_squared_error,
 )
 
 
@@ -34,7 +33,7 @@ def compute_regression_metrics(
     y_true = np.asarray(y_true).flatten()
 
     mse = float(mean_squared_error(y_true, y_pred))
-    rmse = float(root_mean_squared_error(y_true, y_pred))
+    rmse = float(np.sqrt(mse))  # Backwards compatible with older sklearn versions
     mae = float(mean_absolute_error(y_true, y_pred))
     mape = float(mean_absolute_percentage_error(y_true, y_pred) * 100)
 
