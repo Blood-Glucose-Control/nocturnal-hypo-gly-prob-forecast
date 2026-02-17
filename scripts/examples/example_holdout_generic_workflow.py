@@ -157,7 +157,7 @@ class ModelFactory:
             "ttm": "ibm-granite/granite-timeseries-ttm-r2",
             "chronos": "amazon/chronos-t5-small",
             "moment": "AutonLab/MOMENT-1-small",
-            # Add more defaults as models are implemented
+            "timegrad": "",  # Trains from scratch, no pretrained path
         }
         return defaults.get(model_type, "")
 
@@ -186,10 +186,12 @@ class ModelFactory:
             return ModelFactory._create_chronos_model(config, distributed_config)
         elif model_type == "moment":
             return ModelFactory._create_moment_model(config, distributed_config)
+        elif model_type == "timegrad":
+            return ModelFactory._create_timegrad_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, moment"
+                f"Supported types: ttm, chronos, moment, timegrad"
             )
 
     @staticmethod
@@ -273,6 +275,35 @@ class ModelFactory:
         except ImportError as e:
             raise ImportError(
                 f"MOMENT model not available. Install moment dependencies: {e}"
+            )
+
+    @staticmethod
+    def _create_timegrad_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a TimeGrad model instance."""
+        try:
+            from src.models.timegrad import TimeGradForecaster, TimeGradConfig
+
+            timegrad_config = TimeGradConfig(
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                use_cpu=config.use_cpu,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+
+            return TimeGradForecaster(
+                timegrad_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"TimeGrad model not available. Install with: "
+                f"source scripts/setup_model_env.sh timegrad\n{e}"
             )
 
     @staticmethod
@@ -502,10 +533,24 @@ class ModelFactory:
                 **config.extra_config,
             )
             return MomentForecaster.load(model_path, moment_config)
+        elif model_type_lower == "timegrad":
+            from src.models.timegrad import TimeGradForecaster, TimeGradConfig
+
+            timegrad_config = TimeGradConfig(
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                use_cpu=config.use_cpu,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+            return TimeGradForecaster.load(model_path, timegrad_config)
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, moment"
+                f"Supported types: ttm, chronos, moment, timegrad"
             )
 
 
