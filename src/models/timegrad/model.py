@@ -218,7 +218,9 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
             f"({self.config.num_batches_per_epoch} batches/epoch)..."
         )
 
-        self.predictor = self.estimator.train(dataset, num_workers=0)
+        self.predictor = self.estimator.train(
+            dataset, num_workers=0, prefetch_factor=None  # type: ignore[arg-type]
+        )
 
         info_print("TimeGrad training complete.")
         return {
@@ -273,25 +275,43 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
         )
 
     def _save_checkpoint(self, output_dir: str) -> None:
-        """Save the trained predictor to disk."""
+        """Save the trained predictor weights to disk."""
         if self.predictor is None:
             return
 
         checkpoint_dir = Path(output_dir) / "timegrad_checkpoint"
         checkpoint_dir.mkdir(parents=True, exist_ok=True)
 
-        # Use GluonTS built-in serialization
-        self.predictor.serialize(checkpoint_dir)
-        info_print(f"TimeGrad predictor saved to {checkpoint_dir}")
+        torch.save(
+            self.predictor.prediction_net.state_dict(),
+            checkpoint_dir / "state_dict.pt",
+        )
+        info_print(f"TimeGrad weights saved to {checkpoint_dir}")
 
     def _load_checkpoint(self, model_dir: str) -> None:
-        """Load a trained predictor from disk."""
-        checkpoint_dir = Path(model_dir) / "timegrad_checkpoint"
+        """Load trained predictor weights from disk.
 
-        if not checkpoint_dir.exists():
-            logger.warning(f"No TimeGrad checkpoint found at {checkpoint_dir}")
+        Rebuilds the full predictor from self.estimator (which has all the
+        architecture params from config), then loads the saved weights.
+        """
+        checkpoint_dir = Path(model_dir) / "timegrad_checkpoint"
+        weights_path = checkpoint_dir / "state_dict.pt"
+
+        if not weights_path.exists():
+            logger.warning(f"No TimeGrad weights found at {weights_path}")
             return
 
         device = torch.device(self.device)
-        self.predictor = PyTorchPredictor.deserialize(checkpoint_dir, device=device)
+
+        # Reconstruct predictor structure from estimator
+        transformation = self.estimator.create_transformation()
+        dummy_net = self.estimator.create_training_network(device)
+        self.predictor = self.estimator.create_predictor(
+            transformation, dummy_net, device
+        )
+
+        # Load actual trained weights
+        self.predictor.prediction_net.load_state_dict(
+            torch.load(weights_path, map_location=device)
+        )
         info_print(f"TimeGrad predictor loaded from {checkpoint_dir}")

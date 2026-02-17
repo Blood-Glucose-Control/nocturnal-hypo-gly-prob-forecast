@@ -1705,7 +1705,7 @@ stored in separate subdirectories for comparison.
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "moment"],
+        choices=["ttm", "chronos", "moment", "timegrad"],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(
@@ -1808,15 +1808,15 @@ stored in separate subdirectories for comparison.
         # =====================================================================
         # STEP 4: Zero-shot evaluation (pretrained model, no fine-tuning)
         # =====================================================================
-        step4_zero_shot_evaluation(
-            model_type=args.model_type,
-            dataset_names=args.datasets,
-            training_columns=training_columns,
-            config_dir=args.config_dir,
-            output_dir=args.output_dir,
-            batch_size=args.batch_size,
-            model_config_overrides=model_config_overrides,
-        )
+        # step4_zero_shot_evaluation(
+        #     model_type=args.model_type,
+        #     dataset_names=args.datasets,
+        #     training_columns=training_columns,
+        #     config_dir=args.config_dir,
+        #     output_dir=args.output_dir,
+        #     batch_size=args.batch_size,
+        #     model_config_overrides=model_config_overrides,
+        # )
 
         if args.skip_training:
             logger.info(" ")
