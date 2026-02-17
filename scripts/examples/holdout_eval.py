@@ -231,7 +231,17 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "chronos":
-        raise NotImplementedError("Chronos model not yet implemented")
+        from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
+
+        config = Chronos2Config(
+            model_path=kwargs.get("model_path", "autogluon/chronos-2"),
+            context_length=kwargs.get("context_length", 512),
+            forecast_length=kwargs.get("forecast_length", 72),
+        )
+        model = Chronos2Forecaster(config)
+        if checkpoint:
+            model._load_checkpoint(checkpoint)
+        return model, config
 
     elif model_type == "moirai":
         raise NotImplementedError("Moirai model not yet implemented")
