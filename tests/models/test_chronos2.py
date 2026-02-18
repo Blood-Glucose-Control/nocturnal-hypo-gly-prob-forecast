@@ -211,6 +211,7 @@ class TestChronos2:
 
 
 @pytest.mark.slow
+@requires_autogluon
 class TestChronos2GPU:
     """Run with: pytest tests/models/test_chronos2.py -m slow"""
 

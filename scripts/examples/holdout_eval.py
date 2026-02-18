@@ -238,9 +238,10 @@ def create_model_and_config(
             context_length=kwargs.get("context_length", 512),
             forecast_length=kwargs.get("forecast_length", 72),
         )
-        model = Chronos2Forecaster(config)
         if checkpoint:
-            model._load_checkpoint(checkpoint)
+            model = Chronos2Forecaster.load(checkpoint, config=config)
+        else:
+            model = Chronos2Forecaster(config)
         return model, config
 
     elif model_type == "moirai":

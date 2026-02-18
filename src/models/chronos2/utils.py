@@ -55,6 +55,11 @@ def convert_to_patient_dict(
             pdf = pdf.set_index(time_col).sort_index()
         elif isinstance(pdf.index, pd.DatetimeIndex):
             pdf = pdf.sort_index()
+        else:
+            raise ValueError(
+                f"Patient {pid!r}: expected '{time_col}' column or "
+                f"DatetimeIndex, got {type(pdf.index).__name__}"
+            )
 
         # Drop patient column (redundant — it's the dict key)
         if patient_col in pdf.columns:
@@ -112,6 +117,12 @@ def format_segments_for_autogluon(
         df["timestamp"] = df.index
         out_cols = ["item_id", "timestamp", "target"] + covariate_cols
         data_list.append(df[out_cols])
+
+    if not data_list:
+        raise ValueError(
+            "No segments to format — gap handling discarded all data. "
+            "Check imputation_threshold_mins and min_segment_length."
+        )
 
     combined = pd.concat(data_list, ignore_index=True)
     combined = combined.set_index(["item_id", "timestamp"])

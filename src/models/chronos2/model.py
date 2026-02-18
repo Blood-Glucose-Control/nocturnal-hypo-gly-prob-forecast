@@ -119,6 +119,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             patient_dict,
             imputation_threshold_mins=config.imputation_threshold_mins,
             min_segment_length=config.min_segment_length,
+            bg_col=config.target_col,
         )
         info_print(f"Gap handling: {len(segments)} segments")
 
@@ -382,7 +383,17 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         if os.path.exists(ref_path):
             with open(ref_path) as f:
                 predictor_path = json.load(f)["predictor_path"]
-            self.logger.info("Loading predictor from reference: %s", predictor_path)
+            # Fall back to model_dir if the referenced path no longer exists
+            # (e.g. the model directory was relocated after training)
+            if not os.path.exists(predictor_path):
+                self.logger.warning(
+                    "Predictor path %s not found, falling back to %s",
+                    predictor_path,
+                    model_dir,
+                )
+                predictor_path = model_dir
+            else:
+                self.logger.info("Loading predictor from reference: %s", predictor_path)
         else:
             predictor_path = model_dir
 
