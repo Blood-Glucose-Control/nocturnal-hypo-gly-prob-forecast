@@ -323,7 +323,7 @@ def evaluate_with_covariates(
     test_data: Any,
     known_covariates: Any,
     episodes: List[Dict[str, Any]],
-) -> Tuple[float, Any]:
+) -> Tuple[float, Any, List[Dict[str, Any]]]:
     """Evaluate model with known covariates on midnight-anchored episodes.
 
     Args:
@@ -333,16 +333,20 @@ def evaluate_with_covariates(
         episodes: Original episode dicts (for ground truth).
 
     Returns:
-        Tuple of (average_rmse, predictions_dataframe).
+        Tuple of (average_rmse, predictions_dataframe, per_episode_results).
+        per_episode_results is a list of dicts with "pred" (numpy array)
+        and "rmse" (float) for each episode, aligned with the episodes list.
     """
     logger.info("Running predictions with known covariates...")
 
     predictions = predictor.predict(test_data, known_covariates=known_covariates)
 
     rmse_list = []
+    per_episode = []
     for i, ep in enumerate(episodes):
         item_id = f"ep_{i:03d}"
         if item_id not in predictions.index.get_level_values(0):
+            per_episode.append({"pred": np.array([]), "rmse": float("nan")})
             continue
 
         pred = predictions.loc[item_id]["mean"].values
@@ -351,7 +355,8 @@ def evaluate_with_covariates(
         actual = ep["target_bg"][: len(pred)]
         rmse = np.sqrt(np.mean((pred - actual) ** 2))
         rmse_list.append(rmse)
+        per_episode.append({"pred": pred, "rmse": rmse})
 
     avg_rmse = float(np.mean(rmse_list)) if rmse_list else float("nan")
     logger.info("Evaluation: %.4f avg RMSE over %d episodes", avg_rmse, len(rmse_list))
-    return avg_rmse, predictions
+    return avg_rmse, predictions, per_episode

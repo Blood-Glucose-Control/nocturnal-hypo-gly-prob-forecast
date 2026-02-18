@@ -302,7 +302,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             config.interval_mins,
         )
 
-        avg_rmse, predictions = evaluate_with_covariates(
+        avg_rmse, predictions, per_episode = evaluate_with_covariates(
             self.predictor, ts_eval, known_cov, all_episodes
         )
 
@@ -313,6 +313,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
         if return_predictions:
             result["predictions"] = predictions
+            result["episodes"] = all_episodes
+            result["per_episode"] = per_episode
 
         return result
 

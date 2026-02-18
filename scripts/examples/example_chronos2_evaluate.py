@@ -18,10 +18,11 @@ Usage:
 
 import argparse
 import logging
-
+from pathlib import Path
 
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.models.chronos2 import Chronos2Forecaster
+from src.models.chronos2.visualization import plot_evaluation_episodes
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -143,6 +144,29 @@ def main():
         # Show per-item stats if available
         items = predictions.index.get_level_values(0).unique()
         print(f"  Unique items (episodes): {len(items)}")
+
+    # =========================================================================
+    # Step 6: Generate evaluation plots (best/worst episodes)
+    # =========================================================================
+    if "episodes" in eval_result and "per_episode" in eval_result:
+        print()
+        print("=" * 60)
+        print("STEP 6: Generate evaluation plots")
+        print("=" * 60)
+
+        plot_dir = str(Path(args.model_dir) / "eval_plots")
+        plot_paths = plot_evaluation_episodes(
+            episodes=eval_result["episodes"],
+            per_episode=eval_result["per_episode"],
+            output_dir=plot_dir,
+            model_label=f"Chronos-2 ({args.dataset})",
+            forecast_length=model.config.forecast_length,
+            interval_mins=model.config.interval_mins,
+            covariate_cols=model.config.covariate_cols,
+        )
+
+        for name, path in plot_paths.items():
+            print(f"  {name}: {path}")
 
     print()
     print("=" * 60)
