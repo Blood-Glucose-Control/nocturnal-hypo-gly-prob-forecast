@@ -320,6 +320,39 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     # Persistence
     # ------------------------------------------------------------------
 
+    # Why override load(): The base class load() at base_model.py:553
+    # hardcodes `ModelConfig.from_dict(config_dict)`, which crashes when
+    # the saved config.json contains Chronos-2-specific fields (covariate_cols,
+    # fine_tune_steps, etc.) that ModelConfig doesn't accept. We override to
+    # deserialize as Chronos2Config instead, then delegate to super().load()
+    # with the pre-built config so it skips the ModelConfig.from_dict() path.
+    @classmethod
+    def load(cls, model_path: str, config=None) -> "Chronos2Forecaster":
+        """Load a saved Chronos-2 model.
+
+        Overrides base class to deserialize config as Chronos2Config
+        (not ModelConfig), preserving Chronos-2-specific fields like
+        covariate_cols, fine_tune_steps, etc.
+        """
+        if config is None:
+            config_path = os.path.join(model_path, "config.json")
+            if os.path.exists(config_path):
+                with open(config_path) as f:
+                    config_dict = json.load(f)
+                # Convert serialized enum strings back to enum values.
+                # ModelConfig.to_dict() saves enums as strings (e.g.
+                # TrainingBackend.CUSTOM -> "custom"), but dataclass
+                # constructors don't auto-coerce strings back to enums.
+                if "training_backend" in config_dict:
+                    config_dict["training_backend"] = TrainingBackend(
+                        config_dict["training_backend"]
+                    )
+                config = Chronos2Config(**config_dict)
+            else:
+                raise ValueError(f"No config found at {config_path}")
+        # Pass pre-deserialized config to parent — skips ModelConfig.from_dict()
+        return super().load(model_path, config=config)
+
     def _save_checkpoint(self, output_dir: str) -> None:
         """Save predictor path reference.
 
