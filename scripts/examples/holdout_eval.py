@@ -233,14 +233,29 @@ def create_model_and_config(
     elif model_type == "chronos":
         from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
 
-        config = Chronos2Config(
-            model_path=kwargs.get("model_path", "autogluon/chronos-2"),
-            context_length=kwargs.get("context_length", 512),
-            forecast_length=kwargs.get("forecast_length", 72),
-        )
         if checkpoint:
-            model = Chronos2Forecaster.load(checkpoint, config=config)
+            # Restore saved config from disk (preserves covariate_cols, training_mode, etc.)
+            model = Chronos2Forecaster.load(checkpoint)
+            config = model.config
+
+            # Apply valid overrides (same policy as Sundial/TTM)
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
         else:
+            config = Chronos2Config(
+                model_path=kwargs.get("model_path", "autogluon/chronos-2"),
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 72),
+            )
             model = Chronos2Forecaster(config)
         return model, config
 

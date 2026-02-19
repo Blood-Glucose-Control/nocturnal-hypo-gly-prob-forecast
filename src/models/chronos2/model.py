@@ -29,6 +29,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 
 from src.data.preprocessing.gap_handling import segment_all_patients
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
@@ -225,14 +226,14 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
     def predict(
         self,
-        data: Any,
-        batch_size: Optional[int] = None,
+        data: pd.DataFrame,
+        **kwargs,
     ) -> np.ndarray:
         """Make predictions on holdout data using midnight-anchored episodes.
 
         Args:
             data: Flat DataFrame with patient data (from registry).
-            batch_size: Unused (AutoGluon handles batching internally).
+            **kwargs: Unused (AutoGluon handles batching internally).
 
         Returns:
             numpy array of shape (n_episodes, forecast_length) with mean
