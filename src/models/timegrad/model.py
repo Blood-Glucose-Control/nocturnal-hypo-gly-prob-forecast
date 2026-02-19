@@ -1,6 +1,5 @@
 """TimeGrad model implementation using the base TSFM framework."""
 
-import json
 import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -163,21 +162,11 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
 
         context = data[bg_col].values.astype(np.float64)
 
-        # Forward-fill any NaN in context
-        if np.isnan(context).any():
-            context = pd.Series(context).ffill().bfill().values
-
         # TimeGrad expects 2D targets: (target_dim, timesteps)
         context_2d = context.reshape(1, -1)
 
         # Build a single-entry ListDataset for inference
-        # Use the first timestamp from the DataFrame if available
-        if "datetime" in data.columns:
-            start = pd.Timestamp(data["datetime"].iloc[0])
-        elif isinstance(data.index, pd.DatetimeIndex):
-            start = data.index[0]
-        else:
-            start = pd.Timestamp("2024-01-01")
+        start = pd.Timestamp(data["datetime"].iloc[0])
 
         test_ds = ListDataset(
             [{"target": context_2d, "start": start}],
@@ -219,7 +208,9 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
         )
 
         self.predictor = self.estimator.train(
-            dataset, num_workers=0, prefetch_factor=None  # type: ignore[arg-type]
+            dataset,
+            num_workers=0,
+            prefetch_factor=None,  # type: ignore[arg-type]
         )
 
         info_print("TimeGrad training complete.")
@@ -234,15 +225,11 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
     def _dataframe_to_list_dataset(self, df: pd.DataFrame) -> ListDataset:
         """Convert a DataFrame with bg_mM + p_num into a GluonTS ListDataset."""
         bg_col = "bg_mM"
-        patient_col = "p_num" if "p_num" in df.columns else "id"
+        patient_col = "p_num"
 
         entries = []
         for pid, group in df.groupby(patient_col):
             bg = group[bg_col].values.astype(np.float64)
-
-            # Forward-fill NaN
-            if np.isnan(bg).any():
-                bg = pd.Series(bg).ffill().bfill().values
 
             if len(bg) < self.config.context_length + self.config.forecast_length:
                 logger.warning(
@@ -252,12 +239,7 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
                 continue
 
             # Determine start timestamp
-            if "datetime" in group.columns:
-                start = pd.Timestamp(group["datetime"].iloc[0])
-            elif isinstance(group.index, pd.DatetimeIndex):
-                start = group.index[0]
-            else:
-                start = pd.Timestamp("2024-01-01")
+            start = pd.Timestamp(group["datetime"].iloc[0])
 
             # TimeGrad multivariate API: (target_dim, timesteps)
             entries.append({"target": bg.reshape(1, -1), "start": start})

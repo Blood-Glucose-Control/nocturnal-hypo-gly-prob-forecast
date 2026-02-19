@@ -30,9 +30,7 @@ class TimeGradConfig(ModelConfig):
 
     def __init__(self, **kwargs):
         # Filter out TimeGrad-specific params from kwargs for parent class
-        base_kwargs = {
-            k: v for k, v in kwargs.items() if k not in self.TIMEGRAD_PARAMS
-        }
+        base_kwargs = {k: v for k, v in kwargs.items() if k not in self.TIMEGRAD_PARAMS}
 
         # Call parent with filtered kwargs
         super().__init__(**base_kwargs)

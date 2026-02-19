@@ -16,9 +16,13 @@ Workflow Steps:
   2. Validate holdout configs
   3. Load and combine training data from multiple datasets
   4. Zero-shot evaluation (pretrained model, no fine-tuning)
-  5. Fine-tune model for specified epochs
+  5. Train model for specified epochs
   6. Load model from checkpoint (verify save/load works)
   7. Resume training on loaded model
+
+Individual steps can be skipped via --skip-steps. Step 4 is auto-skipped for
+models that train from scratch (e.g., timegrad) since they have no pretrained
+weights for zero-shot inference.
 
 Usage:
     # Run with default settings (TTM model)
@@ -27,8 +31,14 @@ Usage:
     # Run with specific model type
     python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 aleppo_2017
 
-    # Skip training (only zero-shot evaluation)
+    # Skip specific steps (e.g., skip zero-shot and resume training)
+    python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 --skip-steps 4 7
+
+    # Skip all training steps (only zero-shot and data loading)
     python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 --skip-training
+
+    # TimeGrad (auto-skips zero-shot since it trains from scratch)
+    python scripts/examples/example_holdout_generic_workflow.py --model-type timegrad --datasets lynch_2022
 
     # Use shell wrapper for local execution:
     ./scripts/examples/run_holdout_generic_workflow.sh
@@ -1688,17 +1698,18 @@ Workflow Steps:
   2. Validate holdout configs
   3. Load and combine training data
   4. Zero-shot evaluation (pretrained model, no fine-tuning)
-  5. Fine-tune model for specified epochs
+  5. Train model for specified epochs
   6. Load model from checkpoint (verify save/load works)
   7. Resume training on loaded model
 
 Supported Model Types:
-  - ttm: IBM Granite TTM (TinyTimeMixer)
-  - chronos: Amazon Chronos
-  - moment: AutonLab MOMENT
+  - ttm:      IBM Granite TTM (TinyTimeMixer)
+  - chronos:  Amazon Chronos
+  - moment:   AutonLab MOMENT
+  - timegrad: TimeGrad (GRU + diffusion, trains from scratch)
 
-Each evaluation phase (4, 5, 6, 7) generates predictions and plots
-stored in separate subdirectories for comparison.
+Use --skip-steps to skip individual steps (e.g., --skip-steps 4 7).
+Step 4 is auto-skipped for from-scratch models like timegrad.
         """,
     )
     parser.add_argument(
@@ -1727,7 +1738,14 @@ stored in separate subdirectories for comparison.
     parser.add_argument(
         "--skip-training",
         action="store_true",
-        help="Skip training steps (only run zero-shot and load existing model)",
+        help="Skip training steps 5-7 (equivalent to --skip-steps 5 6 7)",
+    )
+    parser.add_argument(
+        "--skip-steps",
+        type=int,
+        nargs="+",
+        default=[],
+        help="Step numbers to skip (e.g., --skip-steps 4 7 to skip zero-shot and resume)",
     )
     parser.add_argument(
         "--epochs",
@@ -1755,13 +1773,26 @@ stored in separate subdirectories for comparison.
     if args.model_config:
         model_config_overrides = load_model_config_from_yaml(args.model_config)
 
+    # Build the set of steps to skip
+    skip_steps: set[int] = set(args.skip_steps)
+    if args.skip_training:
+        skip_steps.update({5, 6, 7})
+    # Auto-skip zero-shot for models that train from scratch (no pretrained weights)
+    if not ModelFactory.get_default_model_path(args.model_type):
+        if 4 not in skip_steps:
+            logger.info(
+                f"Auto-skipping step 4 (zero-shot): {args.model_type} trains from "
+                f"scratch and has no pretrained weights"
+            )
+            skip_steps.add(4)
+
     # Set output directory
     if args.output_dir is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
         args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_{args.model_type}_holdout_workflow"
 
     logger.info("=" * 80)
-    logger.info("🚀 GENERIC FORECASTER WORKFLOW DEMONSTRATION")
+    logger.info("GENERIC FORECASTER WORKFLOW DEMONSTRATION")
     logger.info("Start of: example_holdout_generic_workflow.py")
     logger.info("=" * 80)
     logger.info(f"Model type: {args.model_type.upper()}")
@@ -1770,7 +1801,7 @@ stored in separate subdirectories for comparison.
     logger.info(f"Output dir: {args.output_dir}")
     logger.info(f"Model config: {args.model_config or 'None (using defaults)'}")
     logger.info(f"Epochs per phase: {args.epochs}")
-    logger.info(f"Skip training: {args.skip_training}")
+    logger.info(f"Skip steps: {sorted(skip_steps) if skip_steps else 'none'}")
     logger.info("=" * 80)
 
     # Copy model config to output directory for reproducibility
@@ -1784,78 +1815,65 @@ stored in separate subdirectories for comparison.
         # =====================================================================
         # STEP 1: Check/generate holdout configs
         # =====================================================================
-        if not step1_generate_holdout_configs(
-            args.config_dir, args.output_dir, args.datasets
-        ):
-            logger.error("Please generate holdout configs first")
-            return
+        if 1 not in skip_steps:
+            if not step1_generate_holdout_configs(
+                args.config_dir, args.output_dir, args.datasets
+            ):
+                logger.error("Please generate holdout configs first")
+                return
+        else:
+            logger.info("Skipping step 1 (holdout config check)")
 
         # =====================================================================
         # STEP 2: Validate configuration for all datasets
         # =====================================================================
-        if not step2_validate_holdout_configs(args.datasets, args.config_dir):
-            logger.error("Configuration validation failed")
-            return
+        if 2 not in skip_steps:
+            if not step2_validate_holdout_configs(args.datasets, args.config_dir):
+                logger.error("Configuration validation failed")
+                return
+        else:
+            logger.info("Skipping step 2 (config validation)")
 
         # =====================================================================
         # STEP 3: Load and combine training data
         # =====================================================================
-        combined_train_data = step3_load_training_data(
-            args.datasets, args.config_dir, args.output_dir
-        )
-        training_columns = list(combined_train_data.columns)
+        if 3 not in skip_steps:
+            combined_train_data = step3_load_training_data(
+                args.datasets, args.config_dir, args.output_dir
+            )
+            training_columns = list(combined_train_data.columns)
+        else:
+            logger.info("Skipping step 3 (load training data)")
+            combined_train_data = None
+            training_columns = []
 
         # =====================================================================
         # STEP 4: Zero-shot evaluation (pretrained model, no fine-tuning)
         # =====================================================================
-        # step4_zero_shot_evaluation(
-        #     model_type=args.model_type,
-        #     dataset_names=args.datasets,
-        #     training_columns=training_columns,
-        #     config_dir=args.config_dir,
-        #     output_dir=args.output_dir,
-        #     batch_size=args.batch_size,
-        #     model_config_overrides=model_config_overrides,
-        # )
-
-        if args.skip_training:
-            logger.info(" ")
-            logger.info("=" * 80)
-            logger.info("⏭️  SKIPPING TRAINING STEPS (--skip-training flag set)")
-            logger.info("=" * 80)
-
-            # Try to load existing model for evaluation
-            model_path = Path(args.output_dir) / "model.pt"
-            if model_path.exists():
-                logger.info(f"Loading existing model from: {model_path}")
-
-                # Create a config for loading
-                config = ModelFactory.create_finetune_config(
-                    model_type=args.model_type,
-                    context_length=512,
-                    forecast_length=96,
-                )
-
-                model = step6_load_checkpoint(
-                    model_type=args.model_type,
-                    model_path=model_path,
-                    config=config,
-                    training_columns=training_columns,
-                    dataset_names=args.datasets,
-                    config_dir=args.config_dir,
-                    output_dir=args.output_dir,
-                    model_config_overrides=model_config_overrides,
-                )
-                if model is None:
-                    logger.error("Failed to load existing model")
-                    return
-            else:
-                logger.info("No existing model found, skipping evaluation steps")
-                return
+        if 4 not in skip_steps:
+            step4_zero_shot_evaluation(
+                model_type=args.model_type,
+                dataset_names=args.datasets,
+                training_columns=training_columns,
+                config_dir=args.config_dir,
+                output_dir=args.output_dir,
+                batch_size=args.batch_size,
+                model_config_overrides=model_config_overrides,
+            )
         else:
-            # =====================================================================
-            # STEP 5: Fine-tune model for one epoch
-            # =====================================================================
+            logger.info("Skipping step 4 (zero-shot evaluation)")
+
+        # =====================================================================
+        # STEP 5: Train model
+        # =====================================================================
+        model = None
+        config = None
+        model_path = None
+
+        if 5 not in skip_steps:
+            if combined_train_data is None:
+                logger.error("Step 5 requires training data (step 3)")
+                return
             model, config, train_results, model_path = step5_train_model(
                 model_type=args.model_type,
                 combined_data=combined_train_data,
@@ -1867,66 +1885,98 @@ stored in separate subdirectories for comparison.
                 batch_size=args.batch_size,
                 model_config_overrides=model_config_overrides,
             )
+        else:
+            logger.info("Skipping step 5 (training)")
 
-            # =====================================================================
-            # STEP 6: Load model from checkpoint (verify save/load works)
-            # =====================================================================
-            model = step6_load_checkpoint(
-                model_type=args.model_type,
-                model_path=model_path,
-                config=config,
-                training_columns=training_columns,
-                dataset_names=args.datasets,
-                config_dir=args.config_dir,
-                output_dir=args.output_dir,
-                model_config_overrides=model_config_overrides,
-            )
-            if model is None:
-                logger.error("Failed to load model from checkpoint")
-                return
+        # =====================================================================
+        # STEP 6: Load model from checkpoint (verify save/load works)
+        # =====================================================================
+        if 6 not in skip_steps:
+            # If step 5 was skipped, try loading from default path
+            if model_path is None:
+                model_path = Path(args.output_dir) / "model.pt"
+            if config is None:
+                config = ModelFactory.create_finetune_config(
+                    model_type=args.model_type,
+                    extra_config=model_config_overrides,
+                )
 
-            # =====================================================================
-            # STEP 7: Resume training on loaded model
-            # =====================================================================
-            model, resume_results, resumed_model_path = step7_resume_training(
-                model=model,
-                combined_data=combined_train_data,
-                dataset_names=args.datasets,
-                training_columns=training_columns,
-                config_dir=args.config_dir,
-                output_dir=args.output_dir,
-                num_epochs=args.epochs,
-                model_config_overrides=model_config_overrides,
-            )
+            if not Path(model_path).exists():
+                logger.warning(
+                    f"No model checkpoint found at {model_path}, skipping step 6"
+                )
+            else:
+                model = step6_load_checkpoint(
+                    model_type=args.model_type,
+                    model_path=model_path,
+                    config=config,
+                    training_columns=training_columns,
+                    dataset_names=args.datasets,
+                    config_dir=args.config_dir,
+                    output_dir=args.output_dir,
+                    model_config_overrides=model_config_overrides,
+                )
+                if model is None:
+                    logger.error("Failed to load model from checkpoint")
+                    return
+        else:
+            logger.info("Skipping step 6 (load checkpoint)")
+
+        # =====================================================================
+        # STEP 7: Resume training on loaded model
+        # =====================================================================
+        if 7 not in skip_steps:
+            if model is None or combined_train_data is None:
+                logger.warning(
+                    "Step 7 requires a loaded model (step 6) and training data "
+                    "(step 3), skipping"
+                )
+            else:
+                model, resume_results, resumed_model_path = step7_resume_training(
+                    model=model,
+                    combined_data=combined_train_data,
+                    dataset_names=args.datasets,
+                    training_columns=training_columns,
+                    config_dir=args.config_dir,
+                    output_dir=args.output_dir,
+                    num_epochs=args.epochs,
+                    model_config_overrides=model_config_overrides,
+                )
+        else:
+            logger.info("Skipping step 7 (resume training)")
 
         # =====================================================================
         # WORKFLOW COMPLETE
         # =====================================================================
         logger.info("\n" + "=" * 80)
-        logger.info("✅ WORKFLOW COMPLETED SUCCESSFULLY!")
+        logger.info("WORKFLOW COMPLETED SUCCESSFULLY")
         logger.info("=" * 80)
         logger.info(f"Model type: {args.model_type.upper()}")
         logger.info(f"Output directory: {args.output_dir}")
+        logger.info(f"Steps skipped: {sorted(skip_steps) if skip_steps else 'none'}")
         logger.info("Generated artifacts:")
-        logger.info("  - predictions/0_zero_shot/       : Zero-shot predictions")
-        if not args.skip_training:
+        if 4 not in skip_steps:
+            logger.info("  - predictions/0_zero_shot/       : Zero-shot predictions")
+        if 5 not in skip_steps:
             logger.info(
                 "  - predictions/1_after_training/  : Post-training predictions"
             )
+            logger.info("  - model.pt                       : Trained model")
+        if 6 not in skip_steps:
             logger.info("  - predictions/2_after_loading/   : Post-load predictions")
+        if 7 not in skip_steps:
             logger.info(
                 "  - predictions/3_after_resumed_training/ : Post-resume predictions"
             )
-            logger.info("  - model.pt                       : Initial trained model")
             logger.info("  - resumed_training/model.pt      : Resumed training model")
         logger.info("  - forecasts/*/                   : Forecast plots per phase")
         logger.info("=" * 80)
         logger.info("End of: example_holdout_generic_workflow.py")
 
     except KeyboardInterrupt:
-        logger.info("\n\n🛑 Workflow interrupted by user")
+        logger.info("\n\nWorkflow interrupted by user")
     except Exception as e:
-        logger.error(f"\n\n❌ Workflow failed: {e}")
+        logger.error(f"\n\nWorkflow failed: {e}")
         traceback.print_exc()
 
 
