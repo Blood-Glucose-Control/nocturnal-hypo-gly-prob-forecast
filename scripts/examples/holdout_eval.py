@@ -270,49 +270,15 @@ def iter_episodes(patient_df: pd.DataFrame, context_length: int, forecast_length
 # Midnight-Anchored Evaluation (Nocturnal Hypoglycemia Task)
 # ---------------------------------------------------------------------------
 #
-# DESIGN RATIONALE:
+# Sliding-window eval (iter_episodes above) measures general forecast accuracy.
+# Midnight-anchored eval measures nocturnal hypo task performance: context ends
+# at midnight, 6h forecast covers the overnight window. These produce DIFFERENT
+# RMSE numbers and must never be mixed on the same leaderboard.
 #
-# The sliding-window evaluation above (iter_episodes) measures general
-# forecast accuracy across all times of day. For the nocturnal hypoglycemia
-# prediction task, we need a different evaluation protocol:
-#
-#   1. Context ends at midnight (00:00) — the clinically relevant decision
-#      point for overnight hypo risk assessment.
-#   2. Forecast horizon is 6 hours (midnight to 06:00) — the overnight window.
-#   3. Covariates (IOB, COB) at midnight are known inputs — insulin-on-board
-#      and carbs-on-board from the Hovorka model are available at prediction
-#      time and provide critical predictive signal.
-#
-# These two evaluation modes produce DIFFERENT RMSE numbers and must never
-# be mixed on the same leaderboard. Sliding-window RMSE measures general
-# forecasting ability; midnight-anchored RMSE measures nocturnal hypo task
-# performance specifically.
-#
-# Future experiments (e.g., post-meal forecasting, exercise-onset prediction)
-# will need their own episode builders in src/evaluation/episode_builders.py.
-# Each task defines its own clinically meaningful context anchoring and horizon.
-#
-# build_midnight_episodes() is imported from src.evaluation.episode_builders
-# (see import at top of file).
-#
-# PREDICT CONTRACT — PANEL DATA FORMAT:
-#
-# Episodes are passed to model.predict() as a panel DataFrame (tall format)
-# with an "episode_id" column marking episode boundaries. Each episode spans
-# multiple rows (context_length timestamps). This follows the sktime pattern
-# where predict() accepts both Series (single) and Panel (batch) data — see
-# sktime.forecasting.base.BaseForecaster for reference.
-#
-# Models that support batch input (Chronos-2, TTM) process all episodes in
-# one call. Models that only support single-series input (Sundial) should
-# group by episode_id and iterate internally. The contract is:
-#
-#   Input:  pd.DataFrame with columns [episode_id, timestamp, bg_mM, ...]
-#   Output: np.ndarray of shape (n_episodes, forecast_length)
-#
-# Known covariates (IOB, COB) for the forecast horizon are passed via
-# the "known_covariates" kwarg as a panel DataFrame with the same
-# episode_id column.
+# Episodes are stacked into a panel DataFrame with "episode_id" marking
+# boundaries. Known covariates (IOB, COB) for the forecast horizon are passed
+# separately via "known_covariates" (since we can't include future ground-truth
+# BG in the model input).
 # ---------------------------------------------------------------------------
 
 
@@ -325,35 +291,24 @@ def evaluate_nocturnal_forecasting(
     covariate_cols: Optional[List[str]] = None,
     interval_mins: int = SAMPLING_INTERVAL_MINUTES,
 ) -> Dict[str, Any]:
-    """Evaluate model on nocturnal forecasting task (midnight-anchored episodes).
+    """Evaluate model on midnight-anchored nocturnal forecasting task.
 
-    This is the nocturnal hypoglycemia prediction evaluation protocol:
-    context ends at midnight, forecast covers the overnight window (6 hours).
-
-    Episodes are stacked into a panel DataFrame with an ``episode_id`` column
-    and passed to model.predict() as a single batch call. The model's predict()
-    is responsible for handling batch input — models that support native batching
-    (Chronos-2, TTM) process all episodes at once; models that don't (Sundial)
-    should group by episode_id and loop internally.
-
-    Known covariates (IOB, COB) are passed via the ``known_covariates`` kwarg
-    as a matching panel DataFrame with the same episode_id values.
+    Builds midnight episodes per patient, stacks them into a panel DataFrame
+    with ``episode_id``, and calls model.predict() once. Known covariates
+    (IOB, COB) for the forecast horizon are passed separately via
+    ``known_covariates`` kwarg.
 
     Args:
-        model: Any model implementing predict(data: pd.DataFrame, **kwargs).
-            Must handle panel DataFrames with an ``episode_id`` column.
-            Returns np.ndarray of shape (n_episodes, forecast_length).
+        model: Model implementing predict(data, **kwargs) -> np.ndarray.
         holdout_data: Flat DataFrame with all holdout patients.
         context_length: Context window size in steps.
         forecast_length: Forecast horizon in steps.
         target_col: BG column name.
-        covariate_cols: Covariate column names to pass to model (e.g., ["iob"]).
+        covariate_cols: Covariate column names (e.g., ["iob"]).
         interval_mins: Sampling interval in minutes.
 
     Returns:
-        Dict with keys: overall_rmse, total_episodes, per_patient (list of
-        dicts with patient_id, episodes, rmse, mae), per_episode (list of
-        dicts with patient_id, anchor, rmse, pred, target_bg).
+        Dict with overall_rmse, total_episodes, per_patient, per_episode.
     """
     patient_col = get_patient_column(holdout_data)
     patients = holdout_data[patient_col].unique()
@@ -412,7 +367,7 @@ def evaluate_nocturnal_forecasting(
                 )
                 future_dict = {"episode_id": ep_id, "timestamp": future_ts}
                 for cov_col, cov_vals in ep["future_covariates"].items():
-                    future_dict[cov_col] = cov_vals[:forecast_length]
+                    future_dict[cov_col] = cov_vals
                 future_cov_dfs.append(pd.DataFrame(future_dict))
 
             episode_metadata.append(
