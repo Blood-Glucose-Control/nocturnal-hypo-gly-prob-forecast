@@ -118,15 +118,6 @@ def build_midnight_episodes(
         context_df = window_df.iloc[:context_length].copy()
         forecast_df = window_df.iloc[context_length:].copy()
 
-        # If covariates requested, check coverage (>50% in context).
-        # Covariates with too many NaNs provide unreliable signals even after
-        # forward-fill. Most valid CGM windows will have near-complete
-        # covariate data from the Hovorka model.
-        if available_covs:
-            cov_coverage = {c: 1 - context_df[c].isna().mean() for c in available_covs}
-            if all(v < 0.5 for v in cov_coverage.values()):
-                continue
-
         target_bg = forecast_df[target_col].to_numpy()
 
         # Build future covariate arrays (fill NaN via forward-fill)
@@ -135,12 +126,7 @@ def build_midnight_episodes(
             if cov_col in context_df.columns:
                 context_df[cov_col] = context_df[cov_col].ffill().fillna(0)
             if cov_col in forecast_df.columns:
-                future_vals = (
-                    pd.Series(forecast_df[cov_col].to_numpy())
-                    .ffill()
-                    .fillna(0)
-                    .to_numpy()
-                )
+                future_vals = forecast_df[cov_col].ffill().fillna(0).to_numpy()
             else:
                 future_vals = np.zeros(len(forecast_df))
             future_covariates[cov_col] = future_vals

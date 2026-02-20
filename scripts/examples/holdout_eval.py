@@ -484,9 +484,12 @@ def evaluate_nocturnal_forecasting(
             len(ep_list),
         )
 
-    # Overall metrics (RMS of per-episode RMSEs for consistency)
-    all_rmses = [ep["rmse"] for ep in all_episode_results]
-    overall_rmse = float(np.sqrt(np.mean(np.array(all_rmses) ** 2)))
+    # Overall metrics (concatenated predictions, consistent with per-patient)
+    all_preds = np.concatenate([np.asarray(ep["pred"]) for ep in all_episode_results])
+    all_targets = np.concatenate(
+        [np.asarray(ep["target_bg"]) for ep in all_episode_results]
+    )
+    overall_rmse = float(np.sqrt(np.mean((all_preds - all_targets) ** 2)))
 
     logger.info(
         "Nocturnal evaluation: %.4f RMSE over %d midnight episodes",
