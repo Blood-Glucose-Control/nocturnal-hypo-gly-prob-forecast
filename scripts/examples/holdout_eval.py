@@ -32,6 +32,7 @@ import yaml
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.models.base import BaseTimeSeriesFoundationModel, ModelConfig
 from src.evaluation.metrics import compute_regression_metrics
+from src.evaluation.episode_builders import build_midnight_episodes
 
 # Constants
 SAMPLING_INTERVAL_MINUTES = 5
@@ -289,6 +290,261 @@ def iter_episodes(patient_df: pd.DataFrame, context_length: int, forecast_length
         context = episode.iloc[:context_length]
         target = episode["bg_mM"].values[context_length:]
         yield context, target
+
+
+# ---------------------------------------------------------------------------
+# Midnight-Anchored Evaluation (Nocturnal Hypoglycemia Task)
+# ---------------------------------------------------------------------------
+#
+# DESIGN RATIONALE:
+#
+# The sliding-window evaluation above (iter_episodes) measures general
+# forecast accuracy across all times of day. For the nocturnal hypoglycemia
+# prediction task, we need a different evaluation protocol:
+#
+#   1. Context ends at midnight (00:00) — the clinically relevant decision
+#      point for overnight hypo risk assessment.
+#   2. Forecast horizon is 6 hours (midnight to 06:00) — the overnight window.
+#   3. Covariates (IOB, COB) at midnight are known inputs — insulin-on-board
+#      and carbs-on-board from the Hovorka model are available at prediction
+#      time and provide critical predictive signal.
+#
+# These two evaluation modes produce DIFFERENT RMSE numbers and must never
+# be mixed on the same leaderboard. Sliding-window RMSE measures general
+# forecasting ability; midnight-anchored RMSE measures nocturnal hypo task
+# performance specifically.
+#
+# Future experiments (e.g., post-meal forecasting, exercise-onset prediction)
+# will need their own episode builders in src/evaluation/episode_builders.py.
+# Each task defines its own clinically meaningful context anchoring and horizon.
+#
+# build_midnight_episodes() is imported from src.evaluation.episode_builders
+# (see import at top of file).
+#
+# PREDICT CONTRACT — PANEL DATA FORMAT:
+#
+# Episodes are passed to model.predict() as a panel DataFrame (tall format)
+# with an "episode_id" column marking episode boundaries. Each episode spans
+# multiple rows (context_length timestamps). This follows the sktime pattern
+# where predict() accepts both Series (single) and Panel (batch) data — see
+# sktime.forecasting.base.BaseForecaster for reference.
+#
+# Models that support batch input (Chronos-2, TTM) process all episodes in
+# one call. Models that only support single-series input (Sundial) should
+# group by episode_id and iterate internally. The contract is:
+#
+#   Input:  pd.DataFrame with columns [episode_id, timestamp, bg_mM, ...]
+#   Output: np.ndarray of shape (n_episodes, forecast_length)
+#
+# Known covariates (IOB, COB) for the forecast horizon are passed via
+# the "known_covariates" kwarg as a panel DataFrame with the same
+# episode_id column.
+# ---------------------------------------------------------------------------
+
+
+def evaluate_nocturnal_forecasting(
+    model: BaseTimeSeriesFoundationModel,
+    holdout_data: pd.DataFrame,
+    context_length: int,
+    forecast_length: int,
+    target_col: str = "bg_mM",
+    covariate_cols: Optional[List[str]] = None,
+    interval_mins: int = SAMPLING_INTERVAL_MINUTES,
+) -> Dict[str, Any]:
+    """Evaluate model on nocturnal forecasting task (midnight-anchored episodes).
+
+    This is the nocturnal hypoglycemia prediction evaluation protocol:
+    context ends at midnight, forecast covers the overnight window (6 hours).
+
+    Episodes are stacked into a panel DataFrame with an ``episode_id`` column
+    and passed to model.predict() as a single batch call. The model's predict()
+    is responsible for handling batch input — models that support native batching
+    (Chronos-2, TTM) process all episodes at once; models that don't (Sundial)
+    should group by episode_id and loop internally.
+
+    Known covariates (IOB, COB) are passed via the ``known_covariates`` kwarg
+    as a matching panel DataFrame with the same episode_id values.
+
+    Args:
+        model: Any model implementing predict(data: pd.DataFrame, **kwargs).
+            Must handle panel DataFrames with an ``episode_id`` column.
+            Returns np.ndarray of shape (n_episodes, forecast_length).
+        holdout_data: Flat DataFrame with all holdout patients.
+        context_length: Context window size in steps.
+        forecast_length: Forecast horizon in steps.
+        target_col: BG column name.
+        covariate_cols: Covariate column names to pass to model (e.g., ["iob"]).
+        interval_mins: Sampling interval in minutes.
+
+    Returns:
+        Dict with keys: overall_rmse, total_episodes, per_patient (list of
+        dicts with patient_id, episodes, rmse, mae), per_episode (list of
+        dicts with patient_id, anchor, rmse, pred, target_bg).
+    """
+    patient_col = get_patient_column(holdout_data)
+    patients = holdout_data[patient_col].unique()
+
+    # --- Phase 1: Build episodes for all patients ---
+    # Collect episodes and track which patient each belongs to.
+    episode_metadata = []  # (episode_id, patient_id, anchor, target_bg, future_covs)
+    context_dfs = []
+    future_cov_dfs = []
+
+    for patient_id in patients:
+        patient_df = holdout_data[holdout_data[patient_col] == patient_id].copy()
+
+        # Set DatetimeIndex if not already set
+        if not isinstance(patient_df.index, pd.DatetimeIndex):
+            time_col = "datetime" if "datetime" in patient_df.columns else None
+            if time_col:
+                patient_df[time_col] = pd.to_datetime(patient_df[time_col])
+                patient_df = patient_df.set_index(time_col).sort_index()
+            else:
+                logger.warning(
+                    "Patient %s: no datetime column or DatetimeIndex, skipping",
+                    patient_id,
+                )
+                continue
+
+        episodes = build_midnight_episodes(
+            patient_df,
+            context_length=context_length,
+            forecast_length=forecast_length,
+            target_col=target_col,
+            covariate_cols=covariate_cols,
+            interval_mins=interval_mins,
+        )
+
+        if not episodes:
+            logger.info("  Patient %s: no valid midnight episodes", patient_id)
+            continue
+
+        for i, ep in enumerate(episodes):
+            ep_id = f"{patient_id}_ep{i:03d}"
+
+            # Context panel: add episode_id and timestamp columns
+            ctx = ep["context_df"].copy()
+            ctx["episode_id"] = ep_id
+            ctx["timestamp"] = ctx.index
+            context_dfs.append(ctx)
+
+            # Future covariates panel (if any covariates available)
+            if ep["future_covariates"]:
+                anchor = ep["anchor"]
+                future_ts = pd.date_range(
+                    anchor,
+                    periods=forecast_length,
+                    freq=f"{interval_mins}min",
+                )
+                future_dict = {"episode_id": ep_id, "timestamp": future_ts}
+                for cov_col, cov_vals in ep["future_covariates"].items():
+                    future_dict[cov_col] = cov_vals[:forecast_length]
+                future_cov_dfs.append(pd.DataFrame(future_dict))
+
+            episode_metadata.append(
+                {
+                    "episode_id": ep_id,
+                    "patient_id": str(patient_id),
+                    "anchor": ep["anchor"],
+                    "target_bg": ep["target_bg"],
+                }
+            )
+
+    if not episode_metadata:
+        logger.warning("No valid midnight episodes found across all patients")
+        return {
+            "overall_rmse": float("nan"),
+            "total_episodes": 0,
+            "per_patient": [],
+            "per_episode": [],
+        }
+
+    # --- Phase 2: Stack and call predict() once ---
+    stacked_context = pd.concat(context_dfs, ignore_index=True)
+
+    predict_kwargs = {}
+    if future_cov_dfs:
+        stacked_covariates = pd.concat(future_cov_dfs, ignore_index=True)
+        predict_kwargs["known_covariates"] = stacked_covariates
+
+    logger.info(
+        "Calling predict() with %d stacked episodes (%d rows)",
+        len(episode_metadata),
+        len(stacked_context),
+    )
+    predictions = model.predict(stacked_context, **predict_kwargs)
+
+    # predictions expected shape: (n_episodes, forecast_length)
+    if predictions.ndim == 1:
+        # Single episode case: reshape to (1, forecast_length)
+        predictions = predictions.reshape(1, -1)
+    elif predictions.ndim == 3:
+        # (n_episodes, forecast_length, channels) -> (n_episodes, forecast_length)
+        predictions = predictions[:, :, 0]
+
+    # --- Phase 3: Unpack predictions and compute metrics ---
+    all_episode_results = []
+    patient_episodes = {}  # patient_id -> list of (pred, target) tuples
+
+    for i, meta in enumerate(episode_metadata):
+        pred = predictions[i]
+        target = meta["target_bg"][: len(pred)]
+        ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
+
+        all_episode_results.append(
+            {
+                "patient_id": meta["patient_id"],
+                "anchor": meta["anchor"].isoformat(),
+                "rmse": ep_rmse,
+                "pred": pred,
+                "target_bg": target,
+            }
+        )
+
+        pid = meta["patient_id"]
+        if pid not in patient_episodes:
+            patient_episodes[pid] = []
+        patient_episodes[pid].append((pred, target))
+
+    # Per-patient aggregate
+    all_patient_results = []
+    for pid, ep_list in patient_episodes.items():
+        preds = np.concatenate([p for p, _ in ep_list])
+        targets = np.concatenate([t for _, t in ep_list])
+        metrics = compute_metrics(preds, targets)
+
+        all_patient_results.append(
+            {
+                "patient_id": pid,
+                "episodes": len(ep_list),
+                **metrics,
+            }
+        )
+
+        logger.info(
+            "  Patient %s: RMSE=%.3f, MAE=%.3f (%d midnight episodes)",
+            pid,
+            metrics["rmse"],
+            metrics["mae"],
+            len(ep_list),
+        )
+
+    # Overall metrics (RMS of per-episode RMSEs for consistency)
+    all_rmses = [ep["rmse"] for ep in all_episode_results]
+    overall_rmse = float(np.sqrt(np.mean(np.array(all_rmses) ** 2)))
+
+    logger.info(
+        "Nocturnal evaluation: %.4f RMSE over %d midnight episodes",
+        overall_rmse,
+        len(all_episode_results),
+    )
+
+    return {
+        "overall_rmse": overall_rmse,
+        "total_episodes": len(all_episode_results),
+        "per_patient": all_patient_results,
+        "per_episode": all_episode_results,
+    }
 
 
 def compute_metrics(predictions: np.ndarray, targets: np.ndarray) -> Dict[str, float]:
