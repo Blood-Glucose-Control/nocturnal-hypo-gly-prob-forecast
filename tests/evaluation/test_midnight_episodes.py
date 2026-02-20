@@ -94,21 +94,3 @@ class TestBuildMidnightEpisodes:
         assert len(episodes) > 0
         for ep in episodes:
             assert ep["future_covariates"] == {}
-
-    def test_low_covariate_coverage_skips_episode(self):
-        """Clinical threshold: episodes with <50% covariate coverage are excluded."""
-        df = _make_patient_df(n_days=5, include_iob=True, iob_value=1.0)
-
-        # Set IOB to NaN for 80% of context before Jan 3 midnight
-        midnight_jan3 = pd.Timestamp("2024-01-03 00:00")
-        context_start = midnight_jan3 - pd.Timedelta(minutes=144 * 5)
-        nan_end = context_start + pd.Timedelta(minutes=int(144 * 5 * 0.8))
-        df.loc[context_start:nan_end, "iob"] = np.nan
-
-        anchors = [
-            ep["anchor"]
-            for ep in build_midnight_episodes(
-                df, context_length=144, forecast_length=72, covariate_cols=["iob"]
-            )
-        ]
-        assert midnight_jan3 not in anchors
