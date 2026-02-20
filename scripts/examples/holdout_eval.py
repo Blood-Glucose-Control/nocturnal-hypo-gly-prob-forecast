@@ -351,27 +351,23 @@ def evaluate_nocturnal_forecasting(
         for i, ep in enumerate(episodes):
             ep_id = f"{patient_id}_ep{i:03d}"
 
-            # Context panel: episode_id and timestamp as regular columns.
-            # Timestamp is saved from the DatetimeIndex before concat drops it
-            # (ignore_index=True). AutoGluon expects both as regular columns
-            # to build its internal MultiIndex(item_id, timestamp).
             ctx = ep["context_df"].copy()
             ctx["episode_id"] = ep_id
-            ctx["timestamp"] = ctx.index
             context_dfs.append(ctx)
 
             # Future covariates panel (if any covariates available)
             if ep["future_covariates"]:
-                anchor = ep["anchor"]
                 future_ts = pd.date_range(
-                    anchor,
+                    ep["anchor"],
                     periods=forecast_length,
                     freq=f"{interval_mins}min",
                 )
-                future_dict = {"episode_id": ep_id, "timestamp": future_ts}
-                for cov_col, cov_vals in ep["future_covariates"].items():
-                    future_dict[cov_col] = cov_vals
-                future_cov_dfs.append(pd.DataFrame(future_dict))
+                future_data = {
+                    cov_col: cov_vals
+                    for cov_col, cov_vals in ep["future_covariates"].items()
+                }
+                future_data["episode_id"] = ep_id
+                future_cov_dfs.append(pd.DataFrame(future_data, index=future_ts))
 
             episode_metadata.append(
                 {
@@ -392,11 +388,11 @@ def evaluate_nocturnal_forecasting(
         }
 
     # --- Phase 2: Stack and call predict() once ---
-    stacked_context = pd.concat(context_dfs, ignore_index=True)
+    stacked_context = pd.concat(context_dfs)
 
     predict_kwargs = {}
     if future_cov_dfs:
-        stacked_covariates = pd.concat(future_cov_dfs, ignore_index=True)
+        stacked_covariates = pd.concat(future_cov_dfs)
         predict_kwargs["known_covariates"] = stacked_covariates
 
     logger.info(
