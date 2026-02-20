@@ -325,7 +325,7 @@ def evaluate_nocturnal_forecasting(
     ``known_covariates`` kwarg.
 
     Args:
-        model: Model implementing predict(data, **kwargs) -> np.ndarray.
+        model: Model implementing predict(data, **kwargs) -> pd.DataFrame.
         holdout_data: Flat DataFrame with all holdout patients.
         context_length: Context window size in steps.
         forecast_length: Forecast horizon in steps.
@@ -341,7 +341,7 @@ def evaluate_nocturnal_forecasting(
 
     # --- Phase 1: Build episodes for all patients ---
     # Collect episodes and track which patient each belongs to.
-    episode_metadata = []  # (episode_id, patient_id, anchor, target_bg, future_covs)
+    episode_metadata = []
     context_dfs = []
     future_cov_dfs = []
 
@@ -377,7 +377,10 @@ def evaluate_nocturnal_forecasting(
         for i, ep in enumerate(episodes):
             ep_id = f"{patient_id}_ep{i:03d}"
 
-            # Context panel: add episode_id and timestamp columns
+            # Context panel: episode_id and timestamp as regular columns.
+            # Timestamp is saved from the DatetimeIndex before concat drops it
+            # (ignore_index=True). AutoGluon expects both as regular columns
+            # to build its internal MultiIndex(item_id, timestamp).
             ctx = ep["context_df"].copy()
             ctx["episode_id"] = ep_id
             ctx["timestamp"] = ctx.index
@@ -427,23 +430,26 @@ def evaluate_nocturnal_forecasting(
         len(episode_metadata),
         len(stacked_context),
     )
+
+    # predict() follows sktime convention: panel DataFrame in -> panel DataFrame
+    # out, with episode_id preserved. Each model is responsible for conforming.
     predictions = model.predict(stacked_context, **predict_kwargs)
 
-    # predictions expected shape: (n_episodes, forecast_length)
-    if predictions.ndim == 1:
-        # Single episode case: reshape to (1, forecast_length)
-        predictions = predictions.reshape(1, -1)
-    elif predictions.ndim == 3:
-        # (n_episodes, forecast_length, channels) -> (n_episodes, forecast_length)
-        predictions = predictions[:, :, 0]
-
-    # --- Phase 3: Unpack predictions and compute metrics ---
+    # --- Phase 3: Unpack predictions by episode_id and compute metrics ---
     all_episode_results = []
     patient_episodes = {}  # patient_id -> list of (pred, target) tuples
 
-    for i, meta in enumerate(episode_metadata):
-        pred = predictions[i]
-        target = meta["target_bg"][: len(pred)]
+    # Build lookup: episode_id -> target_bg and patient_id from metadata
+    meta_by_ep = {m["episode_id"]: m for m in episode_metadata}
+
+    for ep_id, group in predictions.groupby("episode_id"):
+        meta = meta_by_ep[ep_id]
+        # Contract: predict() returns a DataFrame with a column named after
+        # the target (e.g., "bg_mM"). Models rename internally if needed
+        # (e.g., Chronos-2 maps AutoGluon's "mean" column -> target_col).
+        pred = group[target_col].to_numpy()
+        target = meta["target_bg"]
+
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
 
         all_episode_results.append(
@@ -485,10 +491,8 @@ def evaluate_nocturnal_forecasting(
         )
 
     # Overall metrics (concatenated predictions, consistent with per-patient)
-    all_preds = np.concatenate([np.asarray(ep["pred"]) for ep in all_episode_results])
-    all_targets = np.concatenate(
-        [np.asarray(ep["target_bg"]) for ep in all_episode_results]
-    )
+    all_preds = np.concatenate([ep["pred"] for ep in all_episode_results])
+    all_targets = np.concatenate([ep["target_bg"] for ep in all_episode_results])
     overall_rmse = float(np.sqrt(np.mean((all_preds - all_targets) ** 2)))
 
     logger.info(

@@ -24,13 +24,10 @@ on the same leaderboard. Each builder returns a list of episode dicts that any
 model can consume via the predict(data, **kwargs) interface.
 """
 
-import logging
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-
-logger = logging.getLogger(__name__)
 
 # Default sampling interval for CGM data
 SAMPLING_INTERVAL_MINUTES = 5
@@ -120,16 +117,13 @@ def build_midnight_episodes(
 
         target_bg = forecast_df[target_col].to_numpy()
 
-        # Build future covariate arrays (fill NaN via forward-fill)
+        # Extract future covariate arrays (values already computed by Hovorka model)
         future_covariates = {}
         for cov_col in available_covs:
-            if cov_col in context_df.columns:
-                context_df[cov_col] = context_df[cov_col].ffill().fillna(0)
             if cov_col in forecast_df.columns:
-                future_vals = forecast_df[cov_col].ffill().fillna(0).to_numpy()
+                future_covariates[cov_col] = forecast_df[cov_col].to_numpy()
             else:
-                future_vals = np.zeros(len(forecast_df))
-            future_covariates[cov_col] = future_vals
+                future_covariates[cov_col] = np.zeros(len(forecast_df))
 
         episodes.append(
             {
