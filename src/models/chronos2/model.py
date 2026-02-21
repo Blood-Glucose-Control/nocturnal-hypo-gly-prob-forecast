@@ -26,9 +26,8 @@ and notebook 4.17-ss-chronos2-pipeline-validation.ipynb.
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Tuple
 
-import numpy as np
 import pandas as pd
 
 from src.data.preprocessing.gap_handling import segment_all_patients
@@ -37,10 +36,7 @@ from src.utils.logging_helper import info_print
 
 from .config import Chronos2Config
 from .utils import (
-    build_midnight_episodes,
     convert_to_patient_dict,
-    evaluate_with_covariates,
-    format_for_autogluon_with_known_covariates,
     format_segments_for_autogluon,
 )
 
@@ -188,137 +184,90 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         }
 
     # ------------------------------------------------------------------
-    # Inference pipeline (midnight-anchored episodes)
+    # Inference
     # ------------------------------------------------------------------
-
-    def _build_episodes(self, data: Any) -> List[Dict[str, Any]]:
-        """Build midnight-anchored episodes from a flat DataFrame.
-
-        Shared by predict() and evaluate(). Each episode represents one
-        clinical question: "At midnight, given context_length steps of
-        history + known covariates, what is BG for the next forecast_length
-        steps?"
-
-        Args:
-            data: Flat DataFrame with patient data (from registry).
-
-        Returns:
-            List of episode dicts, one per valid midnight per patient.
-        """
-        config = self.config
-        patient_dict = convert_to_patient_dict(
-            data, config.patient_col, config.time_col
-        )
-
-        all_episodes = []
-        for pid, pdf in patient_dict.items():
-            episodes = build_midnight_episodes(
-                pdf,
-                config.target_col,
-                config.covariate_cols,
-                config.interval_mins,
-                config.context_length,
-                config.forecast_length,
-            )
-            all_episodes.extend(episodes)
-
-        return all_episodes
 
     def predict(
         self,
         data: pd.DataFrame,
         **kwargs,
-    ) -> np.ndarray:
-        """Make predictions on holdout data using midnight-anchored episodes.
+    ) -> pd.DataFrame:
+        """Make predictions on panel DataFrame with episode_id.
+
+        Accepts a panel DataFrame (multiple episodes stacked, identified by
+        episode_id column) and returns predictions in the same format.
+        Converts episode_id -> item_id for AutoGluon internally.
 
         Args:
-            data: Flat DataFrame with patient data (from registry).
-            **kwargs: Unused (AutoGluon handles batching internally).
+            data: Panel DataFrame with episode_id column and DatetimeIndex.
+                Each episode has context_length rows of BG + covariates.
+            **kwargs: Optional known_covariates (panel DataFrame with
+                episode_id and covariate columns for the forecast horizon).
 
         Returns:
-            numpy array of shape (n_episodes, forecast_length) with mean
-            predictions, or empty array if no valid episodes.
+            DataFrame with episode_id and target_col columns containing
+            the predicted BG values for each episode's forecast horizon.
         """
+        from autogluon.timeseries import TimeSeriesDataFrame
+
         if self.predictor is None:
             raise ValueError("Model must be fitted or loaded before prediction")
 
-        all_episodes = self._build_episodes(data)
-        if not all_episodes:
-            logger.warning("No valid midnight episodes found in data")
-            return np.array([])
-
         config = self.config
-        ts_eval, known_cov = format_for_autogluon_with_known_covariates(
-            all_episodes,
-            config.target_col,
-            config.covariate_cols,
-            config.forecast_length,
-            config.interval_mins,
-        )
 
-        predictions = self.predictor.predict(ts_eval, known_covariates=known_cov)
+        if "episode_id" not in data.columns:
+            raise ValueError(
+                "predict() expects a panel DataFrame with 'episode_id' column. "
+                "Use evaluate_nocturnal_forecasting() to build episodes."
+            )
 
-        # AutoGluon returns quantile forecasts; extract "mean" point forecast
-        result = []
-        for i in range(len(all_episodes)):
-            item_id = f"ep_{i:03d}"
-            if item_id in predictions.index.get_level_values(0):
-                pred = predictions.loc[item_id]["mean"].values
-                result.append(pred)
+        # Convert episode_id -> item_id for AutoGluon
+        context = data.copy()
+        context["item_id"] = context["episode_id"]
+        context["timestamp"] = context.index
+        context = context.rename(columns={config.target_col: "target"})
 
-        return np.array(result) if result else np.array([])
+        # Select columns AutoGluon expects
+        ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
+        ag_cols = [c for c in ag_cols if c in context.columns]
+        context = context[ag_cols].set_index(["item_id", "timestamp"])
+        ts_data = TimeSeriesDataFrame(context)
 
-    def evaluate(
-        self,
-        test_data: Any,
-        batch_size: Optional[int] = None,
-        return_predictions: bool = False,
-    ) -> Dict[str, Any]:
-        """Evaluate on midnight-anchored holdout episodes.
+        # Build known covariates for AutoGluon if provided
+        known_cov = None
+        if "known_covariates" in kwargs and kwargs["known_covariates"] is not None:
+            kcov = kwargs["known_covariates"].copy()
+            kcov["item_id"] = kcov["episode_id"]
+            kcov["timestamp"] = kcov.index
+            cov_cols = ["item_id", "timestamp"] + [
+                c for c in config.covariate_cols if c in kcov.columns
+            ]
+            kcov = kcov[cov_cols].set_index(["item_id", "timestamp"])
+            known_cov = TimeSeriesDataFrame(kcov)
 
-        Overrides the base class evaluate() to use the nocturnal-specific
-        midnight-anchored episode evaluation with covariates.
+        # Call AutoGluon predictor
+        ag_predictions = self.predictor.predict(ts_data, known_covariates=known_cov)
 
-        Args:
-            test_data: Flat DataFrame with holdout patient data.
-            batch_size: Unused (AutoGluon handles batching internally).
-            return_predictions: Whether to include raw predictions in output.
+        # Convert AutoGluon output (MultiIndex item_id/timestamp, "mean" column)
+        # back to panel DataFrame with episode_id and target_col
+        result_rows = []
+        for episode_id in data["episode_id"].unique():
+            item_id = episode_id  # same mapping
+            if item_id in ag_predictions.index.get_level_values(0):
+                pred_series = ag_predictions.loc[item_id]["mean"]
+                ep_df = pd.DataFrame(
+                    {
+                        config.target_col: pred_series.values,
+                        "episode_id": episode_id,
+                    },
+                    index=pred_series.index,
+                )
+                result_rows.append(ep_df)
 
-        Returns:
-            Dict with rmse, n_episodes, and optionally predictions.
-        """
-        if self.predictor is None:
-            raise ValueError("Model must be fitted or loaded before evaluation")
+        if not result_rows:
+            return pd.DataFrame(columns=[config.target_col, "episode_id"])
 
-        all_episodes = self._build_episodes(test_data)
-        if not all_episodes:
-            logger.warning("No valid episodes for evaluation")
-            return {"rmse": float("nan"), "n_episodes": 0}
-
-        config = self.config
-        ts_eval, known_cov = format_for_autogluon_with_known_covariates(
-            all_episodes,
-            config.target_col,
-            config.covariate_cols,
-            config.forecast_length,
-            config.interval_mins,
-        )
-
-        avg_rmse, predictions, per_episode = evaluate_with_covariates(
-            self.predictor, ts_eval, known_cov, all_episodes
-        )
-
-        result = {
-            "rmse": avg_rmse,
-            "n_episodes": len(all_episodes),
-        }
-
-        if return_predictions:
-            result["predictions"] = predictions
-            result["episodes"] = all_episodes
-            result["per_episode"] = per_episode
-
-        return result
+        return pd.concat(result_rows)
 
     # ------------------------------------------------------------------
     # Persistence
