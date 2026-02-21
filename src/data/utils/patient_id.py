@@ -115,3 +115,29 @@ def get_prefix_for_dataset(dataset_name: str) -> str:
             f"Valid datasets: {list(DATASET_PREFIXES.keys())}"
         )
     return DATASET_PREFIXES[dataset_name]
+
+
+def get_patient_column(df) -> str:
+    """Determine the patient identifier column name in a DataFrame.
+
+    Different datasets may use different column names for patient identifiers.
+    This function detects the appropriate column name.
+
+    Args:
+        df: DataFrame containing patient data (pandas DataFrame)
+
+    Returns:
+        Name of the patient column ('p_num' or 'id')
+
+    Raises:
+        ValueError: If neither expected column is found
+    """
+    if "p_num" in df.columns:
+        return "p_num"
+    elif "id" in df.columns:
+        return "id"
+    else:
+        raise ValueError(
+            f"Expected patient column 'p_num' or 'id' not found. "
+            f"Available columns: {list(df.columns)}"
+        )
