@@ -27,66 +27,27 @@ PATIENT_COUNT = 226
 # TODO: ISF/CR is not dropped in the dataset. We could use this to calculate slope of the glucose curve.
 # to give models some hints about trend of the glucose curve.
 class Aleppo2017DataLoader(DatasetBase):
-    """Data loader for the Aleppo 2017 (REPLACE-BG) CGM dataset.
-
-    This class handles loading, processing, and caching of the Aleppo 2017
-    dataset, which contains continuous glucose monitoring data from the
-    REPLACE-BG randomized trial comparing CGM with and without routine blood
-    glucose monitoring in adults with well-controlled Type 1 diabetes.
-
-    The study evaluated whether CGM without confirmatory blood glucose
-    monitoring (BGM) is as safe and effective as using CGM adjunctive to BGM.
-
-    Key features of this dataset:
-        - n = 226 participants (149 CGM-only, 77 CGM + BGM control)
-        - 6-month study duration using Dexcom G4 CGM
-        - CGM data from adults with well-controlled T1D
-        - Useful for comparing CGM-only vs CGM+BGM treatment approaches
-
-    Attributes:
-        keep_columns: Specific columns to load from the dataset.
-        use_cached: Whether to use cached processed data if available.
-        num_validation_days: Number of days to use for validation.
-        train_percentage: Percentage of data to use for training.
-        parallel: Whether to use parallel processing.
-        max_workers: Maximum number of workers for parallel processing.
-        config: Optional configuration dictionary.
-
-    Example:
-        >>> loader = Aleppo2017DataLoader(use_cached=True)
-        >>> pretraining_dict = loader.processed_data
-    """
-
     def __init__(
         self,
-        # Data Selection
         keep_columns: list[str] | None = None,
-        # Caching
-        use_cached: bool = True,
-        # Train/validation splitting
+        dataset_type: str = "train",
         num_validation_days: int = 20,
+        use_cached: bool = True,
         train_percentage: float = 0.9,
-        # Parallel processing
+        config: dict | None = None,
         parallel: bool = True,
-        max_workers: int = 14,
-        # Date normalization (if applicable)
-        # Dataset-specific parameters
+        max_workers: int = 10,
     ):
         """
-        Initialize the Aleppo 2017 data loader.
-
         Args:
-            keep_columns: Specific columns to load from the dataset
-            num_validation_days: Number of days to use for validation (default 20)
-            use_cached: Whether to use cached processed data if available (default True).
-                WARNING: Processing data from scratch takes a VERY LONG TIME.
-            train_percentage: Percentage of data to use for training (default 0.9)
-            parallel: Whether to use parallel processing (default True)
-            max_workers: Maximum number of workers for parallel processing (default 10)
+            keep_columns (list): List of columns to keep from the raw data.
+            train_percentage (float): Percentage of the data to use for training.
+            use_cached (bool): Whether to use cached data. WARNING: Processing data takes a VERY LONG TIME.
         """
         self.keep_columns = keep_columns
         self.num_validation_days = num_validation_days
         self.train_percentage = train_percentage
+        self.dataset_type = dataset_type
         self.cache_manager = get_cache_manager()
         self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
         self.raw_data_path = None
@@ -94,7 +55,12 @@ class Aleppo2017DataLoader(DatasetBase):
         self.parallel = parallel
         self.max_workers = max_workers
 
-        logger.info(f"Initializing AleppoDataLoader with use_cached={use_cached}.")
+        logger.info(
+            f"Initializing AleppoDataLoader with use_cached={use_cached} and dataset_type={dataset_type}"
+        )
+        logger.info(
+            f"Currently not used: dataset_type: {dataset_type}, config: {config}"
+        )
         self.load_data()
 
     @property
@@ -135,18 +101,19 @@ class Aleppo2017DataLoader(DatasetBase):
         return list(self.processed_data.keys()) if self.processed_data else []
 
     @property
-    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
-        """Get shape summary for each patient's data.
-        For test data, patient_df may be a nested dictionary, e.g.:
-            {patient_id: {sub_id: DataFrame}}
-        For train/validation data, patient_df is a DataFrame.
-        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
+    def train_data_shape_summary(self) -> dict[str, tuple[int, int]]:
+        """Get shape summary for each patient's training data.
+
+        Returns:
+            dict[str, tuple[int, int]]: Dictionary mapping patient IDs to their
+                DataFrame shape as (num_rows, num_columns). Returns empty dict
+                if train_data is not available.
         """
-        if not self.processed_data:
+        if not self.train_data:
             return {}
         return {
             patient_id: df.shape
-            for patient_id, df in self.processed_data.items()
+            for patient_id, df in self.train_data.items()
             if isinstance(df, pd.DataFrame)
         }
 
@@ -168,6 +135,11 @@ class Aleppo2017DataLoader(DatasetBase):
             "parallel": self.parallel,
             "max_workers": self.max_workers,
         }
+        if self.train_data:
+            info["train_shapes"] = self.train_data_shape_summary
+            info["num_train_patients"] = len(self.train_data)
+        if self.validation_data:
+            info["num_validation_patients"] = len(self.validation_data)
         return info
 
     # ==================== Public Methods ====================
@@ -261,9 +233,7 @@ class Aleppo2017DataLoader(DatasetBase):
         3.Save the processed data to the cache.
         """
 
-        processed_path = self.cache_manager.get_absolute_path_by_type(
-            self.dataset_name, "processed"
-        )
+        processed_path = self.cache_manager.get_processed_data_path(self.dataset_name)
         processed_path.parent.mkdir(
             parents=True, exist_ok=True
         )  # Create parent directory
