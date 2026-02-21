@@ -248,7 +248,9 @@ def evaluate_nocturnal_forecasting(
 
     # Overall metrics (concatenated predictions)
     all_preds = np.concatenate([np.array(ep["pred"]) for ep in all_episode_results])
-    all_targets = np.concatenate([np.array(ep["target_bg"]) for ep in all_episode_results])
+    all_targets = np.concatenate(
+        [np.array(ep["target_bg"]) for ep in all_episode_results]
+    )
     overall_rmse = float(np.sqrt(np.mean((all_preds - all_targets) ** 2)))
 
     logger.info(
@@ -378,25 +380,29 @@ def plot_best_worst_episodes(
     # Combine: best first, then worst
     examples = []
     for ep in best_episodes:
-        examples.append({
-            "patient": ep["patient_id"],
-            "anchor": ep["anchor"],
-            "context": np.array(ep["context_bg"]),
-            "target": np.array(ep["target_bg"]),
-            "pred": np.array(ep["pred"]),
-            "rmse": ep["rmse"],
-            "label": "BEST",
-        })
+        examples.append(
+            {
+                "patient": ep["patient_id"],
+                "anchor": ep["anchor"],
+                "context": np.array(ep["context_bg"]),
+                "target": np.array(ep["target_bg"]),
+                "pred": np.array(ep["pred"]),
+                "rmse": ep["rmse"],
+                "label": "BEST",
+            }
+        )
     for ep in worst_episodes:
-        examples.append({
-            "patient": ep["patient_id"],
-            "anchor": ep["anchor"],
-            "context": np.array(ep["context_bg"]),
-            "target": np.array(ep["target_bg"]),
-            "pred": np.array(ep["pred"]),
-            "rmse": ep["rmse"],
-            "label": "WORST",
-        })
+        examples.append(
+            {
+                "patient": ep["patient_id"],
+                "anchor": ep["anchor"],
+                "context": np.array(ep["context_bg"]),
+                "target": np.array(ep["target_bg"]),
+                "pred": np.array(ep["pred"]),
+                "rmse": ep["rmse"],
+                "label": "WORST",
+            }
+        )
 
     n = len(examples)
     if n == 0:
@@ -685,5 +691,6 @@ def main():
 
 if __name__ == "__main__":
     import os
+
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     main()
