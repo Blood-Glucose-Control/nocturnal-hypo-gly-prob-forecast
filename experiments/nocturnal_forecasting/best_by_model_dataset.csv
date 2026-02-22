@@ -1,0 +1,2 @@
+run_id,experiment_type,ctx_fh,model,dataset,mode,timestamp,context_length,forecast_length,rmse,mae,mape,mse,total_episodes,git_commit,run_path
+2026-02-21_2239_brown_2019_zeroshot,nocturnal_forecasting,512ctx_72fh,ttm,brown_2019,zeroshot,2026-02-21T22:43:03.959874,512,72,3.525989456929909,,,,1830,9ee5b38,experiments/nocturnal_forecasting/512ctx_72fh/ttm/2026-02-21_2239_brown_2019_zeroshot
