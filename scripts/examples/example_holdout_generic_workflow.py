@@ -19,7 +19,6 @@ Workflow Steps:
   5. Fine-tune model for specified epochs
   6. Load model from checkpoint (verify save/load works)
   7. Resume training on loaded model
-  8. Full holdout evaluation on all datasets
 
 Usage:
     # Run with default settings (TTM model)
@@ -40,7 +39,7 @@ import json
 import logging
 import shutil
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -109,11 +108,7 @@ class GenericModelConfig:
     learning_rate: float = 1e-4
 
     # Additional model-specific config can be passed as kwargs
-    extra_config: Dict[str, Any] = None
-
-    def __post_init__(self):
-        if self.extra_config is None:
-            self.extra_config = {}
+    extra_config: Dict[str, Any] = field(default_factory=dict)
 
 
 def load_model_config_from_yaml(config_path: str) -> Dict[str, Any]:
@@ -133,11 +128,11 @@ def load_model_config_from_yaml(config_path: str) -> Dict[str, Any]:
         FileNotFoundError: If the config file does not exist.
         yaml.YAMLError: If the file is not valid YAML.
     """
-    config_path = Path(config_path)
-    if not config_path.exists():
+    config_dir_path = Path(config_path)
+    if not config_dir_path.exists():
         raise FileNotFoundError(f"Model config file not found: {config_path}")
 
-    with open(config_path, "r") as f:
+    with open(config_dir_path, "r") as f:
         config = yaml.safe_load(f)
 
     if config is None:
@@ -346,11 +341,11 @@ class ModelFactory:
     def create_finetune_config(
         model_type: str,
         model_path: Optional[str] = None,
-        context_length: int = None,
-        forecast_length: int = None,
-        batch_size: int = None,
-        num_epochs: int = None,
-        learning_rate: float = None,
+        context_length: Optional[int] = None,
+        forecast_length: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        num_epochs: Optional[int] = None,
+        learning_rate: Optional[float] = None,
         use_cpu: bool = False,
         fp16: bool = True,
         extra_config: Optional[Dict[str, Any]] = None,
@@ -377,35 +372,48 @@ class ModelFactory:
         # Start with YAML config as base
         yaml_config = dict(extra_config) if extra_config else {}
 
-        # Resolve top-level params: CLI arg > YAML > default
-        resolved_model_path = model_path or yaml_config.pop(
-            "model_path", ModelFactory.get_default_model_path(model_type)
+        # Always pop params from yaml_config to avoid duplication in extra_config
+        # Then resolve: CLI arg > YAML value > default
+        yaml_model_path = yaml_config.pop("model_path", None)
+        yaml_context = yaml_config.pop("context_length", None)
+        yaml_forecast = yaml_config.pop("forecast_length", None)
+        yaml_batch = yaml_config.pop("batch_size", None)
+        yaml_epochs = yaml_config.pop("num_epochs", None)
+        yaml_lr = yaml_config.pop("learning_rate", None)
+        yaml_mode = yaml_config.pop("training_mode", "fine_tune")
+        yaml_freeze = yaml_config.pop("freeze_backbone", False)
+
+        # Resolve values with priority: CLI arg > YAML > default
+        resolved_model_path = (
+            model_path
+            or yaml_model_path
+            or ModelFactory.get_default_model_path(model_type)
         )
         resolved_context = (
             context_length
             if context_length is not None
-            else yaml_config.pop("context_length", 512)
+            else (yaml_context if yaml_context is not None else 512)
         )
         resolved_forecast = (
             forecast_length
             if forecast_length is not None
-            else yaml_config.pop("forecast_length", 96)
+            else (yaml_forecast if yaml_forecast is not None else 96)
         )
         resolved_batch = (
             batch_size
             if batch_size is not None
-            else yaml_config.pop("batch_size", 2048)
+            else (yaml_batch if yaml_batch is not None else 2048)
         )
         resolved_epochs = (
-            num_epochs if num_epochs is not None else yaml_config.pop("num_epochs", 1)
+            num_epochs
+            if num_epochs is not None
+            else (yaml_epochs if yaml_epochs is not None else 1)
         )
         resolved_lr = (
             learning_rate
             if learning_rate is not None
-            else yaml_config.pop("learning_rate", 1e-4)
+            else (yaml_lr if yaml_lr is not None else 1e-4)
         )
-        resolved_mode = yaml_config.pop("training_mode", "fine_tune")
-        resolved_freeze = yaml_config.pop("freeze_backbone", False)
 
         # Remove hardware params from extra_config (handled by CLI)
         yaml_config.pop("use_cpu", None)
@@ -418,8 +426,8 @@ class ModelFactory:
             forecast_length=resolved_forecast,
             batch_size=resolved_batch,
             num_epochs=resolved_epochs,
-            training_mode=resolved_mode,
-            freeze_backbone=resolved_freeze,
+            training_mode=yaml_mode,
+            freeze_backbone=yaml_freeze,
             use_cpu=use_cpu,
             fp16=fp16,
             learning_rate=resolved_lr,
@@ -514,6 +522,7 @@ def _generate_forecasts(
     output_dir: str,
     phase_name: str,
     zero_shot: bool = False,
+    model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Dict]]:
     """Helper: Generate forecasts using the model and holdout data.
 
@@ -525,6 +534,7 @@ def _generate_forecasts(
         output_dir: Directory where prediction files will be saved
         phase_name: Identifier for this phase (e.g., "zero_shot", "after_training")
         zero_shot: If True, use predict_zero_shot() instead of predict()
+        model_config_overrides: Optional dict with input_features/target_features
 
     Returns:
         Dict[str, Dict]: Dictionary mapping dataset names to forecast results
@@ -535,6 +545,20 @@ def _generate_forecasts(
         context_length = model.config.context_length
         forecast_length = model.config.forecast_length
         registry = DatasetRegistry(holdout_config_dir=config_dir)
+
+        # Determine which columns to use for the model
+        # Priority: model_config_overrides > training_columns
+        if model_config_overrides:
+            input_features = model_config_overrides.get("input_features", [])
+            target_features = model_config_overrides.get("target_features", [])
+            if input_features or target_features:
+                # Use explicit features from config + required columns
+                model_features = list(input_features) + list(target_features)
+                logger.info(f"  Using model config features: {model_features}")
+            else:
+                model_features = None
+        else:
+            model_features = None
 
         # Create predictions output directory with phase identifier
         predictions_dir = Path(output_dir) / "predictions" / phase_name
@@ -565,9 +589,20 @@ def _generate_forecasts(
             logger.info(f"  First holdout patient: {first_patient}")
             logger.info(f"  Patient data shape: {patient_data.shape}")
 
-            forecast_cols = [
-                col for col in training_columns if col in patient_data.columns
-            ]
+            # Determine columns to use: model config features or training_columns
+            if model_features:
+                # Use model config features + required id/datetime columns
+                required_cols = ["p_num", "id", "datetime"]
+                forecast_cols = [
+                    col
+                    for col in model_features + required_cols
+                    if col in patient_data.columns
+                ]
+            else:
+                # Fall back to training_columns
+                forecast_cols = [
+                    col for col in training_columns if col in patient_data.columns
+                ]
             # Slice to get context + forecast length
             total_length = context_length + forecast_length
             forecast_data = patient_data.iloc[:total_length][forecast_cols].copy()
@@ -667,7 +702,7 @@ def _generate_forecasts(
 
 
 def _plot_forecasts(
-    forecast_results: dict,
+    forecast_results: Optional[dict],
     output_dir: str,
     phase_name: str,
 ) -> bool:
@@ -889,6 +924,7 @@ def _evaluate_and_plot(
     output_dir: str,
     phase_name: str,
     zero_shot: bool = False,
+    model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict]:
     """Helper: Generate forecasts and plots for a given phase.
 
@@ -903,6 +939,7 @@ def _evaluate_and_plot(
         output_dir: Output directory for artifacts
         phase_name: Identifier for this phase
         zero_shot: If True, use predict_zero_shot() for inference
+        model_config_overrides: Optional dict with input_features/target_features
 
     Returns:
         dict: Forecast results, or None if failed
@@ -920,6 +957,7 @@ def _evaluate_and_plot(
         output_dir=output_dir,
         phase_name=phase_name,
         zero_shot=zero_shot,
+        model_config_overrides=model_config_overrides,
     )
 
     # Plot forecasts
@@ -1285,25 +1323,11 @@ def step4_zero_shot_evaluation(
         output_dir=output_dir,
         phase_name="0_zero_shot",
         zero_shot=True,
+        model_config_overrides=model_config_overrides,
     )
 
     logger.info("✓ Zero-shot evaluation completed")
     # Note: We don't return the model - step5 will create a fresh one for training
-
-    # Explicitly free GPU memory before step 5 creates a new model
-    del model
-    try:
-        import torch
-
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            logger.info("✓ GPU memory cleared after zero-shot evaluation")
-    except Exception as exc:
-        # Best-effort GPU cleanup: log and continue without failing the workflow
-        logger.debug(
-            "Skipping GPU memory cleanup after zero-shot evaluation due to error: %s",
-            exc,
-        )
 
 
 def step5_train_model(
@@ -1313,8 +1337,8 @@ def step5_train_model(
     training_columns: list,
     config_dir: str,
     output_dir: str,
-    num_epochs: Optional[int] = None,
-    batch_size: Optional[int] = None,
+    num_epochs: int = 1,
+    batch_size: int = 2048,
     model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Any, GenericModelConfig, Dict, Path]:
     """Step 5: Fine-tune model on combined dataset.
@@ -1328,8 +1352,8 @@ def step5_train_model(
         training_columns: Column names from training data
         config_dir: Holdout config directory
         output_dir: Output directory
-        num_epochs: Number of training epochs (None = use YAML or default)
-        batch_size: Batch size for training (None = use YAML or default)
+        num_epochs: Number of training epochs
+        batch_size: Batch size for training
         model_config_overrides: Optional dict of model-specific config from YAML
 
     Returns:
@@ -1340,9 +1364,7 @@ def step5_train_model(
     logger.info("STEP 5: Fine-tune Model")
     logger.info(f"Model type: {model_type}")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info(
-        f"Epochs: {num_epochs if num_epochs is not None else 'from YAML or default'}"
-    )
+    logger.info(f"Epochs: {num_epochs}")
     logger.info("=" * 80)
 
     # GPU setup
@@ -1379,9 +1401,27 @@ def step5_train_model(
     logger.info(f"Training on combined datasets: {', '.join(dataset_names)}")
     logger.info(f"Output directory: {output_dir}")
 
+    # Filter training data to only model config columns if specified
+    # This ensures the preprocessor only learns scalers for the features we'll use at inference
+    train_data_for_model = combined_data
+    if model_config_overrides:
+        input_features = model_config_overrides.get("input_features", [])
+        target_features = model_config_overrides.get("target_features", [])
+        if input_features or target_features:
+            required_cols = ["p_num", "id", "datetime"]
+            model_cols = list(input_features) + list(target_features)
+            all_cols = [
+                col
+                for col in model_cols + required_cols
+                if col in combined_data.columns
+            ]
+            train_data_for_model = combined_data[all_cols].copy()
+            logger.info(f"Filtered training data to model config columns: {model_cols}")
+            logger.info(f"  Training data shape: {train_data_for_model.shape}")
+
     try:
         # Train the model (fit() is implemented by each model type)
-        results = model.fit(train_data=combined_data, output_dir=output_dir)
+        results = model.fit(train_data=train_data_for_model, output_dir=output_dir)
         print("\n>>> Training completed successfully\n")
         logger.info("✓ Training completed")
         logger.info(f"  Results: {list(results.keys())}")
@@ -1401,6 +1441,7 @@ def step5_train_model(
             config_dir=config_dir,
             output_dir=output_dir,
             phase_name="1_after_training",
+            model_config_overrides=model_config_overrides,
         )
 
         return model, config, results, model_path
@@ -1419,6 +1460,7 @@ def step6_load_checkpoint(
     dataset_names: list,
     config_dir: str,
     output_dir: str,
+    model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Optional[Any]:
     """Step 6: Load model from checkpoint and verify it works.
 
@@ -1432,6 +1474,7 @@ def step6_load_checkpoint(
         dataset_names: List of dataset names
         config_dir: Holdout config directory
         output_dir: Output directory
+        model_config_overrides: Optional dict of model-specific config from YAML
 
     Returns:
         Loaded model instance, or None if loading failed
@@ -1468,6 +1511,7 @@ def step6_load_checkpoint(
             config_dir=config_dir,
             output_dir=output_dir,
             phase_name="2_after_loading",
+            model_config_overrides=model_config_overrides,
         )
 
         return model
@@ -1485,7 +1529,8 @@ def step7_resume_training(
     training_columns: list,
     config_dir: str,
     output_dir: str,
-    num_epochs: Optional[int] = None,
+    num_epochs: int = 1,
+    model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Any, Dict, Path]:
     """Step 7: Resume training on loaded model for additional epochs.
 
@@ -1500,6 +1545,7 @@ def step7_resume_training(
         config_dir: Holdout config directory
         output_dir: Output directory
         num_epochs: Number of additional epochs
+        model_config_overrides: Optional dict of model-specific config from YAML
 
     Returns:
         tuple: (model, results, model_path) - Updated model, results, and save path
@@ -1508,9 +1554,7 @@ def step7_resume_training(
     logger.info("=" * 80)
     logger.info("STEP 7: Resume Training on Loaded Model")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info(
-        f"Additional epochs: {num_epochs if num_epochs is not None else 'from YAML or default'}"
-    )
+    logger.info(f"Additional epochs: {num_epochs}")
     logger.info("=" * 80)
 
     # Check if model has training history from previous training
@@ -1535,20 +1579,34 @@ def step7_resume_training(
 
     print(f"\n>>> Resuming training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {resumed_output_dir}")
-    epochs_display = num_epochs if num_epochs is not None else "configured"
-    print(f">>> Training with {epochs_display} additional epoch(s)...\n")
+    print(f">>> Training with {num_epochs} additional epoch(s)...\n")
+
+    # Filter training data to same columns used in initial training
+    train_data_for_model = combined_data
+    if model_config_overrides:
+        input_features = model_config_overrides.get("input_features", [])
+        target_features = model_config_overrides.get("target_features", [])
+        if input_features or target_features:
+            required_cols = ["p_num", "id", "datetime"]
+            model_cols = list(input_features) + list(target_features)
+            all_cols = [
+                col
+                for col in model_cols + required_cols
+                if col in combined_data.columns
+            ]
+            train_data_for_model = combined_data[all_cols].copy()
 
     try:
         # Continue training (fit() is implemented by child class)
         results = model.fit(
-            train_data=combined_data, output_dir=str(resumed_output_dir)
+            train_data=train_data_for_model, output_dir=str(resumed_output_dir)
         )
         print("\n>>> Resumed training completed successfully\n")
         logger.info("✓ Resumed training completed")
         logger.info(f"  Results: {list(results.keys())}")
 
         # Save the model after resumed training (save() is from base class)
-        model_path = resumed_output_dir / "resumed_model.pt"
+        model_path = resumed_output_dir / "model.pt"
         model.save(str(model_path))
         logger.info(f"✓ Resumed model saved to: {model_path}")
         logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
@@ -1561,6 +1619,7 @@ def step7_resume_training(
             config_dir=config_dir,
             output_dir=output_dir,
             phase_name="3_after_resumed_training",
+            model_config_overrides=model_config_overrides,
         )
 
         return model, results, model_path
@@ -1569,97 +1628,6 @@ def step7_resume_training(
         print(f"\n>>> ERROR: Resumed training failed: {e}\n")
         logger.error(f"✗ Resumed training failed: {e}")
         raise
-
-
-def step8_full_holdout_evaluation(
-    model,  # BaseTimeSeriesFoundationModel or compatible
-    dataset_names: list,
-    config_dir: str,
-) -> Dict[str, Any]:
-    """Step 8: Full evaluation on holdout sets for all datasets.
-
-    This performs the comprehensive evaluation using the model's evaluate()
-    method on the complete holdout data for each dataset.
-
-    Args:
-        model: Trained model instance
-        dataset_names: List of dataset names
-        config_dir: Holdout config directory
-
-    Returns:
-        dict: Mapping of dataset names to evaluation results
-    """
-    logger.info(" ")
-    logger.info("=" * 80)
-    logger.info("STEP 8: Full Holdout Evaluation")
-    logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info("=" * 80)
-
-    registry = DatasetRegistry(holdout_config_dir=config_dir)
-    all_results = {}
-
-    for dataset_name in dataset_names:
-        logger.info(f"\n--- Evaluating holdout for: {dataset_name} ---")
-
-        # Load holdout data
-        holdout_data = registry.load_holdout_data_only(dataset_name)
-        logger.info(f"✓ Holdout data loaded: {len(holdout_data):,} samples")
-
-        # Log dataset info
-        if "p_num" in holdout_data.columns or "id" in holdout_data.columns:
-            patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
-            holdout_patients = holdout_data[patient_col].dropna().unique()
-            logger.info(f"  Holdout patients: {len(holdout_patients)}")
-
-        # Pass full holdout data to evaluate() - the model's _prepare_inference_data()
-        # needs id/timestamp columns (p_num, datetime) for ForecastDFDataset.
-        # Only exclude non-feature metadata columns like source_dataset.
-        eval_data = holdout_data.drop(
-            columns=["source_dataset"], errors="ignore"
-        ).copy()
-
-        logger.info(f"  Columns for evaluation: {list(eval_data.columns)}")
-        logger.info(f"  Holdout data shape: {eval_data.shape}")
-
-        # Evaluate using the evaluate() method
-        try:
-            logger.info("  Running evaluation on holdout set...")
-
-            eval_results = model.evaluate(test_data=eval_data)
-
-            logger.info(f"  ✓ Evaluation completed for {dataset_name}")
-            logger.info("  Metrics:")
-
-            # Log all metrics from evaluation
-            for key, value in eval_results.items():
-                if isinstance(value, (int, float)):
-                    logger.info(f"    - {key}: {value:.6f}")
-                else:
-                    logger.info(f"    - {key}: {value}")
-
-            all_results[dataset_name] = eval_results
-
-        except Exception as e:
-            logger.error(f"  ✗ Evaluation failed for {dataset_name}: {e}")
-            traceback.print_exc()
-            all_results[dataset_name] = None
-
-    # Summary
-    logger.info("=" * 80)
-    logger.info("Full Holdout Evaluation Summary")
-    logger.info("=" * 80)
-    for dataset_name, results in all_results.items():
-        if results is not None:
-            # Find primary metric (usually MSE or loss)
-            primary_metric = results.get("eval_loss", results.get("mse", "N/A"))
-            if isinstance(primary_metric, float):
-                logger.info(f"  {dataset_name}: eval_loss = {primary_metric:.6f}")
-            else:
-                logger.info(f"  {dataset_name}: {primary_metric}")
-        else:
-            logger.info(f"  {dataset_name}: FAILED")
-
-    return all_results
 
 
 # =============================================================================
@@ -1678,7 +1646,6 @@ Workflow Steps:
   5. Fine-tune model for specified epochs
   6. Load model from checkpoint (verify save/load works)
   7. Resume training on loaded model
-  8. Full holdout evaluation on all datasets
 
 Supported Model Types:
   - ttm: IBM Granite TTM (TinyTimeMixer)
@@ -1721,36 +1688,32 @@ stored in separate subdirectories for comparison.
         "--epochs",
         type=int,
         default=None,
-        help="Number of training epochs per phase. Overrides YAML config value. "
-        "Falls back to YAML num_epochs, then default (1) if not set.",
+        help="Number of training epochs per phase (default: from YAML config, or 1)",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
         default=None,
-        help="Batch size for training and inference. Overrides YAML config value. "
-        "Falls back to YAML batch_size, then default (2048) if not set.",
+        help="Batch size for training and inference (default: from YAML config, or 2048)",
     )
     parser.add_argument(
         "--model-config",
         type=str,
         default=None,
-        help="Path to model YAML config file (e.g., configs/models/ttm/default.yaml). "
-        "Specifies model-specific parameters like input_features, scaler_type, "
-        "split_config, etc. Explicit CLI args (--epochs, --batch-size) override YAML values.",
+        help="Path to YAML model configuration file (e.g., configs/models/ttm/fine_tune.yaml)",
     )
 
     args = parser.parse_args()
-
-    # Set output directory
-    if args.output_dir is None:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
-        args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_{args.model_type}_holdout_workflow"
 
     # Load model config from YAML if provided
     model_config_overrides = None
     if args.model_config:
         model_config_overrides = load_model_config_from_yaml(args.model_config)
+
+    # Set output directory
+    if args.output_dir is None:
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
+        args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_{args.model_type}_holdout_workflow"
 
     logger.info("=" * 80)
     logger.info("🚀 GENERIC FORECASTER WORKFLOW DEMONSTRATION")
@@ -1761,20 +1724,18 @@ stored in separate subdirectories for comparison.
     logger.info(f"Config dir: {args.config_dir}")
     logger.info(f"Output dir: {args.output_dir}")
     logger.info(f"Model config: {args.model_config or 'None (using defaults)'}")
-    logger.info(
-        f"Epochs per phase: {args.epochs if args.epochs is not None else 'from YAML or default'}"
-    )
+    logger.info(f"Epochs per phase: {args.epochs}")
     logger.info(f"Skip training: {args.skip_training}")
     logger.info("=" * 80)
 
+    # Copy model config to output directory for reproducibility
+    if args.model_config:
+        output_path = Path(args.output_dir)
+        output_path.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(args.model_config, output_path / "model_config.yaml")
+        logger.info(f"Copied model config to: {output_path / 'model_config.yaml'}")
+
     try:
-        # Copy model config YAML to output artifacts for reproducibility
-        if args.model_config:
-            output_path = Path(args.output_dir)
-            output_path.mkdir(parents=True, exist_ok=True)
-            model_config_dest = output_path / "model_config.yaml"
-            shutil.copy2(args.model_config, model_config_dest)
-            logger.info(f"✓ Model config copied to: {model_config_dest}")
         # =====================================================================
         # STEP 1: Check/generate holdout configs
         # =====================================================================
@@ -1823,10 +1784,11 @@ stored in separate subdirectories for comparison.
             if model_path.exists():
                 logger.info(f"Loading existing model from: {model_path}")
 
-                # Create a config for loading (use YAML if provided)
+                # Create a config for loading
                 config = ModelFactory.create_finetune_config(
                     model_type=args.model_type,
-                    extra_config=model_config_overrides,
+                    context_length=512,
+                    forecast_length=96,
                 )
 
                 model = step6_load_checkpoint(
@@ -1837,6 +1799,7 @@ stored in separate subdirectories for comparison.
                     dataset_names=args.datasets,
                     config_dir=args.config_dir,
                     output_dir=args.output_dir,
+                    model_config_overrides=model_config_overrides,
                 )
                 if model is None:
                     logger.error("Failed to load existing model")
@@ -1871,6 +1834,7 @@ stored in separate subdirectories for comparison.
                 dataset_names=args.datasets,
                 config_dir=args.config_dir,
                 output_dir=args.output_dir,
+                model_config_overrides=model_config_overrides,
             )
             if model is None:
                 logger.error("Failed to load model from checkpoint")
@@ -1887,21 +1851,13 @@ stored in separate subdirectories for comparison.
                 config_dir=args.config_dir,
                 output_dir=args.output_dir,
                 num_epochs=args.epochs,
+                model_config_overrides=model_config_overrides,
             )
-
-        # =====================================================================
-        # STEP 8: Full holdout evaluation on all datasets
-        # =====================================================================
-        step8_full_holdout_evaluation(
-            model=model,
-            dataset_names=args.datasets,
-            config_dir=args.config_dir,
-        )
 
         # =====================================================================
         # WORKFLOW COMPLETE
         # =====================================================================
-        logger.info("=" * 80)
+        logger.info("\n" + "=" * 80)
         logger.info("✅ WORKFLOW COMPLETED SUCCESSFULLY!")
         logger.info("=" * 80)
         logger.info(f"Model type: {args.model_type.upper()}")
@@ -1923,9 +1879,9 @@ stored in separate subdirectories for comparison.
         logger.info("End of: example_holdout_generic_workflow.py")
 
     except KeyboardInterrupt:
-        logger.info("🛑 Workflow interrupted by user")
+        logger.info("\n\n🛑 Workflow interrupted by user")
     except Exception as e:
-        logger.error(f"❌ Workflow failed: {e}")
+        logger.error(f"\n\n❌ Workflow failed: {e}")
         traceback.print_exc()
 
 

@@ -299,19 +299,24 @@ class BaseTimeSeriesFoundationModel(ABC):
     # Abstract methods that child classes must implement
     ## Abstract public API methods
     @abstractmethod
-    def predict(self, data: Any, batch_size: Optional[int] = None) -> np.ndarray:
+    def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
         """
-        Make predictions on new data.
+        Make predictions on new data using configured forecast_length.
 
         Each model must implement this method to handle its specific
-        prediction logic and output format.
+        prediction logic and output format. The forecast horizon is
+        determined by self.config.forecast_length (set at model creation),
+        following sklearn/PyTorch conventions.
 
         Args:
-            data: Input data for prediction
-            batch_size: Batch size for prediction (defaults to config.batch_size)
+            data: DataFrame with 'bg_mM' column containing the context window.
+                  May include additional columns for multivariate models.
+            **kwargs: Model-specific options (e.g., batch_size, num_samples,
+                     inverse_scale, return_dict).
 
         Returns:
-            Predictions as numpy array
+            Predictions as numpy array of shape (forecast_length,) for single
+            sample or (n_samples, forecast_length) for batch predictions.
         """
         pass
 
@@ -439,45 +444,6 @@ class BaseTimeSeriesFoundationModel(ABC):
             # Common cleanup that must happen in distributed training scenarios
             # This can causes serious issues causes GPUs to be locked if not run.
             self._cleanup_distributed()
-
-    def evaluate(
-        self,
-        test_data: Any,
-        batch_size: Optional[int] = None,
-        return_predictions: bool = False,
-    ) -> Dict[str, Any]:  # Values can be floats, arrays, etc.
-        """
-        Evaluate the model on test data.
-
-        This base implementation calls predict() and computes standard metrics.
-        Child classes can override for model-specific evaluation (e.g., using Trainer).
-
-        Args:
-            test_data: Test dataset (format depends on model's _prepare_data)
-            batch_size: Batch size for evaluation (defaults to config.batch_size)
-            return_predictions: Whether to include predictions in output
-
-        Returns:
-            Dictionary containing metrics and optionally predictions
-        """
-        if not self.is_fitted:
-            raise ValueError("Model must be fitted before evaluation")
-
-        # Get predictions using the child's predict implementation
-        predictions = self.predict(test_data, batch_size=batch_size)
-
-        # Extract ground truth from test data
-        # Child classes may need to override if their data format differs
-        y_true = self._extract_ground_truth(test_data)
-
-        # Compute metrics using protected method
-        metrics = self._compute_metrics(predictions, y_true)
-
-        if return_predictions:
-            metrics["predictions"] = predictions
-            metrics["ground_truth"] = y_true
-
-        return metrics
 
     def save(
         self, model_path: str, save_config: bool = True, save_metadata: bool = True
@@ -857,73 +823,6 @@ class BaseTimeSeriesFoundationModel(ABC):
         target_modules = sorted(list(set(target_modules)))
 
         return target_modules
-
-    ## Metrics Computation
-    def _compute_metrics(
-        self, y_pred: np.ndarray, y_true: np.ndarray
-    ) -> Dict[str, float]:
-        """
-        Compute standard evaluation metrics.
-
-        This is a protected method providing common metrics computation.
-        Child classes can override to add model-specific metrics.
-
-        Args:
-            y_pred: Predicted values
-            y_true: Ground truth values
-
-        Returns:
-            Dictionary of metric names to values
-        """
-        # Ensure numpy arrays
-        if not isinstance(y_pred, np.ndarray):
-            y_pred = np.array(y_pred)
-        if not isinstance(y_true, np.ndarray):
-            y_true = np.array(y_true)
-
-        # Flatten if needed for comparison
-        y_pred = y_pred.flatten()
-        y_true = y_true.flatten()
-
-        # Core metrics
-        mse = float(np.mean((y_pred - y_true) ** 2))
-        rmse = float(np.sqrt(mse))
-        mae = float(np.mean(np.abs(y_pred - y_true)))
-
-        # MAPE with zero handling
-        mask = y_true != 0
-        if np.any(mask):
-            mape = float(
-                np.mean(np.abs((y_pred[mask] - y_true[mask]) / y_true[mask])) * 100
-            )
-        else:
-            mape = 0.0
-
-        return {
-            "mse": mse,
-            "rmse": rmse,
-            "mae": mae,
-            "mape": mape,
-        }
-
-    def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
-        """
-        Extract ground truth labels from test data.
-
-        This is a protected method that child classes should override
-        if their data format differs from the default expectation.
-
-        Args:
-            test_data: Test dataset
-
-        Returns:
-            Ground truth values as numpy array
-        """
-        # Default implementation - child classes should override
-        raise NotImplementedError(
-            f"{self.__class__.__name__} must implement _extract_ground_truth() "
-            "or override evaluate() entirely"
-        )
 
     ## Training Metadata
     def _get_early_stopping_config(self) -> Dict[str, Any]:

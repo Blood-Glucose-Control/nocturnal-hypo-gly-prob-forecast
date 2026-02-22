@@ -10,23 +10,23 @@ temporal_config:
   min_holdout_samples: 10
 patient_config:
   holdout_patients:
-  - lynch_270
-  - lynch_400
-  - lynch_36
-  - lynch_160
-  - lynch_328
-  - lynch_279
-  - lynch_93
-  - lynch_69
-  - lynch_445
-  - lynch_199
-  - lynch_116
-  - lynch_373
-  - lynch_588
-  - lynch_290
-  - lynch_468
-  - lynch_4
-  - lynch_360
+  - lyn_270
+  - lyn_400
+  - lyn_36
+  - lyn_160
+  - lyn_328
+  - lyn_279
+  - lyn_93
+  - lyn_69
+  - lyn_445
+  - lyn_199
+  - lyn_116
+  - lyn_373
+  - lyn_588
+  - lyn_290
+  - lyn_468
+  - lyn_4
+  - lyn_360
   holdout_percentage: null
   min_train_patients: 2
   min_holdout_patients: 1

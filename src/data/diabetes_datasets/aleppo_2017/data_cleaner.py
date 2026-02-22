@@ -17,6 +17,7 @@ from src.data.models import ColumnNames
 from src.data.preprocessing.generic_cleaning import erase_consecutive_nan_values
 from src.data.preprocessing.pipeline import preprocessing_pipeline
 from src.data.preprocessing.time_processing import get_most_common_time_interval
+from src.data.utils.patient_id import format_patient_id
 from src.utils.unit import mg_dl_to_mmol_l
 import os
 import logging
@@ -219,27 +220,30 @@ def process_single_patient_file(patient_file_tuple: tuple) -> tuple:
     filename, interim_path, processed_path = patient_file_tuple
 
     df = pd.read_csv(interim_path / filename)
-    save_path = processed_path / filename
 
-    # Don't process if already exists
-    if save_path.exists():
-        # Read the existing file and return it
-        df = pd.read_csv(save_path, index_col=0)
-        p_num = df[ColumnNames.P_NUM.value].iloc[0]
-        logger.info(f"Skipping pid {filename} because {save_path} already exists.")
-        return (p_num, df)
-
-    # Process the patient
+    # Process the patient first to get the formatted p_num for the output filename
     df = process_one_patient(df)
 
     if df is None or df.empty:
         raise ValueError(f"Processed data is None or empty for patient {filename}")
 
-    p_num = df[ColumnNames.P_NUM.value].iloc[0]
+    raw_p_num = df[ColumnNames.P_NUM.value].iloc[0]
+    p_num = format_patient_id("aleppo_2017", raw_p_num)
+    df[ColumnNames.P_NUM.value] = p_num
+
+    # Use formatted patient ID for output filename
+    save_path = processed_path / f"{p_num}_full.csv"
+
+    # Don't process if already exists
+    if save_path.exists():
+        # Read the existing file and return it
+        df = pd.read_csv(save_path, index_col=0)
+        logger.info(f"Skipping pid {p_num} because {save_path} already exists.")
+        return (p_num, df)
 
     # Save the processed data
     df.to_csv(save_path, index=True)
-    logger.info(f"Done processing pid {filename}")
+    logger.info(f"Done processing pid {p_num}")
 
     return (p_num, df)
 
@@ -312,29 +316,33 @@ def clean_all_patients(
             progress = f"({index}/{total_patients})"
             df = pd.read_csv(interim_path / filename)
 
-            save_path = processed_path / filename
-            # Don't process the patient if the processed data already exists
+            # Process to get formatted p_num for output filename
+            df = process_one_patient(df)
+            if df is None or df.empty:
+                logger.error(
+                    f"Processed data is None or empty for patient {filename} {progress}"
+                )
+                continue
+
+            raw_p_num = df[ColumnNames.P_NUM.value].iloc[0]
+            p_num = format_patient_id("aleppo_2017", raw_p_num)
+            df[ColumnNames.P_NUM.value] = p_num
+
+            # Use formatted patient ID for output filename
+            save_path = processed_path / f"{p_num}_full.csv"
+
+            # Don't save if the processed data already exists
             if save_path.exists():
                 logger.info(
-                    f"Skipping pid {filename} because {save_path} already exists {progress}."
+                    f"Skipping pid {p_num} because {save_path} already exists {progress}."
                 )
                 df = pd.read_csv(save_path, index_col=0)
-                p_num = df[ColumnNames.P_NUM.value].iloc[0]
                 processed_data[p_num] = df
                 continue
 
-            # Process the patient
-            df = process_one_patient(df)
-
-            if df is None or df.empty:
-                raise ValueError(
-                    f"Processed data is None or empty for patient {filename}"
-                )
-
-            p_num = str(df[ColumnNames.P_NUM.value].iloc[0]).split(".")[0]
+            # Save the processed data
             processed_data[p_num] = df
-
             df.to_csv(save_path, index=True)
-            logger.info(f"{'-'*10}Done processing pid {filename} {progress} {'-'*10}")
+            logger.info(f"{'-'*10}Done processing pid {p_num} {progress} {'-'*10}")
 
     return processed_data

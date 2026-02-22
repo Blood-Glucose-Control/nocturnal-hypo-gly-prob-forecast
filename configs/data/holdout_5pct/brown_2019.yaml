@@ -10,14 +10,14 @@ temporal_config:
   min_holdout_samples: 10
 patient_config:
   holdout_patients:
-  - '164'
-  - '62'
-  - '152'
-  - '35'
-  - '88'
-  - '31'
-  - '134'
-  - '3'
+  - bro_164
+  - bro_62
+  - bro_152
+  - bro_35
+  - bro_88
+  - bro_31
+  - bro_134
+  - bro_3
   holdout_percentage: null
   min_train_patients: 2
   min_holdout_patients: 1
