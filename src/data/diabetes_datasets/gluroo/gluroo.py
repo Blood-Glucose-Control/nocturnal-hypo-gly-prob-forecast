@@ -10,12 +10,12 @@ This dataset is for INTERNAL USE ONLY and will NOT be released to the public.
 import logging
 import re
 from itertools import chain
-from typing import Iterable
+from typing import Iterable, TypedDict
 from pathlib import Path
 
 import pandas as pd
 from datasets import IterableDataset, load_dataset
-from sqlalchemy import create_engine, text
+from sqlalchemy import bindparam, create_engine, text
 from src.data.models import ColumnNames
 from src.data.cache_manager import get_cache_manager
 from src.data.diabetes_datasets.dataset_base import DatasetBase
@@ -27,13 +27,12 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 logger = logging.getLogger(__name__)
 
 """
-TODO: Tune the the params. patients_per_partition, patients_per_batch, target_file_size_mb, etc.
+TODO: Tune the the params. patients_per_partition, patients_per_batch, etc.
 TODO: Add some meta data as a json file maybe
 TODO: Double check p_num refracotring logic.
 TODO: Create a streaming dataset. Hmmm maybe like a IterableDataset but it seems to have some issues with huggingface Trainer.
 This need to work with huggingface trainer.
 """
-
 
 class GlurooDataLoader(DatasetBase):
     """
@@ -51,7 +50,6 @@ class GlurooDataLoader(DatasetBase):
 
     Attributes:
         keep_columns (list[str] | None): Columns to keep from the raw data.
-        train_percentage (float): Percentage of data to use for training.
         config (dict | None): Configuration for data processing.
         use_cached (bool): Whether to use previously cached processed data.
         processed_data (dict[str, pd.DataFrame]): Processed data by patient ID.
@@ -63,10 +61,21 @@ class GlurooDataLoader(DatasetBase):
         self,
         keep_columns: list[str] | None = None,
         use_cached: bool = True,
-        train_percentage: float = 0.9,
-        config: dict | None = None,
         max_workers: int = 10,
-        parquet_batch_size: int = 100000,
+
+        patients_per_batch: int = 100,
+        # TOOD: This will need to be tuned. Can we fit 100 patients per batch in memory?
+        # 100 patients size can also vary depending on the data.
+
+        patients_per_file: int = 400,
+        # TODO: This will need to be tuned too
+        # Higher: less files, larger reads (better IO performance)
+        # Lower: more files, better for dataloader workers
+        # Total files = 100k / patients_per_file
+        # so 100k / 400 = 250 files?
+
+        number_of_patients_to_process: int = 100,
+        min_date_span_days: int = 30,
         load_all: bool = False,
     ):
         """
@@ -77,25 +86,25 @@ class GlurooDataLoader(DatasetBase):
                 If None, all columns are kept.
             use_cached (bool): If True, load previously processed data from cache
                 instead of processing raw data again. Default is True.
-            train_percentage (float): Percentage of data to use for training (0-1).
-                Default is 0.9.
-            config (dict | None): Configuration dictionary for data processing steps.
-            max_workers (int): Maximum number of worker processes for parallel processing.
-            parquet_batch_size (int): Number of rows to process per batch when loading
-                from Parquet files. Default is 100000. Can be tuned for memory/performance.
-            load_all (bool): If True, load all patients from Parquet cache into
-                processed_data (for testing). Default is False.
+                IMPORTANT: This should never be false
+            patients_per_batch: Number of patients per batch. This is the number of patients we query from the database to process at a time.
+            patients_per_file: Number of patients per output Parquet file. Batches fill files in order; a batch may write to 0, 1, or 2+ files when it straddles the fill boundary.
+            number_of_patients_to_process: Number of patients to process for this run.
+            max_workers: Maximum number of workers to use for parallel processing within a batch.
+            min_date_span_days: Minimum date span in days for a patient to be considered valid.
+            load_all: Load all data into processed_data for testing.
         """
         self.keep_columns = keep_columns
-        self.train_percentage = train_percentage
         self.cache_manager = get_cache_manager()
         self.dataset_config = get_dataset_config(self.dataset_name)
         self.use_cached = use_cached
         self.max_workers = max_workers
-        self.config = config
-        self.parquet_batch_size = parquet_batch_size
+        self.patients_per_batch = patients_per_batch
+        self.patients_per_file = patients_per_file
+        self.number_of_patients_to_process = number_of_patients_to_process
+        self.min_date_span_days = min_date_span_days
         self.load_all = load_all
-        # Hardcoded for now
+        # Hardcoded
         self.db_connection_string = (
             "postgresql://postgres:password@127.0.0.1:5433/gluroo_datasets"
         )
@@ -160,10 +169,13 @@ class GlurooDataLoader(DatasetBase):
             logger.warning(
                 "This is a very long running operation. Make sure to run it as a job."
             )
-            # Ideally, we wouldn't want to process the data when trying to load the data for training.
-            # We would submit a job to get data to process then load the data later.
-            # so if the code reaches here, it means this is a batch job not training so probably doesn't need to load the data when done.
             self._process_and_cache_data(batch_size=20)
+            logger.info("Data processing completed. Call the loader with use_cached=True to load the data into processed_data.")
+            '''
+            Ideally, we wouldn't want to process the data when trying to load the data for training.
+            We would submit a job to get data to process then load the data later.
+            So if the code reaches here, it means this is a batch job not training so probably doesn't need to load the data when done.
+            '''
             if self.load_all:
                 logging.warning(
                     "WARNING: Loading all data into processed_data for testing."
@@ -209,88 +221,93 @@ class GlurooDataLoader(DatasetBase):
     def _get_all_patient_ids(self) -> list[tuple[str, str]]:
         """
         Get all unique patient IDs sorted by gid from the database. A patient is a group.
+        gids: base64 encoded id. This is the primary key of the groups table and referenced by the readings and messages tables.
+        p_num (or patient_id): loader internal string identifier (e.g., gluroo_1) ordered by gid (generated by the script add_patient_id.sql).
 
         Returns:
             list[tuple[str, str]]: List of patient tuples (gid, p_num) sorted by gid (each gid is mapped to one string p_num)
         """
         engine = create_engine(self.db_connection_string)
         with engine.connect() as conn:
-            # TODO: Might need to change this for now because the example dataset doesn't even satisfy the foreign key constraint....
-            # TODO: Might make sense to just make up a group in groups table for the test data.
             result = conn.execute(
+                # Order by gid to ensure deterministic ordering.
                 text("SELECT DISTINCT gid, p_num FROM groups ORDER BY gid")
             )
             gids_p_nums = [(row[0], str(row[1])) for row in result.fetchall()]
         return gids_p_nums
 
-    def _get_patient_id_mapping(self) -> dict[str, str]:
+    def load_raw(self, gids_p_nums: list[tuple[str, str]] | None = None) -> dict[str, pd.DataFrame]:
         """
-        Get mapping from gid to string p_num from the database.
-
-        Returns:
-            dict[str, str]: Dictionary mapping gid to p_num (string, ordered) (each gid is mapped to one p_num)
-        """
-        engine = create_engine(self.db_connection_string)
-        with engine.connect() as conn:
-            # Get gid and p_num from groups table, ordered by p_num for consistency
-            result = conn.execute(text("SELECT gid, p_num FROM groups ORDER BY p_num"))
-            mapping = {row[0]: str(row[1]) for row in result.fetchall()}
-        return mapping
-
-    def load_raw(self, patient_ids: list[str] | None = None) -> dict[str, pd.DataFrame]:
-        """
-        Load raw data from TimescaleDB for specified patients.
+        Load raw data from TimescaleDB for specified patients and filters out patients with less than min_date_span_days.
 
         Args:
-            patient_ids: List of patient IDs to load. If None, loads all patients.
+            gids_p_nums: List of patient IDs to load. If None, loads all patients.
 
         Returns:
-            dict[str, pd.DataFrame]: Dictionary mapping patient IDs (gid) to raw DataFrames
+            A dictionary mapping patient IDs (p_num) to raw DataFrames (note that no longer gids)
         """
-        if patient_ids is None:
-            # id is the base64 encoded
-            patient_ids_p_nums = self._get_all_patient_ids()
-            logger.info(
-                f"Loading raw data for all {len(patient_ids_p_nums)} groups from TimescaleDB..."
-            )
-            # Extract just the gids for iteration
-            patient_ids = [gid for gid, _p_num in patient_ids_p_nums]
-        else:
-            logger.info(
-                f"Loading raw data for {len(patient_ids)} patients from TimescaleDB..."
-            )
-
         engine = create_engine(self.db_connection_string)
         raw_data = {}
+        if not gids_p_nums:
+            logger.info("No gids_p_nums to load")
+            return raw_data
 
-        for gid in patient_ids:
-            # TODO: This will be a bottleneck. Should query all related patients at once.
-            df = self._load_patient_data_from_db(engine, gid)
-            if df is not None and not df.empty:
-                raw_data[gid] = df
-            else:
+        try:
+            gids = [gid for gid, _p_num in gids_p_nums]
+            all_df = self._load_all_patients_data_from_db(engine, gids)
+            logger.info(f"Loaded {len(all_df)} rows from database.")
+        except Exception as e:
+            logger.warning(f"Error loading batch data from database: {e}")
+            return raw_data
+
+        if all_df.empty:
+            self.total_skipped_patients += len(gids_p_nums)
+            logger.info("No data found for any patient")
+            return raw_data
+
+        for gid, p_num in gids_p_nums:
+            df = all_df.loc[all_df["gid"] == gid].copy()
+            if not df.empty:
+                date_span = df["date"].max() - df["date"].min()
+                # date may be string, try to parse if needed (TODO: check if this is needed)
+                if not pd.api.types.is_datetime64_any_dtype(df["date"]):
+                    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+                    date_span = df["date"].max() - df["date"].min()
+                if pd.isnull(date_span) or date_span.days < self.min_date_span_days:
+                    self.total_skipped_patients += 1
+                    continue
+
+            # Remove the gids
+            df = df.drop(columns=["gid"])
+            if df.empty:
                 self.total_skipped_patients += 1
+                continue
+            df[ColumnNames.P_NUM.value] = df["p_num"]
+            raw_data[p_num] = df
 
         logger.info(f"Loaded raw data for {len(raw_data)} patients")
         return raw_data
 
-    def _load_patient_data_from_db(self, engine, gid: str) -> pd.DataFrame | None:
+    def _load_all_patients_data_from_db(
+        self, engine, gids: list[str]
+    ) -> pd.DataFrame:
         """
-        Load raw data for a single patient from TimescaleDB.
+        Load raw data for multiple patients from TimescaleDB in a single query.
 
-        Combines readings and messages tables for a specific patient (gid).
+        Combines readings and messages for all given gids. Caller is responsible
+        for splitting the result by gid and handling empty groups.
 
         Args:
             engine: SQLAlchemy engine
-            gid: Patient group ID
+            patient_ids: List of patient group IDs (gids)
 
         Returns:
-            pd.DataFrame: Combined raw data for the patient, or None if no data
+            pd.DataFrame: Combined raw data with a 'gid' column for splitting.
+                Rows are ordered by date, then gid; callers may assume this order.
         """
-        # Use UNION instead of FULL OUTER JOIN to speed up the query while maintaining chronological order
-        # Join with groups table to get string p_num (This is generated by the script add_patient_id.sql)
         query = text("""
             SELECT
+                r.gid,
                 r.date,
                 r.bgl,
                 r.trend,
@@ -304,9 +321,10 @@ class GlurooDataLoader(DatasetBase):
                 g.p_num
             FROM readings r
             JOIN groups g ON r.gid = g.gid
-            WHERE r.gid = :gid
+            WHERE r.gid IN :gids
             UNION ALL
             SELECT
+                m.gid,
                 m.date,
                 NULL::INT,
                 NULL::trend_type as trend,
@@ -320,37 +338,29 @@ class GlurooDataLoader(DatasetBase):
                 g.p_num
             FROM messages m
             JOIN groups g ON m.gid = g.gid
-            WHERE m.gid = :gid
-            ORDER BY date
-        """)
+            WHERE m.gid IN :gids
+            -- Order by date and gid to ensure deterministic ordering.
+            ORDER BY date, gid
+        """).bindparams(bindparam("gids", expanding=True))
 
-        try:
-            with engine.connect() as conn:
-                df = pd.read_sql(query, conn, params={"gid": gid})
-                if df.empty:
-                    logger.warning(f"No data found for patient {gid}. Skipping...")
-                    return None
-
-                df[ColumnNames.P_NUM.value] = df["p_num"]
-                return df
-        except Exception as e:
-            logger.warning(f"Error loading data for patient {gid}: {e}")
-            return None
+        with engine.connect() as conn:
+            return pd.read_sql(query, conn, params={"gids": gids})
 
     def _process_and_cache_data(self, batch_size: int = 10):
         """
-        Process raw data and save to cache in batches.
-
-        Loads raw data from database in batches, processes each batch,
-        and saves processed data to cache as partitioned Parquet.
+        Process raw data and save to cache in batches. 
+        For each batch:
+            1. Loads raw data from database in batches,
+            2. Processes each batch in parallel with max_workers number of workers,
+            3. Saves processed data to cache as partitioned Parquet.
         This avoids loading all patients' raw data into memory at once.
 
         Args:
             batch_size: Number of patients to process in each batch. Default is 100. This can be tuned to optimize for memory usage and processing speed.
         """
         # Get all patient IDs with p_nums first (sorted by gid)
-        all_patient_ids_p_nums = self._get_all_patient_ids()
-        total_patients = len(all_patient_ids_p_nums)
+        full_gids_p_nums: list[tuple[str, str]] = self._get_all_patient_ids()
+        total_patients = len(full_gids_p_nums)
         logger.info(f"Processing {total_patients} patients in batches of {batch_size}")
 
         processed_path = self.cache_manager.get_absolute_path_by_type(
@@ -359,15 +369,14 @@ class GlurooDataLoader(DatasetBase):
         processed_path.parent.mkdir(parents=True, exist_ok=True)
         processed_path.mkdir(parents=True, exist_ok=True)
 
-        # Process patients in batches and save incrementally
+        # Process patients in batches and save incrementally.
+        # Stateless: each batch determines target file from global index, then read-if-exists → concat → write.
         parquet_path = processed_path / "parquet"
         parquet_path.mkdir(parents=True, exist_ok=True)
 
         for batch_start in range(0, total_patients, batch_size):
             batch_end = min(batch_start + batch_size, total_patients)
-            batch_patient_ids_p_nums = all_patient_ids_p_nums[batch_start:batch_end]
-            # Extract just the gids for load_raw
-            batch_patient_ids = [gid for gid, _p_num in batch_patient_ids_p_nums]
+            batch_gids_p_nums = full_gids_p_nums[batch_start:batch_end]
             batch_num = (batch_start // batch_size) + 1
             total_batches = (total_patients + batch_size - 1) // batch_size
 
@@ -376,36 +385,25 @@ class GlurooDataLoader(DatasetBase):
                 f"patients {batch_start+1}-{batch_end} of {total_patients}"
             )
 
-            # Load raw data for this batch (returns dict with gid as keys)
-            batch_raw_data_gid = self.load_raw(batch_patient_ids)
+            ##### Load raw data for this batch (returns dict with p_num as keys) #####
+            # From this point on, we no longer need to use gids as we are out of database phase.
+            batch_raw_data = self.load_raw(batch_gids_p_nums)
             logger.info(f"Total skipped patients so far: {self.total_skipped_patients}")
 
-            #### From this point on, we only use p_num to identify patients. gid is not used anymore. #####
-            # Convert from {gid: df} to {p_num: df} for processing
-            batch_raw_data = {}
-            gid_to_pnum_map = {}  # Keep mapping for error messages
-            for gid, df in batch_raw_data_gid.items():
-                if "p_num" not in df.columns or df.empty:
-                    logger.warning(
-                        f"Patient {gid} missing p_num column or empty DataFrame. Skipping..."
-                    )
-                    continue
-                p_num = str(df["p_num"].iloc[0])
-                batch_raw_data[p_num] = df
-                gid_to_pnum_map[p_num] = gid
+            # p_num -> gid for error messages in _process_raw_data_batch
+            gid_to_pnum_map = {p_num: gid for gid, p_num in batch_gids_p_nums}
 
-            # Process this batch with parallel processing (now uses p_num as keys)
+            # Process this batch with parallel processing (uses p_num as keys)
             batch_processed_data = self._process_raw_data_batch(
                 batch_raw_data, processed_path, gid_to_pnum_map
             )
 
-            # Save this batch immediately to free up memory
+            # Save this batch immediately (stateless: file = p_num // patients_per_file, read-if-exists → concat → write)
             logger.info(f"Saving batch {batch_num}/{total_batches} to Parquet...")
             self._save_batch_incremental(
                 batch_processed_data,
-                batch_raw_data,  # Pass the p_num-keyed dict for reference
                 parquet_path,
-                batch_num,
+                self.patients_per_file,
             )
 
             # Clear batch data from memory after saving
@@ -549,207 +547,67 @@ class GlurooDataLoader(DatasetBase):
             return int(match.group(1))
         raise ValueError(f"Invalid p_num format: {p_num}")
 
-    def _get_partition_number(
-        self, patient_index: int | str, patients_per_partition: int = 400
-    ) -> int:
-        """
-        Get partition number for a patient based on sequential ordering.
-        Accepts either numeric index or p_num string (e.g., gluroo_123).
-        """
-        numeric_index = self._p_num_to_int(patient_index)
-        return numeric_index // patients_per_partition
-
     def _save_batch_incremental(
         self,
         batch_processed_data: dict[str, pd.DataFrame],
-        batch_raw_data: dict[str, pd.DataFrame],
         parquet_path: Path,
-        batch_num: int,
-        patients_per_partition: int = 400,
-    ):
+        patients_per_file: int,
+    ) -> None:
         """
-        Save a batch of processed data incrementally to Parquet files.
+        There are around 100k patients. If 100 per files, there will be 1000 files which is not too bad I guess
+        We can probably do a 900 / 50 / 50 split for train/val/test or higher ratio even.
 
-        This method saves each batch immediately after processing to free up memory.
-        It determines partition numbers based on string p_num from the database.
+        Save a batch to Parquet in a stateless way: for each target file, read
+        existing if present, concat with new data, write.
+
+        File is determined by p_num: patients in the same numeric range go to the same file
+        (e.g. gluroo_0..gluroo_399 -> file_000000, gluroo_400..gluroo_799 -> file_000001).
+        Parquet does not support true append so we read existing file → concat → write.
+        Peak memory per file write is one file's worth of data (at most
+        patients_per_file patients) plus this batch's contribution.
 
         Args:
-            batch_processed_data: Dictionary mapping p_num (str) to processed DataFrames for this batch
-            batch_raw_data: Dictionary mapping p_num (str) to raw DataFrames (used to extract p_num for p_num column)
-            parquet_path: Path to Parquet directory
-            batch_num: Batch number for unique file naming
-            patients_per_partition: Number of patients per partition (default: 400)
-            TODO: patients_per_partition will need to be tuned too. We don't want too many files
+            batch_processed_data: p_num -> processed DataFrame for this batch
+            parquet_path: Directory for file_000000.parquet, file_000001.parquet, ...
+            patients_per_file: Number of patients per output file (partition size by p_num)
         """
-        # Group batch patients by partition using numeric component of p_num
-        partition_groups: dict[int, list[tuple[str, pd.DataFrame]]] = {}
-        for p_num in batch_processed_data.keys():
-            if p_num not in batch_processed_data:
-                continue  # Skip if processing failed
+        # Group this batch by target file: file_id = p_num numeric value // patients_per_file
+        file_groups: dict[int, list[pd.DataFrame]] = {}
+        for p_num, df in batch_processed_data.items():
+            file_id = self._p_num_to_int(p_num) // patients_per_file
+            df_with_id = df.copy()
+            # We use datetime
+            if "date" in df_with_id.columns:
+                df_with_id = df_with_id.drop(columns=["date"])
+            df_with_id[ColumnNames.P_NUM.value] = p_num
+            df_with_id = df_with_id.reset_index()
+            if file_id not in file_groups:
+                file_groups[file_id] = []
+            file_groups[file_id].append(df_with_id)
 
-            partition_num = self._get_partition_number(p_num, patients_per_partition)
-
-            if partition_num not in partition_groups:
-                partition_groups[partition_num] = []
-            partition_groups[partition_num].append((p_num, batch_processed_data[p_num]))
-
-        # Save each partition group
-        for partition_num in sorted(partition_groups.keys()):
-            partition_dir = parquet_path / f"partition={partition_num:03d}"
-            partition_dir.mkdir(parents=True, exist_ok=True)
-
-            # Prepare data for this partition
-            partition_data = []
-            for p_num, df in partition_groups[partition_num]:
-                df_with_id = df.copy()
-                if "date" in df_with_id.columns:
-                    df_with_id = df_with_id.drop(columns=["date"])
-                df_with_id[ColumnNames.P_NUM.value] = p_num
-                df_with_id = df_with_id.reset_index()  # Convert index to column
-                partition_data.append(df_with_id)
-
-            if not partition_data:
-                continue
-
-            # Concatenate all patients in this partition for this batch
-            batch_df = pd.concat(partition_data, ignore_index=True)
-
-            # Save to a unique file for this batch and partition
-            # Using batch_num ensures uniqueness across batches
-            batch_file = partition_dir / f"batch_{batch_num:06d}.parquet"
-            batch_df.to_parquet(
-                batch_file,
+        for file_id in sorted(file_groups.keys()):
+            new_df = pd.concat(file_groups[file_id], ignore_index=True)
+            file_path = parquet_path / f"file_{file_id:06d}.parquet"
+            if file_path.exists():
+                # Read and append to existing parquet file
+                # It is not ideal but probably fast enough
+                existing_df = pd.read_parquet(file_path)
+                combined = pd.concat([existing_df, new_df], ignore_index=True)
+                del existing_df
+            else:
+                combined = new_df
+            combined.to_parquet(
+                file_path,
                 engine="pyarrow",
-                compression="snappy",  # Doesn't compress as much as gzip, but it's faster at decompressing.
+                compression="snappy",
                 index=False,
             )
+            del combined
+            del new_df
+        del file_groups
 
-            logger.debug(
-                f"Saved batch {batch_num}, partition {partition_num}: "
-                f"{len(partition_groups[partition_num])} patients to {batch_file}"
-            )
 
-            # Clear from memory
-            del batch_df
-            del partition_data
-
-    def _save_as_partitioned_parquet(
-        self,
-        processed_data: dict[str, pd.DataFrame],
-        processed_path: Path,
-        patients_per_partition: int = 400,
-        patients_per_batch: int = 100,
-        target_file_size_mb: float = 500.0,
-    ):
-        """
-        Save processed data as partitioned Parquet files.
-
-        Partitions patients sequentially (partition 0 = first N patients, partition 1 = next N, etc.)
-        and batches multiple patients per file for efficient storage and streaming.
-
-        Args:
-            processed_data: Dictionary mapping patient IDs to processed DataFrames
-            processed_path: Path to processed data directory
-            patients_per_partition: Number of patients per partition (default: 400)
-            patients_per_batch: Target number of patients per batch file
-            target_file_size_mb: Target file size in MB (approximate)
-        """
-        parquet_path = processed_path / "parquet"
-        parquet_path.mkdir(parents=True, exist_ok=True)
-
-        # Convert dict to list and sort by patient_id for deterministic ordering
-        # This ensures consistent partitioning across runs
-        patients_list = sorted(processed_data.items(), key=lambda x: x[0])
-        total_patients = len(patients_list)
-
-        # Group patients by sequential partition
-        partition_groups: dict[int, list[tuple[str, pd.DataFrame]]] = {}
-        for patient_index, (patient_id, df) in enumerate(patients_list):
-            partition_num = self._get_partition_number(
-                patient_index, patients_per_partition
-            )
-            if partition_num not in partition_groups:
-                partition_groups[partition_num] = []
-            partition_groups[partition_num].append((patient_id, df))
-
-        num_partitions = len(partition_groups)
-        logger.info(
-            f"Saving {total_patients} patients to {num_partitions} sequential partitions "
-            f"(~{patients_per_partition} patients per partition)"
-        )
-
-        # Save each partition
-        total_files = 0
-        for partition_num in sorted(partition_groups.keys()):
-            patients = partition_groups[partition_num]
-            partition_dir = parquet_path / f"partition={partition_num:03d}"
-            partition_dir.mkdir(parents=True, exist_ok=True)
-
-            # Batch patients within each partition
-            batch_num = 0
-            current_batch: list[pd.DataFrame] = []
-            current_patient_ids: list[str] = []
-            current_size_mb = 0.0
-
-            for p_num, df in patients:
-                # Add p_num column; drop redundant date if present
-                df_with_id = df.copy()
-                if "date" in df_with_id.columns:
-                    df_with_id = df_with_id.drop(columns=["date"])
-                df_with_id[ColumnNames.P_NUM.value] = p_num
-                df_with_id = df_with_id.reset_index()  # Convert index to column
-
-                # Estimate size (rough approximation)
-                df_size_mb = df_with_id.memory_usage(deep=True).sum() / (1024**2)
-
-                # Check if we should start a new batch
-                if len(current_batch) >= patients_per_batch or (
-                    current_size_mb > 0
-                    and current_size_mb + df_size_mb > target_file_size_mb
-                ):
-                    # Save current batch
-                    batch_df = pd.concat(current_batch, ignore_index=True)
-                    batch_file = partition_dir / f"batch_{batch_num:04d}.parquet"
-                    batch_df.to_parquet(
-                        batch_file,
-                        engine="pyarrow",
-                        compression="snappy",
-                        index=False,
-                    )
-                    logger.debug(
-                        f"Saved batch {batch_num} to {batch_file} "
-                        f"({len(current_batch)} patients, ~{current_size_mb:.1f}MB)"
-                    )
-                    total_files += 1
-                    batch_num += 1
-                    current_batch = []
-                    current_patient_ids = []
-                    current_size_mb = 0.0
-
-                current_batch.append(df_with_id)
-                current_patient_ids.append(p_num)
-                current_size_mb += df_size_mb
-
-            # Save remaining batch
-            if current_batch:
-                batch_df = pd.concat(current_batch, ignore_index=True)
-                batch_file = partition_dir / f"batch_{batch_num:04d}.parquet"
-                batch_df.to_parquet(
-                    batch_file,
-                    engine="pyarrow",
-                    compression="snappy",
-                    index=False,
-                )
-                logger.debug(
-                    f"Saved batch {batch_num} to {batch_file} "
-                    f"({len(current_batch)} patients, ~{current_size_mb:.1f}MB)"
-                )
-                total_files += 1
-
-        logger.info(
-            f"Saved {total_files} Parquet batch files across {len(partition_groups)} partitions"
-        )
-
+    # WIP: Needs to get this work with huggingface Trainer and different kind of data processing module like ttm's.
     def get_hf_streaming_dataset(
         self,
         columns: list[str] | None = None,
@@ -821,104 +679,6 @@ class GlurooDataLoader(DatasetBase):
                 ) from e
 
         return dataset
-
-    # TODO: Move this out
-    # def _split_train_validation(
-    #     self,
-    # ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
-    #     """
-    #     Split processed data into train and validation dicts per patient.
-
-    #     Uses train_percentage to split each patient's data chronologically.
-
-    #     Returns:
-    #         tuple: (train_dict, val_dict) where each is a dict mapping patient IDs to DataFrames
-    #     """
-    #     train_dict: dict[str, pd.DataFrame] = {}
-    #     val_dict: dict[str, pd.DataFrame] = {}
-
-    #     for patient_id, df in self.processed_data.items():
-    #         try:
-    #             patient_df = df.copy()
-
-    #             # Ensure DatetimeIndex
-    #             if not isinstance(patient_df.index, pd.DatetimeIndex):
-    #                 if "datetime" in patient_df.columns:
-    #                     patient_df = patient_df.sort_values("datetime").set_index(
-    #                         "datetime"
-    #                     )
-    #                 else:
-    #                     logger.warning(
-    #                         f"Patient {patient_id} skipped: missing 'datetime' column"
-    #                     )
-    #                     continue
-
-    #             patient_df = patient_df.sort_index()
-
-    #             # Split by percentage
-    #             train_df, val_df, _ = get_train_validation_split_by_percentage(
-    #                 patient_df, train_percentage=self.train_percentage
-    #             )
-
-    #             train_dict[patient_id] = train_df
-    #             val_dict[patient_id] = val_df
-
-    #         except Exception as e:
-    #             logger.warning(f"Patient {patient_id} skipped due to error: {e}")
-    #             continue
-
-    #     return train_dict, val_dict
-
-    # TODO: Move this out
-    # def get_validation_day_splits(self, patient_id: str):
-    #     """
-    #     Generate day-by-day training and testing periods for a specific patient.
-
-    #     For each day in the validation data, yields:
-    #     - Current day's data from 6am-12am (training period)
-    #     - Next day's data from 12am-6am (testing/prediction period)
-
-    #     Args:
-    #         patient_id (str): Identifier for the patient whose data to split.
-
-    #     Yields:
-    #         tuple: (patient_id, train_period_data, test_period_data)
-    #     """
-    #     if self.validation_data is None:
-    #         raise ValueError("Validation data is not loaded")
-
-    #     if patient_id not in self.validation_data:
-    #         raise ValueError(f"Patient {patient_id} not found in validation data")
-
-    #     patient_data = self.validation_data[patient_id]
-    #     for train_period, test_period in self._get_day_splits(patient_data):
-    #         yield patient_id, train_period, test_period
-
-    # TODO: Move this out
-    # def _get_day_splits(
-    #     self,
-    #     patient_data: pd.DataFrame,
-    #     context_period: tuple[int, int] = (6, 24),
-    #     forecast_horizon: tuple[int, int] = (0, 6),
-    # ):
-    #     """
-    #     Split each day's data into context period and forecast horizon.
-    #     TODO: Not sure if this is needed.
-
-    #     Args:
-    #         patient_data: Data for a single patient with DatetimeIndex
-    #         context_period: Start and end hours for context period (default: 6am-midnight)
-    #         forecast_horizon: Start and end hours for forecast period (default: midnight-6am)
-
-    #     Yields:
-    #         tuple: (context_data, forecast_data)
-    #     """
-    #     yield from iter_daily_context_forecast_splits(
-    #         patient_data,
-    #         context_period=context_period,
-    #         forecast_horizon=forecast_horizon,
-    #     )
-
 
 # Standalone function for parallel processing
 def process_single_patient(patient_tuple: tuple[str, pd.DataFrame, Path]) -> tuple:

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Gluroo dataset uses a **partitioned Parquet** storage system optimized for large-scale time series data (100K+ patients, 500GB-1TB). This architecture enables efficient streaming for training.
+The Gluroo dataset uses a **Parquet** storage system optimized for large-scale time series data (100K+ patients, 500GB-1TB). This architecture enables efficient streaming for training.
 
 ## Problem Statement
 
@@ -11,7 +11,12 @@ The Gluroo dataset uses a **partitioned Parquet** storage system optimized for l
 - **Requirement**: Efficient streaming for training (no need for random patient lookup)
 - **Constraint**: Data must remain local (sensitive, cannot leave computer)
 
-## Solution: Partitioned Parquet Architecture
+TODO:
+1. Figure out the size per patient on average.
+2. Figure out number of patients per file we need
+3. Figure out number of patients per batch we need
+
+## Solution: Parquet Architecture
 
 ### Storage Structure
 
@@ -19,27 +24,21 @@ The Gluroo dataset uses a **partitioned Parquet** storage system optimized for l
 cache/data/gluroo/
 ├── raw/                    # Empty (raw data stored in TimescaleDB)
 └── processed/
-    └── parquet/            # Partitioned Parquet dataset
-        ├── partition=000/
-        │   ├── batch_0000.parquet  # ~500MB-2GB, contains ~100-500 patients
-        │   ├── batch_0001.parquet
-        │   └── ...
-        ├── partition=001/
-        │   └── ...
-        └── partition=255/   # Sequential partitions (0-255)
-            └── ...
+    └── parquet/            # Parquet dataset
+        ├── file_000000.parquet
+        ├── file_000001.parquet
+        └── ...
 ```
 
 ### Key Design Decisions
 
-1. **Sequential Partitioning**: Patients batched sequentially into partitions
-   - Since all patients have similar size (~1 year of data), simple sequential batching works well
-   - Patients are assigned to partitions in order (partition 0 = first ~400 patients, partition 1 = next ~400, etc.)
-   - Avoids filesystem limitations (keeps files per directory manageable)
-   - Enables parallel reads across partitions
-   - No hash calculation needed - simpler and faster than hash-based partitioning
+1. **Partitioning by patient ID**: Patients are assigned to files by numeric patient ID
+   - e.g. gluroo_0..gluroo_399 → file_000000.parquet, gluroo_400..gluroo_799 → file_000001.parquet
+   - Simple rule: `file_id = p_num_numeric // patients_per_file`
+   - No global ordering required; each patient always maps to the same file
+   - Enables parallel reads across files
 
-2. **Batched Storage**: Multiple patients per Parquet file (~100-500 patients, ~500MB-2GB per file)
+2. **Batched Storage**: Multiple patients per Parquet file (~400 patients per file by default, configurable)
    - Reduces file count (manageable for 100K+ patients)
    - Better compression ratios
    - Efficient for streaming
@@ -53,16 +52,17 @@ cache/data/gluroo/
 ```
 TimescaleDB (Raw Data)
     ↓
-Load patients sequentially/parallel
+Load patients in batches
     ↓
 Process each patient (preprocessing pipeline)
     ↓
-Batch patients sequentially into partitions
+Assign each patient to file by p_num (file_id = p_num // patients_per_file)
     ↓
-Save to partitioned Parquet files
+Save to Parquet files (read existing if present → concat → write)
 ```
+### Below is WIP. Will be updated later.
 
-### Reading (Training)
+### Reading (Training) - WIP
 
 ```
 Parquet Files
@@ -84,7 +84,7 @@ Training Loop
   - Column pruning (only read needed columns)
   - Predicate pushdown (filter at disk level)
   - Zero-copy reads
-  - Parallel reads across partitions
+  - Parallel reads across files
 - **Returns**: Arrow Tables/RecordBatches
 
 ### PyTorch DataLoader (Training Layer)
@@ -103,9 +103,9 @@ Training Loop
 
 ### Key Methods
 
-- `_save_as_partitioned_parquet()`: Batches patients and saves to partitioned structure
-- `_load_from_parquet()`: Loads all data from Parquet (for compatibility)
-- `get_parquet_dataset()`: Returns PyArrow Dataset for streaming access
+- `_save_batch_incremental()`: Saves each batch to Parquet; assigns patients to files by p_num, read-if-exists → concat → write per file
+- `_load_all_into_processed_data()`: Loads processed data (e.g. from Parquet/cache) into memory
+- Streaming: Hugging Face `load_dataset(..., streaming=True)` or similar over the parquet directory
 
 ### Usage
 
@@ -115,8 +115,7 @@ loader = GlurooDataLoader(use_cached=True)
 train_data = loader.train_data  # dict[patient_id, DataFrame]
 
 # Streaming access (for large datasets)
-parquet_dataset = loader.get_parquet_dataset()
-# Use with PyTorch Dataset wrapper for lazy loading
+# Use load_dataset or IterableDataset over cache/data/gluroo/processed/parquet/
 ```
 
 ## Benefits

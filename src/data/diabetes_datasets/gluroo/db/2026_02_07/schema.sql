@@ -1,4 +1,18 @@
--- Active: 1768019085766@@127.0.0.1@5433@postgres
+/*
+=============================================================================
+TimescaleDB Schema Setup for Gluroo Dataset
+=============================================================================
+
+USAGE: Run this script to create/recreate the database schema
+
+Using Apptainer (inside the container):
+psql -h 127.0.0.1 -U postgres -d gluroo_datasets -f /workspace/src/data/diabetes_datasets/gluroo/db/2026_02_07/schema.sql
+
+Using Docker:
+docker exec timescaledb psql -U postgres -d gluroo_datasets -f /workspace/src/data/diabetes_datasets/gluroo/db/2026_02_07/schema.sql
+
+=============================================================================
+*/
 
 DROP TABLE IF EXISTS messages CASCADE;
 
@@ -10,7 +24,7 @@ CREATE TABLE IF NOT EXISTS readings (
     gid TEXT NOT NULL,
     date TIMESTAMPTZ NOT NULL,
     bgl INT NOT NULL,
-    trend trend_type NULL,
+    trend TEXT NULL,
     source TEXT,
     PRIMARY KEY (gid, date)
 );
@@ -29,9 +43,9 @@ CREATE TABLE IF NOT EXISTS groups (
     date_onboarding TIMESTAMPTZ,
     who_help TEXT,
     who_help_other TEXT,
-    age_at_onboarding INT,
-    time_since_diagnosis_lower_days INT,
-    time_since_diagnosis_upper_days INT,
+    age_at_onboarding FLOAT,
+    time_since_diagnosis_lower_days FLOAT,
+    time_since_diagnosis_upper_days FLOAT,
     goals TEXT,
     use_cgm TEXT, -- This can be no_insulin, no_deciding, yes and ...
     use_pump TEXT, -- Same as use_cgm but for pump
@@ -103,7 +117,7 @@ BEGIN
     );
 
     -- Create indexes for better query performance without TimescaleDB
-    CREATE INDEX IF NOT EXISTS readings_gid_date_idx ON readings (gid, date);
+    -- CREATE INDEX IF NOT EXISTS readings_gid_date_idx ON readings (gid, date);
     CREATE INDEX IF NOT EXISTS messages_gid_date_idx ON messages (gid, date);
     CREATE INDEX IF NOT EXISTS messages_gid_idx ON messages (gid);
 
