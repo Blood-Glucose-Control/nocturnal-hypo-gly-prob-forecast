@@ -27,13 +27,7 @@ from __future__ import annotations
 # Standard library imports
 import argparse
 import logging
-import sys
 from pathlib import Path
-
-# ── make sure the repo root is on the path so ``src.*`` imports resolve ────────
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
 
 # Local imports
 from src.experiments.base.experiment import VALID_METRICS
@@ -95,19 +89,25 @@ def _run_summarizer(name: str, cls, root: str, metric: str) -> None:
         print("  [No completed runs found]\n")
         return
 
-    print(f"\n--- Best run per (model × dataset) ---")
+    print("\n--- Best run per (model × dataset) ---")
     print(
         by_model_dataset[
-            [c for c in ["model", "dataset", "mode", "ctx_fh", metric, "run_id"]
-             if c in by_model_dataset.columns]
+            [
+                c
+                for c in ["model", "dataset", "mode", "ctx_fh", metric, "run_id"]
+                if c in by_model_dataset.columns
+            ]
         ].to_string(index=False)
     )
 
-    print(f"\n--- Global best run per model ---")
+    print("\n--- Global best run per model ---")
     print(
         by_model[
-            [c for c in ["model", "dataset", "mode", "ctx_fh", metric, "run_id"]
-             if c in by_model.columns]
+            [
+                c
+                for c in ["model", "dataset", "mode", "ctx_fh", metric, "run_id"]
+                if c in by_model.columns
+            ]
         ].to_string(index=False)
     )
 

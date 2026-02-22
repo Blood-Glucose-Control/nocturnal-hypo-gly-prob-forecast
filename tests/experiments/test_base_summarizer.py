@@ -11,7 +11,6 @@ JSON files on disk.
 """
 
 import json
-import math
 from pathlib import Path
 from typing import Any
 
@@ -40,9 +39,7 @@ def _make_run_tree(root: Path, runs: list[dict]) -> None:
         if "results" in run:
             (run_dir / "results.json").write_text(json.dumps(run["results"]))
         if "config" in run:
-            (run_dir / "experiment_configs.json").write_text(
-                json.dumps(run["config"])
-            )
+            (run_dir / "experiment_configs.json").write_text(json.dumps(run["config"]))
 
 
 class _DummySummarizer(ExperimentSummarizer):
@@ -144,7 +141,9 @@ class TestSummarize:
 
     def test_writes_summary_csv(self, tmp_path):
         root = self._make_tree_with_run(tmp_path)
-        summarizer = _DummySummarizer(root, [{"model": "ttm", "dataset": "d", "rmse": 1.0}])
+        summarizer = _DummySummarizer(
+            root, [{"model": "ttm", "dataset": "d", "rmse": 1.0}]
+        )
         summarizer.summarize()
         assert (tmp_path / "dummy_experiment" / "summary.csv").exists()
 
@@ -163,7 +162,9 @@ class TestSummarize:
     def test_custom_output_path(self, tmp_path):
         root = self._make_tree_with_run(tmp_path)
         out = tmp_path / "custom_out.csv"
-        summarizer = _DummySummarizer(root, [{"model": "ttm", "dataset": "d", "rmse": 1.0}])
+        summarizer = _DummySummarizer(
+            root, [{"model": "ttm", "dataset": "d", "rmse": 1.0}]
+        )
         summarizer.summarize(output_path=out)
         assert out.exists()
 

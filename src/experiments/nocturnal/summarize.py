@@ -33,7 +33,7 @@ from src.experiments.base.experiment import ExperimentSummarizer
 log = logging.getLogger(__name__)
 
 _RESULTS_FILENAME = "nocturnal_results.json"
-_CONFIG_FILENAME = "experiment_config.json"   # singular — nocturnal convention
+_CONFIG_FILENAME = "experiment_config.json"  # singular — nocturnal convention
 _CONFIG_FILENAME_ALT = "experiment_configs.json"
 _EXPERIMENT_TYPE = "nocturnal_forecasting"
 
