@@ -6,7 +6,7 @@ the base TSFM framework, demonstrating how to integrate foundation models.
 """
 
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -28,6 +28,7 @@ def _optional_moment_import():
     """Import MOMENTPipeline if momentfm is installed."""
     try:
         from momentfm import MOMENTPipeline
+
         return MOMENTPipeline
     except ImportError as e:
         raise ImportError(
@@ -92,8 +93,10 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
         # Set device BEFORE super().__init__() because _initialize_model() is called during init
         use_cpu = getattr(config, "use_cpu", False)
-        self._device = torch.device("cuda" if torch.cuda.is_available() and not use_cpu else "cpu")
-        
+        self._device = torch.device(
+            "cuda" if torch.cuda.is_available() and not use_cpu else "cpu"
+        )
+
         super().__init__(config, lora_config, distributed_config)
         self.config: MomentConfig = self.config
         self.preprocessor = None
@@ -104,7 +107,10 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
     @property
     def training_backend(self) -> TrainingBackend:
         # Check training_mode for zero-shot, otherwise use training_backend from config
-        if hasattr(self.config, "training_mode") and self.config.training_mode == "zero_shot":
+        if (
+            hasattr(self.config, "training_mode")
+            and self.config.training_mode == "zero_shot"
+        ):
             return TrainingBackend.TRANSFORMERS  # Zero-shot uses transformers backend
         return getattr(
             self.config,
@@ -202,7 +208,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                 L = int(context_lengths[i])
                 if L < ctx.shape[0]:
                     ctx = ctx[-L:]
-            pred = self._forecast_single(ctx, prediction_length, scaler=StandardScaler())
+            pred = self._forecast_single(
+                ctx, prediction_length, scaler=StandardScaler()
+            )
             preds.append(pred)
         return np.stack(preds, axis=0)
 
@@ -239,6 +247,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
         if isinstance(data, str):
             from src.data.diabetes_datasets.data_loader import get_loader
+
             # Type checker sees overloads with Literal types, but we accept any str at runtime
             loader = get_loader(  # type: ignore[call-overload, assignment]
                 data_source_name=data,  # type: ignore[arg-type]
@@ -249,7 +258,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             if hasattr(loader, "validation_data") and loader.validation_data:
                 data = loader.validation_data
             else:
-                data = getattr(loader, "processed_data", None) or getattr(loader, "train_data", None)
+                data = getattr(loader, "processed_data", None) or getattr(
+                    loader, "train_data", None
+                )
             if data is None:
                 raise ValueError(f"No data available from loader for {data}")
 
@@ -257,10 +268,15 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
         if isinstance(data, dict):
             # patient_id -> DataFrame
-            from src.data.preprocessing.time_processing import iter_daily_context_forecast_splits
+            from src.data.preprocessing.time_processing import (
+                iter_daily_context_forecast_splits,
+            )
+
             for _pid, patient_df in data.items():
                 target_col = self._get_target_column(patient_df)
-                for daytime, nocturnal in iter_daily_context_forecast_splits(patient_df):
+                for daytime, nocturnal in iter_daily_context_forecast_splits(
+                    patient_df
+                ):
                     ctx = daytime[target_col].values
                     tgt = nocturnal[target_col].values[:fcast_len]
                     if np.isnan(ctx).any() or np.isnan(tgt).any():
@@ -291,11 +307,15 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                     tgt = vals[-fcast_len:]
                     pairs.append((ctx.astype(np.float32), tgt.astype(np.float32)))
             else:
-                from src.data.preprocessing.time_processing import iter_daily_context_forecast_splits
+                from src.data.preprocessing.time_processing import (
+                    iter_daily_context_forecast_splits,
+                )
 
                 if ColumnNames.P_NUM.value in data.columns:
                     for _pid, patient_df in data.groupby(ColumnNames.P_NUM.value):
-                        for daytime, nocturnal in iter_daily_context_forecast_splits(patient_df):
+                        for daytime, nocturnal in iter_daily_context_forecast_splits(
+                            patient_df
+                        ):
                             ctx = daytime[target_col].values
                             tgt = nocturnal[target_col].values[:fcast_len]
                             if np.isnan(ctx).any() or np.isnan(tgt).any():
@@ -304,7 +324,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                                 continue
                             if len(ctx) > ctx_len:
                                 ctx = ctx[-ctx_len:]
-                            pairs.append((ctx.astype(np.float32), tgt.astype(np.float32)))
+                            pairs.append(
+                                (ctx.astype(np.float32), tgt.astype(np.float32))
+                            )
                 else:
                     # Single patient
                     for daytime, nocturnal in iter_daily_context_forecast_splits(data):
@@ -330,7 +352,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         batch_size: Optional[int] = None,
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
         """Build DataLoaders of (context, target) batches with train/val/test splitting.
-        
+
         Splits data based on self.config.split_config if available, otherwise uses all data for training.
         """
         pairs = self._get_context_target_pairs(train_data, require_target=True)
@@ -341,46 +363,49 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         split_config = getattr(self.config, "split_config", None)
         if split_config is None and hasattr(self.config, "data_config"):
             split_config = getattr(self.config.data_config, "split_config", None)
-        
+
         train_pairs = pairs
         val_pairs = []
         test_pairs = []
-        
+
         if split_config and len(pairs) > 1:
             import random
+
             random.seed(42)  # For reproducibility
             random.shuffle(pairs)
-            
+
             train_ratio = split_config.get("train", 0.7)
             val_ratio = split_config.get("val", 0.2)
             test_ratio = split_config.get("test", 0.1)
-            
+
             # Normalize ratios
             total = train_ratio + val_ratio + test_ratio
             train_ratio /= total
             val_ratio /= total
             test_ratio /= total
-            
+
             n_total = len(pairs)
             n_train = int(n_total * train_ratio)
             n_val = int(n_total * val_ratio)
-            
+
             train_pairs = pairs[:n_train]
-            val_pairs = pairs[n_train:n_train + n_val]
-            test_pairs = pairs[n_train + n_val:]
-            
-            info_print(f"Data split: {len(train_pairs)} train, {len(val_pairs)} val, {len(test_pairs)} test")
-        
+            val_pairs = pairs[n_train : n_train + n_val]
+            test_pairs = pairs[n_train + n_val :]
+
+            info_print(
+                f"Data split: {len(train_pairs)} train, {len(val_pairs)} val, {len(test_pairs)} test"
+            )
+
         def _create_loader(pair_list, shuffle=False):
             if not pair_list:
                 return None
-            
+
             contexts = [p[0] for p in pair_list]
             targets = [p[1] for p in pair_list]
             context_lengths = [c.shape[0] for c in contexts]
             max_ctx = max(context_lengths) if contexts else 0
             fcast_len = targets[0].shape[0] if targets else 0
-            
+
             ctx_padded = np.zeros((len(contexts), max_ctx), dtype=np.float32)
             tgt_stacked = np.zeros((len(targets), fcast_len), dtype=np.float32)
             for i, (c, t) in enumerate(zip(contexts, targets)):
@@ -399,16 +424,16 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                 shuffle=shuffle,
                 num_workers=0,
             )
-        
+
         train_loader = _create_loader(train_pairs, shuffle=True)
         val_loader = _create_loader(val_pairs, shuffle=False)
         test_loader = _create_loader(test_pairs, shuffle=False)
-        
+
         return train_loader, val_loader, test_loader
 
     def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
         """Extract ground truth targets in same order as _prepare_training_data.
-        
+
         Returns shape (N, forecast_length) to match predict() output shape.
         """
         pairs = self._get_context_target_pairs(test_data, require_target=True)
@@ -426,12 +451,14 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         return_dict: bool = False,
     ) -> np.ndarray:
         """Make zero-shot predictions. Model must be initialized (no fit required).
-        
+
         Note: Base class signature returns np.ndarray only. Use predict_with_metadata()
         for dict return with additional info.
         """
         if self.model is None:
-            raise ValueError("Model not initialized; call constructor with valid config")
+            raise ValueError(
+                "Model not initialized; call constructor with valid config"
+            )
 
         bs = batch_size if batch_size is not None else self.config.batch_size
         loader, _, _ = self._prepare_training_data(data, batch_size=bs)
@@ -456,7 +483,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             # Users should use predict_with_metadata() if they need dict
             return predictions  # type: ignore[return-value]
         return predictions
-    
+
     def predict_with_metadata(
         self,
         data: Any,
@@ -519,7 +546,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                     "ensure config.json includes model_path."
                 )
             base_id = self.config.model_path
-            info_print(f"Loading base MOMENT from {base_id}, then fine-tuned weights from {model_dir}")
+            info_print(
+                f"Loading base MOMENT from {base_id}, then fine-tuned weights from {model_dir}"
+            )
             self.model = MOMENTPipeline.from_pretrained(
                 base_id,
                 model_kwargs={"enable_gradient_checkpointing": True},
@@ -548,51 +577,56 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         **kwargs: Any,
     ) -> Dict[str, Any]:
         """Fine-tune MOMENT model on training data.
-        
+
         Uses masked reconstruction training: given context + target, masks the target
         portion and trains the model to reconstruct it.
-        
+
         Args:
             train_data: Training data (dataset name, DataFrame, or dict of DataFrames)
             output_dir: Directory for saving checkpoints and logs
             **kwargs: Additional arguments (e.g., resume_from_checkpoint)
-            
+
         Returns:
             Dictionary containing train_metrics and training_history
         """
         # Check training_mode for zero-shot (TTM pattern)
-        if hasattr(self.config, "training_mode") and self.config.training_mode == "zero_shot":
+        if (
+            hasattr(self.config, "training_mode")
+            and self.config.training_mode == "zero_shot"
+        ):
             info_print("Moment zero-shot mode: skipping training")
             return {"train_metrics": {}, "training_history": {}}
-        
+
         if self.model is None:
             raise ValueError("Model not initialized")
-        
+
         info_print("Starting MOMENT fine-tuning...")
         os.makedirs(output_dir, exist_ok=True)
-        
+
         # Prepare data loaders
         train_loader, val_loader, _ = self._prepare_training_data(train_data)
-        
+
         if train_loader is None or len(train_loader.dataset) == 0:
             raise ValueError("No training data available")
-        
+
         info_print(f"Training samples: {len(train_loader.dataset)}")
         if val_loader:
             info_print(f"Validation samples: {len(val_loader.dataset)}")
-        
+
         # Set model to training mode
         self.model.train()
-        
+
         # Setup optimizer
         from torch.optim import AdamW
         from torch.optim.lr_scheduler import CosineAnnealingLR
-        
+
         # Freeze backbone if configured
         freeze_backbone = False
-        if hasattr(self.config, "training_config") and hasattr(self.config.training_config, "freeze_backbone"):
+        if hasattr(self.config, "training_config") and hasattr(
+            self.config.training_config, "freeze_backbone"
+        ):
             freeze_backbone = self.config.training_config.freeze_backbone
-        
+
         if freeze_backbone:
             info_print("Freezing backbone parameters")
             # Try to freeze the underlying model if it exists
@@ -603,65 +637,65 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             trainable_params = [p for p in self.model.parameters() if p.requires_grad]
         else:
             trainable_params = list(self.model.parameters())
-        
+
         optimizer = AdamW(
             trainable_params,
             lr=self.config.learning_rate,
             weight_decay=getattr(self.config, "weight_decay", 0.01),
         )
-        
+
         num_epochs = self.config.num_epochs
         total_steps = len(train_loader) * num_epochs
         scheduler = CosineAnnealingLR(optimizer, T_max=total_steps)
-        
+
         # Loss function
         loss_fn = torch.nn.MSELoss()
-        
+
         # Training loop
         training_history = []
         best_val_loss = float("inf")
         best_model_state = None
-        
+
         for epoch in range(num_epochs):
             self.model.train()
             epoch_loss = 0.0
             num_batches = 0
-            
+
             for batch_idx, batch in enumerate(train_loader):
                 contexts = batch["context"].to(self._device)  # [B, max_ctx_len]
                 targets = batch["target"].to(self._device)  # [B, forecast_len]
                 context_lens = batch["context_len"]  # [B]
-                
+
                 optimizer.zero_grad()
-                
+
                 # Create full sequence: context + target
                 # For each sample, concatenate context and target
                 batch_size = contexts.shape[0]
                 forecast_len = targets.shape[1]
-                max_ctx_len = contexts.shape[1]
-                
+
                 # Build input sequences and masks
                 # Input: [B, 1, context_len + forecast_len]
                 # Mask: 1 for context, 0 for target (to predict)
                 losses = []
-                
+
                 for i in range(batch_size):
                     ctx_len = int(context_lens[i])
                     ctx = contexts[i, -ctx_len:]  # Actual context (remove padding)
                     tgt = targets[i]  # Target to predict
-                    
+
                     # Normalize: fit scaler ONLY on context (matching inference)
                     # Then transform both context and target with same scaler
                     from sklearn.preprocessing import StandardScaler
+
                     scaler = StandardScaler()
                     ctx_np = ctx.cpu().numpy()
                     tgt_np = tgt.cpu().numpy()
-                    
+
                     # Fit scaler on context only (like inference)
                     ctx_scaled = scaler.fit_transform(ctx_np.reshape(-1, 1)).flatten()
                     # Transform target with same scaler
                     tgt_scaled_np = scaler.transform(tgt_np.reshape(-1, 1)).flatten()
-                    
+
                     # Build full sequence: context + zeros for target (will be masked)
                     full_len = len(ctx_scaled) + forecast_len
                     if full_len > MOMENT_MAX_LEN:
@@ -669,58 +703,66 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                         ctx_scaled = ctx_scaled[-keep:]
                         full_len = MOMENT_MAX_LEN
                         ctx_len = keep
-                    
+
                     # Create input tensor [1, 1, seq_len] with zeros for target
                     input_seq = np.zeros(full_len, dtype=np.float32)
-                    input_seq[:len(ctx_scaled)] = ctx_scaled
-                    input_seq = torch.tensor(input_seq, dtype=torch.float32).to(self._device)
+                    input_seq[: len(ctx_scaled)] = ctx_scaled
+                    input_seq = torch.tensor(input_seq, dtype=torch.float32).to(
+                        self._device
+                    )
                     input_seq = input_seq.unsqueeze(0).unsqueeze(0)
-                    
+
                     # Create mask: 1 = observed (context), 0 = to predict (target)
-                    input_mask = torch.ones(full_len, dtype=torch.long, device=self._device)
-                    input_mask[len(ctx_scaled):] = 0
+                    input_mask = torch.ones(
+                        full_len, dtype=torch.long, device=self._device
+                    )
+                    input_mask[len(ctx_scaled) :] = 0
                     input_mask = input_mask.unsqueeze(0)
-                    
+
                     # Forward pass
                     with torch.set_grad_enabled(True):
-                        output = self.model.forecast(x_enc=input_seq, input_mask=input_mask)
-                        pred_scaled = output.forecast[0, 0, :forecast_len]  # [forecast_len]
-                        
+                        output = self.model.forecast(
+                            x_enc=input_seq, input_mask=input_mask
+                        )
+                        pred_scaled = output.forecast[
+                            0, 0, :forecast_len
+                        ]  # [forecast_len]
+
                         # Ground truth (scaled with same scaler as context)
                         tgt_scaled = torch.tensor(
                             tgt_scaled_np[:forecast_len],
                             dtype=torch.float32,
-                            device=self._device
+                            device=self._device,
                         )
-                        
+
                         # Loss on scaled values
                         loss = loss_fn(pred_scaled, tgt_scaled)
                         losses.append(loss)
-                
+
                 # Average loss across batch
                 batch_loss = torch.stack(losses).mean()
-                
+
                 # Backward pass
                 batch_loss.backward()
-                
+
                 # Gradient clipping
                 grad_clip = getattr(self.config, "gradient_clip_val", 1.0)
                 torch.nn.utils.clip_grad_norm_(trainable_params, grad_clip)
-                
+
                 optimizer.step()
                 scheduler.step()
-                
+
                 epoch_loss += batch_loss.item()
                 num_batches += 1
-                
+
                 if (batch_idx + 1) % 10 == 0:
                     info_print(
-                        f"Epoch {epoch+1}/{num_epochs}, Batch {batch_idx+1}/{len(train_loader)}, "
+                        f"Epoch {epoch + 1}/{num_epochs}, Batch {batch_idx + 1}/{len(train_loader)}, "
                         f"Loss: {batch_loss.item():.6f}, LR: {scheduler.get_last_lr()[0]:.2e}"
                     )
-            
+
             avg_train_loss = epoch_loss / num_batches if num_batches > 0 else 0.0
-            
+
             # Validation
             val_loss = None
             if val_loader:
@@ -731,49 +773,60 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                         val_contexts = val_batch["context"].to(self._device)
                         val_targets = val_batch["target"].to(self._device)
                         val_context_lens = val_batch["context_len"]
-                        
+
                         for i in range(val_contexts.shape[0]):
                             ctx_len = int(val_context_lens[i])
                             ctx = val_contexts[i, -ctx_len:]
                             tgt = val_targets[i]
-                            
+
                             # Match training: fit scaler on context only, then transform target
                             from sklearn.preprocessing import StandardScaler
+
                             scaler = StandardScaler()
                             ctx_np = ctx.cpu().numpy()
                             tgt_np = tgt.cpu().numpy()
-                            
-                            ctx_scaled = scaler.fit_transform(ctx_np.reshape(-1, 1)).flatten()
-                            tgt_scaled_np = scaler.transform(tgt_np.reshape(-1, 1)).flatten()
-                            
+
+                            ctx_scaled = scaler.fit_transform(
+                                ctx_np.reshape(-1, 1)
+                            ).flatten()
+                            tgt_scaled_np = scaler.transform(
+                                tgt_np.reshape(-1, 1)
+                            ).flatten()
+
                             full_len = len(ctx_scaled) + len(tgt)
                             if full_len > MOMENT_MAX_LEN:
                                 keep = MOMENT_MAX_LEN - len(tgt)
                                 ctx_scaled = ctx_scaled[-keep:]
                                 full_len = MOMENT_MAX_LEN
                                 ctx_len = keep
-                            
+
                             input_seq = np.zeros(full_len, dtype=np.float32)
-                            input_seq[:len(ctx_scaled)] = ctx_scaled
-                            input_seq = torch.tensor(input_seq, dtype=torch.float32).to(self._device)
-                            input_seq = input_seq.unsqueeze(0).unsqueeze(0)
-                            
-                            input_mask = torch.ones(full_len, dtype=torch.long, device=self._device)
-                            input_mask[len(ctx_scaled):] = 0
-                            input_mask = input_mask.unsqueeze(0)
-                            
-                            output = self.model.forecast(x_enc=input_seq, input_mask=input_mask)
-                            pred_scaled = output.forecast[0, 0, :len(tgt)]
-                            tgt_scaled = torch.tensor(
-                                tgt_scaled_np[:len(tgt)],
-                                dtype=torch.float32,
-                                device=self._device
+                            input_seq[: len(ctx_scaled)] = ctx_scaled
+                            input_seq = torch.tensor(input_seq, dtype=torch.float32).to(
+                                self._device
                             )
-                            
+                            input_seq = input_seq.unsqueeze(0).unsqueeze(0)
+
+                            input_mask = torch.ones(
+                                full_len, dtype=torch.long, device=self._device
+                            )
+                            input_mask[len(ctx_scaled) :] = 0
+                            input_mask = input_mask.unsqueeze(0)
+
+                            output = self.model.forecast(
+                                x_enc=input_seq, input_mask=input_mask
+                            )
+                            pred_scaled = output.forecast[0, 0, : len(tgt)]
+                            tgt_scaled = torch.tensor(
+                                tgt_scaled_np[: len(tgt)],
+                                dtype=torch.float32,
+                                device=self._device,
+                            )
+
                             val_losses.append(loss_fn(pred_scaled, tgt_scaled).item())
-                
+
                 val_loss = np.mean(val_losses) if val_losses else None
-            
+
             # Logging
             log_entry = {
                 "epoch": epoch + 1,
@@ -782,13 +835,13 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             if val_loss is not None:
                 log_entry["val_loss"] = val_loss
             training_history.append(log_entry)
-            
+
             info_print(
-                f"Epoch {epoch+1}/{num_epochs} completed - "
+                f"Epoch {epoch + 1}/{num_epochs} completed - "
                 f"Train Loss: {avg_train_loss:.6f}"
                 + (f", Val Loss: {val_loss:.6f}" if val_loss is not None else "")
             )
-            
+
             # Save best model
             current_loss = val_loss if val_loss is not None else avg_train_loss
             if current_loss < best_val_loss:
@@ -800,13 +853,13 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                     "loss": current_loss,
                 }
                 info_print(f"New best model (loss: {best_val_loss:.6f})")
-        
+
         # Save final model
         if best_model_state:
             checkpoint_path = os.path.join(output_dir, "best_model.pt")
             torch.save(best_model_state, checkpoint_path)
             info_print(f"Saved best model to {checkpoint_path}")
-        
+
         # Save final checkpoint
         final_checkpoint = {
             "model_state_dict": self.model.state_dict(),
@@ -817,16 +870,17 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         final_path = os.path.join(output_dir, "final_model.pt")
         torch.save(final_checkpoint, final_path)
         info_print(f"Saved final model to {final_path}")
-        
+
         # Save training history
         import json
+
         history_path = os.path.join(output_dir, "training_history.json")
         with open(history_path, "w") as f:
             json.dump(training_history, f, indent=2)
-        
+
         self.is_fitted = True
         self.model.eval()
-        
+
         return {
             "train_metrics": {
                 "final_train_loss": avg_train_loss,

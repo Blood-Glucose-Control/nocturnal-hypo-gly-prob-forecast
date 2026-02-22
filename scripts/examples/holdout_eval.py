@@ -256,7 +256,9 @@ def create_model_and_config(
             base_fields = {f.name for f in dataclasses.fields(ModelConfig)}
             moment_extra = {"d_model", "n_heads", "n_layers", "dropout", "mask_ratio"}
             valid = base_fields | moment_extra
-            filtered = {k: v for k, v in saved_config.items() if k in valid and not callable(v)}
+            filtered = {
+                k: v for k, v in saved_config.items() if k in valid and not callable(v)
+            }
             config = MomentConfig(**filtered)
 
             if "batch_size" in kwargs:
@@ -273,7 +275,10 @@ def create_model_and_config(
                         f"Cannot increase forecast_length beyond trained value "
                         f"({config.forecast_length}). Using saved value."
                     )
-            if "context_length" in kwargs and kwargs["context_length"] != config.context_length:
+            if (
+                "context_length" in kwargs
+                and kwargs["context_length"] != config.context_length
+            ):
                 logger.warning(
                     f"context_length mismatch: requested {kwargs['context_length']}, "
                     f"model trained with {config.context_length}. Using saved value."
@@ -788,8 +793,7 @@ def main():
 
     logger.info(f"Dataset: {args.dataset}")
     logger.info(
-        f"Context: {context_length} steps "
-        f"({context_length / STEPS_PER_HOUR:.1f} hours)"
+        f"Context: {context_length} steps ({context_length / STEPS_PER_HOUR:.1f} hours)"
     )
     logger.info(
         f"Forecast: {forecast_length} steps "
