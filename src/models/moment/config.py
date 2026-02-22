@@ -5,8 +5,8 @@ This module provides configuration classes specific to Moment models,
 extending the base model configuration with Moment-specific parameters.
 """
 
-from typing import Dict, List, Optional
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, asdict
 
 from src.models.base import ModelConfig, TrainingBackend
 
@@ -165,8 +165,8 @@ class MomentConfig(ModelConfig):
         """
         return True
 
-    def to_dict(self) -> Dict:
-        """Convert configuration to dictionary.
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert configuration to dictionary (JSON-serializable).
 
         Returns:
             Dictionary representation of the configuration.
@@ -179,6 +179,8 @@ class MomentConfig(ModelConfig):
                 "n_layers": self.n_layers,
                 "dropout": self.dropout,
                 "mask_ratio": self.mask_ratio,
+                "training_config": asdict(self.training_config),
+                "data_config": asdict(self.data_config),
             }
         )
         return base_dict
@@ -221,10 +223,7 @@ def create_moment_fine_tuning_config(**kwargs) -> MomentConfig:
         "model_path": "AutonLab/MOMENT-1-large",
         "context_length": 512,
         "forecast_length": 96,
-        "training_backend": TrainingBackend.TRANSFORMERS,  # Fine-tuning uses transformers Trainer
-        "use_lora": True,
-        "lora_r": 8,
-        "lora_alpha": 16,
+        "training_backend": TrainingBackend.PYTORCH,  # Fine-tuning uses custom PyTorch loop
         "learning_rate": 5e-5,
         "batch_size": 16,
         "num_epochs": 20,
