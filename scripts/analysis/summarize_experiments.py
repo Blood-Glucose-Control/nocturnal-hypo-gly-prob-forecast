@@ -73,6 +73,35 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _run_summarizer(name: str, cls, root: str, metric: str) -> None:
+    """Run a single experiment summarizer and print results to stdout.
+
+    Instantiates *cls* with *root* as the experiments directory, calls
+    :meth:`best_runs` with the requested *metric*, and prints two leaderboard
+    tables:
+
+    - **Best run per (model × dataset)** — the single run with the lowest
+      *metric* value for every ``(model, dataset)`` combination found.
+    - **Global best run per model** — the single run with the lowest *metric*
+      value for each model type across all datasets.
+
+    CSV files (``summary.csv``, ``best_by_model_dataset.csv``,
+    ``best_by_model.csv``) are written into ``<root>/<name>/`` as a side
+    effect of :meth:`best_runs`.
+
+    Parameters
+    ----------
+    name:
+        Experiment type name, e.g. ``"standard_forecasting"``.  Used as the
+        subdirectory name under *root* and in the printed header.
+    cls:
+        Concrete :class:`~src.experiments.base.experiment.ExperimentSummarizer`
+        subclass to instantiate.
+    root:
+        Path to the top-level ``experiments/`` directory.
+    metric:
+        Metric column used for ranking (e.g. ``"rmse"``).  Must be one of
+        :data:`~src.experiments.base.experiment.VALID_METRICS`.
+    """
     print(f"\n{'='*70}")
     print(f"  Experiment type : {name}")
     print(f"  Metric          : {metric}")

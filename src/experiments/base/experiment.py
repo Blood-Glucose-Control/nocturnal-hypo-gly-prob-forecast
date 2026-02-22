@@ -181,19 +181,27 @@ class ExperimentSummarizer(ABC):
             )
             return {"by_model_dataset": pd.DataFrame(), "by_model": pd.DataFrame()}
 
-        # Best per (model × dataset)
+        if df[metric].isna().all():
+            log.warning(
+                "Metric '%s' is NaN for all runs in '%s' — cannot rank. "
+                "This experiment type may not report '%s' at the overall level. "
+                "Try --metric rmse instead.",
+                metric,
+                self.experiment_type,
+                metric,
+            )
+            return {"by_model_dataset": pd.DataFrame(), "by_model": pd.DataFrame()}
+
+        # Best per (model × dataset) — dropna guards against groups where the
+        # chosen metric is entirely NaN (e.g. nocturnal runs have no overall MAE).
+        by_md_idx = df.groupby(["model", "dataset"])[metric].idxmin().dropna()
         by_md = (
-            df.loc[df.groupby(["model", "dataset"])[metric].idxmin()]
-            .sort_values(["model", "dataset"])
-            .reset_index(drop=True)
+            df.loc[by_md_idx].sort_values(["model", "dataset"]).reset_index(drop=True)
         )
 
         # Global best per model
-        by_m = (
-            df.loc[df.groupby("model")[metric].idxmin()]
-            .sort_values("model")
-            .reset_index(drop=True)
-        )
+        by_m_idx = df.groupby("model")[metric].idxmin().dropna()
+        by_m = df.loc[by_m_idx].sort_values("model").reset_index(drop=True)
 
         out_dir = self.experiment_dir
         out_dir.mkdir(parents=True, exist_ok=True)

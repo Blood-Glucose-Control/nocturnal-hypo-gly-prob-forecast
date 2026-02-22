@@ -24,8 +24,6 @@ from src.experiments.base.experiment import ExperimentSummarizer, _validate_metr
 # Helpers / fixtures
 # ---------------------------------------------------------------------------
 
-RUN_DIR_RE_NAME = "2026-02-16_1808_dataset_a_mode"
-
 
 def _make_run_tree(root: Path, runs: list[dict]) -> None:
     """Create a synthetic experiment directory tree under *root*.
@@ -222,3 +220,43 @@ class TestBestRuns:
         result = _DummySummarizer(tmp_path, []).best_runs()
         assert result["by_model_dataset"].empty
         assert result["by_model"].empty
+
+    def test_all_nan_metric_returns_empty(self, tmp_path):
+        """All-NaN metric column (e.g. nocturnal MAE) should log a warning and
+        return empty DataFrames instead of raising KeyError."""
+        root = self._make_multi_run_tree(tmp_path)
+        rows = [
+            {"model": "ttm", "dataset": "aleppo", "rmse": 3.5, "mae": float("nan")},
+            {"model": "ttm", "dataset": "brown", "rmse": 3.0, "mae": float("nan")},
+        ]
+        result = _DummySummarizer(root, rows).best_runs(metric="mae")
+        assert result["by_model_dataset"].empty
+        assert result["by_model"].empty
+
+    def test_partial_nan_metric_skips_nan_groups(self, tmp_path):
+        """Groups where the metric is NaN are skipped; groups with a valid
+        value are still ranked correctly (exercises the .dropna() path)."""
+        root = self._make_multi_run_tree(tmp_path)
+        rows = [
+            {"model": "ttm", "dataset": "aleppo", "rmse": 3.5, "mae": 2.5},
+            {
+                "model": "ttm",
+                "dataset": "aleppo",
+                "rmse": 2.9,
+                "mae": 1.8,
+            },  # best aleppo
+            {"model": "sundial", "dataset": "brown", "rmse": 3.0, "mae": float("nan")},
+        ]
+        # need a third run dir for sundial
+        (
+            tmp_path
+            / "dummy_experiment"
+            / "512ctx_96fh"
+            / "sundial"
+            / "2026-02-16_2100_brown_zeroshot"
+        ).mkdir(parents=True, exist_ok=True)
+        result = _DummySummarizer(root, rows).best_runs(metric="mae")
+        by_md = result["by_model_dataset"]
+        # only the aleppo group has non-NaN mae; sundial/brown is dropped
+        assert len(by_md) == 1
+        assert by_md.iloc[0]["mae"] == pytest.approx(1.8)
