@@ -36,4 +36,9 @@ jobs:
 
     - name: Run tests
       run: |
-        pytest -v --color=yes
+        # tests/models/ are excluded here — they require per-model virtual
+        # environments (.venvs/ttm, .venvs/sundial, etc.) with conflicting
+        # dependency versions, and download/train HuggingFace models which
+        # is too slow for standard CI.
+        # Run them locally with: make test-ttm / make test-sundial / make test-timesfm
+        pytest -v --color=yes --ignore=tests/models
