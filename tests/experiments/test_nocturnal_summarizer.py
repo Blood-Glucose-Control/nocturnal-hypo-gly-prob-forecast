@@ -262,31 +262,30 @@ class TestNocturnalBestRuns:
         assert len(by_m) == 1
         assert by_m.iloc[0]["rmse"] == pytest.approx(2.85)
 
+    def test_best_runs_with_unavailable_metric(self, tmp_path):
+        """
+        Ensure best_runs(metric=...) behaves sensibly when the metric is not
+        available or is NaN for nocturnal summaries (e.g. ``mae``).
 
-def test_best_runs_with_unavailable_metric(self, tmp_path):
-    """
-    Ensure best_runs(metric=...) behaves sensibly when the metric is not
-    available or is NaN for nocturnal summaries (e.g. ``mae``).
+        The expected behavior is that the method either:
+        - raises a clear exception, or
+        - returns only empty leaderboards for the unsupported metric.
+        """
+        self._populate(tmp_path)
 
-    The expected behavior is that the method either:
-    - raises a clear exception, or
-    - returns only empty leaderboards for the unsupported metric.
-    """
-    self._populate(tmp_path)
+        # Some implementations may raise for an unsupported/NaN metric,
+        # while others may return empty leaderboards. Both behaviors are
+        # acceptable, so this test passes in either case.
+        try:
+            result = NocturnalSummarizer(tmp_path).best_runs(metric="broke_metric")
+        except Exception:
+            # A clear error for an unsupported metric is acceptable behavior.
+            return
 
-    # Some implementations may raise for an unsupported/NaN metric,
-    # while others may return empty leaderboards. Both behaviors are
-    # acceptable, so this test passes in either case.
-    try:
-        result = NocturnalSummarizer(tmp_path).best_runs(metric="broke_metric")
-    except Exception:
-        # A clear error for an unsupported metric is acceptable behavior.
-        return
-
-    # If no exception is raised, all returned leaderboards should be empty
-    # when the metric is unavailable/NaN.
-    assert isinstance(result, dict)
-    for df in result.values():
-        # Defensive: only check DataFrame-like objects.
-        if hasattr(df, "empty"):
-            assert df.empty
+        # If no exception is raised, all returned leaderboards should be empty
+        # when the metric is unavailable/NaN.
+        assert isinstance(result, dict)
+        for df in result.values():
+            # Defensive: only check DataFrame-like objects.
+            if hasattr(df, "empty"):
+                assert df.empty
