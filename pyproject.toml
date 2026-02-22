@@ -73,6 +73,7 @@ timesfm = [
 include = ["src*"]
 
 [tool.pytest.ini_options]
+pythonpath = ["."]
 norecursedirs = [
     "_noct_dep/tests"
 ]

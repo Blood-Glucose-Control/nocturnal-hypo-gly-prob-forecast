@@ -140,3 +140,28 @@ def debug_print(*args, rank_zero_only=True, **kwargs):
         print("DEBUG:", caller, *args, file=sys.stderr, flush=True, **kwargs)
     else:
         print("DEBUG:", *args, file=sys.stderr, flush=True, **kwargs)
+
+
+def setup_file_logging(output_path, log_filename: str = "evaluation.log"):
+    """Add file handler to logger for saving logs to output directory.
+
+    Args:
+        output_path: Directory to save log file (Path or str)
+        log_filename: Name of the log file (default: "evaluation.log")
+
+    Returns:
+        Path to the log file
+    """
+    import logging
+    from pathlib import Path
+
+    output_path = Path(output_path)
+    log_file = output_path / log_filename
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    )
+    # Add to root logger so all loggers write to file
+    logging.getLogger().addHandler(file_handler)
+    return log_file
