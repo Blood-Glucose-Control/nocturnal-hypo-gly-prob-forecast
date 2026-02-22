@@ -42,8 +42,11 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     cached_markers: dict[str, pytest.MarkDecorator] = {}
 
     for item in items:
-        test_path = str(item.fspath)
-        test_filename = os.path.basename(test_path).lower()
+        path_obj = getattr(item, "path", None)
+        if path_obj is not None:
+            test_filename = path_obj.name.lower()
+        else:
+            test_filename = os.path.basename(str(item.fspath)).lower()
 
         for keyword, (model_name, venv_rel) in _MODEL_VENV_MAP.items():
             if keyword not in test_filename:
