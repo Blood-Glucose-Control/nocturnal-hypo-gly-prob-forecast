@@ -76,13 +76,22 @@ def _run_summarizer(name: str, cls, root: str, metric: str) -> None:
     """Run a single experiment summarizer and print results to stdout.
 
     Instantiates *cls* with *root* as the experiments directory, calls
-    :meth:`best_runs` with the requested *metric*, and prints two leaderboard
-    tables:
+    :meth:`summarize` to collect all runs, then :meth:`best_runs` to rank
+    them by *metric*, and prints two leaderboard tables:
 
     - **Best run per (model × dataset)** — the single run with the lowest
       *metric* value for every ``(model, dataset)`` combination found.
     - **Global best run per model** — the single run with the lowest *metric*
       value for each model type across all datasets.
+
+    ``summarize()`` is called before ``best_runs()`` so that the two empty
+    cases can be distinguished:
+
+    - **No completed runs** — the experiment directory contains no parseable
+      run directories at all.
+    - **Metric not rankable** — runs exist but the chosen *metric* column is
+      entirely ``NaN`` (e.g. nocturnal runs have no overall MAE).  The user
+      is prompted to try ``--metric rmse`` instead.
 
     CSV files (``summary.csv``, ``best_by_model_dataset.csv``,
     ``best_by_model.csv``) are written into ``<root>/<name>/`` as a side
@@ -109,13 +118,20 @@ def _run_summarizer(name: str, cls, root: str, metric: str) -> None:
     print(f"{'='*70}")
 
     summarizer = cls(experiments_root=root)
+    summary_df = summarizer.summarize(metric=metric)
     results = summarizer.best_runs(metric=metric)
 
     by_model_dataset = results["by_model_dataset"]
     by_model = results["by_model"]
 
     if by_model_dataset.empty:
-        print("  [No completed runs found]\n")
+        if summary_df.empty:
+            print("  [No completed runs found]\n")
+        else:
+            print(
+                f"  [Runs found ({len(summary_df)}) but '{metric}' is not rankable "
+                f"for this experiment type — try --metric rmse]\n"
+            )
         return
 
     print("\n--- Best run per (model × dataset) ---")

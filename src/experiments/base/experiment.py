@@ -155,7 +155,7 @@ class ExperimentSummarizer(ABC):
     ) -> dict[str, pd.DataFrame]:
         """Return (and save) the best run per model and per (model × dataset).
 
-        Calls :meth:`summarize` internally if not already run.
+        Calls :meth:`summarize` internally on every invocation.
 
         Parameters
         ----------

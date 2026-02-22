@@ -24,6 +24,7 @@ from __future__ import annotations
 # Standard library imports
 import json
 import logging
+import math
 from pathlib import Path
 from typing import Any
 
@@ -98,12 +99,18 @@ class NocturnalSummarizer(ExperimentSummarizer):
         if overall_rmse is None:
             log.debug("Missing 'overall_rmse' in %s — skipping", results_path)
             return None
+        if isinstance(overall_rmse, float) and math.isnan(overall_rmse):
+            log.debug("'overall_rmse' is NaN in %s — skipping", results_path)
+            return None
 
         total_episodes = data.get("total_episodes")
         if total_episodes is None:
             # Fall back to summing per_patient episodes
             per_patient = data.get("per_patient", [])
             total_episodes = int(sum(p.get("episodes", 0) for p in per_patient))
+        if int(total_episodes) == 0:
+            log.debug("'total_episodes' is 0 in %s — skipping", results_path)
+            return None
 
         # Normalise mode string ("zero-shot" → "zeroshot")
         mode_raw: str = data.get("mode", "")
