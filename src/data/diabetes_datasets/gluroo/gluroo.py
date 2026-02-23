@@ -32,10 +32,10 @@ PROCESSING_CHECKPOINT_FILENAME = "processing_checkpoint.json"
 
 """
 TODO: Tune the the params. patients_per_partition, patients_per_batch, etc.
-TODO: Add some meta data as a json file maybe
-TODO: Double check p_num refracotring logic.
 TODO: Create a streaming dataset. Hmmm maybe like a IterableDataset but it seems to have some issues with huggingface Trainer.
 This need to work with huggingface trainer.
+TODO: Add a way to know if the data processing failed and keep going?
+TODO: Add a way to log the time taken to process for each batch or each run.
 """
 
 class Gluroo2026DataLoader(DatasetBase):
@@ -68,7 +68,7 @@ class Gluroo2026DataLoader(DatasetBase):
         max_workers: int = 10,
 
         patients_per_batch: int = 100,
-        # TOOD: This will need to be tuned. Can we fit 100 patients per batch in memory?
+        # TODO: This will need to be tuned. Can we fit 100 patients per batch in memory?
         # 100 patients size can also vary depending on the data.
 
         patients_per_file: int = 400,
@@ -465,7 +465,7 @@ class Gluroo2026DataLoader(DatasetBase):
             total_processed_so_far += len(batch_processed_data)
             next_batch_start = batch_end
 
-            # TODO: If any of the code above fails, we need to rollback the checkpoint?
+            # TODO: If any of the code above fails, we need to rollback the checkpoint? or need a way to know this batch failed and keep going?
             self._save_checkpoint(
                 processed_path,
                 next_batch_start,
