@@ -27,6 +27,7 @@ orjson
 pandas
 pre-commit
 pyarrow>=14.0.0
+psycopg2-binary
 pydantic
 pyreadstat
 pytest

@@ -9,7 +9,7 @@ from enum import Enum
 class DatasetSourceType(str, Enum):
     KAGGLE_BRIS_T1D = "kaggle_brisT1D"
     LOCAL = "local"
-    GLUROO = "gluroo"
+    GLUROO_2026 = "gluroo"
     HUGGING_FACE = "hugging_face"
     ALEPPO = "aleppo_2017"
     LYNCH_2022 = "lynch_2022"
