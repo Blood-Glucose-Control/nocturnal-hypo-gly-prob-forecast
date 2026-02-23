@@ -27,12 +27,12 @@ KAGGLE_BRIST1D_CONFIG: DatasetConfig = DatasetConfig(
 )
 
 # Configuration for the Gluroo dataset
-GLUROO_CONFIG: DatasetConfig = DatasetConfig(
+GLUROO_2026_CONFIG: DatasetConfig = DatasetConfig(
     source=DatasetSourceType.LOCAL,
     required_files=["gluroo_cached.csv"],
     description="Gluroo diabetes dataset",
     citation="Gluroo Dataset",
-    cache_path="gluroo",
+    cache_path="gluroo_2026",
     url="https://gluroo.com",  # Placeholder URL for local dataset
 )
 
@@ -93,7 +93,7 @@ TAMBORLANE_2008_CONFIG: DatasetConfig = DatasetConfig(
 # Mapping of dataset names to their configurations
 DATASET_CONFIGS = {
     DatasetSourceType.KAGGLE_BRIS_T1D.value: KAGGLE_BRIST1D_CONFIG,
-    DatasetSourceType.GLUROO.value: GLUROO_CONFIG,
+    DatasetSourceType.GLUROO_2026.value: GLUROO_2026_CONFIG,
     DatasetSourceType.SIMGLUCOSE.value: SIMGLUCOSE_CONFIG,
     DatasetSourceType.ALEPPO.value: ALEPPO_CONFIG,
     DatasetSourceType.LYNCH_2022.value: LYNCH_2022_CONFIG,
