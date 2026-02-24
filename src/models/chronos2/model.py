@@ -207,6 +207,14 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Returns:
             DataFrame with episode_id and target_col columns containing
             the predicted BG values for each episode's forecast horizon.
+
+        Note:
+            TODO: If switching to batched evaluation in the future, consider
+            the `cross_learning` hyperparameter. When True (AutoGluon default),
+            Chronos-2 makes joint predictions across series in a batch, causing
+            predictions to depend on batch composition. For independent episode
+            predictions, set cross_learning=False in hyperparameters.
+            See: https://auto.gluon.ai/dev/tutorials/timeseries/forecasting-model-zoo.html
         """
         from autogluon.timeseries import TimeSeriesDataFrame
 
