@@ -218,7 +218,7 @@ def parse_arguments() -> argparse.Namespace:
             "Requires a Stage 1 checkpoint trained via the holdout workflow."
         )
     )
-    parser.add_argument("--model", type=str, required=True, choices=["ttm", "sundial"],
+    parser.add_argument("--model", type=str, required=True, choices=["ttm", "sundial", "chronos2"],
                         help="Model type (must match checkpoint)")
     parser.add_argument("--checkpoint", type=str, required=True,
                         help="Path to Stage 1 checkpoint directory")
@@ -237,7 +237,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--learning-rate", type=float, default=3e-5,
                         help="Stage 2 learning rate (default: 3e-5)")
     parser.add_argument("--num-epochs", type=int, default=50,
-                        help="Maximum training epochs (default: 50 with early stopping)")
+                        help="Maximum training epochs for TTM (default: 50 with early stopping)")
+    parser.add_argument("--fine-tune-steps", type=int, default=5000,
+                        help="Fine-tuning steps for Chronos2 (default: 5000)")
     parser.add_argument("--val-days", type=int, default=7,
                         help="Days reserved for validation (default: 7)")
     parser.add_argument("--test-days", type=int, default=7,
@@ -389,17 +391,24 @@ def main() -> None:
         )
 
     # Update model config for Stage 2
-    model.config.learning_rate = args.learning_rate
-    model.config.num_epochs = args.num_epochs
+    # Chronos2 uses fine_tune_lr / fine_tune_steps (AutoGluon hyperparams);
+    # TTM and others use learning_rate / num_epochs (base class fields).
     model.config.training_mode = "fine_tune"
+    if hasattr(model.config, "fine_tune_lr"):
+        model.config.fine_tune_lr = args.learning_rate
+        model.config.fine_tune_steps = args.fine_tune_steps
+        logger.info("Stage 2 LR:     %g", args.learning_rate)
+        logger.info("Stage 2 steps:  %d", args.fine_tune_steps)
+    else:
+        model.config.learning_rate = args.learning_rate
+        model.config.num_epochs = args.num_epochs
+        logger.info("Stage 2 LR:     %g", args.learning_rate)
+        logger.info("Stage 2 epochs: %d (with early stopping)", args.num_epochs)
 
     # Update split config if the model has one (TTM)
     if hasattr(model.config, "split_config"):
         model.config.split_config = stage2_split_config
         logger.info("Updated split_config: %s", stage2_split_config)
-
-    logger.info("Stage 2 LR:     %g", args.learning_rate)
-    logger.info("Stage 2 epochs: %d (with early stopping)", args.num_epochs)
 
     # ── Stage 2 fine-tuning ──────────────────────────────────────────────────
     logger.info("\n--- Stage 2 Fine-Tuning ---")

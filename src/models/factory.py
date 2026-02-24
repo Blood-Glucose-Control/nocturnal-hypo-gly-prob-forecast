@@ -164,6 +164,36 @@ def create_model_and_config(
             model = TTMForecaster(config)
         return model, config
 
+    elif model_type == "chronos2":
+        from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
+
+        if checkpoint:
+            model = Chronos2Forecaster.load(checkpoint)
+            config = model.config
+
+            # Apply valid overrides
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = Chronos2Config(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 72),
+                fine_tune_steps=kwargs.get("fine_tune_steps", 15000),
+                fine_tune_lr=kwargs.get("fine_tune_lr", 1e-5),
+            )
+            model = Chronos2Forecaster(config)
+        return model, config
+
     elif model_type == "chronos":
         raise NotImplementedError("Chronos model not yet implemented")
 
@@ -173,5 +203,5 @@ def create_model_and_config(
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, moirai"
+            f"Available: sundial, ttm, chronos2, chronos, moirai"
         )
