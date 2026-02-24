@@ -14,6 +14,15 @@ Usage:
     python scripts/experiments/sliding_window_eval.py --model sundial --context-length 512 --forecast-length 72
     python scripts/experiments/sliding_window_eval.py --model sundial --model-config configs/models/sundial.yaml
     python scripts/experiments/sliding_window_eval.py --model sundial --checkpoint path/to/checkpoint
+
+    # TimeGrad — after first 10-epoch training run (lynch_2022):
+d
+
+    # TimeGrad — after second 10-epoch resumed training run (lynch_2022, epochs 11–20):
+    python scripts/experiments/sliding_window_eval.py \
+        --model timegrad \
+        --dataset lynch_2022 \
+        --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/resumed_training/model.pt
 """
 
 import argparse
@@ -309,7 +318,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="sundial",
-        choices=["sundial", "ttm", "chronos", "moirai"],
+        choices=["sundial", "ttm", "chronos", "moirai", "timegrad"],
         help="Model type to use for evaluation",
     )
     parser.add_argument(
@@ -324,7 +333,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--config-dir",
         type=str,
-        default="configs/data/holdout_5pct",
+        default="configs/data/holdout_10pct",
         help="Holdout config directory",
     )
     parser.add_argument(
@@ -379,9 +388,26 @@ def evaluate_patient(
     ):
         context_values = context_df["bg_mM"].values
 
-        # Skip episodes with NaN values
+        # Impute short gaps (≤1 hour) via linear interpolation, then skip if
+        # NaNs remain (i.e. the gap was too large to fill)
         if np.isnan(context_values).any() or np.isnan(target).any():
-            continue
+            context_df = context_df.copy()
+            context_df["bg_mM"] = context_df["bg_mM"].interpolate(
+                method="linear", limit=12, limit_direction="both", limit_area="inside"
+            )
+            context_values = context_df["bg_mM"].values
+            target = (
+                pd.Series(target)
+                .interpolate(
+                    method="linear",
+                    limit=12,
+                    limit_direction="both",
+                    limit_area="inside",
+                )
+                .values
+            )
+            if np.isnan(context_values).any() or np.isnan(target).any():
+                continue
 
         # Predict using unified interface (forecast_length is set in model config)
         pred = model.predict(context_df)

@@ -12,7 +12,11 @@ class TimeGradConfig(ModelConfig):
     """
 
     # Parameters specific to TimeGrad that should not be passed to the parent
+    # ModelConfig dataclass. This includes both TimeGrad-specific params and
+    # data/feature config keys that are handled at the pipeline level (not stored
+    # in ModelConfig) but may arrive via config.extra_config from a YAML file.
     TIMEGRAD_PARAMS = {
+        # TimeGrad-specific
         "diff_steps",
         "beta_end",
         "beta_schedule",
@@ -26,6 +30,13 @@ class TimeGradConfig(ModelConfig):
         "residual_channels",
         "num_batches_per_epoch",
         "freq",
+        # Data/feature config keys (handled by the data pipeline, not ModelConfig)
+        "input_features",
+        "target_features",
+        "scaler_type",
+        "resolution_min",
+        "split_config",
+        "fewshot_percent",
     }
 
     def __init__(self, **kwargs):

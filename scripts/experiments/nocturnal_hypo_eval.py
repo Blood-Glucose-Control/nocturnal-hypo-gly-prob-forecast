@@ -14,6 +14,18 @@ Usage:
     python scripts/experiments/nocturnal_hypo_eval.py --model ttm --dataset brown_2019
     python scripts/experiments/nocturnal_hypo_eval.py --model sundial --checkpoint path/to/checkpoint
     python scripts/experiments/nocturnal_hypo_eval.py --model ttm --context-length 512 --forecast-length 72
+
+    # TimeGrad — after first 10-epoch training run (aleppo_2017):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model timegrad \
+        --dataset aleppo_2017 \
+        --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/model.pt
+
+    # TimeGrad — after second 10-epoch resumed training run (lynch_2022, epochs 11–20):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model timegrad \
+        --dataset lynch_2022 \
+        --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/resumed_training/model.pt
 """
 
 import argparse
@@ -27,6 +39,7 @@ from typing import Optional, Any, Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.data.utils import get_patient_column
@@ -183,7 +196,12 @@ def evaluate_nocturnal_forecasting(
     all_episode_results = []
     patient_episodes = {}
 
-    for ctx_df, meta in zip(context_dfs, episode_metadata):
+    for ctx_df, meta in tqdm(
+        zip(context_dfs, episode_metadata),
+        total=len(episode_metadata),
+        desc="Evaluating episodes",
+        unit="ep",
+    ):
         # Predict using unified interface
         pred = model.predict(ctx_df)
 
@@ -494,7 +512,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="ttm",
-        choices=["sundial", "ttm", "chronos", "moirai"],
+        choices=["sundial", "ttm", "chronos", "moirai", "timegrad"],
         help="Model type to use for evaluation",
     )
     parser.add_argument(
@@ -512,7 +530,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--config-dir",
         type=str,
-        default="configs/data/holdout_5pct",
+        default="configs/data/holdout_10pct",
         help="Holdout config directory",
     )
     parser.add_argument(

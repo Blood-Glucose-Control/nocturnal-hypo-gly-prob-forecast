@@ -1729,7 +1729,7 @@ Step 4 is auto-skipped for from-scratch models like timegrad.
     parser.add_argument(
         "--config-dir",
         type=str,
-        default="configs/data/holdout_5pct",
+        default="configs/data/holdout_10pct",
         help="Holdout config directory",
     )
     parser.add_argument(
@@ -1948,7 +1948,7 @@ Step 4 is auto-skipped for from-scratch models like timegrad.
         # =====================================================================
         # WORKFLOW COMPLETE
         # =====================================================================
-        logger.info("\n" + "=" * 80)
+        logger.info("=" * 80)
         logger.info("WORKFLOW COMPLETED SUCCESSFULLY")
         logger.info("=" * 80)
         logger.info(f"Model type: {args.model_type.upper()}")

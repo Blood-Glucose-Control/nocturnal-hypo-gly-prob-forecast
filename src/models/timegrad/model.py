@@ -1,6 +1,7 @@
 """TimeGrad model implementation using the base TSFM framework."""
 
 import logging
+import warnings
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
@@ -24,6 +25,16 @@ from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
 from src.utils.logging_helper import info_print
 
 logger = logging.getLogger(__name__)
+
+# GluonTS 0.9.x uses Timestamp.freq which pandas has deprecated. These are
+# upstream issues in the pinned gluonts version and cannot be fixed without a
+# breaking upgrade, so suppress them here to keep output clean.
+warnings.filterwarnings(
+    "ignore",
+    message="Timestamp.freq is deprecated",
+    category=FutureWarning,
+    module=r"gluonts\.",
+)
 
 # Target dimension is always 1 (univariate blood glucose)
 _TARGET_DIM = 1
