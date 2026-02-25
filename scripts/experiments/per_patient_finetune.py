@@ -10,11 +10,6 @@ Uses LOPO (leave-one-patient-out) evaluation: the target patient must be in the
 holdout set (excluded from Stage 1 training). Improvement from Stage 2 is then
 attributable solely to personalization, not data leakage.
 
-Literature basis:
-  Hamad et al. (2021) npj Digital Medicine — canonical LOPO + fine-tuning protocol
-  "Beyond LoRA" (arXiv 2409.11302) — LoRA consistently beats full FT on small datasets
-  GluFormer (Nature, 2025) — foundation model + per-patient fine-tuning for CGM
-
 Usage:
     python scripts/experiments/per_patient_finetune.py \\
         --model ttm \\
