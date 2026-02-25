@@ -9,6 +9,8 @@ evaluation across all models.
 Usage:
     python scripts/examples/holdout_eval.py --model sundial --dataset brown_2019
     python scripts/examples/holdout_eval.py --model ttm --dataset brown_2019
+    python scripts/examples/holdout_eval.py --model moment --dataset brown_2019
+    python scripts/examples/holdout_eval.py --model moment --checkpoint path/to/checkpoint
     python scripts/examples/holdout_eval.py --model sundial --context-length 512 --forecast-length 72
     python scripts/examples/holdout_eval.py --model sundial --model-config configs/models/sundial.yaml
     python scripts/examples/holdout_eval.py --model sundial --checkpoint path/to/checkpoint
@@ -86,7 +88,7 @@ def create_model_and_config(
     """Factory function to create model and config based on type.
 
     Args:
-        model_type: One of 'sundial', 'ttm', 'chronos', 'moirai'
+        model_type: One of 'sundial', 'ttm', 'moment', 'chronos', 'moirai'
         checkpoint: Optional path to fine-tuned checkpoint
         **kwargs: Additional config parameters (e.g., num_samples, forecast_length)
 
@@ -230,6 +232,72 @@ def create_model_and_config(
             model = TTMForecaster(config)
         return model, config
 
+    elif model_type == "moment":
+        from src.models.moment import MomentForecaster
+        from src.models.moment.config import MomentConfig
+        from src.models.base.base_model import ModelConfig
+        import dataclasses
+
+        if checkpoint:
+            config_path = os.path.join(checkpoint, "config.json")
+            if os.path.exists(config_path):
+                with open(config_path, "r") as f:
+                    saved_config = json.load(f)
+            else:
+                metadata_path = os.path.join(checkpoint, "training_metadata.json")
+                if os.path.exists(metadata_path):
+                    with open(metadata_path, "r") as f:
+                        saved_config = json.load(f).get("config", {})
+                else:
+                    logger.warning(
+                        f"No config.json or training_metadata.json in {checkpoint}, using defaults"
+                    )
+                    saved_config = {}
+            base_fields = {f.name for f in dataclasses.fields(ModelConfig)}
+            moment_extra = {"d_model", "n_heads", "n_layers", "dropout", "mask_ratio"}
+            valid = base_fields | moment_extra
+            filtered = {
+                k: v for k, v in saved_config.items() if k in valid and not callable(v)
+            }
+            config = MomentConfig(**filtered)
+
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+            if (
+                "context_length" in kwargs
+                and kwargs["context_length"] != config.context_length
+            ):
+                logger.warning(
+                    f"context_length mismatch: requested {kwargs['context_length']}, "
+                    f"model trained with {config.context_length}. Using saved value."
+                )
+
+            model = MomentForecaster(config)
+            model._load_checkpoint(checkpoint)
+            model.is_fitted = True
+        else:
+            config = MomentConfig(
+                model_path=kwargs.get("model_path", "AutonLab/MOMENT-1-base"),
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                batch_size=kwargs.get("batch_size", 32),
+                training_mode="zero_shot",
+            )
+            model = MomentForecaster(config)
+        return model, config
+
     elif model_type == "chronos":
         raise NotImplementedError("Chronos model not yet implemented")
 
@@ -239,7 +307,7 @@ def create_model_and_config(
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, moirai"
+            f"Available: sundial, ttm, moment, chronos, moirai"
         )
 
 
@@ -544,7 +612,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="sundial",
-        choices=["sundial", "ttm", "chronos", "moirai"],
+        choices=["sundial", "ttm", "moment", "chronos", "moirai"],
         help="Model type to use for evaluation",
     )
     parser.add_argument(
@@ -725,8 +793,7 @@ def main():
 
     logger.info(f"Dataset: {args.dataset}")
     logger.info(
-        f"Context: {context_length} steps "
-        f"({context_length / STEPS_PER_HOUR:.1f} hours)"
+        f"Context: {context_length} steps ({context_length / STEPS_PER_HOUR:.1f} hours)"
     )
     logger.info(
         f"Forecast: {forecast_length} steps "
