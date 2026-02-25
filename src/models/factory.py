@@ -170,8 +170,56 @@ def create_model_and_config(
     elif model_type == "moirai":
         raise NotImplementedError("Moirai model not yet implemented")
 
+    elif model_type == "timegrad":
+        from src.models.timegrad import TimeGradForecaster, TimeGradConfig
+
+        if checkpoint:
+            config_path = os.path.join(checkpoint, "config.json")
+            if os.path.exists(config_path):
+                with open(config_path, "r") as f:
+                    saved_config = json.load(f)
+                # These are set explicitly by TimeGradConfig.__init__; drop them
+                # so they don't conflict with the dataclass parent's __init__.
+                saved_config.pop("model_type", None)
+                saved_config.pop("training_backend", None)
+            else:
+                logger.warning(f"No config.json found in {checkpoint}, using defaults")
+                saved_config = {}
+
+            config = TimeGradConfig(**saved_config)
+
+            # Apply valid overrides
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "num_samples" in kwargs:
+                config.num_samples = kwargs["num_samples"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+
+            model = TimeGradForecaster(config)
+            model._load_checkpoint(checkpoint)
+            model.is_fitted = True
+        else:
+            config = TimeGradConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                batch_size=kwargs.get("batch_size", 64),
+            )
+            model = TimeGradForecaster(config)
+        return model, config
+
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, moirai"
+            f"Available: sundial, ttm, chronos, moirai, timegrad"
         )
