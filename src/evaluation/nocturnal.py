@@ -46,17 +46,16 @@ def evaluate_nocturnal_forecasting(
     covariate_cols: Optional[List[str]] = None,
     interval_mins: int = SAMPLING_INTERVAL_MINUTES,
 ) -> Dict[str, Any]:
-    """Evaluate a model on the midnight-anchored nocturnal forecasting task.
+    """Evaluate model on midnight-anchored nocturnal forecasting task.
 
-    Builds midnight episodes per patient and evaluates each episode individually.
-    This per-episode approach ensures compatibility with models like TTM that
-    use ForecastDFDataset internally (which creates sliding windows rather than
-    treating pre-windowed inputs as separate samples).
+    Builds midnight episodes per patient, stacks them into a panel DataFrame
+    with ``episode_id``, and calls model.predict() once. Known covariates
+    (IOB, COB) for the forecast horizon are passed separately via
+    ``known_covariates`` kwarg.
 
     Args:
-        model: Model implementing predict(data) -> np.ndarray.
-        holdout_data: Flat DataFrame with one or more patients.
-            Must have 'bg_mM', 'datetime', and a patient ID column.
+        model: Model implementing predict(data, **kwargs) -> pd.DataFrame.
+        holdout_data: Flat DataFrame with all holdout patients.
         context_length: Context window size in steps.
         forecast_length: Forecast horizon in steps.
         target_col: BG column name.
@@ -64,23 +63,21 @@ def evaluate_nocturnal_forecasting(
         interval_mins: Sampling interval in minutes.
 
     Returns:
-        Dict with keys:
-            overall_rmse: float
-            total_episodes: int
-            per_patient: List[Dict] — one entry per patient with rmse, mae, episodes
-            per_episode: List[Dict] — one entry per episode with pred, target_bg, context_bg
+        Dict with overall_rmse, total_episodes, per_patient, per_episode.
     """
     patient_col = get_patient_column(holdout_data)
     patients = holdout_data[patient_col].unique()
 
-    # --- Phase 1: Build midnight episodes for all patients ---
+    # --- Phase 1: Build episodes for all patients ---
+    # Collect episodes and track which patient each belongs to.
     episode_metadata = []
     context_dfs = []
+    future_cov_dfs = []  # parallel to context_dfs; None for episodes without covariates
 
     for patient_id in patients:
         patient_df = holdout_data[holdout_data[patient_col] == patient_id].copy()
 
-        # Ensure DatetimeIndex
+        # Set DatetimeIndex if not already set
         if not isinstance(patient_df.index, pd.DatetimeIndex):
             time_col = "datetime" if "datetime" in patient_df.columns else None
             if time_col:
@@ -93,7 +90,7 @@ def evaluate_nocturnal_forecasting(
                 )
                 continue
 
-        episodes, skip_stats = build_midnight_episodes(
+        episodes, _ = build_midnight_episodes(
             patient_df,
             context_length=context_length,
             forecast_length=forecast_length,
@@ -104,23 +101,29 @@ def evaluate_nocturnal_forecasting(
 
         if not episodes:
             logger.info("  Patient %s: no valid midnight episodes", patient_id)
-            if skip_stats["skipped_bg_nan"] > 0:
-                logger.debug(
-                    "    Skipped %d/%d anchors due to missing BG",
-                    skip_stats["skipped_bg_nan"],
-                    skip_stats["total_anchors"],
-                )
             continue
 
         for i, ep in enumerate(episodes):
-            ep_id = f"{patient_id}::ep{i:03d}"
-
+            ep_id = f"{patient_id}_ep{i:03d}"
             ctx = ep["context_df"].copy()
-            # Convert DatetimeIndex to column for models that expect it (e.g., TTM)
-            ctx = ctx.reset_index(names="datetime")
             ctx["episode_id"] = ep_id
-            ctx["group"] = ep_id
             context_dfs.append(ctx)
+
+            # Future covariates (None when not available)
+            if ep["future_covariates"]:
+                future_ts = pd.date_range(
+                    ep["anchor"],
+                    periods=forecast_length,
+                    freq=f"{interval_mins}min",
+                )
+                future_data = {
+                    cov_col: cov_vals
+                    for cov_col, cov_vals in ep["future_covariates"].items()
+                }
+                future_data["episode_id"] = ep_id
+                future_cov_dfs.append(pd.DataFrame(future_data, index=future_ts))
+            else:
+                future_cov_dfs.append(None)
 
             episode_metadata.append(
                 {
@@ -141,8 +144,9 @@ def evaluate_nocturnal_forecasting(
         }
 
     # --- Phase 2: Predict per episode ---
-    # Iterate per-episode rather than batching: models like TTM use ForecastDFDataset
-    # internally (sliding windows), so batching episodes would cause window leakage.
+    # Per-episode calls keep each model's predict() interface simple: one time
+    # series in, one forecast out. Models that support panel predict internally
+    # (e.g. Chronos2) handle batching themselves.
     logger.info(
         "Evaluating %d midnight episodes across %d patients",
         len(episode_metadata),
@@ -152,20 +156,32 @@ def evaluate_nocturnal_forecasting(
     all_episode_results = []
     patient_episodes: Dict[str, list] = {}
 
-    for ctx_df, meta in zip(context_dfs, episode_metadata):
-        pred = np.asarray(model.predict(ctx_df))
-        if pred.ndim == 3:
-            pred = pred[0, :, 0]
-        elif pred.ndim == 2:
-            pred = pred.flatten()
+    for ctx_df, cov_df, meta in zip(context_dfs, future_cov_dfs, episode_metadata):
+        predict_kwargs = {}
+        if cov_df is not None:
+            predict_kwargs["known_covariates"] = cov_df
+
+        raw = model.predict(ctx_df, **predict_kwargs)
+
+        # Normalize output: support panel DataFrame (e.g. Chronos2, which returns
+        # target_col + quantile columns) and plain ndarray (e.g. TTM).
+        if isinstance(raw, pd.DataFrame):
+            pred = raw[target_col].to_numpy()
+            q_cols = [c for c in raw.columns if c not in [target_col, "episode_id"]]
+            quantiles = {c: raw[c].tolist() for c in q_cols} if q_cols else None
+        else:
+            arr = np.asarray(raw)
+            if arr.ndim == 3:
+                arr = arr[0, :, 0]
+            elif arr.ndim == 2:
+                arr = arr.flatten()
+            pred = arr[: len(meta["target_bg"])]
+            quantiles = None
 
         target = meta["target_bg"]
-        if len(pred) > len(target):
-            pred = pred[: len(target)]
-
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
-        context_bg = ctx_df[target_col].values if target_col in ctx_df.columns else None
 
+        context_bg = ctx_df[target_col].values if target_col in ctx_df.columns else None
         all_episode_results.append(
             {
                 "patient_id": meta["patient_id"],
@@ -174,13 +190,14 @@ def evaluate_nocturnal_forecasting(
                 "pred": pred.tolist(),
                 "target_bg": target.tolist(),
                 "context_bg": context_bg.tolist() if context_bg is not None else None,
+                "quantiles": quantiles,
             }
         )
 
         pid = meta["patient_id"]
         patient_episodes.setdefault(pid, []).append((pred, target))
 
-    # Per-patient aggregates
+    # Per-patient aggregate
     all_patient_results = []
     for pid, ep_list in patient_episodes.items():
         preds = np.concatenate([p for p, _ in ep_list])
@@ -203,15 +220,13 @@ def evaluate_nocturnal_forecasting(
             len(ep_list),
         )
 
-    # Overall RMSE (concatenated across all episodes)
-    all_preds = np.concatenate([np.array(ep["pred"]) for ep in all_episode_results])
-    all_targets = np.concatenate(
-        [np.array(ep["target_bg"]) for ep in all_episode_results]
-    )
+    # Overall metrics (concatenated predictions, consistent with per-patient)
+    all_preds = np.concatenate([ep["pred"] for ep in all_episode_results])
+    all_targets = np.concatenate([ep["target_bg"] for ep in all_episode_results])
     overall_rmse = float(np.sqrt(np.mean((all_preds - all_targets) ** 2)))
 
     logger.info(
-        "Nocturnal evaluation complete: %.4f RMSE over %d midnight episodes",
+        "Nocturnal evaluation: %.4f RMSE over %d midnight episodes",
         overall_rmse,
         len(all_episode_results),
     )
@@ -222,6 +237,7 @@ def evaluate_nocturnal_forecasting(
         "per_patient": all_patient_results,
         "per_episode": all_episode_results,
     }
+
 
 def predict_with_quantiles(
     model,

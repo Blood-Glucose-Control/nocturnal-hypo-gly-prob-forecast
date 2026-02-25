@@ -408,6 +408,11 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 "or preprocessor must be loaded with the model."
             )
 
+        # Normalize DatetimeIndex to "datetime" column — the preprocessor and
+        # ForecastDFDataset expect timestamp_column="datetime" as a regular column.
+        if isinstance(data, pd.DataFrame) and isinstance(data.index, pd.DatetimeIndex):
+            data = data.reset_index(names="datetime")
+
         # Convert dict format to DataFrame if needed
         if isinstance(data, dict):
             from src.data.data_loading import multi_patient_dict_to_df
