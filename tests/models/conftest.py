@@ -27,6 +27,7 @@ _MODEL_VENV_MAP: dict[str, tuple[str, str]] = {
     "ttm": ("ttm", ".venvs/ttm"),
     "sundial": ("sundial", ".venvs/sundial"),
     "timesfm": ("timesfm", ".venvs/timesfm"),
+    "chronos2": ("chronos2", ".venvs/chronos2"),
 }
 
 
