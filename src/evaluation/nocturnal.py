@@ -223,6 +223,102 @@ def evaluate_nocturnal_forecasting(
         "per_episode": all_episode_results,
     }
 
+def plot_stage_comparison(
+    stage1_per_episode: List[Dict[str, Any]],
+    stage2_per_episode: List[Dict[str, Any]],
+    output_path: Path,
+    model_name: str,
+    dataset_name: str,
+    patient_id: str,
+    stage1_rmse: float,
+    stage2_rmse: float,
+    context_hours_to_show: int = 3,
+) -> None:
+    """Plot Stage 1 vs Stage 2 predictions on the same midnight episodes.
+
+    Each subplot overlays the population model (Stage 1) and personalized model
+    (Stage 2) forecasts on the same episode, making it easy to see where
+    per-patient fine-tuning helped or hurt.
+
+    Args:
+        stage1_per_episode: Episode results from Stage 1 evaluation.
+        stage2_per_episode: Episode results from Stage 2 evaluation.
+        output_path: Directory to save plot.
+        model_name: Name of the model.
+        dataset_name: Name of the dataset.
+        patient_id: Target patient ID.
+        stage1_rmse: Overall Stage 1 RMSE.
+        stage2_rmse: Overall Stage 2 RMSE.
+        context_hours_to_show: Hours of context to display in plot.
+    """
+    # Match episodes by anchor timestamp
+    s1_by_anchor = {ep["anchor"]: ep for ep in stage1_per_episode if ep.get("context_bg")}
+    s2_by_anchor = {ep["anchor"]: ep for ep in stage2_per_episode if ep.get("context_bg")}
+    common_anchors = sorted(set(s1_by_anchor.keys()) & set(s2_by_anchor.keys()))
+
+    if not common_anchors:
+        logger.warning("No common episodes with context data for comparison plot")
+        return
+
+    n_episodes = len(common_anchors)
+    ncols = min(4, n_episodes)
+    nrows = (n_episodes + ncols - 1) // ncols
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows), squeeze=False)
+    axes = axes.flatten()
+
+    context_steps_to_show = context_hours_to_show * STEPS_PER_HOUR
+
+    for i, anchor in enumerate(common_anchors):
+        if i >= len(axes):
+            break
+        ax = axes[i]
+        s1 = s1_by_anchor[anchor]
+        s2 = s2_by_anchor[anchor]
+
+        ctx_full = np.array(s2["context_bg"])
+        tgt = np.array(s2["target_bg"])
+        pred_s1 = np.array(s1["pred"])
+        pred_s2 = np.array(s2["pred"])
+
+        ctx = ctx_full[-context_steps_to_show:] if len(ctx_full) > context_steps_to_show else ctx_full
+
+        t_ctx = (np.arange(len(ctx)) - len(ctx)) / STEPS_PER_HOUR
+        t_pred = np.arange(len(tgt)) / STEPS_PER_HOUR
+
+        ax.plot(t_ctx, ctx, "b-", lw=1.5, label="Context")
+        ax.plot(t_pred, tgt, "k-", lw=2, label="Actual")
+        ax.plot(t_pred, pred_s1, "orange", lw=1.5, ls="--", alpha=0.8, label=f"Stage 1 ({s1['rmse']:.2f})")
+        ax.plot(t_pred, pred_s2, "r-", lw=2, alpha=0.8, label=f"Stage 2 ({s2['rmse']:.2f})")
+        ax.axvline(0, color="gray", ls=":", lw=1)
+        ax.axhline(HYPO_THRESHOLD_MMOL, color="crimson", ls="--", alpha=0.3, lw=1)
+
+        ax.set_ylim(0, 18)
+        ax.set_xlabel("Hours from midnight", fontsize=9)
+        ax.set_ylabel("BG (mmol/L)", fontsize=9)
+        ax.set_title(anchor[:10], fontsize=9)
+        ax.tick_params(labelsize=8)
+        ax.grid(alpha=0.3)
+        ax.legend(fontsize=7, loc="upper right")
+
+    for j in range(n_episodes, len(axes)):
+        axes[j].set_visible(False)
+
+    delta = stage1_rmse - stage2_rmse
+    direction = "improvement" if delta > 0 else "regression"
+    fig.suptitle(
+        f"{model_name.upper()} Stage 1 vs Stage 2 — {patient_id} ({dataset_name})\n"
+        f"Population RMSE: {stage1_rmse:.3f}  |  Personalized RMSE: {stage2_rmse:.3f}  |  "
+        f"Delta: {abs(delta):.3f} ({direction})",
+        fontsize=12,
+        fontweight="bold",
+    )
+    plt.tight_layout()
+
+    plot_file = Path(output_path) / "stage1_vs_stage2_comparison.png"
+    plt.savefig(plot_file, dpi=150, bbox_inches="tight")
+    plt.close()
+    logger.info("Comparison plot saved to: %s", plot_file)
+
 
 def plot_best_worst_episodes(
     per_episode: List[Dict[str, Any]],

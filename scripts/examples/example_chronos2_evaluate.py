@@ -17,7 +17,7 @@ from src.data.versioning.dataset_registry import DatasetRegistry
 from src.models.chronos2 import Chronos2Forecaster
 
 # Import from the new evaluation infrastructure
-from scripts.examples.holdout_eval import evaluate_nocturnal_forecasting
+from src.evaluation.nocturnal import evaluate_nocturnal_forecasting
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"

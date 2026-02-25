@@ -139,7 +139,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="ttm",
-        choices=["sundial", "ttm", "chronos", "moirai"],
+        choices=["sundial", "ttm", "chronos2", "moirai"],
         help="Model type to use for evaluation",
     )
     parser.add_argument(
@@ -221,6 +221,11 @@ def main():
 
     context_length = config.context_length
     forecast_length = config.forecast_length
+
+    # Auto-detect covariates from model config if not explicitly specified
+    if args.covariate_cols is None and hasattr(config, "covariate_cols") and config.covariate_cols:
+        args.covariate_cols = config.covariate_cols
+        logger.info(f"Using covariates from model config: {args.covariate_cols}")
 
     logger.info(f"Dataset: {args.dataset}")
     logger.info(
