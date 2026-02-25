@@ -304,7 +304,7 @@ class ModelFactory:
             )
         except ImportError as e:
             raise ImportError(
-                f"TimesFM model not available. Install with: pip install timesfm==1.3.0: {e}"
+                f"TimesFM model not available. Install with: pip install transformers>=5.2.0: {e}"
             )
 
     @staticmethod

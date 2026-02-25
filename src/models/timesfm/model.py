@@ -1,9 +1,6 @@
-"""
-TimesFM model implementation using the base TSFM framework.
+"""TimesFM model using HuggingFace Transformers (TimesFmModelForPrediction).
 
-This module provides zero-shot forecasting and finetuning using Google's TimesFM
-foundation model. TimesFM is a pretrained decoder-only transformer for time series
-forecasting.
+Supports zero-shot inference and fine-tuning with per-window normalized loss.
 """
 
 import json
@@ -14,9 +11,10 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
-# Local imports
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
 from src.models.timesfm.config import TimesFMConfig
 from src.utils.logging_helper import info_print, error_print
@@ -27,131 +25,158 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class TimesFMDataset(Dataset):
-    """PyTorch Dataset for TimesFM finetuning with sliding windows.
+def _longest_nan_run(mask: np.ndarray) -> int:
+    """Return the length of the longest contiguous True run in a boolean array."""
+    if not mask.any():
+        return 0
+    max_run = 0
+    current = 0
+    for val in mask:
+        if val:
+            current += 1
+            max_run = max(max_run, current)
+        else:
+            current = 0
+    return max_run
 
-    Creates samples of (x_context, input_padding, freq, x_future) from time series data.
-    This format matches what TimesFM's internal model expects for training.
+
+class TimesFMDataset(Dataset):
+    """Per-patient sliding-window dataset for TimesFM fine-tuning.
+
+    Creates windows within each patient's series independently, ensuring no
+    window spans patient boundaries or data gaps. Windows with NaN values
+    are skipped (matching evaluate() behavior).
 
     Args:
-        series: 1D numpy array of time series values
-        context_length: Number of past timesteps for context
-        horizon_length: Number of future timesteps to predict
-        freq_type: Frequency type (0=high/5-min, 1=medium/hourly, 2=low/weekly+)
-        stride: Step size between windows. Default=horizon_length for non-overlapping.
-                Use stride=1 for maximum overlap (slow), stride=horizon_length for fast training.
-        max_samples: Maximum number of samples to create. None=unlimited.
-                     Samples are uniformly distributed across the series if capped.
+        patient_series: List of 1D numpy arrays, one per patient.
+        context_length: Number of past timesteps for context.
+        horizon_length: Number of future timesteps to predict.
+        freq_type: Frequency type (0=high/5-min, 1=medium/hourly, 2=low/weekly+).
+        stride: Step size between windows (default=horizon_length, non-overlapping).
     """
 
     def __init__(
         self,
-        series: np.ndarray,
+        patient_series: List[np.ndarray],
         context_length: int,
         horizon_length: int,
         freq_type: int = 0,
         stride: Optional[int] = None,
-        max_samples: Optional[int] = None,
     ):
         if freq_type not in [0, 1, 2]:
             raise ValueError("freq_type must be 0, 1, or 2")
 
-        self.series = series.astype(np.float32)
         self.context_length = context_length
         self.horizon_length = horizon_length
         self.freq_type = freq_type
-        # Default stride to horizon_length for non-overlapping windows
         self.stride = stride if stride is not None else horizon_length
-        self.max_samples = max_samples
-        self._prepare_samples()
+        self._build_windows(patient_series)
 
-    def _prepare_samples(self) -> None:
-        """Create sliding window samples from the time series with stride."""
+    def _build_windows(self, patient_series: List[np.ndarray]) -> None:
+        """Create windows per-patient, skipping windows with NaN values."""
         self.samples: List[Tuple[np.ndarray, np.ndarray]] = []
         total_length = self.context_length + self.horizon_length
+        skipped_nan = 0
 
-        # Collect all possible window start indices
-        all_indices = list(range(0, len(self.series) - total_length + 1, self.stride))
+        for series in patient_series:
+            series = series.astype(np.float32)
+            if len(series) < total_length:
+                continue
 
-        # If max_samples is set and we have more windows, subsample uniformly
-        if self.max_samples is not None and len(all_indices) > self.max_samples:
-            # Uniformly sample indices to maintain temporal distribution
-            step = len(all_indices) / self.max_samples
-            selected_indices = [
-                all_indices[int(i * step)] for i in range(self.max_samples)
-            ]
-            all_indices = selected_indices
+            for start in range(0, len(series) - total_length + 1, self.stride):
+                context = series[start : start + self.context_length]
+                future = series[start + self.context_length : start + total_length]
 
-        for start_idx in all_indices:
-            end_idx = start_idx + self.context_length
-            x_context = self.series[start_idx:end_idx]
-            x_future = self.series[end_idx : end_idx + self.horizon_length]
-            self.samples.append((x_context, x_future))
+                if np.isnan(context).any() or np.isnan(future).any():
+                    skipped_nan += 1
+                    continue
+
+                self.samples.append((context, future))
+
+        if skipped_nan > 0:
+            info_print(f"Skipped {skipped_nan} windows with NaN values")
 
     def __len__(self) -> int:
         return len(self.samples)
 
-    def __getitem__(
-        self, index: int
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Return (x_context, input_padding, freq, x_future) for training."""
+    def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
+        """Return dict with past_values, past_values_padding, freq, future_values."""
         x_context, x_future = self.samples[index]
 
-        x_context_t = torch.tensor(x_context, dtype=torch.float32)
-        x_future_t = torch.tensor(x_future, dtype=torch.float32)
+        return {
+            "past_values": torch.tensor(x_context, dtype=torch.float32),
+            "past_values_padding": torch.zeros(len(x_context), dtype=torch.long),
+            "freq": torch.tensor(self.freq_type, dtype=torch.long),
+            "future_values": torch.tensor(x_future, dtype=torch.float32),
+        }
 
-        # Padding mask: zeros indicate valid data (no padding)
-        input_padding = torch.zeros_like(x_context_t)
-        # Frequency tensor
-        freq = torch.tensor([self.freq_type], dtype=torch.long)
 
-        return x_context_t, input_padding, freq, x_future_t
+class TimesFMForTrainer(nn.Module):
+    """HF Trainer wrapper that computes loss in per-window normalized space.
+
+    Truncates predictions to match target horizon (HF TimesFM outputs 128 steps)
+    and normalizes both predictions and targets by context mean/std before MSE,
+    preventing high-variance patients from dominating gradients.
+    """
+
+    def __init__(self, hf_prediction_model):
+        super().__init__()
+        self.prediction_model = hf_prediction_model
+
+    def forward(
+        self,
+        past_values,
+        past_values_padding,
+        freq,
+        future_values=None,
+        **kwargs,
+    ):
+        outputs = self.prediction_model(
+            past_values=past_values,
+            freq=freq,
+        )
+        mean_predictions = outputs.mean_predictions  # (B, model_horizon)
+
+        loss = None
+        if future_values is not None:
+            horizon = future_values.shape[1]
+            preds = mean_predictions[:, :horizon].float()
+            targets = future_values.float()
+
+            # Per-window normalization (clamp scale >= 0.1 for low-variance windows).
+            locs = torch.stack([pv.float().mean() for pv in past_values])
+            scales = torch.stack(
+                [pv.float().std().clamp(min=0.1) for pv in past_values]
+            )
+            locs = locs.to(preds.device).unsqueeze(-1)  # (B, 1)
+            scales = scales.to(preds.device).unsqueeze(-1)  # (B, 1)
+
+            pred_norm = (preds - locs) / scales
+            target_norm = (targets - locs) / scales
+            loss = F.mse_loss(pred_norm, target_norm)
+
+        return {"loss": loss, "logits": mean_predictions}
 
 
 class TimesFMForecaster(BaseTimeSeriesFoundationModel):
-    """TimesFM forecaster implementation for zero-shot inference and finetuning.
+    """TimesFM forecaster using HuggingFace Transformers.
 
-    TimesFM is a pretrained time series foundation model from Google Research.
-    This implementation provides both zero-shot forecasting and finetuning capability.
-
-    Example:
-        >>> config = TimesFMConfig(context_length=512, horizon_length=72)
-        >>> model = TimesFMForecaster(config)
-        >>> predictions = model.predict(data_df, prediction_length=72)
+    Uses TimesFmModelForPrediction for inference and HF Trainer for fine-tuning.
     """
 
     def __init__(
         self, config: TimesFMConfig, lora_config=None, distributed_config=None
     ):
-        """Initialize the TimesFM forecaster.
-
-        Args:
-            config: TimesFM configuration object
-            lora_config: LoRA configuration (ignored for TimesFM)
-            distributed_config: Configuration for distributed training
-        """
-        # Call parent (_initialize_model)
         super().__init__(config, lora_config, distributed_config)
-
         self.config: TimesFMConfig = self.config
+        self.hf_model = self.model  # alias set in _initialize_model
 
-    # Abstract property implementations
     @property
     def training_backend(self) -> TrainingBackend:
-        """Return the training backend for TimesFM.
-
-        Returns:
-            TrainingBackend.CUSTOM since TimesFM uses its own inference logic.
-        """
-        return TrainingBackend.CUSTOM
+        return TrainingBackend.TRANSFORMERS
 
     @property
     def supports_lora(self) -> bool:
-        """Check if TimesFM supports LoRA fine-tuning.
-
-        Returns:
-            False by default, but could be True with adapter frameworks like AdaPTS.
-        """
         return False
 
     def predict(
@@ -159,44 +184,66 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     ) -> np.ndarray:
         """Make predictions given context data.
 
+        Handles NaN values consistently with training: short gaps (<=45 min
+        at 5-min resolution = 9 readings) are linearly interpolated, longer
+        gaps raise an error.
+
         Args:
             data: DataFrame with 'bg_mM' column containing context window
-            prediction_length: Number of steps to forecast (defaults to config.horizon_length)
+            prediction_length: Number of steps to forecast
 
         Returns:
             Forecast as 1D numpy array
         """
-        if self.model is None:
+        if self.hf_model is None:
             raise ValueError("Model not initialized.")
 
         prediction_length = prediction_length or self.config.horizon_length
 
-        # Extract BG values
         bg_col = "bg_mM"
         if bg_col not in data.columns:
             raise ValueError(f"DataFrame must contain '{bg_col}' column")
 
-        context = data[bg_col].dropna().values.astype(np.float32)
-
-        # Take last context_length values
+        context = data[bg_col].values.astype(np.float32)
         context = context[-self.config.context_length :]
 
-        # Convert to list of lists format expected by v1.x
-        context_list = [context.tolist()]
-        point_forecast, _ = self.model.forecast(
-            inputs=context_list,
-            freq=[0],  # 0 = high frequency (5-min data)
-        )
-        forecast = point_forecast[0]
+        # Handle NaN: interpolate short gaps, reject long gaps
+        nan_mask = np.isnan(context)
+        if nan_mask.any():
+            max_gap = _longest_nan_run(nan_mask)
+            # 9 readings = 45 min at 5-min resolution
+            max_allowed = self.config.imputation_threshold_mins // 5
+            if max_gap > max_allowed:
+                raise ValueError(
+                    f"Context contains a {max_gap * 5}-minute gap "
+                    f"(>{self.config.imputation_threshold_mins} min threshold). "
+                    f"Pre-process data to remove large gaps before predict()."
+                )
+            valid = ~nan_mask
+            if not valid.any():
+                raise ValueError("Context is entirely NaN.")
+            indices = np.arange(len(context))
+            context = np.interp(indices, indices[valid], context[valid]).astype(
+                np.float32
+            )
+            logger.info(
+                "Interpolated %d NaN values in predict() context", nan_mask.sum()
+            )
 
-        # Ensure it's a 1D numpy array
-        if isinstance(forecast, np.ndarray):
-            if forecast.ndim > 1:
-                forecast = forecast.flatten()
-        else:
-            forecast = np.array(forecast).flatten()
+        model_dtype = next(self.hf_model.parameters()).dtype
+        context_tensor = torch.tensor(context, dtype=model_dtype).to(self.device)
+        freq_tensor = torch.tensor([0], dtype=torch.long).to(self.device)
 
-        # Truncate to requested prediction_length if needed
+        self.hf_model.eval()
+        with torch.no_grad():
+            outputs = self.hf_model(
+                past_values=[context_tensor],
+                freq=freq_tensor,
+                return_dict=True,
+            )
+
+        forecast = outputs.mean_predictions[0].float().cpu().numpy()
+
         if len(forecast) > prediction_length:
             forecast = forecast[:prediction_length]
 
@@ -205,19 +252,11 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def predict_zero_shot(
         self, data: pd.DataFrame, prediction_length: Optional[int] = None
     ) -> np.ndarray:
-        """Zero-shot prediction.
-
-        TimesFM uses pretrained weights directly, so zero-shot and regular
-        prediction are identical.
-        """
+        """Zero-shot prediction (identical to predict for TimesFM)."""
         return self.predict(data, prediction_length)
 
     def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
-        """Extract ground truth bg_mM values from the end of the test data.
-
-        Returns the last horizon_length values of the bg_mM column, which
-        represent the actual future values to compare forecasts against.
-        """
+        """Extract ground truth bg_mM values from the end of the test data."""
         if isinstance(test_data, pd.DataFrame) and "bg_mM" in test_data.columns:
             values = test_data["bg_mM"].dropna().values.astype(np.float32)
             return values[-self.config.horizon_length :]
@@ -234,7 +273,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         Creates non-overlapping (context, target) windows per patient,
         batch-predicts all windows, and computes aggregate metrics.
         """
-        if self.model is None:
+        if self.hf_model is None:
             raise ValueError("Model not initialized.")
         if not isinstance(test_data, pd.DataFrame) or "bg_mM" not in test_data.columns:
             raise ValueError("test_data must be a DataFrame with 'bg_mM' column")
@@ -242,37 +281,31 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         cl = self.config.context_length
         hl = self.config.horizon_length
         total_len = cl + hl
+        model_dtype = next(self.hf_model.parameters()).dtype
 
-        # Detect patient column
         patient_col = next((c for c in ["p_num", "id"] if c in test_data.columns), None)
 
-        # Collect (context, target) windows across all patients
-        context_windows: List[List[float]] = []
+        context_windows: List[torch.Tensor] = []
         target_windows: List[np.ndarray] = []
 
-        if patient_col:
-            patients = test_data[patient_col].dropna().unique()
-        else:
-            patients = [None]  # Treat as single series
+        patients = test_data[patient_col].dropna().unique() if patient_col else [None]
 
         for pid in patients:
-            if pid is not None:
-                patient_data = test_data[test_data[patient_col] == pid]
-            else:
-                patient_data = test_data
-
+            patient_data = (
+                test_data[test_data[patient_col] == pid]
+                if pid is not None
+                else test_data
+            )
             values = patient_data["bg_mM"].values.astype(np.float32)
 
-            # Non-overlapping windows (stride = horizon_length)
             for start in range(0, len(values) - total_len + 1, hl):
                 context = values[start : start + cl]
                 target = values[start + cl : start + total_len]
 
-                # Skip windows with NaN values
                 if np.isnan(context).any() or np.isnan(target).any():
                     continue
 
-                context_windows.append(context.tolist())
+                context_windows.append(torch.tensor(context, dtype=model_dtype))
                 target_windows.append(target)
 
         num_patients = len(patients)
@@ -284,22 +317,44 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 f"{total_len} contiguous non-NaN bg_mM values per patient."
             )
 
-        info_print(f"Evaluating {num_windows} windows across {num_patients} patient(s)")
+        eval_batch_size = batch_size or self.config.batch_size
 
-        # Batch forecast all windows at once
-        freq_list = [0] * num_windows
-        point_forecast, _ = self.model.forecast(inputs=context_windows, freq=freq_list)
+        info_print(
+            f"Evaluating {num_windows} windows across {num_patients} patient(s) "
+            f"(batch_size={eval_batch_size})"
+        )
 
-        # Collect predictions
+        # Batched inference to avoid GPU OOM on large holdout sets
+        self.hf_model.eval()
         all_preds = []
-        for forecast in point_forecast:
-            pred = np.array(forecast).flatten()[:hl]
-            all_preds.append(pred)
+        for i in range(0, num_windows, eval_batch_size):
+            batch_ctx = [
+                t.to(self.device) for t in context_windows[i : i + eval_batch_size]
+            ]
+            batch_freq = torch.tensor([0] * len(batch_ctx), dtype=torch.long).to(
+                self.device
+            )
+
+            with torch.no_grad():
+                outputs = self.hf_model(
+                    past_values=batch_ctx,
+                    freq=batch_freq,
+                    return_dict=True,
+                )
+
+            for j in range(len(batch_ctx)):
+                pred = outputs.mean_predictions[j].float().cpu().numpy()[:hl]
+                all_preds.append(pred)
 
         y_pred = np.concatenate(all_preds)
         y_true = np.concatenate(target_windows)
 
-        metrics = self._compute_metrics(y_pred, y_true)
+        mse = float(np.mean((y_pred - y_true) ** 2))
+        metrics = {
+            "mse": mse,
+            "rmse": float(np.sqrt(mse)),
+            "mae": float(np.mean(np.abs(y_pred - y_true))),
+        }
         metrics["num_windows"] = num_windows
         metrics["num_patients"] = num_patients
 
@@ -310,131 +365,150 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         return metrics
 
     def _initialize_model(self) -> None:
-        """Load the TimesFM model.
-
-        Uses the v1.x API (TimesFmHparams/TimesFmCheckpoint) which is required
-        for finetuning and provides access to the internal model via _model.
-        """
-        info_print("Initializing TimesFM model...")
+        """Load TimesFM from HuggingFace."""
+        info_print("Initializing TimesFM model (HuggingFace)...")
 
         try:
-            import timesfm
-
-            cuda_available = torch.cuda.is_available()
-            self.device = (
-                "cuda" if cuda_available and not self.config.use_cpu else "cpu"
-            )
-            info_print(f"Selected device: {self.device}")
-
-            if not (hasattr(timesfm, "TimesFm") and hasattr(timesfm, "TimesFmHparams")):
-                raise AttributeError(
-                    "Could not find TimesFM v1.x API classes (TimesFm, TimesFmHparams). "
-                    "Install with: pip install timesfm==1.3.0"
-                )
-
-            checkpoint = (
-                self.config.checkpoint_path or "google/timesfm-2.0-500m-pytorch"
-            )
-            info_print(f"Loading TimesFM from: {checkpoint}")
-
-            # Determine backend
-            backend = "gpu" if self.device == "cuda" else "cpu"
-
-            self.model = timesfm.TimesFm(
-                hparams=timesfm.TimesFmHparams(
-                    backend=backend,
-                    per_core_batch_size=self.config.per_core_batch_size,
-                    horizon_len=self.config.horizon_length,
-                    num_layers=self.config.num_layers,
-                    use_positional_embedding=False,
-                    context_len=self.config.context_length,
-                ),
-                checkpoint=timesfm.TimesFmCheckpoint(
-                    huggingface_repo_id=checkpoint,
-                ),
-            )
-            info_print(f"TimesFM initialized on {self.device}")
-
+            from transformers import TimesFmModelForPrediction
         except ImportError:
             error_print(
-                "timesfm package not installed. Install with: pip install timesfm==1.3.0"
+                "transformers package missing or too old. "
+                "Install with: pip install transformers>=5.2.0"
             )
             raise
-        except Exception as e:
-            error_print(f"Failed to initialize TimesFM: {e}")
-            raise
+
+        checkpoint = self.config.checkpoint_path or "google/timesfm-2.0-500m-pytorch"
+        info_print(f"Loading TimesFM from: {checkpoint}")
+
+        self.device = (
+            "cuda" if torch.cuda.is_available() and not self.config.use_cpu else "cpu"
+        )
+        info_print(f"Selected device: {self.device}")
+
+        torch_dtype = getattr(torch, self.config.torch_dtype, torch.float32)
+
+        self.hf_model = TimesFmModelForPrediction.from_pretrained(
+            checkpoint,
+            torch_dtype=torch_dtype,
+            attn_implementation="sdpa",
+        )
+
+        self.hf_model.to(self.device)
+        self.model = self.hf_model  # base class expects self.model
+
+        info_print(
+            f"TimesFM initialized on {self.device} (dtype={self.config.torch_dtype})"
+        )
 
     def _prepare_training_data(
         self, train_data: Any
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
-        """Prepare DataLoaders for finetuning.
+        """Prepare DataLoaders with gap handling and per-patient windowing.
 
-        Extracts bg_mM values from DataFrame, splits into train/val,
-        and creates TimesFMDataset instances.
-
-        Args:
-            train_data: DataFrame with 'bg_mM' column, or dict of patient DataFrames
-
-        Returns:
-            Tuple of (train_loader, val_loader, None) - test_loader is None
+        Pipeline: extract per-patient DataFrames → gap handling (interpolate
+        small gaps, segment at large gaps) → patient-level train/val split →
+        sliding windows within each segment.
         """
+        from collections import defaultdict
+        from src.data.preprocessing.gap_handling import segment_all_patients
+
         info_print("Preparing data for TimesFM finetuning...")
 
-        # Handle dict of patient DataFrames
+        # Step 1: Extract per-patient DataFrames (need DatetimeIndex for gap handling)
         if isinstance(train_data, dict):
-            # Concatenate all patient data
-            all_values = []
-            for patient_id, df in train_data.items():
+            patient_dfs = {}
+            for pid, df in train_data.items():
                 if "bg_mM" in df.columns:
-                    values = df["bg_mM"].dropna().values
-                    all_values.append(values)
-            series = np.concatenate(all_values)
+                    patient_dfs[str(pid)] = df
         elif isinstance(train_data, pd.DataFrame):
             if "bg_mM" not in train_data.columns:
                 raise ValueError("DataFrame must contain 'bg_mM' column")
-            series = train_data["bg_mM"].dropna().values
+            patient_col = next(
+                (c for c in ["p_num", "id"] if c in train_data.columns), None
+            )
+            if patient_col:
+                patient_dfs = {
+                    str(pid): group for pid, group in train_data.groupby(patient_col)
+                }
+            else:
+                patient_dfs = {"single": train_data}
         else:
             raise ValueError(
                 f"train_data must be DataFrame or dict, got {type(train_data)}"
             )
 
-        series = series.astype(np.float32)
-        info_print(f"Total samples: {len(series):,}")
-
-        # Split into train/val based on config.train_split
-        train_size = int(len(series) * self.config.train_split)
-        train_series = series[:train_size]
-        val_series = series[train_size:]
-
+        total_samples = sum(len(df) for df in patient_dfs.values())
         info_print(
-            f"Train samples: {len(train_series):,}, Val samples: {len(val_series):,}"
+            f"Total samples: {total_samples:,} across {len(patient_dfs)} patients"
         )
+
+        # Step 2: Ensure DataFrames have DatetimeIndex for gap handling
+        for pid, df in patient_dfs.items():
+            if not isinstance(df.index, pd.DatetimeIndex):
+                if "datetime" in df.columns:
+                    patient_dfs[pid] = df.set_index("datetime")
+                else:
+                    info_print(
+                        f"Patient {pid}: no datetime index or column, "
+                        f"skipping gap handling"
+                    )
+
+        # Step 3: Gap handling — interpolate small gaps, segment at large gaps
+        min_seg_length = self.config.context_length + self.config.horizon_length
+        segments = segment_all_patients(
+            patient_dfs,
+            imputation_threshold_mins=self.config.imputation_threshold_mins,
+            min_segment_length=min_seg_length,
+            bg_col="bg_mM",
+        )
+        info_print(
+            f"Gap handling: {len(segments)} segments from "
+            f"{len(patient_dfs)} patients "
+            f"(interpolated gaps <= {self.config.imputation_threshold_mins} min, "
+            f"min segment length = {min_seg_length})"
+        )
+
+        # Step 4: Group segments back by original patient for train/val split
+        patient_to_segments: Dict[str, List[np.ndarray]] = defaultdict(list)
+        for seg_id, seg_df in segments.items():
+            original_pid = seg_id.rsplit("_seg_", 1)[0]
+            patient_to_segments[original_pid].append(seg_df["bg_mM"].values)
+
+        # Step 5: Patient-level train/val split
+        pids = sorted(patient_to_segments.keys(), key=str)
+        np.random.seed(42)
+        shuffled = list(pids)
+        np.random.shuffle(shuffled)
+        n_val = max(1, int(len(shuffled) * self.config.val_patient_ratio))
+        val_pids = set(shuffled[:n_val])
+        train_pids = set(shuffled[n_val:])
+
+        # Flatten segment arrays per split
+        train_arrays = [arr for pid in train_pids for arr in patient_to_segments[pid]]
+        val_arrays = [arr for pid in val_pids for arr in patient_to_segments[pid]]
 
         stride = self.config.window_stride or self.config.horizon_length
 
-        # Create datasets with stride and max_samples for efficient training
         train_dataset = TimesFMDataset(
-            series=train_series,
+            patient_series=train_arrays,
             context_length=self.config.context_length,
             horizon_length=self.config.horizon_length,
             freq_type=self.config.freq_type,
             stride=stride,
-            max_samples=self.config.max_train_windows,
         )
         val_dataset = TimesFMDataset(
-            series=val_series,
+            patient_series=val_arrays,
             context_length=self.config.context_length,
             horizon_length=self.config.horizon_length,
             freq_type=self.config.freq_type,
             stride=stride,
-            max_samples=self.config.max_val_windows,
         )
 
         info_print(
-            f"Train windows: {len(train_dataset):,}, Val windows: {len(val_dataset):,}"
+            f"Patients: {len(train_pids)} train, {len(val_pids)} val | "
+            f"Windows: {len(train_dataset):,} train, {len(val_dataset):,} val"
         )
 
-        # Create DataLoaders
         train_loader = DataLoader(
             train_dataset,
             batch_size=self.config.batch_size,
@@ -448,238 +522,74 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         return train_loader, val_loader, None
 
-    def _save_checkpoint(self, output_dir: str) -> None:
-        """Save model checkpoint.
+    @staticmethod
+    def _collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, Any]:
+        """Custom collator for HF Trainer.
 
-        For zero-shot mode, saves the config so the model can be reloaded
-        with the same settings. For finetuned models, also saves the model weights.
-
-        Args:
-            output_dir: Directory to save checkpoint
+        HF TimesFM expects past_values as a list of 1D tensors (variable-length
+        sequences). It handles internal padding via _preprocess.
         """
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Save TimesFM-specific config
-        timesfm_config_path = os.path.join(output_dir, "timesfm_config.json")
-        config_dict = {
-            "checkpoint_path": self.config.checkpoint_path,
-            "context_length": self.config.context_length,
-            "horizon_length": self.config.horizon_length,
-            "input_patch_len": self.config.input_patch_len,
-            "output_patch_len": self.config.output_patch_len,
-            "num_layers": self.config.num_layers,
-            "model_dims": self.config.model_dims,
-            "backend": self.config.backend,
-            "use_cpu": self.config.use_cpu,
-            "is_finetuned": self.is_fitted,
+        return {
+            "past_values": [item["past_values"] for item in batch],
+            "past_values_padding": torch.stack(
+                [item["past_values_padding"] for item in batch]
+            ),
+            "freq": torch.stack([item["freq"] for item in batch]),
+            "future_values": torch.stack([item["future_values"] for item in batch]),
         }
-        with open(timesfm_config_path, "w") as f:
-            json.dump(config_dict, f, indent=2)
-
-        info_print(f"TimesFM config saved to {timesfm_config_path}")
-
-        # Save finetuned model weights if fitted
-        if self.is_fitted and self.model is not None:
-            try:
-                from safetensors.torch import save_file
-
-                # Get the internal PyTorch module's state dict
-                internal_model = self.model._model
-                state_dict = internal_model.state_dict()
-
-                # Save using safetensors format
-                weights_path = os.path.join(output_dir, "timesfm_finetuned.safetensors")
-                save_file(state_dict, weights_path)
-                info_print(f"Finetuned weights saved to {weights_path}")
-
-            except ImportError:
-                # Fallback to PyTorch native format
-                internal_model = self.model._model
-                weights_path = os.path.join(output_dir, "timesfm_finetuned.pt")
-                torch.save(internal_model.state_dict(), weights_path)
-                info_print(
-                    f"Finetuned weights saved to {weights_path} (PyTorch format)"
-                )
-
-    def _load_checkpoint(self, model_dir: str) -> None:
-        """Load model checkpoint.
-
-        Loads the saved config and finetuned weights if available.
-        For zero-shot checkpoints, only config is loaded and weights come from HuggingFace.
-
-        Args:
-            model_dir: Directory containing saved checkpoint
-        """
-        timesfm_config_path = os.path.join(model_dir, "timesfm_config.json")
-
-        if os.path.exists(timesfm_config_path):
-            with open(timesfm_config_path, "r") as f:
-                saved_config = json.load(f)
-
-            # Update config with saved values
-            if saved_config.get("checkpoint_path"):
-                self.config.checkpoint_path = saved_config["checkpoint_path"]
-
-            info_print(f"TimesFM config loaded from {timesfm_config_path}")
-
-            # Check if this is a finetuned checkpoint
-            is_finetuned = saved_config.get("is_finetuned", False)
-
-            if is_finetuned:
-                # Try to load finetuned weights
-                safetensors_path = os.path.join(
-                    model_dir, "timesfm_finetuned.safetensors"
-                )
-                pytorch_path = os.path.join(model_dir, "timesfm_finetuned.pt")
-
-                if os.path.exists(safetensors_path):
-                    try:
-                        from safetensors.torch import load_file
-
-                        state_dict = load_file(safetensors_path)
-                        self.model._model.load_state_dict(state_dict)
-                        self.is_fitted = True
-                        info_print(f"Finetuned weights loaded from {safetensors_path}")
-                    except Exception as e:
-                        error_print(f"Failed to load safetensors weights: {e}")
-                        raise
-
-                elif os.path.exists(pytorch_path):
-                    state_dict = torch.load(pytorch_path, map_location=self.device)
-                    self.model._model.load_state_dict(state_dict)
-                    self.is_fitted = True
-                    info_print(f"Finetuned weights loaded from {pytorch_path}")
-
-                else:
-                    error_print(
-                        f"Config indicates finetuned model but no weights found in {model_dir}"
-                    )
-                    raise FileNotFoundError(
-                        f"No finetuned weights found in {model_dir}"
-                    )
-        else:
-            info_print(f"No TimesFM config found at {model_dir}, using default config")
 
     def _train_model(
         self, train_data: Any, output_dir: str, **kwargs
     ) -> Dict[str, Any]:
-        """Execute TimesFM finetuning using official TimesFMFinetuner.
+        """Fine-tune TimesFM using HF Trainer with per-window normalized loss."""
+        from transformers import Trainer, TrainingArguments
 
-        Args:
-            train_data: Training data (DataFrame or dict of DataFrames)
-            output_dir: Directory for saving checkpoints
-            **kwargs: Additional arguments
+        info_print("Starting TimesFM finetuning with HF Trainer...")
 
-        Returns:
-            Dictionary with training history
-        """
-        info_print("Starting TimesFM finetuning with official finetuner...")
+        train_loader, val_loader, _ = self._prepare_training_data(train_data)
 
-        # Import the official finetuning code
-        try:
-            from finetuning.finetuning_torch import FinetuningConfig, TimesFMFinetuner
-        except ImportError:
-            error_print(
-                "Official finetuning code not found. "
-                "Please copy finetuning/ folder from timesfm repo."
-            )
-            raise
+        # Wrap model for normalized-space loss
+        trainer_model = TimesFMForTrainer(self.hf_model)
 
-        # Prepare time series data
-        info_print("Preparing training data...")
-        if isinstance(train_data, dict):
-            all_values = []
-            for patient_id, df in train_data.items():
-                if "bg_mM" in df.columns:
-                    values = df["bg_mM"].dropna().values
-                    all_values.append(values)
-            series = np.concatenate(all_values)
-        elif isinstance(train_data, pd.DataFrame):
-            if "bg_mM" not in train_data.columns:
-                raise ValueError("DataFrame must contain 'bg_mM' column")
-            series = train_data["bg_mM"].dropna().values
-        else:
-            raise ValueError(
-                f"train_data must be DataFrame or dict, got {type(train_data)}"
-            )
-
-        series = series.astype(np.float32)
-        info_print(f"Total samples: {len(series):,}")
-
-        # Split into train/val
-        train_size = int(len(series) * self.config.train_split)
-        train_series = series[:train_size]
-        val_series = series[train_size:]
-        info_print(f"Train: {len(train_series):,}, Val: {len(val_series):,}")
-
-        # Determine stride (default to horizon_length for non-overlapping windows)
-        stride = self.config.window_stride or self.config.horizon_length
-        info_print(
-            f"Window stride: {stride} (horizon_length={self.config.horizon_length})"
-        )
-        info_print(f"Max train windows: {self.config.max_train_windows:,}")
-        info_print(f"Max val windows: {self.config.max_val_windows:,}")
-
-        # Create PyTorch Dataset objects for finetuning
-        # Uses stride and max_samples to control dataset size
-        train_dataset = TimesFMDataset(
-            series=train_series,
-            context_length=self.config.context_length,
-            horizon_length=self.config.horizon_length,
-            freq_type=self.config.freq_type,
-            stride=stride,
-            max_samples=self.config.max_train_windows,
-        )
-        val_dataset = TimesFMDataset(
-            series=val_series,
-            context_length=self.config.context_length,
-            horizon_length=self.config.horizon_length,
-            freq_type=self.config.freq_type,
-            stride=stride,
-            max_samples=self.config.max_val_windows,
-        )
-
-        info_print(
-            f"Train dataset: {len(train_dataset):,} windows (capped from stride)"
-        )
-        info_print(f"Val dataset: {len(val_dataset):,} windows (capped from stride)")
-
-        # Configure finetuning
-        ft_config = FinetuningConfig(
-            batch_size=self.config.batch_size,
-            num_epochs=self.config.num_epochs,
+        training_args = TrainingArguments(
+            output_dir=output_dir,
+            num_train_epochs=self.config.num_epochs,
+            per_device_train_batch_size=self.config.batch_size,
             learning_rate=self.config.learning_rate,
-            freq_type=self.config.freq_type,
-            use_wandb=False,
-            device="cuda" if self.device == "cuda" else "cpu",
+            weight_decay=self.config.weight_decay,
+            bf16=(self.config.torch_dtype == "bfloat16" and self.device == "cuda"),
+            fp16=(self.config.torch_dtype == "float16" and self.device == "cuda"),
+            gradient_accumulation_steps=self.config.gradient_accumulation_steps,
+            eval_strategy="no",
+            save_strategy="epoch",
+            save_total_limit=3,
+            remove_unused_columns=False,
+            label_names=["future_values"],
+            logging_steps=100,
+            dataloader_num_workers=2,
+            report_to="none",
         )
 
-        # Get the internal PyTorch model for finetuning
-        internal_model = self.model._model
-        info_print(f"Internal model type: {type(internal_model).__name__}")
-
-        # Truncate predictions to match target length before computing loss.
-        def _truncated_mse(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-            target_len = target.shape[-1]
-            return torch.mean((pred[:, :target_len] - target) ** 2)
-
-        finetuner = TimesFMFinetuner(
-            model=internal_model,
-            config=ft_config,
-            loss_fn=_truncated_mse,
+        trainer = Trainer(
+            model=trainer_model,
+            args=training_args,
+            train_dataset=train_loader.dataset,
+            eval_dataset=val_loader.dataset if val_loader else None,
+            data_collator=self._collate_fn,
         )
 
-        # Run finetuning
-        info_print(f"Training for {self.config.num_epochs} epochs...")
         info_print(
-            f"Batch size: {self.config.batch_size}, LR: {self.config.learning_rate}"
+            f"Training for {self.config.num_epochs} epochs, "
+            f"batch_size={self.config.batch_size}, "
+            f"grad_accum={self.config.gradient_accumulation_steps}, "
+            f"LR={self.config.learning_rate}"
         )
 
-        results = finetuner.finetune(
-            train_dataset=train_dataset,
-            val_dataset=val_dataset,
-        )
+        trainer.train()
 
+        # Extract underlying model back from wrapper
+        self.hf_model = trainer_model.prediction_model
+        self.model = self.hf_model
         self.is_fitted = True
 
         # Save checkpoint
@@ -688,41 +598,87 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         info_print(f"Finetuning complete. Model saved to {output_dir}")
 
-        return results
+        return {"training_history": trainer.state.log_history}
+
+    def _save_checkpoint(self, output_dir: str) -> None:
+        """Save checkpoint. Uses 'hf_model/' subdir to avoid config.json conflicts."""
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Save HF model weights + config
+        hf_model_dir = os.path.join(output_dir, "hf_model")
+        if self.hf_model is not None:
+            self.hf_model.save_pretrained(hf_model_dir)
+            info_print(f"HF model saved to {hf_model_dir}")
+
+        # Save our custom config
+        timesfm_config_path = os.path.join(output_dir, "timesfm_config.json")
+        config_dict = {
+            "checkpoint_path": self.config.checkpoint_path,
+            "context_length": self.config.context_length,
+            "horizon_length": self.config.horizon_length,
+            "use_cpu": self.config.use_cpu,
+            "is_finetuned": self.is_fitted,
+        }
+        with open(timesfm_config_path, "w") as f:
+            json.dump(config_dict, f, indent=2)
+
+        info_print(f"TimesFM config saved to {timesfm_config_path}")
+
+    def _load_checkpoint(self, model_dir: str) -> None:
+        """Load model checkpoint from HF save_pretrained format."""
+        from transformers import TimesFmModelForPrediction
+
+        # Load our custom config
+        timesfm_config_path = os.path.join(model_dir, "timesfm_config.json")
+        if os.path.exists(timesfm_config_path):
+            with open(timesfm_config_path, "r") as f:
+                saved_config = json.load(f)
+
+            if saved_config.get("checkpoint_path"):
+                self.config.checkpoint_path = saved_config["checkpoint_path"]
+
+            info_print(f"TimesFM config loaded from {timesfm_config_path}")
+
+        # Load HF model weights
+        hf_model_dir = os.path.join(model_dir, "hf_model")
+        if os.path.exists(hf_model_dir):
+            torch_dtype = getattr(torch, self.config.torch_dtype, torch.float32)
+            self.hf_model = TimesFmModelForPrediction.from_pretrained(
+                hf_model_dir,
+                torch_dtype=torch_dtype,
+            )
+            self.hf_model.to(self.device)
+            self.model = self.hf_model
+            self.is_fitted = True
+            info_print(f"HF model loaded from {hf_model_dir}")
+        else:
+            info_print(
+                f"No HF model directory found at {hf_model_dir}, "
+                f"using pretrained weights"
+            )
 
 
 def create_timesfm_model(
     checkpoint_path: Optional[str] = None,
     context_length: int = 512,
     horizon_length: int = 128,
-    backend: str = "cpu",
     **kwargs,
 ) -> TimesFMForecaster:
     """Factory function to create a TimesFM model with sensible defaults.
 
     Args:
-        checkpoint_path: Path to TimesFM checkpoint (default: google/timesfm-2.5-200m-pytorch).
+        checkpoint_path: HF model ID or local path.
         context_length: Input sequence length.
         horizon_length: Output prediction horizon.
-        backend: Backend to use ('cpu', 'gpu', 'tpu').
         **kwargs: Additional configuration parameters.
 
     Returns:
         Initialized TimesFMForecaster instance.
-
-    Example:
-        >>> model = create_timesfm_model(
-        ...     checkpoint_path="google/timesfm-2.5-200m-pytorch",
-        ...     context_length=512,
-        ...     horizon_length=128,
-        ...     backend="gpu"
-        ... )
     """
     config = TimesFMConfig(
         checkpoint_path=checkpoint_path,
         context_length=context_length,
         horizon_length=horizon_length,
-        backend=backend,
         **kwargs,
     )
 

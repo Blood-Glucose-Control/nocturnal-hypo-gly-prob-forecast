@@ -1,0 +1,18 @@
+# =============================================================================
+# TimesFM - Fine-Tuning Configuration
+# =============================================================================
+# Fine-tunes Google's TimesFM 2.0 (500M params) on glucose data.
+# Uses HuggingFace Trainer backend with per-window normalized loss.
+#
+# Usage:
+#   MODEL_TYPE="timesfm" MODEL_CONFIG="configs/models/timesfm/fine_tune.yaml" \
+#     SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
+#
+#   MODEL_TYPE="timesfm" MODEL_CONFIG="configs/models/timesfm/fine_tune.yaml" \
+#     DATASETS="brown_2019" SKIP_TRAINING="false" EPOCHS=5 \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+batch_size: 32 # batch_size (32) * gradient_accumulation_steps (4) = 128
+num_epochs: 10
+learning_rate: 1.0e-5
