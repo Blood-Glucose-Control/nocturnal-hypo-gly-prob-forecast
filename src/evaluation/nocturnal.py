@@ -223,35 +223,97 @@ def evaluate_nocturnal_forecasting(
         "per_episode": all_episode_results,
     }
 
-def plot_stage_comparison(
+def predict_with_quantiles(
+    model,
+    episodes: Dict[str, Any],
+    forecast_length: int,
+    covariate_cols: Optional[List[str]],
+    interval_mins: int = SAMPLING_INTERVAL_MINUTES,
+) -> Dict[str, Any]:
+    """Run predictions and return mean + quantile forecasts per episode.
+
+    Calls model.predict() and extracts quantile columns when present. Works
+    with any model whose predict() returns quantile columns alongside the
+    mean (e.g. Chronos2 returns "0.1".."0.9" columns).
+
+    Args:
+        model: Model implementing predict(data, **kwargs).
+        episodes: Dict of episode_id -> episode dict from build_midnight_episodes.
+        forecast_length: Forecast horizon in steps.
+        covariate_cols: Covariate column names.
+        interval_mins: Sampling interval in minutes.
+
+    Returns:
+        Dict[episode_id -> {"mean": array, "quantiles": {str_level: array}}]
+    """
+    target_col = getattr(model.config, "target_col", "bg_mM")
+    context_dfs = []
+    future_cov_dfs = []
+
+    for ep_id, ep in episodes.items():
+        ctx = ep["context_df"].copy()
+        ctx["episode_id"] = ep_id
+        context_dfs.append(ctx)
+
+        if ep.get("future_covariates") and covariate_cols:
+            future_ts = pd.date_range(
+                ep["anchor"], periods=forecast_length, freq=f"{interval_mins}min"
+            )
+            fc_data = {
+                c: ep["future_covariates"][c]
+                for c in covariate_cols
+                if c in ep["future_covariates"]
+            }
+            fc_data["episode_id"] = ep_id
+            future_cov_dfs.append(pd.DataFrame(fc_data, index=future_ts))
+
+    stacked_context = pd.concat(context_dfs)
+    predict_kwargs = {}
+    if future_cov_dfs:
+        predict_kwargs["known_covariates"] = pd.concat(future_cov_dfs)
+
+    predictions = model.predict(stacked_context, **predict_kwargs)
+
+    results = {}
+    for ep_id, group in predictions.groupby("episode_id"):
+        mean = group[target_col].to_numpy()
+        quantile_cols = [c for c in group.columns if c not in [target_col, "episode_id"]]
+        results[ep_id] = {
+            "mean": mean,
+            "quantiles": {c: group[c].to_numpy() for c in quantile_cols},
+        }
+    return results
+
+
+def plot_stage_comparison_auto(
     stage1_per_episode: List[Dict[str, Any]],
     stage2_per_episode: List[Dict[str, Any]],
+    stage1_rmse: float,
+    stage2_rmse: float,
     output_path: Path,
     model_name: str,
     dataset_name: str,
     patient_id: str,
-    stage1_rmse: float,
-    stage2_rmse: float,
     context_hours_to_show: int = 3,
 ) -> None:
-    """Plot Stage 1 vs Stage 2 predictions on the same midnight episodes.
+    """Generate Stage 1 vs Stage 2 comparison plot, model-agnostically.
 
-    Each subplot overlays the population model (Stage 1) and personalized model
-    (Stage 2) forecasts on the same episode, making it easy to see where
-    per-patient fine-tuning helped or hurt.
+    Uses quantile prediction-interval bands when per_episode contains quantile
+    data (e.g. Chronos2 via evaluate_nocturnal_forecasting). Falls back to
+    mean-only overlay otherwise. No additional inference pass is needed —
+    quantile data is extracted from the same predict() call that computed RMSE.
 
     Args:
-        stage1_per_episode: Episode results from Stage 1 evaluation.
-        stage2_per_episode: Episode results from Stage 2 evaluation.
-        output_path: Directory to save plot.
-        model_name: Name of the model.
-        dataset_name: Name of the dataset.
-        patient_id: Target patient ID.
+        stage1_per_episode: Episode results from Stage 1 evaluate_nocturnal_forecasting.
+        stage2_per_episode: Episode results from Stage 2 evaluate_nocturnal_forecasting.
         stage1_rmse: Overall Stage 1 RMSE.
         stage2_rmse: Overall Stage 2 RMSE.
-        context_hours_to_show: Hours of context to display in plot.
+        output_path: Directory to save plot.
+        model_name: Model type string (e.g. "chronos2").
+        dataset_name: Dataset name.
+        patient_id: Target patient ID.
+        context_hours_to_show: Hours of context to display.
     """
-    # Match episodes by anchor timestamp
     s1_by_anchor = {ep["anchor"]: ep for ep in stage1_per_episode if ep.get("context_bg")}
     s2_by_anchor = {ep["anchor"]: ep for ep in stage2_per_episode if ep.get("context_bg")}
     common_anchors = sorted(set(s1_by_anchor.keys()) & set(s2_by_anchor.keys()))
@@ -260,13 +322,17 @@ def plot_stage_comparison(
         logger.warning("No common episodes with context data for comparison plot")
         return
 
+    # Use quantile bands when available (Chronos2 populates this via predict())
+    has_quantiles = bool(s1_by_anchor[common_anchors[0]].get("quantiles") and
+                         s2_by_anchor[common_anchors[0]].get("quantiles"))
+
     n_episodes = len(common_anchors)
     ncols = min(4, n_episodes)
     nrows = (n_episodes + ncols - 1) // ncols
-    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows), squeeze=False)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5.5 * ncols, 4.5 * nrows), squeeze=False)
     axes = axes.flatten()
 
-    context_steps_to_show = context_hours_to_show * STEPS_PER_HOUR
+    context_steps = context_hours_to_show * STEPS_PER_HOUR
 
     for i, anchor in enumerate(common_anchors):
         if i >= len(axes):
@@ -276,45 +342,59 @@ def plot_stage_comparison(
         s2 = s2_by_anchor[anchor]
 
         ctx_full = np.array(s2["context_bg"])
+        ctx = ctx_full[-context_steps:] if len(ctx_full) > context_steps else ctx_full
         tgt = np.array(s2["target_bg"])
         pred_s1 = np.array(s1["pred"])
         pred_s2 = np.array(s2["pred"])
-
-        ctx = ctx_full[-context_steps_to_show:] if len(ctx_full) > context_steps_to_show else ctx_full
 
         t_ctx = (np.arange(len(ctx)) - len(ctx)) / STEPS_PER_HOUR
         t_pred = np.arange(len(tgt)) / STEPS_PER_HOUR
 
         ax.plot(t_ctx, ctx, "b-", lw=1.5, label="Context")
         ax.plot(t_pred, tgt, "k-", lw=2, label="Actual")
-        ax.plot(t_pred, pred_s1, "orange", lw=1.5, ls="--", alpha=0.8, label=f"Stage 1 ({s1['rmse']:.2f})")
-        ax.plot(t_pred, pred_s2, "r-", lw=2, alpha=0.8, label=f"Stage 2 ({s2['rmse']:.2f})")
+        ax.plot(t_pred, pred_s1, color="orange", lw=1.5, ls="--", alpha=0.9,
+                label=f"S1 ({s1['rmse']:.2f})")
+        ax.plot(t_pred, pred_s2, color="red", lw=2, alpha=0.9,
+                label=f"S2 ({s2['rmse']:.2f})")
+
+        if has_quantiles:
+            q1 = s1["quantiles"]
+            q2 = s2["quantiles"]
+            if "0.1" in q1 and "0.9" in q1:
+                ax.fill_between(t_pred, q1["0.1"], q1["0.9"], color="orange", alpha=0.15,
+                                label="S1 10-90%")
+            if "0.1" in q2 and "0.9" in q2:
+                ax.fill_between(t_pred, q2["0.1"], q2["0.9"], color="red", alpha=0.15,
+                                label="S2 10-90%")
+
         ax.axvline(0, color="gray", ls=":", lw=1)
         ax.axhline(HYPO_THRESHOLD_MMOL, color="crimson", ls="--", alpha=0.3, lw=1)
-
         ax.set_ylim(0, 18)
         ax.set_xlabel("Hours from midnight", fontsize=9)
         ax.set_ylabel("BG (mmol/L)", fontsize=9)
         ax.set_title(anchor[:10], fontsize=9)
         ax.tick_params(labelsize=8)
         ax.grid(alpha=0.3)
-        ax.legend(fontsize=7, loc="upper right")
+        ax.legend(fontsize=6 if has_quantiles else 7, loc="upper right",
+                  ncol=2 if has_quantiles else 1)
 
     for j in range(n_episodes, len(axes)):
         axes[j].set_visible(False)
 
     delta = stage1_rmse - stage2_rmse
     direction = "improvement" if delta > 0 else "regression"
+    plot_type = "Quantile Forecasts" if has_quantiles else "Stage 1 vs Stage 2"
     fig.suptitle(
-        f"{model_name.upper()} Stage 1 vs Stage 2 — {patient_id} ({dataset_name})\n"
+        f"{model_name.upper()} {plot_type} — {patient_id} ({dataset_name})\n"
         f"Population RMSE: {stage1_rmse:.3f}  |  Personalized RMSE: {stage2_rmse:.3f}  |  "
         f"Delta: {abs(delta):.3f} ({direction})",
-        fontsize=12,
-        fontweight="bold",
+        fontsize=12, fontweight="bold",
     )
     plt.tight_layout()
 
-    plot_file = Path(output_path) / "stage1_vs_stage2_comparison.png"
+    plot_file = Path(output_path) / (
+        "quantile_stage_comparison.png" if has_quantiles else "stage1_vs_stage2_comparison.png"
+    )
     plt.savefig(plot_file, dpi=150, bbox_inches="tight")
     plt.close()
     logger.info("Comparison plot saved to: %s", plot_file)

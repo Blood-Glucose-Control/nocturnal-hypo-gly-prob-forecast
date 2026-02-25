@@ -44,7 +44,11 @@ import pandas as pd
 
 from src.data.utils import get_patient_column
 from src.data.versioning.dataset_registry import DatasetRegistry
-from src.evaluation import evaluate_nocturnal_forecasting, plot_best_worst_episodes, plot_stage_comparison
+from src.evaluation import (
+    evaluate_nocturnal_forecasting,
+    plot_best_worst_episodes,
+    plot_stage_comparison_auto,
+)
 from src.models import create_model_and_config
 from src.models.base.base_model import LoRAConfig
 from src.utils import get_git_commit_hash, setup_file_logging
@@ -148,10 +152,6 @@ def verify_lopo(
             "  2. Retrain Stage 1 with this patient explicitly excluded."
         )
     logger.info("LOPO check passed: patient '%s' is in holdout set.", patient_id)
-
-
-# evaluate_nocturnal_forecasting and plot_best_worst_episodes are imported from
-# src.evaluation (shared with nocturnal_hypo_eval.py and other scripts).
 
 
 # ---------------------------------------------------------------------------
@@ -467,21 +467,18 @@ def main() -> None:
     plots_dir = output_path / "plots"
     plots_dir.mkdir(exist_ok=True)
 
-    # Stage 1 vs Stage 2 comparison (same episodes, both predictions overlaid)
     if stage1_results.get("per_episode") and stage2_results.get("per_episode"):
-        plot_stage_comparison(
+        plot_stage_comparison_auto(
             stage1_per_episode=stage1_results["per_episode"],
             stage2_per_episode=stage2_results["per_episode"],
+            stage1_rmse=stage1_rmse,
+            stage2_rmse=stage2_rmse,
             output_path=plots_dir,
             model_name=args.model,
             dataset_name=args.dataset,
             patient_id=args.patient_id,
-            stage1_rmse=stage1_rmse,
-            stage2_rmse=stage2_rmse,
         )
 
-    # Stage 2 best/worst episodes
-    if stage2_results.get("per_episode"):
         plot_best_worst_episodes(
             per_episode=stage2_results["per_episode"],
             output_path=plots_dir,

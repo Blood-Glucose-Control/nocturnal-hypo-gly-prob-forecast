@@ -256,21 +256,19 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         # Call AutoGluon predictor
         ag_predictions = self.predictor.predict(ts_data, known_covariates=known_cov)
 
-        # Convert AutoGluon output (MultiIndex item_id/timestamp, "mean" column)
-        # back to panel DataFrame with episode_id and target_col
+        # Convert AutoGluon output back to panel DataFrame with episode_id.
+        # Include all quantile columns (e.g. "0.1".."0.9") alongside target_col
+        # so callers can extract prediction intervals without a second inference pass.
         result_rows = []
         for episode_id in data["episode_id"].unique():
             item_id = episode_id  # same mapping
             if item_id in ag_predictions.index.get_level_values(0):
-                pred_series = ag_predictions.loc[item_id]["mean"]
-                ep_df = pd.DataFrame(
-                    {
-                        config.target_col: pred_series.values,
-                        "episode_id": episode_id,
-                    },
-                    index=pred_series.index,
-                )
-                result_rows.append(ep_df)
+                ep_pred = ag_predictions.loc[item_id]
+                ep_data = {config.target_col: ep_pred["mean"].values, "episode_id": episode_id}
+                for col in ep_pred.columns:
+                    if col != "mean":  # quantile columns: "0.1", "0.2", ..., "0.9"
+                        ep_data[col] = ep_pred[col].values
+                result_rows.append(pd.DataFrame(ep_data, index=ep_pred.index))
 
         if not result_rows:
             return pd.DataFrame(columns=[config.target_col, "episode_id"])
