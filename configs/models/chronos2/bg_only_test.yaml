@@ -1,0 +1,42 @@
+# =============================================================================
+# Chronos-2 - Blood Glucose Only / Test Run Configuration
+# =============================================================================
+# Minimal fine-tuning config for a quick smoke-test across all 4 datasets.
+# Uses BG (bg_mM) as the sole input — no covariates.
+#
+# Chronos-2 trains by gradient steps rather than epochs. fine_tune_steps=100
+# is intentionally small for a fast end-to-end validation run. Increase to
+# ~15000 for production fine-tuning.
+#
+# Usage (recommended):
+#   ./scripts/examples/run_holdout_chronos2_workflow.sh
+#
+# Manual usage via generic workflow:
+#   MODEL_TYPE="chronos2" \
+#   MODEL_CONFIG="configs/models/chronos2/bg_only_test.yaml" \
+#   DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" \
+#   SKIP_TRAINING="false" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+model_path: "autogluon/chronos-2"
+context_length: 512
+forecast_length: 96  # 6 hours at 5-min intervals
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+# Step-based training (Chronos-2 / AutoGluon does not use epochs directly).
+# 100 steps = fast smoke test. Use ~15000 for a real training run.
+fine_tune_steps: 100
+fine_tune_lr: 1.0e-5
+
+# BG only — no covariates
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "RMSE"
+enable_ensemble: false
