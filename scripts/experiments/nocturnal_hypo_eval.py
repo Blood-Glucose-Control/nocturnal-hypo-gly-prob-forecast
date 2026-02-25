@@ -16,17 +16,24 @@ Usage:
     python scripts/experiments/nocturnal_hypo_eval.py --model ttm --context-length 512 --forecast-length 72
 
     # TimeGrad — after first 10-epoch training run (aleppo_2017):
+    export CUDA_VISIBLE_DEVICES=0
+    ython scripts/experiments/nocturnal_hypo_eval.py \
+        --model timegrad \
+        --dataset aleppo_2017 \
+        --config-dir configs/data/holdout_10pct \
+        --context-length 512 \
+        --forecast-length 96 \
+        --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-24_01:12_RID20260224_011201_2800320_holdout_workflow/model.pt
+    # TimeGrad — after second 10-epoch resumed training run (lynch_2022, epochs 11–20):
+    export CUDA_VISIBLE_DEVICES=1
     python scripts/experiments/nocturnal_hypo_eval.py \
         --model timegrad \
         --dataset aleppo_2017 \
-        --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/model.pt
-
-    # TimeGrad — after second 10-epoch resumed training run (lynch_2022, epochs 11–20):
-    python scripts/experiments/nocturnal_hypo_eval.py \
-        --model timegrad \
-        --dataset lynch_2022 \
-        --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/resumed_training/model.pt
-"""
+        --config-dir configs/data/holdout_10pct \
+        --context-length 512 \
+        --forecast-length 96 \
+        --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-24_01:12_RID20260224_011201_2800320_holdout_workflow/resumed_training/model.pt
+        """
 
 import argparse
 import json
@@ -708,7 +715,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import os
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     main()

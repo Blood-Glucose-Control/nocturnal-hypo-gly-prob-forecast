@@ -16,7 +16,10 @@ Usage:
     python scripts/experiments/sliding_window_eval.py --model sundial --checkpoint path/to/checkpoint
 
     # TimeGrad — after first 10-epoch training run (lynch_2022):
-d
+    python scripts/experiments/sliding_window_eval.py \
+        --model timegrad \
+        --dataset lynch_2022 \
+        --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/model.pt
 
     # TimeGrad — after second 10-epoch resumed training run (lynch_2022, epochs 11–20):
     python scripts/experiments/sliding_window_eval.py \

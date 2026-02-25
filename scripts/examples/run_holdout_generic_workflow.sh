@@ -35,7 +35,7 @@
 #   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="ttm" MODEL_CONFIG="configs/models/ttm/fine_tune.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 #
 # TimeGrad, all datasets, CGM only (10 epochs):
-#   MODEL_TYPE="timegrad" MODEL_CONFIG="configs/models/timegrad/cgm_only.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=10 DATASETS="lynch_2022 aleppo brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="timegrad" MODEL_CONFIG="configs/models/timegrad/cgm_only.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=1 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 
 # =============================================================================
 # CONFIGURATION
@@ -46,7 +46,7 @@
 RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 
 # Default configuration (can be overridden via environment variables)
-# DATASETS can be space-separated list: "lynch_2022 aleppo brown_2019"
+# DATASETS can be space-separated list: "lynch_2022 aleppo_2017 brown_2019"
 : ${DATASETS:="tamborlane_2008 brown_2019"}
 : ${CONFIG_DIR:="configs/data/holdout_10pct"}
 : ${OUTPUT_BASE_DIR:="trained_models/artifacts/_tsfm_testing/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_holdout_workflow"}
