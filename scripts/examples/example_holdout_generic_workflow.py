@@ -66,6 +66,7 @@ from src.data.preprocessing.dataset_combiner import (
     print_dataset_column_table,
 )
 from src.data.preprocessing.imputation import impute_missing_values
+from src.evaluation.episode_builders import build_midnight_episodes
 from src.models.base import DistributedConfig, GPUManager
 
 logging.basicConfig(
@@ -668,21 +669,58 @@ def _generate_forecasts(
                 forecast_cols = [
                     col for col in training_columns if col in patient_data.columns
                 ]
-            # Split into context (model input) and ground truth (for evaluation).
-            # Only context rows are passed to predict() — the model must NOT see
-            # the future BG values it is supposed to forecast.
-            total_length = context_length + forecast_length
-            eval_data = patient_data.iloc[:total_length][forecast_cols].copy()
-
+            # Build a midnight-anchored episode for clean evaluation.
+            # The episode builder reindexes to a regular 5-min grid,
+            # interpolates small BG gaps (<=55 min), and skips windows
+            # where BG gaps are too large to interpolate.
             glucose_col = "bg_mM"
-            historical_glucose = eval_data[glucose_col].values[:context_length]
-            actual_glucose = eval_data[glucose_col].values[context_length:]
+            patient_ts = patient_data.copy()
+            patient_ts["datetime"] = pd.to_datetime(patient_ts["datetime"])
+            patient_ts = patient_ts.set_index("datetime").sort_index()
 
-            # Keep necessary columns for preprocessing (p_num, datetime)
-            # Only remove source_dataset if present
+            episodes, ep_stats = build_midnight_episodes(
+                patient_ts,
+                context_length=context_length,
+                forecast_length=forecast_length,
+                target_col=glucose_col,
+            )
+
+            if not episodes:
+                logger.warning(
+                    f"  No valid midnight episodes for patient {first_patient} "
+                    f"in {dataset_name} (checked {ep_stats['total_anchors']} "
+                    f"anchors, {ep_stats['skipped_bg_nan']} had BG gaps). Skipping."
+                )
+                continue
+
+            episode = episodes[0]
+            logger.info(
+                f"  Using midnight episode anchored at {episode['anchor']} "
+                f"({len(episodes)} valid, {ep_stats['skipped_bg_nan']} skipped)"
+            )
+
+            historical_glucose = episode["context_df"][glucose_col].values
+            actual_glucose = episode["target_bg"]
+
+            # Reconstruct context DataFrame with columns the model expects.
+            # Start from episode's context_df (regular grid, BG interpolated),
+            # then add back patient ID and merge additional features.
+            context_data = episode["context_df"].reset_index()
+            context_data.rename(
+                columns={context_data.columns[0]: "datetime"}, inplace=True
+            )
+            context_data[patient_col] = first_patient
+
+            # Merge additional model features from original data
+            for col in forecast_cols:
+                if col not in context_data.columns and col in patient_ts.columns:
+                    context_data[col] = context_data["datetime"].map(patient_ts[col])
+
             exclude_cols = ["source_dataset"]
-            context_cols = [col for col in eval_data.columns if col not in exclude_cols]
-            context_data = eval_data.iloc[:context_length][context_cols].copy()
+            context_cols = [
+                col for col in context_data.columns if col not in exclude_cols
+            ]
+            context_data = context_data[context_cols]
 
             logger.info(f"  Context data shape: {context_data.shape}")
 
@@ -705,14 +743,10 @@ def _generate_forecasts(
 
             logger.info(f"    Extracted glucose predictions shape: {predictions.shape}")
 
-            # Extract datetime values for the forecast period
-            datetime_col = "datetime"
-            if datetime_col in eval_data.columns:
-                forecast_datetimes = eval_data[datetime_col].values[
-                    context_length : context_length + forecast_length
-                ]
-            else:
-                forecast_datetimes = None
+            # Extract datetime values for the forecast period from episode anchor
+            forecast_datetimes = pd.date_range(
+                episode["anchor"], periods=forecast_length, freq="5min"
+            ).values
 
             # Store results
             forecast_results[dataset_name] = {
