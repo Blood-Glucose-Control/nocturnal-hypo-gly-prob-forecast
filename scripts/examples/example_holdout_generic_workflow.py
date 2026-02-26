@@ -668,30 +668,34 @@ def _generate_forecasts(
                 forecast_cols = [
                     col for col in training_columns if col in patient_data.columns
                 ]
-            # Slice to get context + forecast length
+            # Split into context (model input) and ground truth (for evaluation).
+            # Only context rows are passed to predict() — the model must NOT see
+            # the future BG values it is supposed to forecast.
             total_length = context_length + forecast_length
-            forecast_data = patient_data.iloc[:total_length][forecast_cols].copy()
+            eval_data = patient_data.iloc[:total_length][forecast_cols].copy()
 
-            logger.info(f"  Forecast data shape: {forecast_data.shape}")
+            glucose_col = "bg_mM"
+            historical_glucose = eval_data[glucose_col].values[:context_length]
+            actual_glucose = eval_data[glucose_col].values[context_length:]
 
             # Keep necessary columns for preprocessing (p_num, datetime)
             # Only remove source_dataset if present
             exclude_cols = ["source_dataset"]
-            forecast_cols_for_model = [
-                col for col in forecast_data.columns if col not in exclude_cols
-            ]
-            forecast_data_for_model = forecast_data[forecast_cols_for_model].copy()
+            context_cols = [col for col in eval_data.columns if col not in exclude_cols]
+            context_data = eval_data.iloc[:context_length][context_cols].copy()
 
-            # Generate predictions
+            logger.info(f"  Context data shape: {context_data.shape}")
+
+            # Generate predictions — model only sees context, predicts forward
             if zero_shot:
-                predictions_raw = model.predict_zero_shot(forecast_data_for_model)
+                predictions_raw = model.predict_zero_shot(context_data)
             else:
-                predictions_raw = model.predict(forecast_data_for_model)
+                predictions_raw = model.predict(context_data)
 
-            # TTM returns predictions in shape (samples, forecast_length, num_channels)
-            # For univariate glucose prediction, we need channel 0
             logger.info(f"    Raw predictions shape: {predictions_raw.shape}")
 
+            # Normalize output shape: models may return 3D (windows, steps, channels),
+            # 2D (steps, channels), or 1D (steps). Extract 1D forecast.
             if len(predictions_raw.shape) == 3:
                 predictions = predictions_raw[0, :, 0]
             elif len(predictions_raw.shape) == 2:
@@ -701,15 +705,10 @@ def _generate_forecasts(
 
             logger.info(f"    Extracted glucose predictions shape: {predictions.shape}")
 
-            # Extract glucose values
-            glucose_col = "bg_mM"
-            historical_glucose = forecast_data[glucose_col].values[:context_length]
-            actual_glucose = forecast_data[glucose_col].values[context_length:]
-
             # Extract datetime values for the forecast period
             datetime_col = "datetime"
-            if datetime_col in forecast_data.columns:
-                forecast_datetimes = forecast_data[datetime_col].values[
+            if datetime_col in eval_data.columns:
+                forecast_datetimes = eval_data[datetime_col].values[
                     context_length : context_length + forecast_length
                 ]
             else:
