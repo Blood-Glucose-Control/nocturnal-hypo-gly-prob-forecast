@@ -66,6 +66,7 @@ from src.data.preprocessing.dataset_combiner import (
     print_dataset_column_table,
 )
 from src.data.preprocessing.imputation import impute_missing_values
+from src.evaluation.episode_builders import build_midnight_episodes
 from src.models.base import DistributedConfig, GPUManager
 
 logging.basicConfig(
@@ -167,6 +168,7 @@ class ModelFactory:
             "ttm": "ibm-granite/granite-timeseries-ttm-r2",
             "chronos": "amazon/chronos-t5-small",
             "moment": "AutonLab/MOMENT-1-small",
+            "timesfm": "google/timesfm-2.0-500m-pytorch",
             "timegrad": "",  # Trains from scratch, no pretrained path
         }
         return defaults.get(model_type, "")
@@ -206,12 +208,14 @@ class ModelFactory:
             return ModelFactory._create_chronos_model(config, distributed_config)
         elif model_type == "moment":
             return ModelFactory._create_moment_model(config, distributed_config)
+        elif model_type == "timesfm":
+            return ModelFactory._create_timesfm_model(config, distributed_config)
         elif model_type == "timegrad":
             return ModelFactory._create_timegrad_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, moment, timegrad"
+                f"Supported types: ttm, chronos, moment, timesfm, timegrad"
             )
 
     @staticmethod
@@ -295,6 +299,36 @@ class ModelFactory:
         except ImportError as e:
             raise ImportError(
                 f"MOMENT model not available. Install moment dependencies: {e}"
+            )
+
+    @staticmethod
+    def _create_timesfm_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a TimesFM model instance."""
+        try:
+            from src.models.timesfm import TimesFMForecaster, TimesFMConfig
+
+            timesfm_config = TimesFMConfig(
+                checkpoint_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                horizon_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                use_cpu=config.use_cpu,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+
+            return TimesFMForecaster(
+                timesfm_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"TimesFM model not available. Install with: "
+                f"pip install transformers>=5.2.0: {e}"
             )
 
     @staticmethod
@@ -553,6 +587,21 @@ class ModelFactory:
                 **config.extra_config,
             )
             return MomentForecaster.load(model_path, moment_config)
+        elif model_type_lower == "timesfm":
+            from src.models.timesfm import TimesFMForecaster, TimesFMConfig
+
+            timesfm_config = TimesFMConfig(
+                checkpoint_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                horizon_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                use_cpu=config.use_cpu,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+            return TimesFMForecaster.load(model_path, timesfm_config)
         elif model_type_lower == "timegrad":
             from src.models.timegrad import TimeGradForecaster, TimeGradConfig
 
@@ -570,7 +619,7 @@ class ModelFactory:
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, moment, timegrad"
+                f"Supported types: ttm, chronos, moment, timesfm, timegrad"
             )
 
 
@@ -614,8 +663,10 @@ def _generate_forecasts(
         # Determine which columns to use for the model
         # Priority: model_config_overrides > training_columns
         if model_config_overrides:
-            input_features = model_config_overrides.get("input_features", [])
-            target_features = model_config_overrides.get("target_features", [])
+            # `.get()` may return None if the key exists but is set to null in YAML,
+            # so coerce to empty list to avoid iteration errors.
+            input_features = model_config_overrides.get("input_features") or []
+            target_features = model_config_overrides.get("target_features") or []
             if input_features or target_features:
                 # Use explicit features from config + required columns
                 model_features = list(input_features) + list(target_features)
@@ -668,30 +719,71 @@ def _generate_forecasts(
                 forecast_cols = [
                     col for col in training_columns if col in patient_data.columns
                 ]
-            # Slice to get context + forecast length
-            total_length = context_length + forecast_length
-            forecast_data = patient_data.iloc[:total_length][forecast_cols].copy()
+            # Build a midnight-anchored episode for clean evaluation.
+            # The episode builder reindexes to a regular 5-min grid,
+            # interpolates small BG gaps (<=55 min), and skips windows
+            # where BG gaps are too large to interpolate.
+            glucose_col = "bg_mM"
+            patient_ts = patient_data.copy()
+            patient_ts["datetime"] = pd.to_datetime(patient_ts["datetime"])
+            patient_ts = patient_ts.set_index("datetime").sort_index()
 
-            logger.info(f"  Forecast data shape: {forecast_data.shape}")
+            episodes, ep_stats = build_midnight_episodes(
+                patient_ts,
+                context_length=context_length,
+                forecast_length=forecast_length,
+                target_col=glucose_col,
+            )
 
-            # Keep necessary columns for preprocessing (p_num, datetime)
-            # Only remove source_dataset if present
+            if not episodes:
+                logger.warning(
+                    f"  No valid midnight episodes for patient {first_patient} "
+                    f"in {dataset_name} (checked {ep_stats['total_anchors']} "
+                    f"anchors, {ep_stats['skipped_bg_nan']} had BG gaps). Skipping."
+                )
+                continue
+
+            episode = episodes[0]
+            logger.info(
+                f"  Using midnight episode anchored at {episode['anchor']} "
+                f"({len(episodes)} valid, {ep_stats['skipped_bg_nan']} skipped)"
+            )
+
+            historical_glucose = episode["context_df"][glucose_col].values
+            actual_glucose = episode["target_bg"]
+
+            # Reconstruct context DataFrame with columns the model expects.
+            # Start from episode's context_df (regular grid, BG interpolated),
+            # then add back patient ID and merge additional features.
+            context_data = episode["context_df"].reset_index()
+            context_data.rename(
+                columns={context_data.columns[0]: "datetime"}, inplace=True
+            )
+            context_data[patient_col] = first_patient
+
+            # Merge additional model features from original data
+            for col in forecast_cols:
+                if col not in context_data.columns and col in patient_ts.columns:
+                    context_data[col] = context_data["datetime"].map(patient_ts[col])
+
             exclude_cols = ["source_dataset"]
-            forecast_cols_for_model = [
-                col for col in forecast_data.columns if col not in exclude_cols
+            context_cols = [
+                col for col in context_data.columns if col not in exclude_cols
             ]
-            forecast_data_for_model = forecast_data[forecast_cols_for_model].copy()
+            context_data = context_data[context_cols]
 
-            # Generate predictions
+            logger.info(f"  Context data shape: {context_data.shape}")
+
+            # Generate predictions — model only sees context, predicts forward
             if zero_shot:
-                predictions_raw = model.predict_zero_shot(forecast_data_for_model)
+                predictions_raw = model.predict_zero_shot(context_data)
             else:
-                predictions_raw = model.predict(forecast_data_for_model)
+                predictions_raw = model.predict(context_data)
 
-            # TTM returns predictions in shape (samples, forecast_length, num_channels)
-            # For univariate glucose prediction, we need channel 0
             logger.info(f"    Raw predictions shape: {predictions_raw.shape}")
 
+            # Normalize output shape: models may return 3D (windows, steps, channels),
+            # 2D (steps, channels), or 1D (steps). Extract 1D forecast.
             if len(predictions_raw.shape) == 3:
                 predictions = predictions_raw[0, :, 0]
             elif len(predictions_raw.shape) == 2:
@@ -701,19 +793,10 @@ def _generate_forecasts(
 
             logger.info(f"    Extracted glucose predictions shape: {predictions.shape}")
 
-            # Extract glucose values
-            glucose_col = "bg_mM"
-            historical_glucose = forecast_data[glucose_col].values[:context_length]
-            actual_glucose = forecast_data[glucose_col].values[context_length:]
-
-            # Extract datetime values for the forecast period
-            datetime_col = "datetime"
-            if datetime_col in forecast_data.columns:
-                forecast_datetimes = forecast_data[datetime_col].values[
-                    context_length : context_length + forecast_length
-                ]
-            else:
-                forecast_datetimes = None
+            # Extract datetime values for the forecast period from episode anchor
+            forecast_datetimes = pd.date_range(
+                episode["anchor"], periods=forecast_length, freq="5min"
+            ).values
 
             # Store results
             forecast_results[dataset_name] = {
@@ -1128,7 +1211,7 @@ def step2_validate_holdout_configs(datasets: list, config_dir: str) -> bool:
         logger.info(f"✓ Config loaded: {config.holdout_type.value}")
         if config.temporal_config:
             logger.info(
-                f"  Temporal holdout: {config.temporal_config.holdout_percentage*100}%"
+                f"  Temporal holdout: {config.temporal_config.holdout_percentage * 100}%"
             )
         if config.patient_config:
             logger.info(
@@ -1322,7 +1405,7 @@ def step4_zero_shot_evaluation(
     output_dir: str,
     batch_size: int = 2048,
     model_config_overrides: Optional[Dict[str, Any]] = None,
-) -> None:
+) -> Any:
     """Step 4: Zero-shot evaluation using pretrained model (no fine-tuning).
 
     This demonstrates the model's pretrained capabilities on glucose forecasting
@@ -1330,7 +1413,7 @@ def step4_zero_shot_evaluation(
     with freeze_backbone=True and num_epochs=0.
 
     Args:
-        model_type: Type of model to use (ttm, chronos, moment)
+        model_type: Type of model to use (ttm, chronos, moment, timesfm)
         dataset_names: List of dataset names
         training_columns: Column names from training data
         config_dir: Holdout config directory
@@ -1338,8 +1421,9 @@ def step4_zero_shot_evaluation(
         batch_size: Batch size for inference
         model_config_overrides: Optional dict of model-specific config from YAML
 
-    Note: This step creates a temporary model just for zero-shot evaluation.
-    Step 5 will create a fresh model for fine-tuning.
+    Returns:
+        The loaded zero-shot model instance. With --skip-training, this model
+        is reused for step 8 evaluation. Otherwise, it is freed before step 5.
     """
     logger.info(" ")
     logger.info("=" * 80)
@@ -1392,7 +1476,8 @@ def step4_zero_shot_evaluation(
     )
 
     logger.info("✓ Zero-shot evaluation completed")
-    # Note: We don't return the model - step5 will create a fresh one for training
+
+    return model
 
 
 def step5_train_model(
@@ -1470,8 +1555,9 @@ def step5_train_model(
     # This ensures the preprocessor only learns scalers for the features we'll use at inference
     train_data_for_model = combined_data
     if model_config_overrides:
-        input_features = model_config_overrides.get("input_features", [])
-        target_features = model_config_overrides.get("target_features", [])
+        # Guard against YAML null values converting to None
+        input_features = model_config_overrides.get("input_features") or []
+        target_features = model_config_overrides.get("target_features") or []
         if input_features or target_features:
             required_cols = ["p_num", "id", "datetime"]
             model_cols = list(input_features) + list(target_features)
@@ -1496,7 +1582,7 @@ def step5_train_model(
         model_path.parent.mkdir(parents=True, exist_ok=True)
         model.save(str(model_path))
         logger.info(f"✓ Model saved to: {model_path}")
-        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024 * 1024):.2f} MB")
 
         # Evaluate and plot after training
         _evaluate_and_plot(
@@ -1556,7 +1642,7 @@ def step6_load_checkpoint(
         return None
     else:
         logger.info(f"✓ Model file found: {model_path}")
-        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024 * 1024):.2f} MB")
 
     try:
         # Load using the class method
@@ -1642,15 +1728,16 @@ def step7_resume_training(
     resumed_output_dir = Path(output_dir) / "resumed_training"
     resumed_output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n>>> Resuming training on combined datasets: {', '.join(dataset_names)}")
+    print(f">>> Resuming training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {resumed_output_dir}")
     print(f">>> Training with {num_epochs} additional epoch(s)...\n")
 
     # Filter training data to same columns used in initial training
     train_data_for_model = combined_data
     if model_config_overrides:
-        input_features = model_config_overrides.get("input_features", [])
-        target_features = model_config_overrides.get("target_features", [])
+        # Guard against YAML null values converting to None
+        input_features = model_config_overrides.get("input_features") or []
+        target_features = model_config_overrides.get("target_features") or []
         if input_features or target_features:
             required_cols = ["p_num", "id", "datetime"]
             model_cols = list(input_features) + list(target_features)
@@ -1674,7 +1761,7 @@ def step7_resume_training(
         model_path = resumed_output_dir / "model.pt"
         model.save(str(model_path))
         logger.info(f"✓ Resumed model saved to: {model_path}")
-        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024 * 1024):.2f} MB")
 
         # Evaluate and plot after resumed training
         _evaluate_and_plot(
@@ -1713,20 +1800,23 @@ Workflow Steps:
   7. Resume training on loaded model
 
 Supported Model Types:
-  - ttm:      IBM Granite TTM (TinyTimeMixer)
-  - chronos:  Amazon Chronos
-  - moment:   AutonLab MOMENT
+  - ttm: IBM Granite TTM (TinyTimeMixer)
+  - chronos: Amazon Chronos
+  - moment: AutonLab MOMENT
+  - timesfm: Google TimesFM 2.0 (500M)
   - timegrad: TimeGrad (GRU + diffusion, trains from scratch)
 
-Use --skip-steps to skip individual steps (e.g., --skip-steps 4 7).
 Step 4 is auto-skipped for from-scratch models like timegrad.
+
+Each evaluation phase (4, 5, 6, 7) generates predictions and plots
+stored in separate subdirectories for comparison.
         """,
     )
     parser.add_argument(
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "moment", "timegrad"],
+        choices=["ttm", "chronos", "moment", "timesfm", "timegrad"],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(
@@ -1877,7 +1967,7 @@ Step 4 is auto-skipped for from-scratch models like timegrad.
         # STEP 4: Zero-shot evaluation (pretrained model, no fine-tuning)
         # =====================================================================
         if 4 not in skip_steps:
-            step4_zero_shot_evaluation(
+            zero_shot_model = step4_zero_shot_evaluation(
                 model_type=args.model_type,
                 dataset_names=args.datasets,
                 training_columns=training_columns,
@@ -1887,6 +1977,7 @@ Step 4 is auto-skipped for from-scratch models like timegrad.
                 model_config_overrides=model_config_overrides,
             )
         else:
+            zero_shot_model = None
             logger.info("Skipping step 4 (zero-shot evaluation)")
 
         # =====================================================================
@@ -1897,6 +1988,18 @@ Step 4 is auto-skipped for from-scratch models like timegrad.
         model_path = None
 
         if 5 not in skip_steps:
+            # Free zero-shot model GPU memory before step 5 creates a new model
+            if zero_shot_model is not None:
+                del zero_shot_model
+                try:
+                    import torch
+
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        logger.info("GPU memory cleared after zero-shot evaluation")
+                except Exception:
+                    pass
+
             if combined_train_data is None:
                 logger.error("Step 5 requires training data (step 3)")
                 return
