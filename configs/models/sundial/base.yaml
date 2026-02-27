@@ -2,7 +2,7 @@
 # Configuration for zero-shot evaluation with Sundial forecaster
 
 # Model-specific parameters
-num_samples: 100  # Number of samples to generate for median prediction
+num_samples: 50  # Number of samples to generate for median prediction
 
 # Notes:
 # - This config is for zero-shot evaluation only

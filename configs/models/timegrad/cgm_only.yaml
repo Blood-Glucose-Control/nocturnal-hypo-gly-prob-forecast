@@ -45,7 +45,7 @@ num_cells: 100
 num_layers: 2
 residual_layers: 8
 residual_channels: 8
-num_samples: 20
+num_samples: 10
 scaling: true
 num_batches_per_epoch: 1000
 freq: "5T"
