@@ -25,9 +25,9 @@ import pytest
 # chronos2 venv (conftest.py also enforces this at collection time).
 pytest.importorskip("autogluon.timeseries")
 
-from src.models.chronos2.config import Chronos2Config, create_chronos2_zero_shot_config
-from src.models.chronos2.model import Chronos2Forecaster
-from src.models.chronos2.utils import (
+from src.models.chronos2.config import Chronos2Config  # noqa: E402
+from src.models.chronos2.model import Chronos2Forecaster  # noqa: E402
+from src.models.chronos2.utils import (  # noqa: E402
     build_midnight_episodes,
     convert_to_patient_dict,
     format_segments_for_autogluon,
@@ -83,7 +83,8 @@ class TestChronos2:
         assert hp["Chronos2"]["context_length"] == 512
 
         # Zero-shot must disable fine-tuning
-        hp_zs = create_chronos2_zero_shot_config().get_autogluon_hyperparameters()
+        zs_cfg = Chronos2Config(training_mode="zero_shot", fine_tune_steps=0)
+        hp_zs = zs_cfg.get_autogluon_hyperparameters()
         assert hp_zs["Chronos2"]["fine_tune"] is False
 
         # Factory routing — pipeline depends on this
