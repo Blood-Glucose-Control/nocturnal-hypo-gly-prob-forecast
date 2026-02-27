@@ -218,8 +218,86 @@ def create_model_and_config(
             model = TimeGradForecaster(config)
         return model, config
 
+    elif model_type == "timesfm":
+        from src.models.timesfm import TimesFMForecaster, TimesFMConfig
+
+        if checkpoint:
+            # Handle TimesFM checkpoint structure: if path ends with /model.pt,
+            # strip it to get the parent directory (HF model files are in hf_model/ subdirectory)
+            checkpoint_dir = checkpoint
+            if checkpoint_dir.endswith("/model.pt") or checkpoint_dir.endswith("\\model.pt"):
+                checkpoint_dir = os.path.dirname(checkpoint_dir)
+
+            # Try to load config from training_metadata.json first (similar to TTM)
+            metadata_path = os.path.join(checkpoint_dir, "training_metadata.json")
+            if os.path.exists(metadata_path):
+                with open(metadata_path, "r") as f:
+                    metadata = json.load(f)
+                saved_config = metadata.get("config", {})
+            else:
+                # Fall back to config.json in hf_model directory
+                hf_model_config = os.path.join(checkpoint_dir, "hf_model", "config.json")
+                if os.path.exists(hf_model_config):
+                    with open(hf_model_config, "r") as f:
+                        saved_config = json.load(f)
+                else:
+                    logger.warning(
+                        f"No training_metadata.json or hf_model/config.json found in {checkpoint_dir}, using defaults"
+                    )
+                    saved_config = {}
+
+            # Remove model_type and training_backend to avoid conflicts
+            saved_config.pop("model_type", None)
+            saved_config.pop("training_backend", None)
+
+            # Determine which directory to use for loading the model
+            # Prefer hf_model subdirectory if it exists (contains model.safetensors)
+            hf_model_dir = os.path.join(checkpoint_dir, "hf_model")
+            model_load_path = hf_model_dir if os.path.exists(hf_model_dir) else checkpoint_dir
+            
+            saved_config["checkpoint_path"] = model_load_path
+
+            config = TimesFMConfig(**saved_config)
+
+            # Apply valid overrides
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+
+            if "context_length" in kwargs:
+                requested = kwargs["context_length"]
+                if requested != config.context_length:
+                    logger.warning(
+                        f"context_length mismatch: requested {requested}, "
+                        f"model trained with {config.context_length}. "
+                        f"Using saved value."
+                    )
+
+            model = TimesFMForecaster(config)
+            model._load_checkpoint(checkpoint_dir)
+            model.is_fitted = True
+        else:
+            config = TimesFMConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                batch_size=kwargs.get("batch_size", 32),
+            )
+            model = TimesFMForecaster(config)
+        return model, config
+
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, moirai, timegrad"
+            f"Available: sundial, ttm, chronos, moirai, timegrad, timesfm, tide"
         )
