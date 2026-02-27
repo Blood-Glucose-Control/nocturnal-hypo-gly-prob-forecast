@@ -78,6 +78,12 @@ def main():
         default="brown_2019",
         help="Dataset name to train on",
     )
+    parser.add_argument(
+        "--covariates",
+        nargs="*",
+        default=["iob"],
+        help="Covariate column names (e.g., iob cob). Default: iob",
+    )
     args = parser.parse_args()
 
     # =========================================================================
@@ -112,9 +118,9 @@ def main():
         fine_tune_steps=args.steps,
         fine_tune_lr=args.lr,
         time_limit=args.time_limit,
-        # Covariates — Brown 2019 has IOB from Hovorka model.
-        # For Aleppo/BrisT1D, use ["iob", "cob"].
-        covariate_cols=["iob"],
+        # Covariates — past-only context (not future-known, to avoid leakage).
+        # Brown 2019: ["iob"]. Aleppo/BrisT1D: ["iob", "cob"].
+        covariate_cols=args.covariates,
         # Gap handling — applied inside model._prepare_training_data()
         imputation_threshold_mins=45,  # interpolate gaps up to 45 min
         # min_segment_length auto-computed as context_length + forecast_length = 584

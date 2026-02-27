@@ -519,7 +519,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="ttm",
-        choices=["sundial", "ttm", "chronos", "moirai", "timegrad"],
+        choices=["sundial", "ttm", "chronos", "chronos2", "moirai", "timegrad"],
         help="Model type to use for evaluation",
     )
     parser.add_argument(

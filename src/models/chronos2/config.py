@@ -30,8 +30,9 @@ class Chronos2Config(ModelConfig):
         imputation_threshold_mins: Gaps up to this duration are interpolated.
         min_segment_length: Minimum rows for a gap-handled segment to be kept.
             Auto-computed as context_length + forecast_length if None.
-        covariate_cols: Column names for known future covariates (e.g., ["iob"]
-            or ["iob", "cob"] for datasets with carb data).
+        covariate_cols: Column names for past-only context covariates (e.g.,
+            ["iob"] or ["iob", "cob"]). Included in training data and context
+            windows but NOT provided for the forecast horizon.
         target_col: Source column name for the target variable.
         patient_col: Column name for patient identifiers in flat DataFrames.
         time_col: Column name for timestamps in flat DataFrames.
@@ -56,9 +57,10 @@ class Chronos2Config(ModelConfig):
     imputation_threshold_mins: int = 45
     min_segment_length: Optional[int] = None
 
-    # Covariates — list of column names to use as known future covariates.
-    # Defaults to ["iob"]. For datasets with carb data, use ["iob", "cob"].
-    # AutoGluon's known_covariates_names is derived from this.
+    # Covariates — column names to include as past-only context features.
+    # These columns appear in training data and inference context windows but
+    # are NOT provided for the forecast horizon (avoiding data leakage from
+    # post-midnight reactive events). Defaults to ["iob"].
     covariate_cols: List[str] = field(default_factory=lambda: ["iob"])
     target_col: str = "bg_mM"
     patient_col: str = "p_num"

@@ -28,6 +28,7 @@ import logging
 import os
 from typing import Any, Dict, Tuple
 
+import numpy as np
 import pandas as pd
 
 from src.data.preprocessing.gap_handling import segment_all_patients
@@ -158,7 +159,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             # "target" is the column name after format_segments_for_autogluon
             # renames config.target_col (e.g. "bg_mM") -> "target"
             target="target",
-            known_covariates_names=config.covariate_cols,
+            # known_covariates_names intentionally NOT set — covariates (IOB,
+            # COB) are included as past-only context columns. Setting them as
+            # "known" would require providing future values at inference time,
+            # which constitutes data leakage (post-midnight IOB/COB are
+            # reactive to future BG and unknowable at the prediction origin).
             eval_metric=config.eval_metric,
             path=output_dir,
         )
@@ -201,14 +206,17 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Args:
             data: Panel DataFrame with episode_id column and DatetimeIndex.
                 Each episode has context_length rows of BG + covariates.
-            **kwargs: Optional known_covariates (panel DataFrame with
-                episode_id and covariate columns for the forecast horizon).
+            **kwargs: Unused (kept for interface compatibility).
 
         Returns:
             DataFrame with episode_id and target_col columns containing
             the predicted BG values for each episode's forecast horizon.
 
         Note:
+            Covariates (IOB, COB) are passed as past-only context — they appear
+            in the context window but are NOT provided for the forecast horizon.
+            This avoids data leakage from post-midnight insulin/carb events.
+
             TODO: If switching to batched evaluation in the future, consider
             the `cross_learning` hyperparameter. When True (AutoGluon default),
             Chronos-2 makes joint predictions across series in a batch, causing
@@ -232,7 +240,12 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         # Convert episode_id -> item_id for AutoGluon
         context = data.copy()
         context["item_id"] = context["episode_id"]
-        context["timestamp"] = context.index
+        # Use datetime column if available (eval script resets DatetimeIndex),
+        # otherwise fall back to the index itself
+        if config.time_col in context.columns:
+            context["timestamp"] = pd.to_datetime(context[config.time_col])
+        else:
+            context["timestamp"] = context.index
         context = context.rename(columns={config.target_col: "target"})
 
         # Select columns AutoGluon expects
@@ -241,41 +254,24 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         context = context[ag_cols].set_index(["item_id", "timestamp"])
         ts_data = TimeSeriesDataFrame(context)
 
-        # Build known covariates for AutoGluon if provided
-        known_cov = None
-        if "known_covariates" in kwargs and kwargs["known_covariates"] is not None:
-            kcov = kwargs["known_covariates"].copy()
-            kcov["item_id"] = kcov["episode_id"]
-            kcov["timestamp"] = kcov.index
-            cov_cols = ["item_id", "timestamp"] + [
-                c for c in config.covariate_cols if c in kcov.columns
-            ]
-            kcov = kcov[cov_cols].set_index(["item_id", "timestamp"])
-            known_cov = TimeSeriesDataFrame(kcov)
+        # Call AutoGluon predictor (no known_covariates — past-only context)
+        ag_predictions = self.predictor.predict(ts_data)
 
-        # Call AutoGluon predictor
-        ag_predictions = self.predictor.predict(ts_data, known_covariates=known_cov)
-
-        # Convert AutoGluon output (MultiIndex item_id/timestamp, "mean" column)
-        # back to panel DataFrame with episode_id and target_col
-        result_rows = []
+        # Convert AutoGluon output to numpy array matching base model contract.
+        # AutoGluon returns MultiIndex (item_id, timestamp) with "mean" column.
+        # For single-episode input (eval script), return 1D array of predictions.
+        # For multi-episode input, return concatenated predictions.
+        result_arrays = []
         for episode_id in data["episode_id"].unique():
             item_id = episode_id  # same mapping
             if item_id in ag_predictions.index.get_level_values(0):
-                pred_series = ag_predictions.loc[item_id]["mean"]
-                ep_df = pd.DataFrame(
-                    {
-                        config.target_col: pred_series.values,
-                        "episode_id": episode_id,
-                    },
-                    index=pred_series.index,
-                )
-                result_rows.append(ep_df)
+                pred_values = ag_predictions.loc[item_id]["mean"].values
+                result_arrays.append(pred_values)
 
-        if not result_rows:
-            return pd.DataFrame(columns=[config.target_col, "episode_id"])
+        if not result_arrays:
+            return np.array([])
 
-        return pd.concat(result_rows)
+        return np.concatenate(result_arrays)
 
     # ------------------------------------------------------------------
     # Persistence
