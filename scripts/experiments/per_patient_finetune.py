@@ -185,7 +185,6 @@ def save_experiment_config(args: argparse.Namespace, output_path: Path) -> None:
             "name": "two_stage_lopo_finetune",
             "stage1": "population model trained on all holdout patients (external)",
             "stage2": "per-patient fine-tuning on holdout patient data",
-            "reference": "Hamad et al. 2021 npj Digital Medicine",
         },
     }
     config_file = output_path / "experiment_config.json"

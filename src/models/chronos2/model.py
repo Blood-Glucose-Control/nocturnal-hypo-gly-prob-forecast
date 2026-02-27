@@ -160,6 +160,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             target="target",
             known_covariates_names=config.covariate_cols,
             eval_metric=config.eval_metric,
+            freq="5min",
             path=output_dir,
         )
 

@@ -16,10 +16,21 @@
 : ${DATASET:="brown_2019"}
 : ${CHECKPOINT:="models/chronos2_stage1/20260224_234112"}
 : ${MODEL:="chronos2"}
+: ${CONFIG_DIR:="configs/data/holdout_5pct"}
 
-# Brown 2019 holdout patients (all 8, ~191-204 days each)
-# bro_62 already ran — included here for completeness, skip with PATIENTS override if needed
-: ${PATIENTS:="bro_3 bro_31 bro_35 bro_62 bro_88 bro_134 bro_152 bro_164"}
+# Read holdout patients from config YAML (override with PATIENTS env var)
+if [ -z "$PATIENTS" ]; then
+    CONFIG_FILE="${CONFIG_DIR}/${DATASET}.yaml"
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "ERROR: Config file not found: $CONFIG_FILE"
+        exit 1
+    fi
+    PATIENTS=$(grep '^\s*- ' "$CONFIG_FILE" | sed 's/^\s*- //' | tr '\n' ' ')
+    if [ -z "$PATIENTS" ]; then
+        echo "ERROR: No holdout patients found in $CONFIG_FILE"
+        exit 1
+    fi
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SINGLE_SCRIPT="$SCRIPT_DIR/per_patient_finetune.sh"
