@@ -16,4 +16,3 @@
 batch_size: 256 # batch_size (32) * gradient_accumulation_steps (4) = 128
 num_epochs: 3
 learning_rate: 1.0e-5
-  
