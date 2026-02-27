@@ -225,7 +225,9 @@ def create_model_and_config(
             # Handle TimesFM checkpoint structure: if path ends with /model.pt,
             # strip it to get the parent directory (HF model files are in hf_model/ subdirectory)
             checkpoint_dir = checkpoint
-            if checkpoint_dir.endswith("/model.pt") or checkpoint_dir.endswith("\\model.pt"):
+            if checkpoint_dir.endswith("/model.pt") or checkpoint_dir.endswith(
+                "\\model.pt"
+            ):
                 checkpoint_dir = os.path.dirname(checkpoint_dir)
 
             # Try to load config from training_metadata.json first (similar to TTM)
@@ -236,7 +238,9 @@ def create_model_and_config(
                 saved_config = metadata.get("config", {})
             else:
                 # Fall back to config.json in hf_model directory
-                hf_model_config = os.path.join(checkpoint_dir, "hf_model", "config.json")
+                hf_model_config = os.path.join(
+                    checkpoint_dir, "hf_model", "config.json"
+                )
                 if os.path.exists(hf_model_config):
                     with open(hf_model_config, "r") as f:
                         saved_config = json.load(f)
@@ -253,8 +257,10 @@ def create_model_and_config(
             # Determine which directory to use for loading the model
             # Prefer hf_model subdirectory if it exists (contains model.safetensors)
             hf_model_dir = os.path.join(checkpoint_dir, "hf_model")
-            model_load_path = hf_model_dir if os.path.exists(hf_model_dir) else checkpoint_dir
-            
+            model_load_path = (
+                hf_model_dir if os.path.exists(hf_model_dir) else checkpoint_dir
+            )
+
             saved_config["checkpoint_path"] = model_load_path
 
             config = TimesFMConfig(**saved_config)
