@@ -66,6 +66,7 @@ from src.data.preprocessing.dataset_combiner import (
     print_dataset_column_table,
 )
 from src.data.preprocessing.imputation import impute_missing_values
+from src.evaluation.episode_builders import build_midnight_episodes
 from src.models.base import DistributedConfig, GPUManager
 
 logging.basicConfig(
@@ -662,8 +663,10 @@ def _generate_forecasts(
         # Determine which columns to use for the model
         # Priority: model_config_overrides > training_columns
         if model_config_overrides:
-            input_features = model_config_overrides.get("input_features", [])
-            target_features = model_config_overrides.get("target_features", [])
+            # `.get()` may return None if the key exists but is set to null in YAML,
+            # so coerce to empty list to avoid iteration errors.
+            input_features = model_config_overrides.get("input_features") or []
+            target_features = model_config_overrides.get("target_features") or []
             if input_features or target_features:
                 # Use explicit features from config + required columns
                 model_features = list(input_features) + list(target_features)
@@ -716,38 +719,71 @@ def _generate_forecasts(
                 forecast_cols = [
                     col for col in training_columns if col in patient_data.columns
                 ]
-            # Slice to get context + forecast length
-            total_length = context_length + forecast_length
-            forecast_data = patient_data.iloc[:total_length][forecast_cols].copy()
+            # Build a midnight-anchored episode for clean evaluation.
+            # The episode builder reindexes to a regular 5-min grid,
+            # interpolates small BG gaps (<=55 min), and skips windows
+            # where BG gaps are too large to interpolate.
+            glucose_col = "bg_mM"
+            patient_ts = patient_data.copy()
+            patient_ts["datetime"] = pd.to_datetime(patient_ts["datetime"])
+            patient_ts = patient_ts.set_index("datetime").sort_index()
 
-            logger.info(f"  Forecast data shape: {forecast_data.shape}")
+            episodes, ep_stats = build_midnight_episodes(
+                patient_ts,
+                context_length=context_length,
+                forecast_length=forecast_length,
+                target_col=glucose_col,
+            )
 
-            # Keep necessary columns for preprocessing (p_num, datetime)
-            # Only remove source_dataset if present
+            if not episodes:
+                logger.warning(
+                    f"  No valid midnight episodes for patient {first_patient} "
+                    f"in {dataset_name} (checked {ep_stats['total_anchors']} "
+                    f"anchors, {ep_stats['skipped_bg_nan']} had BG gaps). Skipping."
+                )
+                continue
+
+            episode = episodes[0]
+            logger.info(
+                f"  Using midnight episode anchored at {episode['anchor']} "
+                f"({len(episodes)} valid, {ep_stats['skipped_bg_nan']} skipped)"
+            )
+
+            historical_glucose = episode["context_df"][glucose_col].values
+            actual_glucose = episode["target_bg"]
+
+            # Reconstruct context DataFrame with columns the model expects.
+            # Start from episode's context_df (regular grid, BG interpolated),
+            # then add back patient ID and merge additional features.
+            context_data = episode["context_df"].reset_index()
+            context_data.rename(
+                columns={context_data.columns[0]: "datetime"}, inplace=True
+            )
+            context_data[patient_col] = first_patient
+
+            # Merge additional model features from original data
+            for col in forecast_cols:
+                if col not in context_data.columns and col in patient_ts.columns:
+                    context_data[col] = context_data["datetime"].map(patient_ts[col])
+
             exclude_cols = ["source_dataset"]
-            forecast_cols_for_model = [
-                col for col in forecast_data.columns if col not in exclude_cols
+            context_cols = [
+                col for col in context_data.columns if col not in exclude_cols
             ]
-            forecast_data_for_model = forecast_data[forecast_cols_for_model].copy()
+            context_data = context_data[context_cols]
 
-            # TimesFM expects context-only input (no internal windowing),
-            # Pass only the context portion to avoid data leakage
-            model_type = getattr(model.config, "model_type", "").lower()
-            if model_type == "timesfm":
-                predict_data = forecast_data_for_model.iloc[:context_length].copy()
-            else:
-                predict_data = forecast_data_for_model
+            logger.info(f"  Context data shape: {context_data.shape}")
 
-            # Generate predictions
+            # Generate predictions — model only sees context, predicts forward
             if zero_shot:
-                predictions_raw = model.predict_zero_shot(predict_data)
+                predictions_raw = model.predict_zero_shot(context_data)
             else:
-                predictions_raw = model.predict(predict_data)
+                predictions_raw = model.predict(context_data)
 
-            # TTM returns predictions in shape (samples, forecast_length, num_channels)
-            # For univariate glucose prediction, we need channel 0
             logger.info(f"    Raw predictions shape: {predictions_raw.shape}")
 
+            # Normalize output shape: models may return 3D (windows, steps, channels),
+            # 2D (steps, channels), or 1D (steps). Extract 1D forecast.
             if len(predictions_raw.shape) == 3:
                 predictions = predictions_raw[0, :, 0]
             elif len(predictions_raw.shape) == 2:
@@ -757,19 +793,10 @@ def _generate_forecasts(
 
             logger.info(f"    Extracted glucose predictions shape: {predictions.shape}")
 
-            # Extract glucose values
-            glucose_col = "bg_mM"
-            historical_glucose = forecast_data[glucose_col].values[:context_length]
-            actual_glucose = forecast_data[glucose_col].values[context_length:]
-
-            # Extract datetime values for the forecast period
-            datetime_col = "datetime"
-            if datetime_col in forecast_data.columns:
-                forecast_datetimes = forecast_data[datetime_col].values[
-                    context_length : context_length + forecast_length
-                ]
-            else:
-                forecast_datetimes = None
+            # Extract datetime values for the forecast period from episode anchor
+            forecast_datetimes = pd.date_range(
+                episode["anchor"], periods=forecast_length, freq="5min"
+            ).values
 
             # Store results
             forecast_results[dataset_name] = {
@@ -1528,8 +1555,9 @@ def step5_train_model(
     # This ensures the preprocessor only learns scalers for the features we'll use at inference
     train_data_for_model = combined_data
     if model_config_overrides:
-        input_features = model_config_overrides.get("input_features", [])
-        target_features = model_config_overrides.get("target_features", [])
+        # Guard against YAML null values converting to None
+        input_features = model_config_overrides.get("input_features") or []
+        target_features = model_config_overrides.get("target_features") or []
         if input_features or target_features:
             required_cols = ["p_num", "id", "datetime"]
             model_cols = list(input_features) + list(target_features)
@@ -1700,15 +1728,16 @@ def step7_resume_training(
     resumed_output_dir = Path(output_dir) / "resumed_training"
     resumed_output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n>>> Resuming training on combined datasets: {', '.join(dataset_names)}")
+    print(f">>> Resuming training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {resumed_output_dir}")
     print(f">>> Training with {num_epochs} additional epoch(s)...\n")
 
     # Filter training data to same columns used in initial training
     train_data_for_model = combined_data
     if model_config_overrides:
-        input_features = model_config_overrides.get("input_features", [])
-        target_features = model_config_overrides.get("target_features", [])
+        # Guard against YAML null values converting to None
+        input_features = model_config_overrides.get("input_features") or []
+        target_features = model_config_overrides.get("target_features") or []
         if input_features or target_features:
             required_cols = ["p_num", "id", "datetime"]
             model_cols = list(input_features) + list(target_features)
