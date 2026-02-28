@@ -4,9 +4,13 @@ Chronos-2 model class tests.
 Focuses on core integration requirements and key edge cases.
 Real-data validation lives in scripts/test_chronos2_parity.py (watgpu).
 
+Requires the chronos2 virtual environment (.venvs/chronos2) which includes
+AutoGluon. Tests are automatically skipped in other environments via conftest.py.
+
 Run:
-    pytest tests/models/test_chronos2.py -v         # local (skips AG/GPU)
-    pytest tests/models/test_chronos2.py -v -m slow  # GPU-only
+    make test-chronos2                               # recommended
+    .venvs/chronos2/bin/python -m pytest tests/models/ -v -k chronos2
+    pytest tests/models/test_chronos2.py -v -m slow  # GPU-only slow tests
 """
 
 import json
@@ -17,18 +21,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-try:
-    import autogluon.timeseries  # noqa: F401
+# All Chronos-2 tests require AutoGluon — skip the whole module outside the
+# chronos2 venv (conftest.py also enforces this at collection time).
+pytest.importorskip("autogluon.timeseries")
 
-    _has_autogluon = True
-except ImportError:
-    _has_autogluon = False
-
-requires_autogluon = pytest.mark.skipif(
-    not _has_autogluon, reason="AutoGluon not installed (watgpu only)"
-)
-
-from src.models.chronos2.config import Chronos2Config, create_chronos2_zero_shot_config  # noqa: E402
+from src.models.chronos2.config import Chronos2Config  # noqa: E402
 from src.models.chronos2.model import Chronos2Forecaster  # noqa: E402
 from src.models.chronos2.utils import (  # noqa: E402
     build_midnight_episodes,
@@ -86,7 +83,8 @@ class TestChronos2:
         assert hp["Chronos2"]["context_length"] == 512
 
         # Zero-shot must disable fine-tuning
-        hp_zs = create_chronos2_zero_shot_config().get_autogluon_hyperparameters()
+        zs_cfg = Chronos2Config(training_mode="zero_shot", fine_tune_steps=0)
+        hp_zs = zs_cfg.get_autogluon_hyperparameters()
         assert hp_zs["Chronos2"]["fine_tune"] is False
 
         # Factory routing — pipeline depends on this
@@ -174,7 +172,6 @@ class TestChronos2:
         with pytest.raises(ValueError, match="fitted or loaded"):
             model.evaluate(flat)
 
-    @requires_autogluon
     def test_data_pipeline(self):
         """Core pipeline: flat df → segments → TimeSeriesDataFrame with covariates."""
         from src.data.preprocessing.gap_handling import segment_all_patients
@@ -192,7 +189,6 @@ class TestChronos2:
         assert ts["target"].isna().sum() == 0
         assert ts["iob"].isna().sum() == 0
 
-    @requires_autogluon
     def test_covariate_robustness(self):
         """Missing covariate column → zeros; NaN → forward-filled."""
         seg_no_iob = _make_patient_df(n_days=2, include_iob=False)
@@ -211,7 +207,6 @@ class TestChronos2:
 
 
 @pytest.mark.slow
-@requires_autogluon
 class TestChronos2GPU:
     """Run with: pytest tests/models/test_chronos2.py -m slow"""
 

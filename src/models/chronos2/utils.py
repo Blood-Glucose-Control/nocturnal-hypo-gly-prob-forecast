@@ -37,7 +37,7 @@ def convert_to_patient_dict(
 
     Args:
         flat_df: DataFrame with patient_col identifying patients and
-            time_col for timestamps (or DatetimeIndex).
+            time_col for timestamps (guaranteed by data loaders).
         patient_col: Column name for patient identifiers.
         time_col: Column name for timestamps.
 
@@ -48,25 +48,15 @@ def convert_to_patient_dict(
 
     for pid, group in flat_df.groupby(patient_col):
         pdf = group.copy()
+        pdf[time_col] = pd.to_datetime(pdf[time_col])
+        pdf = pdf.set_index(time_col).sort_index()
+        pdf = pdf.drop(columns=[patient_col])
 
-        # Set DatetimeIndex from column or use existing index
-        if time_col in pdf.columns:
-            pdf[time_col] = pd.to_datetime(pdf[time_col])
-            pdf = pdf.set_index(time_col).sort_index()
-        elif isinstance(pdf.index, pd.DatetimeIndex):
-            pdf = pdf.sort_index()
+        # Convert numeric IDs (e.g., np.float64 from groupby) to clean strings ("1")
+        if isinstance(pid, (int, np.integer, float, np.floating)) and pid == int(pid):
+            key = str(int(pid))
         else:
-            raise ValueError(
-                f"Patient {pid!r}: expected '{time_col}' column or "
-                f"DatetimeIndex, got {type(pdf.index).__name__}"
-            )
-
-        # Drop patient column (redundant — it's the dict key)
-        if patient_col in pdf.columns:
-            pdf = pdf.drop(columns=[patient_col])
-
-        # Convert float IDs (e.g., 1.0) to clean strings ("1")
-        key = str(int(pid)) if isinstance(pid, float) and pid == int(pid) else str(pid)
+            key = str(pid)
         patient_dict[key] = pdf
 
     logger.debug("Converted flat DataFrame to %d patient dicts", len(patient_dict))

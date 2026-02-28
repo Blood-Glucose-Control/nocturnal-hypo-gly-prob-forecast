@@ -32,21 +32,26 @@
 #   MODEL_CONFIG="configs/models/ttm/fine_tune.yaml" DATASETS="lynch_2022 brown_2019" ./scripts/examples/run_holdout_generic_workflow.sh
 #
 # All datasets combined with specific model:
-#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="ttm" MODEL_CONFIG="configs/models/ttm/fine_tune.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
+#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="ttm" MODEL_CONFIG="configs/models/ttm/00_fine_tune_cgm_only.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
+#
+# TimeGrad, all datasets, CGM only (10 epochs):
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="timegrad" MODEL_CONFIG="configs/models/timegrad/cgm_only.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=1 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
+# Timesfm, all datasets, CGM only (10 epochs):
+#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="timesfm" MODEL_CONFIG="configs/models/timesfm/fine_tune.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=3 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-# Generate a unique run ID (replaces SLURM_JOB_ID for local runs)
+# Generate a unique run ID (replaces SLURM_JOB_ID for local runs)gh pr checkout 348
 # Uses timestamp + random suffix for uniqueness
 RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 
 # Default configuration (can be overridden via environment variables)
-# DATASETS can be space-separated list: "lynch_2022 aleppo brown_2019"
+# DATASETS can be space-separated list: "lynch_2022 aleppo_2017 brown_2019"
 : ${DATASETS:="tamborlane_2008 brown_2019"}
-: ${CONFIG_DIR:="configs/data/holdout_5pct"}
-: ${OUTPUT_BASE_DIR:="trained_models/artifacts/_tsfm_testing/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_holdout_workflow"}
+: ${CONFIG_DIR:="configs/data/holdout_10pct"}
+: ${OUTPUT_BASE_DIR:="trained_models/artifacts/${MODEL_TYPE}/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_holdout_workflow"}
 : ${SKIP_TRAINING:="true"}
 : ${EPOCHS:=""}          # Leave empty to use YAML config value; set to override (e.g., EPOCHS=10)
 : ${BATCH_SIZE:=""}      # Leave empty to use YAML config value; set to override (e.g., BATCH_SIZE=4096)

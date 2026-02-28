@@ -20,6 +20,7 @@ from transformers import (
 # Import your existing TTM-related modules
 from tsfm_public import (
     TimeSeriesPreprocessor,
+    TimeSeriesForecastingPipeline,
     get_datasets,
 )
 from tsfm_public.toolkit.get_model import get_model
@@ -170,54 +171,26 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 }
             return predictions
 
-        # Prepare data for inference using the fitted preprocessor
-        # Falls back to training data prep if preprocessor not available (e.g., loaded model)
-        try:
-            data_loader = self._prepare_inference_data(data)
-        except ValueError as e:
-            info_print(f"Falling back to _prepare_training_data: {e}")
-            data_loader, _, _ = self._prepare_training_data(data)
-
-        # Create trainer for inference
-        trainer = self._create_inference_trainer(batch_size)
-
-        # Generate predictions using Trainer
-        info_print("Generating predictions using Trainer.predict()...")
-        predictions_output = trainer.predict(data_loader.dataset)
-
-        # Extract predictions from PredictionOutput
-        # predictions_output.predictions is a tuple: (forecasts, embeddings)
-        predictions = predictions_output.predictions[0]  # Get forecasts
-
-        # Convert to numpy if needed
-        if hasattr(predictions, "cpu"):
-            predictions = predictions.cpu().numpy()  # type: ignore
-        elif not isinstance(predictions, np.ndarray):
-            predictions = np.array(predictions)
-
-        info_print(f"Predictions shape (scaled): {predictions.shape}")
-
-        # Inverse scale predictions back to original units
-        if inverse_scale and self.preprocessor is not None:
-            predictions = self._inverse_scale_predictions(predictions, data)
-            info_print("Predictions inverse-scaled to original units")
-
-        info_print(f"Predictions shape: {predictions.shape}")
+        # TimeSeriesForecastingPipeline is the official tsfm_public inference
+        # path — handles scaling → tensor → forward pass → inverse scaling.
+        pipeline = TimeSeriesForecastingPipeline(
+            model=self.model,
+            feature_extractor=self.preprocessor,
+            explode_forecasts=True,
+            inverse_scale_outputs=inverse_scale,
+            batch_size=batch_size or self.config.batch_size,
+        )
+        forecast_df = pipeline(data)
+        target_col = self.preprocessor.target_columns[0]
+        predictions = forecast_df[target_col].values
 
         if return_dict:
-            result = {
+            return {
                 "predictions": predictions,
                 "model_config": self.config.to_dict(),
                 "n_samples": len(predictions),
+                "forecast_df": forecast_df,
             }
-            # Include backbone embeddings if available
-            if len(predictions_output.predictions) > 1:
-                result["backbone_embeddings"] = predictions_output.predictions[1]
-                info_print(
-                    f"Backbone embeddings shape: {predictions_output.predictions[1].shape}"
-                )
-            return result
-
         return predictions
 
     def _inverse_scale_predictions(
@@ -384,110 +357,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         except Exception as e:
             error_print(f"Failed to initialize TTM model: {str(e)}")
             raise
-
-    def _prepare_inference_data(self, data: Any) -> DataLoader:
-        """Prepare data for inference (prediction) using the existing preprocessor.
-
-        Uses the fitted preprocessor from training to scale the data and creates
-        a ForecastDFDataset for inference. Does NOT retrain scalers.
-
-        Args:
-            data: Input data for prediction (DataFrame or dict of DataFrames)
-
-        Returns:
-            DataLoader for inference
-
-        Raises:
-            ValueError: If preprocessor hasn't been trained
-        """
-        from tsfm_public.toolkit.dataset import ForecastDFDataset
-
-        if self.preprocessor is None:
-            raise ValueError(
-                "Preprocessor not available. Model must be trained before prediction, "
-                "or preprocessor must be loaded with the model."
-            )
-
-        # Normalize DatetimeIndex to "datetime" column — the preprocessor and
-        # ForecastDFDataset expect timestamp_column="datetime" as a regular column.
-        if isinstance(data, pd.DataFrame) and isinstance(data.index, pd.DatetimeIndex):
-            data = data.reset_index(names="datetime")
-
-        # Convert dict format to DataFrame if needed
-        if isinstance(data, dict):
-            from src.data.data_loading import multi_patient_dict_to_df
-
-            data = multi_patient_dict_to_df(
-                patients_dict=data,
-                resolution_min=self.config.resolution_min,
-                x_features=self.config.input_features,
-                y_feature=self.config.target_features,
-            )
-            data = data.reset_index()
-
-        info_print(f"Preprocessing inference data with shape: {data.shape}")
-
-        # Use the existing preprocessor to scale the data (without retraining)
-        # preprocess() applies the fitted scalers
-        try:
-            scaled_data = self.preprocessor.preprocess(data)
-        except AttributeError as e:
-            # Preprocessor from older tsfm_public version - incompatible with current version
-            logger.warning(
-                f"Preprocessor version incompatibility: {e}. "
-                "The checkpoint was trained with an older tsfm_public version. "
-                "Attempting manual scaling using target_scaler_dict."
-            )
-            # Manually apply scaling using target_scaler_dict
-            scaled_data = data.copy()
-
-            # Get scaler key - use first available if we don't have per-sample ID matching
-            if len(self.preprocessor.target_scaler_dict) > 0:
-                scaler_key = next(iter(self.preprocessor.target_scaler_dict.keys()))
-                scaler = self.preprocessor.target_scaler_dict[scaler_key]
-
-                # Scale target columns using (value - mean) / scale
-                for i, target_col in enumerate(self.preprocessor.target_columns):
-                    if target_col in scaled_data.columns:
-                        mean_val = scaler.mean_[i] if hasattr(scaler, "mean_") else 0
-                        scale_val = scaler.scale_[i] if hasattr(scaler, "scale_") else 1
-                        scaled_data[target_col] = (
-                            scaled_data[target_col] - mean_val
-                        ) / scale_val
-                        info_print(
-                            f"Manually scaled {target_col} with mean={mean_val:.4f}, scale={scale_val:.4f}"
-                        )
-            else:
-                logger.warning(
-                    "No scalers available in target_scaler_dict, using data as-is"
-                )
-
-        # Create ForecastDFDataset for inference using the preprocessor's column specs
-        inference_dataset = ForecastDFDataset(
-            data=scaled_data,
-            id_columns=self.preprocessor.id_columns,
-            timestamp_column=self.preprocessor.timestamp_column,
-            target_columns=self.preprocessor.target_columns,
-            observable_columns=self.preprocessor.observable_columns,
-            control_columns=self.preprocessor.control_columns,
-            conditional_columns=self.preprocessor.conditional_columns,
-            static_categorical_columns=self.preprocessor.static_categorical_columns,
-            context_length=self.config.context_length,
-            prediction_length=self.config.forecast_length,
-        )
-
-        # Create DataLoader for inference
-        inference_loader = DataLoader(
-            inference_dataset,
-            batch_size=self.config.batch_size,
-            shuffle=False,
-            num_workers=self.config.dataloader_num_workers,
-        )
-
-        info_print(
-            f"Created inference DataLoader with {len(inference_dataset)} samples"
-        )
-        return inference_loader
 
     def _prepare_training_data(
         self,
@@ -859,206 +728,36 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
     ) -> np.ndarray:
         """Make zero-shot predictions without fine-tuning.
 
-        For small context windows (single episodes), uses ForecastDFDataset directly
-        with manual standardization instead of get_datasets() which requires
-        train/val/test splitting.
+        Uses TimeSeriesForecastingPipeline without a feature_extractor.
+        TTM's internal TinyTimeMixerStdScaler (RevIN) handles per-window
+        standardization automatically — no external scaling needed.
 
         Args:
             data: Input data for prediction (DataFrame)
-            batch_size: Batch size for prediction
+            batch_size: Batch size for prediction (unused, kept for API compat)
 
         Returns:
-            Model predictions as numpy array
+            Model predictions as numpy array (in original scale)
         """
-        import tempfile
-        from tsfm_public.toolkit.dataset import ForecastDFDataset
-
-        info_print("Making zero-shot predictions with TTM")
-
-        # Convert dict format to DataFrame if needed
-        if isinstance(data, dict):
-            data = pd.concat(data.values(), ignore_index=True)
-
-        # Create column specifiers if needed
         if self.column_specifiers is None:
             self.column_specifiers = self._create_column_specifiers(data)
 
-        # Get target column(s)
-        target_cols = self.column_specifiers.get("target_columns", [])
-
-        # Manually standardize the target column(s) for the context window
-        scaled_data = data.copy()
-        scaler_params = {}  # Store mean/std for inverse scaling
-
-        for col in target_cols:
-            if col in scaled_data.columns:
-                col_data = scaled_data[col].dropna()
-                if len(col_data) > 0:
-                    mean_val = col_data.mean()
-                    std_val = col_data.std()
-                    if std_val == 0 or pd.isna(std_val):
-                        std_val = 1.0  # Avoid division by zero
-                    scaled_data[col] = (scaled_data[col] - mean_val) / std_val
-                    scaler_params[col] = {"mean": mean_val, "std": std_val}
-                    info_print(
-                        f"Zero-shot scaling {col}: mean={mean_val:.4f}, std={std_val:.4f}"
-                    )
-
-        # Create ForecastDFDataset directly (no train/val/test split needed)
-        inference_dataset = ForecastDFDataset(
-            data=scaled_data,
-            id_columns=self.column_specifiers.get("id_columns", []),
-            timestamp_column=self.column_specifiers.get("timestamp_column", "datetime"),
-            target_columns=target_cols,
-            observable_columns=self.column_specifiers.get("observable_columns", []),
-            control_columns=self.column_specifiers.get("control_columns", []),
-            conditional_columns=self.column_specifiers.get("conditional_columns", []),
-            static_categorical_columns=self.column_specifiers.get(
-                "static_categorical_columns", []
-            ),
-            context_length=self.config.context_length,
-            prediction_length=self.config.forecast_length,
-        )
-
-        info_print(
-            f"Created zero-shot inference dataset with {len(inference_dataset)} samples"
-        )
-
-        if len(inference_dataset) == 0:
-            raise ValueError(
-                "No valid samples created from input data for zero-shot prediction"
-            )
-
-        # Create temporary directory for trainer output
-        temp_dir = tempfile.mkdtemp()
-
-        # Create trainer for zero-shot inference
-        zeroshot_trainer = Trainer(
+        # Pipeline without feature_extractor — TTM's internal scaler
+        # handles per-window standardization and inverse scaling.
+        pipeline = TimeSeriesForecastingPipeline(
             model=self.model,
-            args=TrainingArguments(
-                output_dir=temp_dir,
-                per_device_eval_batch_size=batch_size or self.config.batch_size,
-                seed=42,
-                report_to="none",
+            timestamp_column=self.column_specifiers.get(
+                "timestamp_column", ColumnNames.DATETIME.value
             ),
+            id_columns=self.column_specifiers.get("id_columns", []),
+            target_columns=self.column_specifiers.get("target_columns", ["bg_mM"]),
+            observable_columns=self.column_specifiers.get("observable_columns", []),
+            explode_forecasts=True,
+            freq=f"{self.config.resolution_min}min",
         )
-
-        # Get predictions using trainer.predict()
-        info_print("Generating zero-shot predictions...")
-        predictions_output = zeroshot_trainer.predict(inference_dataset)
-
-        # Extract predictions from output
-        # predictions_output.predictions is a tuple: (forecasts, embeddings)
-        predictions = predictions_output.predictions[0]
-
-        # Convert to numpy if needed
-        if hasattr(predictions, "cpu"):
-            predictions = predictions.cpu().numpy()  # type: ignore[union-attr]
-        elif not isinstance(predictions, np.ndarray):
-            predictions = np.array(predictions)
-
-        info_print(f"Zero-shot predictions shape (scaled): {predictions.shape}")
-
-        # Inverse scale predictions back to original units using stored scaler params
-        if scaler_params and len(target_cols) > 0:
-            # Assume first target column corresponds to channel 0
-            first_target = target_cols[0]
-            if first_target in scaler_params:
-                mean_val = scaler_params[first_target]["mean"]
-                std_val = scaler_params[first_target]["std"]
-
-                # Handle different prediction shapes
-                if len(predictions.shape) == 3:
-                    # Shape: (samples, forecast_len, channels) - scale channel 0
-                    predictions[:, :, 0] = predictions[:, :, 0] * std_val + mean_val
-                elif len(predictions.shape) == 2:
-                    predictions = predictions * std_val + mean_val
-                elif len(predictions.shape) == 1:
-                    predictions = predictions * std_val + mean_val
-
-                info_print(
-                    f"Inverse scaled with mean={mean_val:.4f}, std={std_val:.4f}"
-                )
-
-        info_print(f"Zero-shot predictions shape (unscaled): {predictions.shape}")
-
-        return predictions
-
-    def _inverse_scale_zero_shot_predictions(
-        self, predictions: np.ndarray, preprocessor: TimeSeriesPreprocessor
-    ) -> np.ndarray:
-        """Inverse scale zero-shot predictions back to original units.
-
-        Args:
-            predictions: Scaled predictions array
-            preprocessor: The TimeSeriesPreprocessor used for scaling
-
-        Returns:
-            Predictions in original scale
-        """
-        from tsfm_public.toolkit.time_series_preprocessor import INTERNAL_ID_COLUMN
-
-        if not preprocessor.scaling:
-            info_print("Preprocessor scaling is disabled, returning predictions as-is")
-            return predictions
-
-        if len(preprocessor.target_scaler_dict) == 0:
-            info_print("No scalers in preprocessor, returning predictions as-is")
-            return predictions
-
-        # Get the target scaler - for global scaling, key is '__id'
-        scaler_key = INTERNAL_ID_COLUMN
-        if scaler_key not in preprocessor.target_scaler_dict:
-            # Try first available key
-            scaler_key = next(iter(preprocessor.target_scaler_dict.keys()))
-
-        scaler = preprocessor.target_scaler_dict[scaler_key]
-
-        # Handle different prediction shapes
-        original_shape = predictions.shape
-        info_print(
-            f"Inverse scaling zero-shot predictions with shape: {original_shape}"
-        )
-
-        # Reshape to 2D for sklearn scaler (samples, features)
-        if len(original_shape) == 1:
-            predictions_2d = predictions.reshape(-1, 1)
-            needs_squeeze = True
-        elif len(original_shape) == 2:
-            predictions_2d = predictions
-            needs_squeeze = False
-        elif len(original_shape) == 3:
-            # Shape: (samples, forecast_length, channels)
-            n_samples, forecast_len, n_channels = original_shape
-            predictions_2d = predictions.reshape(-1, n_channels)
-            needs_squeeze = False
-        else:
-            info_print(
-                f"Unexpected predictions shape: {original_shape}, returning as-is"
-            )
-            return predictions
-
-        # Inverse transform
-        try:
-            # Only inverse scale the target column(s)
-            n_target_cols = len(preprocessor.target_columns)
-            predictions_unscaled = predictions_2d.copy()
-            predictions_unscaled[:, :n_target_cols] = scaler.inverse_transform(
-                predictions_2d[:, :n_target_cols]
-            )
-
-            # Reshape back to original shape
-            if len(original_shape) == 3:
-                predictions_unscaled = predictions_unscaled.reshape(original_shape)
-            elif needs_squeeze:
-                predictions_unscaled = predictions_unscaled.squeeze()
-
-            info_print("Successfully inverse-scaled zero-shot predictions")
-            return predictions_unscaled
-
-        except Exception as e:
-            info_print(f"Warning: Failed to inverse scale predictions: {e}")
-            return predictions
+        forecast_df = pipeline(data)
+        target_col = self.column_specifiers["target_columns"][0]
+        return forecast_df[target_col].values
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.
@@ -1295,33 +994,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         #     )
 
         return callbacks
-
-    def _create_inference_trainer(self, batch_size: Optional[int] = None) -> Trainer:
-        """Create a Trainer instance configured for inference (predict/evaluate).
-
-        Args:
-            batch_size: Batch size for inference (defaults to config.batch_size)
-
-        Returns:
-            Configured Trainer instance for inference
-        """
-        import tempfile
-
-        batch_size_to_use = (
-            batch_size if batch_size is not None else self.config.batch_size
-        )
-        output_dir = getattr(self.config, "output_dir", tempfile.mkdtemp())
-
-        return Trainer(
-            model=self.model,
-            args=TrainingArguments(
-                output_dir=output_dir,
-                per_device_eval_batch_size=batch_size_to_use,
-                dataloader_num_workers=self.config.dataloader_num_workers,
-                report_to="none",
-                seed=42,  # For reproducibility
-            ),
-        )
 
     def _create_training_arguments(self, output_dir: str) -> TrainingArguments:
         """Create TrainingArguments for model training.

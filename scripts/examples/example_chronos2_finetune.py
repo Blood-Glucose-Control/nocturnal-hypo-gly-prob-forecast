@@ -80,10 +80,9 @@ def main():
     )
     parser.add_argument(
         "--covariates",
-        type=str,
-        nargs="+",
+        nargs="*",
         default=["iob"],
-        help="Covariate columns (e.g. --covariates iob cob)",
+        help="Covariate column names (e.g., iob cob). Default: iob",
     )
     args = parser.parse_args()
 
@@ -119,6 +118,8 @@ def main():
         fine_tune_steps=args.steps,
         fine_tune_lr=args.lr,
         time_limit=args.time_limit,
+        # Covariates — past-only context (not future-known, to avoid leakage).
+        # Brown 2019: ["iob"]. Aleppo/BrisT1D: ["iob", "cob"].
         covariate_cols=args.covariates,
         # Gap handling — applied inside model._prepare_training_data()
         imputation_threshold_mins=45,  # interpolate gaps up to 45 min

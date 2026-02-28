@@ -1,0 +1,36 @@
+# =============================================================================
+# TTM (TinyTimeMixer) - Base / Zero-Shot Configuration
+# =============================================================================
+# For zero-shot evaluation with no training.
+# The model uses pretrained weights directly.
+#
+# Usage:
+#   MODEL_CONFIG="configs/models/ttm/base.yaml" SKIP_TRAINING="true" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+model_path: "ibm-granite/granite-timeseries-ttm-r2"
+context_length: 512
+forecast_length: 96
+
+training_mode: "zero_shot"
+freeze_backbone: true
+num_epochs: 0
+batch_size: 4096
+
+input_features:
+  - cob
+  - carb_availability
+  - insulin_availability
+  - iob
+
+target_features:
+  - bg_mM
+
+scaler_type: "standard"
+resolution_min: 5
+
+num_input_channels: 5
+num_output_channels: 1
+
+fp16: true

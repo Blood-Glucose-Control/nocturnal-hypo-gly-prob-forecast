@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 Nocturnal Hypoglycemia Evaluation Script.
 
 Evaluates models on the midnight-anchored nocturnal forecasting task — a clinically
@@ -12,9 +12,62 @@ modes produce DIFFERENT RMSE numbers and must never be compared on the same lead
 
 Usage:
     python scripts/experiments/nocturnal_hypo_eval.py --model ttm --dataset brown_2019
-    python scripts/experiments/nocturnal_hypo_eval.py --model sundial --checkpoint path/to/checkpoint
-    python scripts/experiments/nocturnal_hypo_eval.py --model ttm --context-length 512 --forecast-length 72
-"""
+    # sundial zero-shot (no checkpoint):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model sundial \
+        --dataset tamborlane_2008 \
+        --config-dir configs/data/holdout_10pct \
+        --context-length 512 \
+        --forecast-length 96 \
+        --cuda-device 0
+
+    # timesfm ft-shot (no checkpoint):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model timesfm \
+        --dataset tamborlane_2008 \
+        --config-dir configs/data/holdout_10pct \
+        --context-length 512 \
+        --forecast-length 96 \
+        --cuda-device 1
+
+        --checkpoint trained_models/artifacts/timesfm/2026-02-27_05:37_RID20260227_053718_211403_holdout_workflow/resumed_training/model.pt \
+
+    # ttm zero-shot (no checkpoint):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model ttm \
+        --dataset tamborlane_2008 \
+        --config-dir configs/data/holdout_10pct \
+        --context-length 512 \
+        --forecast-length 96 \
+        --cuda-device 0
+
+        --checkpoint trained_models/artifacts/ttm/2026-02-27_03:53_RID20260227_035316_193673_holdout_workflow/model.pt \
+
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model ttm \
+        --context-length 512 \
+        --forecast-length 96
+
+    # TimeGrad — after first 10-epoch training run (aleppo_2017):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model timegrad \
+        --dataset aleppo_2017 \
+        --config-dir configs/data/holdout_10pct \
+        --model-config configs/models/timegrad/cgm_only.yaml \
+        --context-length 512 \
+        --forecast-length 48 \
+        --cuda-device 1
+
+    # TimeGrad — after second 10-epoch resumed training run (lynch_2022, epochs 11–20):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model timegrad \
+        --dataset aleppo_2017 \
+        --config-dir configs/data/holdout_10pct \
+        --model-config configs/models/timegrad/cgm_only.yaml \
+        --context-length 512 \
+        --forecast-length 96 \
+        --checkpoint trained_models/artifacts/timegrad/2026-02-24_01:12_RID20260224_011201_2800320_holdout_workflow/resumed_training/model.pt
+        """
 
 import argparse
 import json
@@ -24,15 +77,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Any, Dict, List
 
-import numpy as np
-import pandas as pd
-
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.data.utils import get_patient_column
-from src.evaluation.metrics import compute_regression_metrics
 from src.evaluation.nocturnal import evaluate_nocturnal_forecasting, plot_best_worst_episodes
 from src.models import create_model_and_config
-from src.models.base import BaseTimeSeriesFoundationModel
 from src.utils import get_git_commit_hash, setup_file_logging, load_yaml_config
 
 # Constants
@@ -44,15 +92,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-
-def compute_metrics(predictions: np.ndarray, targets: np.ndarray) -> Dict[str, float]:
-    """Compute evaluation metrics."""
-    return compute_regression_metrics(predictions, targets)
-
-
-# evaluate_nocturnal_forecasting and plot_best_worst_episodes are imported from
-# src.evaluation.nocturnal (shared with per_patient_finetune.py and other scripts).
 
 
 def setup_output_directory(
@@ -90,6 +129,7 @@ def save_experiment_config(
     cmd_parts.extend(["--config-dir", args.config_dir])
     cmd_parts.extend(["--context-length", str(args.context_length)])
     cmd_parts.extend(["--forecast-length", str(args.forecast_length)])
+    cmd_parts.extend(["--cuda-device", str(args.cuda_device)])
     if args.checkpoint:
         cmd_parts.extend(["--checkpoint", args.checkpoint])
     if args.model_config:
@@ -104,6 +144,7 @@ def save_experiment_config(
             "checkpoint": args.checkpoint,
             "context_length": args.context_length,
             "forecast_length": args.forecast_length,
+            "cuda_device": args.cuda_device,
             "model_config": args.model_config,
             "output_dir": args.output_dir,
         },
@@ -139,7 +180,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="ttm",
-        choices=["sundial", "ttm", "chronos2", "moirai"],
+        choices=["sundial", "ttm", "chronos2", "moirai", "timegrad", "timesfm", "tide"],
         help="Model type to use for evaluation",
     )
     parser.add_argument(
@@ -157,7 +198,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--config-dir",
         type=str,
-        default="configs/data/holdout_5pct",
+        default="configs/data/holdout_10pct",
         help="Holdout config directory",
     )
     parser.add_argument(
@@ -191,11 +232,22 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="Covariate column names (e.g., iob cob)",
     )
+    parser.add_argument(
+        "--cuda-device",
+        type=int,
+        default=1,
+        help="CUDA device ID to use (default: 1)",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_arguments()
+
+    # Set CUDA device to avoid DataParallel issues
+    import os
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.cuda_device)
 
     # Load config from file if provided
     config_dict = load_yaml_config(args.model_config) if args.model_config else {}
@@ -340,7 +392,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import os
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     main()
