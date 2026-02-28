@@ -65,7 +65,6 @@ from src.data.preprocessing.dataset_combiner import (
     combine_datasets_for_training,
     print_dataset_column_table,
 )
-from src.data.preprocessing.imputation import impute_missing_values
 from src.evaluation.episode_builders import build_midnight_episodes
 from src.models.base import DistributedConfig, GPUManager
 
@@ -1400,14 +1399,22 @@ def step3_load_training_data(
         in ["float64", "float32", "int64", "int32", "float16", "int16"]
     ]
 
-    # Impute missing values
-    logger.info("  Imputing missing values in numeric columns...")
-    for col in numeric_cols:
-        nan_before = combined_data[col].isna().sum()
-        if nan_before > 0:
-            combined_data = impute_missing_values(combined_data, columns=[col])
-            nan_after = combined_data[col].isna().sum()
-            logger.info(f"    • {col}: {nan_before:,} → {nan_after:,} NaN values")
+    # Impute missing values (sktime not available in all envs, e.g. chronos2)
+    try:
+        from src.data.preprocessing.imputation import impute_missing_values
+
+        logger.info("  Imputing missing values in numeric columns...")
+        for col in numeric_cols:
+            nan_before = combined_data[col].isna().sum()
+            if nan_before > 0:
+                combined_data = impute_missing_values(combined_data, columns=[col])
+                nan_after = combined_data[col].isna().sum()
+                logger.info(f"    • {col}: {nan_before:,} → {nan_after:,} NaN values")
+    except ImportError:
+        logger.warning(
+            "  sktime not installed — skipping imputation. "
+            "Model must handle NaN values internally."
+        )
 
     # Check for zero variance columns after imputation
     zero_variance_cols = []
