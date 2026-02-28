@@ -65,7 +65,6 @@ from src.data.preprocessing.dataset_combiner import (
     combine_datasets_for_training,
     print_dataset_column_table,
 )
-from src.data.preprocessing.imputation import impute_missing_values
 from src.evaluation.episode_builders import build_midnight_episodes
 from src.models.base import DistributedConfig, GPUManager
 
@@ -167,6 +166,7 @@ class ModelFactory:
         defaults = {
             "ttm": "ibm-granite/granite-timeseries-ttm-r2",
             "chronos": "amazon/chronos-t5-small",
+            "chronos2": "autogluon/chronos-2",
             "moment": "AutonLab/MOMENT-1-small",
             "timesfm": "google/timesfm-2.0-500m-pytorch",
             "timegrad": "",  # Trains from scratch, no pretrained path
@@ -206,6 +206,8 @@ class ModelFactory:
             return ModelFactory._create_ttm_model(config, distributed_config)
         elif model_type == "chronos":
             return ModelFactory._create_chronos_model(config, distributed_config)
+        elif model_type == "chronos2":
+            return ModelFactory._create_chronos2_model(config, distributed_config)
         elif model_type == "moment":
             return ModelFactory._create_moment_model(config, distributed_config)
         elif model_type == "timesfm":
@@ -215,7 +217,7 @@ class ModelFactory:
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, moment, timesfm, timegrad"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad"
             )
 
     @staticmethod
@@ -270,6 +272,37 @@ class ModelFactory:
         except ImportError as e:
             raise ImportError(
                 f"Chronos model not available. Install chronos dependencies: {e}"
+            )
+
+    @staticmethod
+    def _create_chronos2_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a Chronos-2 model instance."""
+        try:
+            from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
+
+            chronos2_config = Chronos2Config(
+                model_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                use_cpu=config.use_cpu,
+                fp16=config.fp16,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+
+            return Chronos2Forecaster(
+                chronos2_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"Chronos-2 model not available. Install with: "
+                f"pip install 'nocturnal-hypo-gly-prob-forecast[chronos2]': {e}"
             )
 
     @staticmethod
@@ -572,6 +605,10 @@ class ModelFactory:
                 **config.extra_config,
             )
             return ChronosForecaster.load(model_path, chronos_config)
+        elif model_type_lower == "chronos2":
+            from src.models.chronos2 import Chronos2Forecaster
+
+            return Chronos2Forecaster.load(model_path)
         elif model_type_lower == "moment":
             from src.models.moment import MomentForecaster, MomentConfig
 
@@ -619,7 +656,7 @@ class ModelFactory:
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, moment, timesfm, timegrad"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad"
             )
 
 
@@ -1362,14 +1399,22 @@ def step3_load_training_data(
         in ["float64", "float32", "int64", "int32", "float16", "int16"]
     ]
 
-    # Impute missing values
-    logger.info("  Imputing missing values in numeric columns...")
-    for col in numeric_cols:
-        nan_before = combined_data[col].isna().sum()
-        if nan_before > 0:
-            combined_data = impute_missing_values(combined_data, columns=[col])
-            nan_after = combined_data[col].isna().sum()
-            logger.info(f"    • {col}: {nan_before:,} → {nan_after:,} NaN values")
+    # Impute missing values (sktime not available in all envs, e.g. chronos2)
+    try:
+        from src.data.preprocessing.imputation import impute_missing_values
+
+        logger.info("  Imputing missing values in numeric columns...")
+        for col in numeric_cols:
+            nan_before = combined_data[col].isna().sum()
+            if nan_before > 0:
+                combined_data = impute_missing_values(combined_data, columns=[col])
+                nan_after = combined_data[col].isna().sum()
+                logger.info(f"    • {col}: {nan_before:,} → {nan_after:,} NaN values")
+    except ImportError:
+        logger.warning(
+            "  sktime not installed — skipping imputation. "
+            "Model must handle NaN values internally."
+        )
 
     # Check for zero variance columns after imputation
     zero_variance_cols = []
@@ -1816,7 +1861,7 @@ stored in separate subdirectories for comparison.
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "moment", "timesfm", "timegrad"],
+        choices=["ttm", "chronos", "chronos2", "moment", "timesfm", "timegrad"],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(
