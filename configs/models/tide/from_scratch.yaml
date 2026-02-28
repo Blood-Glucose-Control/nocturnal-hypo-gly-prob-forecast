@@ -1,0 +1,45 @@
+# =============================================================================
+# TiDE (Time-series Dense Encoder) - From-Scratch Training Configuration
+# =============================================================================
+#
+# Usage:
+#   python scripts/examples/example_tide_evaluate.py --model-dir <path>
+# =============================================================================
+
+model_type: "tide"
+training_mode: "from_scratch"
+context_length: 512
+forecast_length: 72
+
+# TiDE architecture
+encoder_hidden_dim: 256
+decoder_hidden_dim: 256
+temporal_hidden_dim: 256
+num_layers_encoder: 2
+num_layers_decoder: 2
+distr_hidden_dim: 8
+dropout: 0.1
+scaling: "mean"
+
+# Training
+lr: 9.31e-4
+num_batches_per_epoch: 300
+batch_size: 256
+gradient_clip_val: 1.0
+precision: "16-mixed"
+
+# Gap handling
+imputation_threshold_mins: 45
+
+# Covariates
+covariate_cols:
+  - iob
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+# AutoGluon
+eval_metric: "RMSE"
+enable_ensemble: false
+time_limit: 3600

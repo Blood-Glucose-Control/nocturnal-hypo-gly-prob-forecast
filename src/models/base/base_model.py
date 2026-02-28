@@ -929,6 +929,11 @@ def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
 
         config = ModelConfig.from_dict(config_dict)
         return ChronosForecaster(config)
+    elif model_type == "tide":
+        from src.models.tide import TiDEForecaster, TiDEConfig
+
+        config = TiDEConfig(**config_dict)
+        return TiDEForecaster(config)
     elif model_type == "tsmixer":
         from src.models.tsmixer import TSMixerForecaster, TSMixerConfig
 
