@@ -42,7 +42,7 @@ class TiDEConfig(ModelConfig):
     num_layers_decoder: int = 2
     distr_hidden_dim: int = 8
     dropout: float = 0.1
-    scaling: str = "mean" # MeanScaler prevents discontinuity
+    scaling: str = "mean"  # MeanScaler prevents discontinuity
 
     # Training
     lr: float = 0.000931

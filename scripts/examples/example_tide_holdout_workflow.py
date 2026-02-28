@@ -100,7 +100,9 @@ logging.getLogger("src.utils").setLevel(logging.WARNING)
 # =============================================================================
 
 
-def build_tide_config(args: argparse.Namespace, yaml_config: Optional[Dict]) -> TiDEConfig:
+def build_tide_config(
+    args: argparse.Namespace, yaml_config: Optional[Dict]
+) -> TiDEConfig:
     """Build TiDEConfig with priority: CLI arg > YAML value > TiDEConfig default.
 
     Uses create_default_tide_config() from src/models/tide/config.py which
@@ -165,17 +167,13 @@ def _evaluate_and_save(
 
     filtered_data = holdout_data.copy()
     if holdout_type == "temporal":
-        filtered_data = filtered_data[
-            ~filtered_data["p_num"].isin(patient_holdout_ids)
-        ]
+        filtered_data = filtered_data[~filtered_data["p_num"].isin(patient_holdout_ids)]
         logger.info(
             f"  Filtered to temporal holdout: {filtered_data.shape} "
             f"({filtered_data['p_num'].nunique()} patients)"
         )
     elif holdout_type == "patient":
-        filtered_data = filtered_data[
-            filtered_data["p_num"].isin(patient_holdout_ids)
-        ]
+        filtered_data = filtered_data[filtered_data["p_num"].isin(patient_holdout_ids)]
         logger.info(
             f"  Filtered to patient holdout: {filtered_data.shape} "
             f"({filtered_data['p_num'].nunique()} patients)"
@@ -217,9 +215,7 @@ def _evaluate_and_save(
         predictions_dir = Path(output_dir) / "predictions" / phase_name
         predictions_dir.mkdir(parents=True, exist_ok=True)
 
-        results_file = (
-            predictions_dir / f"{dataset_name}_{holdout_type}_nocturnal.json"
-        )
+        results_file = predictions_dir / f"{dataset_name}_{holdout_type}_nocturnal.json"
 
         save_data = {
             "phase": phase_name,
@@ -345,11 +341,19 @@ def _plot_example_episodes(
 
         # Hypo/hyper thresholds
         ax.axhline(
-            y=3.9, color="orange", linestyle="--", linewidth=1, alpha=0.5,
+            y=3.9,
+            color="orange",
+            linestyle="--",
+            linewidth=1,
+            alpha=0.5,
             label="Hypoglycemia (3.9 mM)",
         )
         ax.axhline(
-            y=10.0, color="red", linestyle="--", linewidth=1, alpha=0.5,
+            y=10.0,
+            color="red",
+            linestyle="--",
+            linewidth=1,
+            alpha=0.5,
             label="Hyperglycemia (10.0 mM)",
         )
 
@@ -368,16 +372,18 @@ def _plot_example_episodes(
         # RMSE annotation
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
         ax.text(
-            0.98, 0.02, f"RMSE: {ep_rmse:.3f} mM",
-            transform=ax.transAxes, fontsize=11,
-            verticalalignment="bottom", horizontalalignment="right",
+            0.98,
+            0.02,
+            f"RMSE: {ep_rmse:.3f} mM",
+            transform=ax.transAxes,
+            fontsize=11,
+            verticalalignment="bottom",
+            horizontalalignment="right",
             bbox=dict(boxstyle="round", facecolor="wheat", alpha=0.5),
         )
 
         suffix = f"_{tag}" if tag else ""
-        plot_path = (
-            forecast_dir / f"{phase_name}_{dataset_name}{suffix}_{i:02d}.png"
-        )
+        plot_path = forecast_dir / f"{phase_name}_{dataset_name}{suffix}_{i:02d}.png"
         plt.savefig(plot_path, dpi=200, bbox_inches="tight")
         plt.close()
 
@@ -396,8 +402,7 @@ def step1_generate_holdout_configs(
     output_dir: str | None = None,
     datasets: list | None = None,
 ) -> bool:
-    """Step 1: Check holdout configs exist and copy to artifacts directory.
-    """
+    """Step 1: Check holdout configs exist and copy to artifacts directory."""
     logger.info("=" * 80)
     logger.info("STEP 1: Generate Holdout Configurations")
     logger.info("=" * 80)
@@ -508,8 +513,7 @@ def step2_validate_holdout_configs(datasets: list, config_dir: str) -> bool:
 def step3_load_training_data(
     dataset_names: list, config_dir: str, output_dir: Optional[str] = None
 ) -> pd.DataFrame:
-    """Step 3: Load and combine training data from multiple datasets.
-    """
+    """Step 3: Load and combine training data from multiple datasets."""
     logger.info(" ")
     logger.info("=" * 80)
     logger.info("STEP 3: Load Training Data")
@@ -578,8 +582,12 @@ def step5_train_model(
 
     # TiDE config summary
     logger.info("TiDE config:")
-    logger.info(f"  Context: {config.context_length} ({config.context_length * 5 / 60:.1f}h)")
-    logger.info(f"  Forecast: {config.forecast_length} ({config.forecast_length * 5 / 60:.1f}h)")
+    logger.info(
+        f"  Context: {config.context_length} ({config.context_length * 5 / 60:.1f}h)"
+    )
+    logger.info(
+        f"  Forecast: {config.forecast_length} ({config.forecast_length * 5 / 60:.1f}h)"
+    )
     logger.info(f"  Hidden dim: {config.encoder_hidden_dim}")
     logger.info(f"  Scaling: {config.scaling}")
     logger.info(f"  LR: {config.lr}")
@@ -590,6 +598,7 @@ def step5_train_model(
     # GPU info
     try:
         import torch
+
         logger.info(f"  GPU available: {torch.cuda.is_available()}")
         if torch.cuda.is_available():
             logger.info(f"  GPU count: {torch.cuda.device_count()}")
@@ -645,8 +654,7 @@ def step6_load_checkpoint(
     holdout_type: str,
     output_dir: str,
 ) -> Optional[TiDEForecaster]:
-    """Step 6: Load model from checkpoint and verify it works.
-    """
+    """Step 6: Load model from checkpoint and verify it works."""
     logger.info(" ")
     logger.info("=" * 80)
     logger.info("STEP 6: Load Model from Checkpoint")
@@ -693,8 +701,7 @@ def step7_resume_training(
     holdout_type: str,
     output_dir: str,
 ) -> Tuple[TiDEForecaster, Dict, Path]:
-    """Step 7: Resume training on loaded model for additional time.
-    """
+    """Step 7: Resume training on loaded model for additional time."""
     logger.info(" ")
     logger.info("=" * 80)
     logger.info("STEP 7: Resume Training on Loaded Model")
@@ -1017,7 +1024,9 @@ Trains from scratch — no pretrained weights or zero-shot capability.
         logger.info("=" * 80)
         logger.info(f"Output directory: {args.output_dir}")
         logger.info("Generated artifacts:")
-        logger.info("  - run_config.json                        : Full run configuration")
+        logger.info(
+            "  - run_config.json                        : Full run configuration"
+        )
         if not args.skip_training:
             logger.info(
                 "  - predictions/1_after_training/           : Post-training nocturnal eval"
@@ -1028,9 +1037,7 @@ Trains from scratch — no pretrained weights or zero-shot capability.
             logger.info(
                 "  - predictions/3_after_resumed_training/   : Post-resume nocturnal eval"
             )
-            logger.info(
-                "  - model.pt/                               : Trained model"
-            )
+            logger.info("  - model.pt/                               : Trained model")
             logger.info(
                 "  - resumed_training/model.pt/              : Resumed training model"
             )
