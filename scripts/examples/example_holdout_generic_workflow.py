@@ -16,9 +16,13 @@ Workflow Steps:
   2. Validate holdout configs
   3. Load and combine training data from multiple datasets
   4. Zero-shot evaluation (pretrained model, no fine-tuning)
-  5. Fine-tune model for specified epochs
+  5. Train model for specified epochs
   6. Load model from checkpoint (verify save/load works)
   7. Resume training on loaded model
+
+Individual steps can be skipped via --skip-steps. Step 4 is auto-skipped for
+models that train from scratch (e.g., timegrad) since they have no pretrained
+weights for zero-shot inference.
 
 Usage:
     # Run with default settings (TTM model)
@@ -27,8 +31,14 @@ Usage:
     # Run with specific model type
     python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 aleppo_2017
 
-    # Skip training (only zero-shot evaluation)
+    # Skip specific steps (e.g., skip zero-shot and resume training)
+    python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 --skip-steps 4 7
+
+    # Skip all training steps (only zero-shot and data loading)
     python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 --skip-training
+
+    # TimeGrad (auto-skips zero-shot since it trains from scratch)
+    python scripts/examples/example_holdout_generic_workflow.py --model-type timegrad --datasets lynch_2022
 
     # Use shell wrapper for local execution:
     ./scripts/examples/run_holdout_generic_workflow.sh
@@ -56,6 +66,7 @@ from src.data.preprocessing.dataset_combiner import (
     print_dataset_column_table,
 )
 from src.data.preprocessing.imputation import impute_missing_values
+from src.evaluation.episode_builders import build_midnight_episodes
 from src.models.base import DistributedConfig, GPUManager
 
 logging.basicConfig(
@@ -157,9 +168,20 @@ class ModelFactory:
             "ttm": "ibm-granite/granite-timeseries-ttm-r2",
             "chronos": "amazon/chronos-t5-small",
             "moment": "AutonLab/MOMENT-1-small",
-            # Add more defaults as models are implemented
+            "timesfm": "google/timesfm-2.0-500m-pytorch",
+            "timegrad": "",  # Trains from scratch, no pretrained path
         }
         return defaults.get(model_type, "")
+
+    @staticmethod
+    def supports_zero_shot(model_type: str) -> bool:
+        """Return True if the model type supports zero-shot evaluation.
+
+        Models that always train from scratch (no concept of pretrained weights)
+        cannot perform zero-shot evaluation regardless of any config override.
+        """
+        from_scratch_only = {"timegrad"}
+        return model_type.lower() not in from_scratch_only
 
     @staticmethod
     def create_model(
@@ -186,10 +208,14 @@ class ModelFactory:
             return ModelFactory._create_chronos_model(config, distributed_config)
         elif model_type == "moment":
             return ModelFactory._create_moment_model(config, distributed_config)
+        elif model_type == "timesfm":
+            return ModelFactory._create_timesfm_model(config, distributed_config)
+        elif model_type == "timegrad":
+            return ModelFactory._create_timegrad_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, moment"
+                f"Supported types: ttm, chronos, moment, timesfm, timegrad"
             )
 
     @staticmethod
@@ -273,6 +299,65 @@ class ModelFactory:
         except ImportError as e:
             raise ImportError(
                 f"MOMENT model not available. Install moment dependencies: {e}"
+            )
+
+    @staticmethod
+    def _create_timesfm_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a TimesFM model instance."""
+        try:
+            from src.models.timesfm import TimesFMForecaster, TimesFMConfig
+
+            timesfm_config = TimesFMConfig(
+                checkpoint_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                horizon_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                use_cpu=config.use_cpu,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+
+            return TimesFMForecaster(
+                timesfm_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"TimesFM model not available. Install with: "
+                f"pip install transformers>=5.2.0: {e}"
+            )
+
+    @staticmethod
+    def _create_timegrad_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a TimeGrad model instance."""
+        try:
+            from src.models.timegrad import TimeGradForecaster, TimeGradConfig
+
+            timegrad_config = TimeGradConfig(
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                use_cpu=config.use_cpu,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+
+            return TimeGradForecaster(
+                timegrad_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"TimeGrad model not available. Install with: "
+                f"source scripts/setup_model_env.sh timegrad\n{e}"
             )
 
     @staticmethod
@@ -502,10 +587,39 @@ class ModelFactory:
                 **config.extra_config,
             )
             return MomentForecaster.load(model_path, moment_config)
+        elif model_type_lower == "timesfm":
+            from src.models.timesfm import TimesFMForecaster, TimesFMConfig
+
+            timesfm_config = TimesFMConfig(
+                checkpoint_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                horizon_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                use_cpu=config.use_cpu,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+            return TimesFMForecaster.load(model_path, timesfm_config)
+        elif model_type_lower == "timegrad":
+            from src.models.timegrad import TimeGradForecaster, TimeGradConfig
+
+            timegrad_config = TimeGradConfig(
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                use_cpu=config.use_cpu,
+                learning_rate=config.learning_rate,
+                **config.extra_config,
+            )
+            return TimeGradForecaster.load(model_path, timegrad_config)
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, moment"
+                f"Supported types: ttm, chronos, moment, timesfm, timegrad"
             )
 
 
@@ -549,8 +663,10 @@ def _generate_forecasts(
         # Determine which columns to use for the model
         # Priority: model_config_overrides > training_columns
         if model_config_overrides:
-            input_features = model_config_overrides.get("input_features", [])
-            target_features = model_config_overrides.get("target_features", [])
+            # `.get()` may return None if the key exists but is set to null in YAML,
+            # so coerce to empty list to avoid iteration errors.
+            input_features = model_config_overrides.get("input_features") or []
+            target_features = model_config_overrides.get("target_features") or []
             if input_features or target_features:
                 # Use explicit features from config + required columns
                 model_features = list(input_features) + list(target_features)
@@ -603,30 +719,71 @@ def _generate_forecasts(
                 forecast_cols = [
                     col for col in training_columns if col in patient_data.columns
                 ]
-            # Slice to get context + forecast length
-            total_length = context_length + forecast_length
-            forecast_data = patient_data.iloc[:total_length][forecast_cols].copy()
+            # Build a midnight-anchored episode for clean evaluation.
+            # The episode builder reindexes to a regular 5-min grid,
+            # interpolates small BG gaps (<=55 min), and skips windows
+            # where BG gaps are too large to interpolate.
+            glucose_col = "bg_mM"
+            patient_ts = patient_data.copy()
+            patient_ts["datetime"] = pd.to_datetime(patient_ts["datetime"])
+            patient_ts = patient_ts.set_index("datetime").sort_index()
 
-            logger.info(f"  Forecast data shape: {forecast_data.shape}")
+            episodes, ep_stats = build_midnight_episodes(
+                patient_ts,
+                context_length=context_length,
+                forecast_length=forecast_length,
+                target_col=glucose_col,
+            )
 
-            # Keep necessary columns for preprocessing (p_num, datetime)
-            # Only remove source_dataset if present
+            if not episodes:
+                logger.warning(
+                    f"  No valid midnight episodes for patient {first_patient} "
+                    f"in {dataset_name} (checked {ep_stats['total_anchors']} "
+                    f"anchors, {ep_stats['skipped_bg_nan']} had BG gaps). Skipping."
+                )
+                continue
+
+            episode = episodes[0]
+            logger.info(
+                f"  Using midnight episode anchored at {episode['anchor']} "
+                f"({len(episodes)} valid, {ep_stats['skipped_bg_nan']} skipped)"
+            )
+
+            historical_glucose = episode["context_df"][glucose_col].values
+            actual_glucose = episode["target_bg"]
+
+            # Reconstruct context DataFrame with columns the model expects.
+            # Start from episode's context_df (regular grid, BG interpolated),
+            # then add back patient ID and merge additional features.
+            context_data = episode["context_df"].reset_index()
+            context_data.rename(
+                columns={context_data.columns[0]: "datetime"}, inplace=True
+            )
+            context_data[patient_col] = first_patient
+
+            # Merge additional model features from original data
+            for col in forecast_cols:
+                if col not in context_data.columns and col in patient_ts.columns:
+                    context_data[col] = context_data["datetime"].map(patient_ts[col])
+
             exclude_cols = ["source_dataset"]
-            forecast_cols_for_model = [
-                col for col in forecast_data.columns if col not in exclude_cols
+            context_cols = [
+                col for col in context_data.columns if col not in exclude_cols
             ]
-            forecast_data_for_model = forecast_data[forecast_cols_for_model].copy()
+            context_data = context_data[context_cols]
 
-            # Generate predictions
+            logger.info(f"  Context data shape: {context_data.shape}")
+
+            # Generate predictions — model only sees context, predicts forward
             if zero_shot:
-                predictions_raw = model.predict_zero_shot(forecast_data_for_model)
+                predictions_raw = model.predict_zero_shot(context_data)
             else:
-                predictions_raw = model.predict(forecast_data_for_model)
+                predictions_raw = model.predict(context_data)
 
-            # TTM returns predictions in shape (samples, forecast_length, num_channels)
-            # For univariate glucose prediction, we need channel 0
             logger.info(f"    Raw predictions shape: {predictions_raw.shape}")
 
+            # Normalize output shape: models may return 3D (windows, steps, channels),
+            # 2D (steps, channels), or 1D (steps). Extract 1D forecast.
             if len(predictions_raw.shape) == 3:
                 predictions = predictions_raw[0, :, 0]
             elif len(predictions_raw.shape) == 2:
@@ -636,19 +793,10 @@ def _generate_forecasts(
 
             logger.info(f"    Extracted glucose predictions shape: {predictions.shape}")
 
-            # Extract glucose values
-            glucose_col = "bg_mM"
-            historical_glucose = forecast_data[glucose_col].values[:context_length]
-            actual_glucose = forecast_data[glucose_col].values[context_length:]
-
-            # Extract datetime values for the forecast period
-            datetime_col = "datetime"
-            if datetime_col in forecast_data.columns:
-                forecast_datetimes = forecast_data[datetime_col].values[
-                    context_length : context_length + forecast_length
-                ]
-            else:
-                forecast_datetimes = None
+            # Extract datetime values for the forecast period from episode anchor
+            forecast_datetimes = pd.date_range(
+                episode["anchor"], periods=forecast_length, freq="5min"
+            ).values
 
             # Store results
             forecast_results[dataset_name] = {
@@ -1063,7 +1211,7 @@ def step2_validate_holdout_configs(datasets: list, config_dir: str) -> bool:
         logger.info(f"✓ Config loaded: {config.holdout_type.value}")
         if config.temporal_config:
             logger.info(
-                f"  Temporal holdout: {config.temporal_config.holdout_percentage*100}%"
+                f"  Temporal holdout: {config.temporal_config.holdout_percentage * 100}%"
             )
         if config.patient_config:
             logger.info(
@@ -1257,7 +1405,7 @@ def step4_zero_shot_evaluation(
     output_dir: str,
     batch_size: int = 2048,
     model_config_overrides: Optional[Dict[str, Any]] = None,
-) -> None:
+) -> Any:
     """Step 4: Zero-shot evaluation using pretrained model (no fine-tuning).
 
     This demonstrates the model's pretrained capabilities on glucose forecasting
@@ -1265,7 +1413,7 @@ def step4_zero_shot_evaluation(
     with freeze_backbone=True and num_epochs=0.
 
     Args:
-        model_type: Type of model to use (ttm, chronos, moment)
+        model_type: Type of model to use (ttm, chronos, moment, timesfm)
         dataset_names: List of dataset names
         training_columns: Column names from training data
         config_dir: Holdout config directory
@@ -1273,8 +1421,9 @@ def step4_zero_shot_evaluation(
         batch_size: Batch size for inference
         model_config_overrides: Optional dict of model-specific config from YAML
 
-    Note: This step creates a temporary model just for zero-shot evaluation.
-    Step 5 will create a fresh model for fine-tuning.
+    Returns:
+        The loaded zero-shot model instance. With --skip-training, this model
+        is reused for step 8 evaluation. Otherwise, it is freed before step 5.
     """
     logger.info(" ")
     logger.info("=" * 80)
@@ -1327,7 +1476,8 @@ def step4_zero_shot_evaluation(
     )
 
     logger.info("✓ Zero-shot evaluation completed")
-    # Note: We don't return the model - step5 will create a fresh one for training
+
+    return model
 
 
 def step5_train_model(
@@ -1405,8 +1555,9 @@ def step5_train_model(
     # This ensures the preprocessor only learns scalers for the features we'll use at inference
     train_data_for_model = combined_data
     if model_config_overrides:
-        input_features = model_config_overrides.get("input_features", [])
-        target_features = model_config_overrides.get("target_features", [])
+        # Guard against YAML null values converting to None
+        input_features = model_config_overrides.get("input_features") or []
+        target_features = model_config_overrides.get("target_features") or []
         if input_features or target_features:
             required_cols = ["p_num", "id", "datetime"]
             model_cols = list(input_features) + list(target_features)
@@ -1431,7 +1582,7 @@ def step5_train_model(
         model_path.parent.mkdir(parents=True, exist_ok=True)
         model.save(str(model_path))
         logger.info(f"✓ Model saved to: {model_path}")
-        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024 * 1024):.2f} MB")
 
         # Evaluate and plot after training
         _evaluate_and_plot(
@@ -1491,7 +1642,7 @@ def step6_load_checkpoint(
         return None
     else:
         logger.info(f"✓ Model file found: {model_path}")
-        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024 * 1024):.2f} MB")
 
     try:
         # Load using the class method
@@ -1577,15 +1728,16 @@ def step7_resume_training(
     resumed_output_dir = Path(output_dir) / "resumed_training"
     resumed_output_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n>>> Resuming training on combined datasets: {', '.join(dataset_names)}")
+    print(f">>> Resuming training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {resumed_output_dir}")
     print(f">>> Training with {num_epochs} additional epoch(s)...\n")
 
     # Filter training data to same columns used in initial training
     train_data_for_model = combined_data
     if model_config_overrides:
-        input_features = model_config_overrides.get("input_features", [])
-        target_features = model_config_overrides.get("target_features", [])
+        # Guard against YAML null values converting to None
+        input_features = model_config_overrides.get("input_features") or []
+        target_features = model_config_overrides.get("target_features") or []
         if input_features or target_features:
             required_cols = ["p_num", "id", "datetime"]
             model_cols = list(input_features) + list(target_features)
@@ -1609,7 +1761,7 @@ def step7_resume_training(
         model_path = resumed_output_dir / "model.pt"
         model.save(str(model_path))
         logger.info(f"✓ Resumed model saved to: {model_path}")
-        logger.info(f"  Size: {model_path.stat().st_size / (1024*1024):.2f} MB")
+        logger.info(f"  Size: {model_path.stat().st_size / (1024 * 1024):.2f} MB")
 
         # Evaluate and plot after resumed training
         _evaluate_and_plot(
@@ -1643,7 +1795,7 @@ Workflow Steps:
   2. Validate holdout configs
   3. Load and combine training data
   4. Zero-shot evaluation (pretrained model, no fine-tuning)
-  5. Fine-tune model for specified epochs
+  5. Train model for specified epochs
   6. Load model from checkpoint (verify save/load works)
   7. Resume training on loaded model
 
@@ -1651,6 +1803,10 @@ Supported Model Types:
   - ttm: IBM Granite TTM (TinyTimeMixer)
   - chronos: Amazon Chronos
   - moment: AutonLab MOMENT
+  - timesfm: Google TimesFM 2.0 (500M)
+  - timegrad: TimeGrad (GRU + diffusion, trains from scratch)
+
+Step 4 is auto-skipped for from-scratch models like timegrad.
 
 Each evaluation phase (4, 5, 6, 7) generates predictions and plots
 stored in separate subdirectories for comparison.
@@ -1660,7 +1816,7 @@ stored in separate subdirectories for comparison.
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "moment"],
+        choices=["ttm", "chronos", "moment", "timesfm", "timegrad"],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(
@@ -1673,7 +1829,7 @@ stored in separate subdirectories for comparison.
     parser.add_argument(
         "--config-dir",
         type=str,
-        default="configs/data/holdout_5pct",
+        default="configs/data/holdout_10pct",
         help="Holdout config directory",
     )
     parser.add_argument(
@@ -1682,7 +1838,14 @@ stored in separate subdirectories for comparison.
     parser.add_argument(
         "--skip-training",
         action="store_true",
-        help="Skip training steps (only run zero-shot and load existing model)",
+        help="Skip training steps 5-7 (equivalent to --skip-steps 5 6 7)",
+    )
+    parser.add_argument(
+        "--skip-steps",
+        type=int,
+        nargs="+",
+        default=[],
+        help="Step numbers to skip (e.g., --skip-steps 4 7 to skip zero-shot and resume)",
     )
     parser.add_argument(
         "--epochs",
@@ -1710,13 +1873,42 @@ stored in separate subdirectories for comparison.
     if args.model_config:
         model_config_overrides = load_model_config_from_yaml(args.model_config)
 
+    # Build the set of steps to skip
+    skip_steps: set[int] = set(args.skip_steps)
+    if args.skip_training:
+        skip_steps.update({5, 6, 7})
+    # Auto-skip zero-shot for models that cannot perform zero-shot evaluation.
+    # Two cases require skipping:
+    #   1. The model type inherently trains from scratch (e.g. timegrad) and has
+    #      no pretrained weights, regardless of any YAML override.
+    #   2. A YAML config explicitly sets training_mode=from_scratch for a model
+    #      type that normally has pretrained weights (e.g. TTM configured to train
+    #      from scratch). get_default_model_path() would return a non-empty string
+    #      for such models and would incorrectly allow step 4 to run.
+    resolved_training_mode = (model_config_overrides or {}).get(
+        "training_mode", "fine_tune"
+    )
+    no_zero_shot = (
+        not ModelFactory.supports_zero_shot(args.model_type)
+        or resolved_training_mode == "from_scratch"
+    )
+    if no_zero_shot:
+        if 4 not in skip_steps:
+            reason = (
+                f"{args.model_type} trains from scratch and has no pretrained weights"
+                if not ModelFactory.supports_zero_shot(args.model_type)
+                else f"{args.model_type} is configured with training_mode=from_scratch"
+            )
+            logger.info(f"Auto-skipping step 4 (zero-shot): {reason}")
+            skip_steps.add(4)
+
     # Set output directory
     if args.output_dir is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
         args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_{args.model_type}_holdout_workflow"
 
     logger.info("=" * 80)
-    logger.info("🚀 GENERIC FORECASTER WORKFLOW DEMONSTRATION")
+    logger.info("GENERIC FORECASTER WORKFLOW DEMONSTRATION")
     logger.info("Start of: example_holdout_generic_workflow.py")
     logger.info("=" * 80)
     logger.info(f"Model type: {args.model_type.upper()}")
@@ -1725,7 +1917,7 @@ stored in separate subdirectories for comparison.
     logger.info(f"Output dir: {args.output_dir}")
     logger.info(f"Model config: {args.model_config or 'None (using defaults)'}")
     logger.info(f"Epochs per phase: {args.epochs}")
-    logger.info(f"Skip training: {args.skip_training}")
+    logger.info(f"Skip steps: {sorted(skip_steps) if skip_steps else 'none'}")
     logger.info("=" * 80)
 
     # Copy model config to output directory for reproducibility
@@ -1739,78 +1931,78 @@ stored in separate subdirectories for comparison.
         # =====================================================================
         # STEP 1: Check/generate holdout configs
         # =====================================================================
-        if not step1_generate_holdout_configs(
-            args.config_dir, args.output_dir, args.datasets
-        ):
-            logger.error("Please generate holdout configs first")
-            return
+        if 1 not in skip_steps:
+            if not step1_generate_holdout_configs(
+                args.config_dir, args.output_dir, args.datasets
+            ):
+                logger.error("Please generate holdout configs first")
+                return
+        else:
+            logger.info("Skipping step 1 (holdout config check)")
 
         # =====================================================================
         # STEP 2: Validate configuration for all datasets
         # =====================================================================
-        if not step2_validate_holdout_configs(args.datasets, args.config_dir):
-            logger.error("Configuration validation failed")
-            return
+        if 2 not in skip_steps:
+            if not step2_validate_holdout_configs(args.datasets, args.config_dir):
+                logger.error("Configuration validation failed")
+                return
+        else:
+            logger.info("Skipping step 2 (config validation)")
 
         # =====================================================================
         # STEP 3: Load and combine training data
         # =====================================================================
-        combined_train_data = step3_load_training_data(
-            args.datasets, args.config_dir, args.output_dir
-        )
-        training_columns = list(combined_train_data.columns)
+        if 3 not in skip_steps:
+            combined_train_data = step3_load_training_data(
+                args.datasets, args.config_dir, args.output_dir
+            )
+            training_columns = list(combined_train_data.columns)
+        else:
+            logger.info("Skipping step 3 (load training data)")
+            combined_train_data = None
+            training_columns = []
 
         # =====================================================================
         # STEP 4: Zero-shot evaluation (pretrained model, no fine-tuning)
         # =====================================================================
-        step4_zero_shot_evaluation(
-            model_type=args.model_type,
-            dataset_names=args.datasets,
-            training_columns=training_columns,
-            config_dir=args.config_dir,
-            output_dir=args.output_dir,
-            batch_size=args.batch_size,
-            model_config_overrides=model_config_overrides,
-        )
-
-        if args.skip_training:
-            logger.info(" ")
-            logger.info("=" * 80)
-            logger.info("⏭️  SKIPPING TRAINING STEPS (--skip-training flag set)")
-            logger.info("=" * 80)
-
-            # Try to load existing model for evaluation
-            model_path = Path(args.output_dir) / "model.pt"
-            if model_path.exists():
-                logger.info(f"Loading existing model from: {model_path}")
-
-                # Create a config for loading
-                config = ModelFactory.create_finetune_config(
-                    model_type=args.model_type,
-                    context_length=512,
-                    forecast_length=96,
-                )
-
-                model = step6_load_checkpoint(
-                    model_type=args.model_type,
-                    model_path=model_path,
-                    config=config,
-                    training_columns=training_columns,
-                    dataset_names=args.datasets,
-                    config_dir=args.config_dir,
-                    output_dir=args.output_dir,
-                    model_config_overrides=model_config_overrides,
-                )
-                if model is None:
-                    logger.error("Failed to load existing model")
-                    return
-            else:
-                logger.info("No existing model found, skipping evaluation steps")
-                return
+        if 4 not in skip_steps:
+            zero_shot_model = step4_zero_shot_evaluation(
+                model_type=args.model_type,
+                dataset_names=args.datasets,
+                training_columns=training_columns,
+                config_dir=args.config_dir,
+                output_dir=args.output_dir,
+                batch_size=args.batch_size,
+                model_config_overrides=model_config_overrides,
+            )
         else:
-            # =====================================================================
-            # STEP 5: Fine-tune model for one epoch
-            # =====================================================================
+            zero_shot_model = None
+            logger.info("Skipping step 4 (zero-shot evaluation)")
+
+        # =====================================================================
+        # STEP 5: Train model
+        # =====================================================================
+        model = None
+        config = None
+        model_path = None
+
+        if 5 not in skip_steps:
+            # Free zero-shot model GPU memory before step 5 creates a new model
+            if zero_shot_model is not None:
+                del zero_shot_model
+                try:
+                    import torch
+
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        logger.info("GPU memory cleared after zero-shot evaluation")
+                except Exception:
+                    pass
+
+            if combined_train_data is None:
+                logger.error("Step 5 requires training data (step 3)")
+                return
             model, config, train_results, model_path = step5_train_model(
                 model_type=args.model_type,
                 combined_data=combined_train_data,
@@ -1822,66 +2014,98 @@ stored in separate subdirectories for comparison.
                 batch_size=args.batch_size,
                 model_config_overrides=model_config_overrides,
             )
+        else:
+            logger.info("Skipping step 5 (training)")
 
-            # =====================================================================
-            # STEP 6: Load model from checkpoint (verify save/load works)
-            # =====================================================================
-            model = step6_load_checkpoint(
-                model_type=args.model_type,
-                model_path=model_path,
-                config=config,
-                training_columns=training_columns,
-                dataset_names=args.datasets,
-                config_dir=args.config_dir,
-                output_dir=args.output_dir,
-                model_config_overrides=model_config_overrides,
-            )
-            if model is None:
-                logger.error("Failed to load model from checkpoint")
-                return
+        # =====================================================================
+        # STEP 6: Load model from checkpoint (verify save/load works)
+        # =====================================================================
+        if 6 not in skip_steps:
+            # If step 5 was skipped, try loading from default path
+            if model_path is None:
+                model_path = Path(args.output_dir) / "model.pt"
+            if config is None:
+                config = ModelFactory.create_finetune_config(
+                    model_type=args.model_type,
+                    extra_config=model_config_overrides,
+                )
 
-            # =====================================================================
-            # STEP 7: Resume training on loaded model
-            # =====================================================================
-            model, resume_results, resumed_model_path = step7_resume_training(
-                model=model,
-                combined_data=combined_train_data,
-                dataset_names=args.datasets,
-                training_columns=training_columns,
-                config_dir=args.config_dir,
-                output_dir=args.output_dir,
-                num_epochs=args.epochs,
-                model_config_overrides=model_config_overrides,
-            )
+            if not Path(model_path).exists():
+                logger.warning(
+                    f"No model checkpoint found at {model_path}, skipping step 6"
+                )
+            else:
+                model = step6_load_checkpoint(
+                    model_type=args.model_type,
+                    model_path=model_path,
+                    config=config,
+                    training_columns=training_columns,
+                    dataset_names=args.datasets,
+                    config_dir=args.config_dir,
+                    output_dir=args.output_dir,
+                    model_config_overrides=model_config_overrides,
+                )
+                if model is None:
+                    logger.error("Failed to load model from checkpoint")
+                    return
+        else:
+            logger.info("Skipping step 6 (load checkpoint)")
+
+        # =====================================================================
+        # STEP 7: Resume training on loaded model
+        # =====================================================================
+        if 7 not in skip_steps:
+            if model is None or combined_train_data is None:
+                logger.warning(
+                    "Step 7 requires a loaded model (step 6) and training data "
+                    "(step 3), skipping"
+                )
+            else:
+                model, resume_results, resumed_model_path = step7_resume_training(
+                    model=model,
+                    combined_data=combined_train_data,
+                    dataset_names=args.datasets,
+                    training_columns=training_columns,
+                    config_dir=args.config_dir,
+                    output_dir=args.output_dir,
+                    num_epochs=args.epochs,
+                    model_config_overrides=model_config_overrides,
+                )
+        else:
+            logger.info("Skipping step 7 (resume training)")
 
         # =====================================================================
         # WORKFLOW COMPLETE
         # =====================================================================
-        logger.info("\n" + "=" * 80)
-        logger.info("✅ WORKFLOW COMPLETED SUCCESSFULLY!")
+        logger.info("=" * 80)
+        logger.info("WORKFLOW COMPLETED SUCCESSFULLY")
         logger.info("=" * 80)
         logger.info(f"Model type: {args.model_type.upper()}")
         logger.info(f"Output directory: {args.output_dir}")
+        logger.info(f"Steps skipped: {sorted(skip_steps) if skip_steps else 'none'}")
         logger.info("Generated artifacts:")
-        logger.info("  - predictions/0_zero_shot/       : Zero-shot predictions")
-        if not args.skip_training:
+        if 4 not in skip_steps:
+            logger.info("  - predictions/0_zero_shot/       : Zero-shot predictions")
+        if 5 not in skip_steps:
             logger.info(
                 "  - predictions/1_after_training/  : Post-training predictions"
             )
+            logger.info("  - model.pt                       : Trained model")
+        if 6 not in skip_steps:
             logger.info("  - predictions/2_after_loading/   : Post-load predictions")
+        if 7 not in skip_steps:
             logger.info(
                 "  - predictions/3_after_resumed_training/ : Post-resume predictions"
             )
-            logger.info("  - model.pt                       : Initial trained model")
             logger.info("  - resumed_training/model.pt      : Resumed training model")
         logger.info("  - forecasts/*/                   : Forecast plots per phase")
         logger.info("=" * 80)
         logger.info("End of: example_holdout_generic_workflow.py")
 
     except KeyboardInterrupt:
-        logger.info("\n\n🛑 Workflow interrupted by user")
+        logger.info("\n\nWorkflow interrupted by user")
     except Exception as e:
-        logger.error(f"\n\n❌ Workflow failed: {e}")
+        logger.error(f"\n\nWorkflow failed: {e}")
         traceback.print_exc()
 
 

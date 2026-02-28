@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 Nocturnal Hypoglycemia Evaluation Script.
 
 Evaluates models on the midnight-anchored nocturnal forecasting task — a clinically
@@ -12,9 +12,62 @@ modes produce DIFFERENT RMSE numbers and must never be compared on the same lead
 
 Usage:
     python scripts/experiments/nocturnal_hypo_eval.py --model ttm --dataset brown_2019
-    python scripts/experiments/nocturnal_hypo_eval.py --model sundial --checkpoint path/to/checkpoint
-    python scripts/experiments/nocturnal_hypo_eval.py --model ttm --context-length 512 --forecast-length 72
-"""
+    # sundial zero-shot (no checkpoint):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model sundial \
+        --dataset tamborlane_2008 \
+        --config-dir configs/data/holdout_10pct \
+        --context-length 512 \
+        --forecast-length 96 \
+        --cuda-device 0
+
+    # timesfm ft-shot (no checkpoint):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model timesfm \
+        --dataset tamborlane_2008 \
+        --config-dir configs/data/holdout_10pct \
+        --context-length 512 \
+        --forecast-length 96 \
+        --cuda-device 1
+
+        --checkpoint trained_models/artifacts/timesfm/2026-02-27_05:37_RID20260227_053718_211403_holdout_workflow/resumed_training/model.pt \
+
+    # ttm zero-shot (no checkpoint):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model ttm \
+        --dataset tamborlane_2008 \
+        --config-dir configs/data/holdout_10pct \
+        --context-length 512 \
+        --forecast-length 96 \
+        --cuda-device 0
+
+        --checkpoint trained_models/artifacts/ttm/2026-02-27_03:53_RID20260227_035316_193673_holdout_workflow/model.pt \
+
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model ttm \
+        --context-length 512 \
+        --forecast-length 96
+
+    # TimeGrad — after first 10-epoch training run (aleppo_2017):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model timegrad \
+        --dataset aleppo_2017 \
+        --config-dir configs/data/holdout_10pct \
+        --model-config configs/models/timegrad/cgm_only.yaml \
+        --context-length 512 \
+        --forecast-length 48 \
+        --cuda-device 1
+
+    # TimeGrad — after second 10-epoch resumed training run (lynch_2022, epochs 11–20):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model timegrad \
+        --dataset aleppo_2017 \
+        --config-dir configs/data/holdout_10pct \
+        --model-config configs/models/timegrad/cgm_only.yaml \
+        --context-length 512 \
+        --forecast-length 96 \
+        --checkpoint trained_models/artifacts/timegrad/2026-02-24_01:12_RID20260224_011201_2800320_holdout_workflow/resumed_training/model.pt
+        """
 
 import argparse
 import json
@@ -27,6 +80,7 @@ from typing import Optional, Any, Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.data.utils import get_patient_column
@@ -131,6 +185,11 @@ def evaluate_nocturnal_forecasting(
             ctx = ep["context_df"].copy()
             # Convert DatetimeIndex to column for models that expect it (e.g., TTM)
             ctx = ctx.reset_index(names="datetime")
+            # Ensure patient identifier column is present for models like TTM
+            # which expect 'p_num' as an ID column.  If the original dataset
+            # used a different patient column (e.g. 'id'), the value is still
+            # available via patient_id so we always add 'p_num' here.
+            ctx["p_num"] = patient_id
             ctx["episode_id"] = ep_id
             # Add group column for panel data batching (required by some models)
             ctx["group"] = ep_id
@@ -147,6 +206,9 @@ def evaluate_nocturnal_forecasting(
                     cov_col: cov_vals
                     for cov_col, cov_vals in ep["future_covariates"].items()
                 }
+                # Future covariates should also carry the patient id so that
+                # any model preprocessing that groups by id works correctly.
+                future_data["p_num"] = patient_id
                 future_data["episode_id"] = ep_id
                 future_data["datetime"] = future_ts
                 future_data["group"] = ep_id
@@ -183,7 +245,18 @@ def evaluate_nocturnal_forecasting(
     all_episode_results = []
     patient_episodes = {}
 
-    for ctx_df, meta in zip(context_dfs, episode_metadata):
+    for ctx_df, meta in tqdm(
+        zip(context_dfs, episode_metadata),
+        total=len(episode_metadata),
+        desc="Evaluating episodes",
+        unit="ep",
+    ):
+        target = meta["target_bg"]
+
+        # Skip episodes that don't have the full forecast horizon
+        if len(target) < forecast_length:
+            continue
+
         # Predict using unified interface
         pred = model.predict(ctx_df)
 
@@ -302,6 +375,7 @@ def save_experiment_config(
     cmd_parts.extend(["--config-dir", args.config_dir])
     cmd_parts.extend(["--context-length", str(args.context_length)])
     cmd_parts.extend(["--forecast-length", str(args.forecast_length)])
+    cmd_parts.extend(["--cuda-device", str(args.cuda_device)])
     if args.checkpoint:
         cmd_parts.extend(["--checkpoint", args.checkpoint])
     if args.model_config:
@@ -316,6 +390,7 @@ def save_experiment_config(
             "checkpoint": args.checkpoint,
             "context_length": args.context_length,
             "forecast_length": args.forecast_length,
+            "cuda_device": args.cuda_device,
             "model_config": args.model_config,
             "output_dir": args.output_dir,
         },
@@ -494,7 +569,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="ttm",
-        choices=["sundial", "ttm", "chronos", "moirai"],
+        choices=["sundial", "ttm", "chronos2", "moirai", "timegrad", "timesfm", "tide"],
         help="Model type to use for evaluation",
     )
     parser.add_argument(
@@ -512,7 +587,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--config-dir",
         type=str,
-        default="configs/data/holdout_5pct",
+        default="configs/data/holdout_10pct",
         help="Holdout config directory",
     )
     parser.add_argument(
@@ -546,11 +621,22 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="Covariate column names (e.g., iob cob)",
     )
+    parser.add_argument(
+        "--cuda-device",
+        type=int,
+        default=1,
+        help="CUDA device ID to use (default: 1)",
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_arguments()
+
+    # Set CUDA device to avoid DataParallel issues
+    import os
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.cuda_device)
 
     # Load config from file if provided
     config_dict = load_yaml_config(args.model_config) if args.model_config else {}
@@ -690,7 +776,4 @@ def main():
 
 
 if __name__ == "__main__":
-    import os
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     main()

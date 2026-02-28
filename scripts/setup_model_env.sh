@@ -9,21 +9,28 @@
 #   source scripts/setup_model_env.sh sundial
 #
 # Available models (defined as optional deps in pyproject.toml):
-#   ttm, sundial
+#   ttm, sundial, timesfm
 
 MODEL="${1:?Usage: source scripts/setup_model_env.sh <model>}"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Error: Must be run from within a git repository"; return 1 2>/dev/null || exit 1; }
 VENVS_DIR="${REPO_ROOT}/.venvs"
 VENV_PATH="${VENVS_DIR}/${MODEL}"
 
-# Find Python 3.12 (required for package compatibility)
-if command -v python3.12 &>/dev/null; then
-    PYTHON_CMD="python3.12"
-elif [ -x "${REPO_ROOT}/.noctprob-venv/bin/python" ]; then
+# Model-specific Python version overrides
+# Most models use 3.12; some need older versions for dependency compatibility.
+case "${MODEL}" in
+    timegrad) PYTHON_VERSION="3.11" ;;  # pytorchts requires pandas<2.0 (no 3.12 wheel)
+    *)        PYTHON_VERSION="3.12" ;;
+esac
+
+# Find the required Python version
+if command -v "python${PYTHON_VERSION}" &>/dev/null; then
+    PYTHON_CMD="python${PYTHON_VERSION}"
+elif [ "${PYTHON_VERSION}" = "3.12" ] && [ -x "${REPO_ROOT}/.noctprob-venv/bin/python" ]; then
     PYTHON_CMD="${REPO_ROOT}/.noctprob-venv/bin/python"
 else
-    echo "Error: Python 3.12 not found."
-    echo "Install python3.12 or ensure .noctprob-venv exists with Python 3.12"
+    echo "Error: Python ${PYTHON_VERSION} not found (required for ${MODEL})."
+    echo "Install python${PYTHON_VERSION} or use: brew install python@${PYTHON_VERSION}"
     return 1 2>/dev/null || exit 1
 fi
 
