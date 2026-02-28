@@ -196,52 +196,41 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         self,
         data: pd.DataFrame,
         **kwargs,
-    ) -> pd.DataFrame:
-        """Make predictions on panel DataFrame with episode_id.
+    ) -> np.ndarray:
+        """Make predictions using the fitted AutoGluon predictor.
 
-        Accepts a panel DataFrame (multiple episodes stacked, identified by
-        episode_id column) and returns predictions in the same format.
-        Converts episode_id -> item_id for AutoGluon internally.
+        Accepts either:
+        - A panel DataFrame with 'episode_id' column (multiple episodes)
+        - A plain context DataFrame (single context window from the workflow)
+
+        If no 'episode_id' column is present, the entire DataFrame is treated
+        as a single episode (synthetic episode_id assigned automatically).
 
         Args:
-            data: Panel DataFrame with episode_id column and DatetimeIndex.
-                Each episode has context_length rows of BG + covariates.
+            data: DataFrame with target_col (bg_mM) and optionally episode_id,
+                datetime, and covariate columns.
             **kwargs: Unused (kept for interface compatibility).
 
         Returns:
-            DataFrame with episode_id and target_col columns containing
-            the predicted BG values for each episode's forecast horizon.
-
-        Note:
-            Covariates (IOB, COB) are passed as past-only context — they appear
-            in the context window but are NOT provided for the forecast horizon.
-            This avoids data leakage from post-midnight insulin/carb events.
-
-            TODO: If switching to batched evaluation in the future, consider
-            the `cross_learning` hyperparameter. When True (AutoGluon default),
-            Chronos-2 makes joint predictions across series in a batch, causing
-            predictions to depend on batch composition. For independent episode
-            predictions, set cross_learning=False in hyperparameters.
-            See: https://auto.gluon.ai/dev/tutorials/timeseries/forecasting-model-zoo.html
+            1D numpy array of predicted BG values for the forecast horizon.
         """
         from autogluon.timeseries import TimeSeriesDataFrame
 
         if self.predictor is None:
-            raise ValueError("Model must be fitted or loaded before prediction")
-
-        config = self.config
-
-        if "episode_id" not in data.columns:
             raise ValueError(
-                "predict() expects a panel DataFrame with 'episode_id' column. "
-                "Use evaluate_nocturnal_forecasting() to build episodes."
+                "Model must be fitted or loaded before prediction. "
+                "For zero-shot inference, use predict_zero_shot()."
             )
 
-        # Convert episode_id -> item_id for AutoGluon
+        config = self.config
         context = data.copy()
+
+        # If no episode_id, treat entire DataFrame as a single episode
+        if "episode_id" not in context.columns:
+            context["episode_id"] = "ep_0"
+
+        # Convert episode_id -> item_id for AutoGluon
         context["item_id"] = context["episode_id"]
-        # Use datetime column if available (eval script resets DatetimeIndex),
-        # otherwise fall back to the index itself
         if config.time_col in context.columns:
             context["timestamp"] = pd.to_datetime(context[config.time_col])
         else:
@@ -254,16 +243,15 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         context = context[ag_cols].set_index(["item_id", "timestamp"])
         ts_data = TimeSeriesDataFrame(context)
 
-        # Call AutoGluon predictor (no known_covariates — past-only context)
         ag_predictions = self.predictor.predict(ts_data)
 
-        # Convert AutoGluon output to numpy array matching base model contract.
         # AutoGluon returns MultiIndex (item_id, timestamp) with "mean" column.
-        # For single-episode input (eval script), return 1D array of predictions.
-        # For multi-episode input, return concatenated predictions.
+        episode_ids = (
+            data["episode_id"].unique() if "episode_id" in data.columns else ["ep_0"]
+        )
         result_arrays = []
-        for episode_id in data["episode_id"].unique():
-            item_id = episode_id  # same mapping
+        for episode_id in episode_ids:
+            item_id = episode_id
             if item_id in ag_predictions.index.get_level_values(0):
                 pred_values = ag_predictions.loc[item_id]["mean"].values
                 result_arrays.append(pred_values)
@@ -272,6 +260,59 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             return np.array([])
 
         return np.concatenate(result_arrays)
+
+    def predict_zero_shot(
+        self,
+        data: pd.DataFrame,
+        **kwargs,
+    ) -> np.ndarray:
+        """Zero-shot prediction using pretrained Chronos-2 (no fine-tuning).
+
+        Uses the chronos library's ChronosPipeline for direct inference
+        without requiring a fitted AutoGluon predictor.
+
+        Args:
+            data: DataFrame with target_col (bg_mM) column as context window.
+            **kwargs: Unused.
+
+        Returns:
+            1D numpy array of median forecast values.
+        """
+        import torch
+
+        try:
+            from chronos import ChronosPipeline
+        except ImportError:
+            raise ImportError(
+                "chronos package required for zero-shot prediction. "
+                "Install with: pip install chronos-forecasting"
+            )
+
+        config = self.config
+
+        # Lazy-load the pipeline
+        if not hasattr(self, "_chronos_pipeline") or self._chronos_pipeline is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            self._chronos_pipeline = ChronosPipeline.from_pretrained(
+                config.model_path,
+                device_map=device,
+                torch_dtype=torch.float32,
+            )
+
+        bg_col = config.target_col
+        if bg_col not in data.columns:
+            raise ValueError(f"DataFrame must contain '{bg_col}' column")
+
+        context = data[bg_col].values.astype(np.float32)
+        context = context[-config.context_length :]
+
+        context_tensor = torch.tensor(context, dtype=torch.float32).unsqueeze(0)
+        forecast_samples = self._chronos_pipeline.predict(
+            context_tensor,
+            prediction_length=config.forecast_length,
+        )
+        # forecast_samples shape: (1, num_samples, prediction_length)
+        return np.median(forecast_samples[0].numpy(), axis=0)
 
     # ------------------------------------------------------------------
     # Persistence
