@@ -164,6 +164,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             # "known" would require providing future values at inference time,
             # which constitutes data leakage (post-midnight IOB/COB are
             # reactive to future BG and unknowable at the prediction origin).
+            freq=f"{config.interval_mins}min",
             eval_metric=config.eval_metric,
             path=output_dir,
         )
@@ -291,6 +292,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             zs_predictor = TimeSeriesPredictor(
                 prediction_length=config.forecast_length,
                 target="target",
+                freq=f"{config.interval_mins}min",
                 eval_metric=config.eval_metric,
                 path=self._zs_tmpdir,
             )
