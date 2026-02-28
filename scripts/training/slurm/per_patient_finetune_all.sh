@@ -62,11 +62,20 @@ if [ "$MODE" = "fanout" ]; then
     echo "Patients: $PATIENTS"
     echo ""
 
+    # Create shared batch output directory
+    TIMESTAMP=$(date +"%Y-%m-%d_%H:%M")
+    RUN_ID="RID$(date +"%Y%m%d_%H%M%S")_$$"
+    BATCH_DIR="trained_models/artifacts/${MODEL}/${TIMESTAMP}_${RUN_ID}_per_patient_finetune"
+    mkdir -p "$BATCH_DIR"
+    echo "Batch output: $BATCH_DIR"
+    echo ""
+
     submitted=0
     for patient in $PATIENTS; do
         job_output=$(export PATIENT="$patient" MODEL="$MODEL" DATASET="$DATASET" \
             CHECKPOINT="$CHECKPOINT" CONFIG_DIR="$CONFIG_DIR" \
-            FT_STEPS="$FT_STEPS" LR="$LR" COV="$COV" TEST_DAYS="$TEST_DAYS" && \
+            FT_STEPS="$FT_STEPS" LR="$LR" COV="$COV" TEST_DAYS="$TEST_DAYS" \
+            OUTPUT_DIR="$BATCH_DIR" && \
             sbatch --job-name="s2_${patient}" "$SINGLE_SCRIPT" 2>&1)
 
         if echo "$job_output" | grep -q "Submitted"; then

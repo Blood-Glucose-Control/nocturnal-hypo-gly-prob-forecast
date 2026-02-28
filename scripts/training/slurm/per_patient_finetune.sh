@@ -27,6 +27,7 @@
 : ${LR:="1e-5"}
 : ${COV:="iob"}
 : ${CONFIG_DIR:="configs/data/holdout_10pct"}
+: ${OUTPUT_DIR:=""}
 
 # Use SLURM_SUBMIT_DIR (directory where sbatch was run) — BASH_SOURCE
 # doesn't work in SLURM because the script runs from /var/spool/.
@@ -66,6 +67,11 @@ echo ""
 echo "Running per_patient_finetune.py..."
 echo ""
 
+OUTPUT_ARG=""
+if [ -n "$OUTPUT_DIR" ]; then
+    OUTPUT_ARG="--output-dir $OUTPUT_DIR/$PATIENT"
+fi
+
 python scripts/experiments/per_patient_finetune.py \
     --model "$MODEL" \
     --checkpoint "$CHECKPOINT" \
@@ -75,7 +81,8 @@ python scripts/experiments/per_patient_finetune.py \
     --fine-tune-steps "$FT_STEPS" \
     --learning-rate "$LR" \
     --covariate-cols $COV \
-    --config-dir "$CONFIG_DIR"
+    --config-dir "$CONFIG_DIR" \
+    $OUTPUT_ARG
 
 exit_code=$?
 
