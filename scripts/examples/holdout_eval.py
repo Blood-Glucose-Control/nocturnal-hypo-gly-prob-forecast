@@ -32,6 +32,7 @@ import yaml
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.models.base import BaseTimeSeriesFoundationModel, ModelConfig
 from src.evaluation.metrics import compute_regression_metrics
+from src.evaluation.episode_builders import build_midnight_episodes
 
 # Constants
 SAMPLING_INTERVAL_MINUTES = 5
@@ -86,7 +87,7 @@ def create_model_and_config(
     """Factory function to create model and config based on type.
 
     Args:
-        model_type: One of 'sundial', 'ttm', 'chronos', 'moirai'
+        model_type: One of 'sundial', 'ttm', 'chronos', 'tide', 'moirai'
         checkpoint: Optional path to fine-tuned checkpoint
         **kwargs: Additional config parameters (e.g., num_samples, forecast_length)
 
@@ -233,13 +234,39 @@ def create_model_and_config(
     elif model_type == "chronos":
         raise NotImplementedError("Chronos model not yet implemented")
 
+    elif model_type == "tide":
+        from src.models.tide import TiDEForecaster, TiDEConfig
+
+        if checkpoint:
+            model = TiDEForecaster.load(checkpoint)
+            config = model.config
+
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = TiDEConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 72),
+            )
+            model = TiDEForecaster(config)
+        return model, config
+
     elif model_type == "moirai":
         raise NotImplementedError("Moirai model not yet implemented")
 
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, moirai"
+            f"Available: sundial, ttm, chronos, tide, moirai"
         )
 
 
@@ -263,6 +290,192 @@ def iter_episodes(patient_df: pd.DataFrame, context_length: int, forecast_length
         context = episode.iloc[:context_length]
         target = episode["bg_mM"].values[context_length:]
         yield context, target
+
+
+# ---------------------------------------------------------------------------
+# Midnight-Anchored Evaluation (Nocturnal Hypoglycemia Task)
+# ---------------------------------------------------------------------------
+#
+# Sliding-window eval (iter_episodes above) measures general forecast accuracy.
+# Midnight-anchored eval measures nocturnal hypo task performance: context ends
+# at midnight, 6h forecast covers the overnight window.
+# ---------------------------------------------------------------------------
+
+
+def evaluate_nocturnal_forecasting(
+    model: BaseTimeSeriesFoundationModel,
+    holdout_data: pd.DataFrame,
+    context_length: int,
+    forecast_length: int,
+    target_col: str = "bg_mM",
+    covariate_cols: Optional[List[str]] = None,
+    interval_mins: int = SAMPLING_INTERVAL_MINUTES,
+) -> Dict[str, Any]:
+    """Evaluate model on midnight-anchored nocturnal forecasting task.
+
+    Builds midnight episodes per patient, stacks them into a panel DataFrame
+    with ``episode_id``, and calls model.predict() once. Covariates (IOB)
+    are included in the context window only — no future covariates are passed
+    to avoid data leakage.
+
+    Args:
+        model: Model implementing predict(data, **kwargs) -> pd.DataFrame.
+        holdout_data: Flat DataFrame with all holdout patients.
+        context_length: Context window size in steps.
+        forecast_length: Forecast horizon in steps.
+        target_col: BG column name.
+        covariate_cols: Covariate column names (e.g., ["iob"]).
+        interval_mins: Sampling interval in minutes.
+
+    Returns:
+        Dict with overall_rmse, total_episodes, per_patient, per_episode.
+    """
+    patient_col = get_patient_column(holdout_data)
+    patients = holdout_data[patient_col].unique()
+
+    # --- Phase 1: Build episodes for all patients ---
+    # Collect episodes and track which patient each belongs to.
+    episode_metadata = []
+    context_dfs = []
+
+    for patient_id in patients:
+        patient_df = holdout_data[holdout_data[patient_col] == patient_id].copy()
+
+        # Set DatetimeIndex if not already set
+        if not isinstance(patient_df.index, pd.DatetimeIndex):
+            time_col = "datetime" if "datetime" in patient_df.columns else None
+            if time_col:
+                patient_df[time_col] = pd.to_datetime(patient_df[time_col])
+                patient_df = patient_df.set_index(time_col).sort_index()
+            else:
+                logger.warning(
+                    "Patient %s: no datetime column or DatetimeIndex, skipping",
+                    patient_id,
+                )
+                continue
+
+        episodes, _stats = build_midnight_episodes(
+            patient_df,
+            context_length=context_length,
+            forecast_length=forecast_length,
+            target_col=target_col,
+            covariate_cols=covariate_cols,
+            interval_mins=interval_mins,
+        )
+
+        if not episodes:
+            logger.info("  Patient %s: no valid midnight episodes", patient_id)
+            continue
+
+        for i, ep in enumerate(episodes):
+            ep_id = f"{patient_id}_ep{i:03d}"
+
+            ctx = ep["context_df"].copy()
+            ctx["episode_id"] = ep_id
+            context_dfs.append(ctx)
+
+            episode_metadata.append(
+                {
+                    "episode_id": ep_id,
+                    "patient_id": str(patient_id),
+                    "anchor": ep["anchor"],
+                    "target_bg": ep["target_bg"],
+                    "context_bg": ep["context_df"][target_col].to_numpy(),
+                }
+            )
+
+    if not episode_metadata:
+        logger.warning("No valid midnight episodes found across all patients")
+        return {
+            "overall_rmse": float("nan"),
+            "total_episodes": 0,
+            "per_patient": [],
+            "per_episode": [],
+        }
+
+    # --- Phase 2: Stack and call predict() once ---
+    stacked_context = pd.concat(context_dfs)
+
+    logger.info(
+        "Calling predict() with %d stacked episodes (%d rows)",
+        len(episode_metadata),
+        len(stacked_context),
+    )
+
+    predictions = model.predict(stacked_context)
+
+    # --- Phase 3: Unpack predictions by episode_id and compute metrics ---
+    all_episode_results = []
+    patient_episodes = {}  # patient_id -> list of (pred, target) tuples
+
+    # Build lookup: episode_id -> target_bg and patient_id from metadata
+    meta_by_ep = {m["episode_id"]: m for m in episode_metadata}
+
+    for ep_id, group in predictions.groupby("episode_id"):
+        meta = meta_by_ep[ep_id]
+        # Contract: predict() returns a DataFrame with a column named after
+        # the target (e.g., "bg_mM"). Models rename internally if needed.
+        pred = group[target_col].to_numpy()
+        target = meta["target_bg"]
+
+        ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
+
+        all_episode_results.append(
+            {
+                "patient_id": meta["patient_id"],
+                "anchor": meta["anchor"].isoformat(),
+                "rmse": ep_rmse,
+                "pred": pred,
+                "target_bg": target,
+                "context_bg": meta["context_bg"],
+            }
+        )
+
+        pid = meta["patient_id"]
+        if pid not in patient_episodes:
+            patient_episodes[pid] = []
+        patient_episodes[pid].append((pred, target))
+
+    # Per-patient aggregate
+    all_patient_results = []
+    for pid, ep_list in patient_episodes.items():
+        preds = np.concatenate([p for p, _ in ep_list])
+        targets = np.concatenate([t for _, t in ep_list])
+        metrics = compute_metrics(preds, targets)
+
+        all_patient_results.append(
+            {
+                "patient_id": pid,
+                "episodes": len(ep_list),
+                **metrics,
+            }
+        )
+
+        logger.info(
+            "  Patient %s: RMSE=%.3f, MAE=%.3f (%d midnight episodes)",
+            pid,
+            metrics["rmse"],
+            metrics["mae"],
+            len(ep_list),
+        )
+
+    # Overall metrics (concatenated predictions, consistent with per-patient)
+    all_preds = np.concatenate([ep["pred"] for ep in all_episode_results])
+    all_targets = np.concatenate([ep["target_bg"] for ep in all_episode_results])
+    overall_rmse = float(np.sqrt(np.mean((all_preds - all_targets) ** 2)))
+
+    logger.info(
+        "Nocturnal evaluation: %.4f RMSE over %d midnight episodes",
+        overall_rmse,
+        len(all_episode_results),
+    )
+
+    return {
+        "overall_rmse": overall_rmse,
+        "total_episodes": len(all_episode_results),
+        "per_patient": all_patient_results,
+        "per_episode": all_episode_results,
+    }
 
 
 def compute_metrics(predictions: np.ndarray, targets: np.ndarray) -> Dict[str, float]:
@@ -544,7 +757,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="sundial",
-        choices=["sundial", "ttm", "chronos", "moirai"],
+        choices=["sundial", "ttm", "chronos", "tide", "moirai"],
         help="Model type to use for evaluation",
     )
     parser.add_argument(

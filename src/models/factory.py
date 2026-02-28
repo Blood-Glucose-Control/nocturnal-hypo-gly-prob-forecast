@@ -20,7 +20,7 @@ def create_model_and_config(
     """Factory function to create model and config based on type.
 
     Args:
-        model_type: One of 'sundial', 'ttm', 'chronos', 'moirai'
+        model_type: One of 'sundial', 'ttm', 'chronos', 'tide', 'moirai'
         checkpoint: Optional path to fine-tuned checkpoint
         **kwargs: Additional config parameters (e.g., num_samples, forecast_length)
 
@@ -167,11 +167,40 @@ def create_model_and_config(
     elif model_type == "chronos":
         raise NotImplementedError("Chronos model not yet implemented")
 
+    elif model_type == "tide":
+        from src.models.tide import TiDEForecaster, TiDEConfig
+
+        if checkpoint:
+            model = TiDEForecaster.load(checkpoint)
+            config = model.config
+
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = TiDEConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 72),
+            )
+            model = TiDEForecaster(config)
+        return model, config
+
     elif model_type == "moirai":
         raise NotImplementedError("Moirai model not yet implemented")
 
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, moirai"
+            f"Available: sundial, ttm, chronos, tide, moirai"
         )
