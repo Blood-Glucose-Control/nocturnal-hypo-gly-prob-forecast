@@ -13,7 +13,7 @@ from src.data.preprocessing.gap_handling import (
     segment_all_patients,
     _detect_interval,
     _find_nan_runs,
-    _interpolate_small_gaps,
+    interpolate_small_gaps,
 )
 
 
@@ -44,7 +44,7 @@ class TestHandConstructedData:
         → [4.0, 5.0, 6.0, 7.0, 8.0]  (linear interpolation)
         """
         df = _make_series_df([4.0, np.nan, np.nan, np.nan, 8.0])
-        result = _interpolate_small_gaps(df, max_gap_rows=3)
+        result = interpolate_small_gaps(df, max_gap_rows=3)
         np.testing.assert_array_almost_equal(
             result["bg_mM"].values, [4.0, 5.0, 6.0, 7.0, 8.0]
         )
@@ -60,7 +60,7 @@ class TestHandConstructedData:
             [1.0, np.nan, 3.0, np.nan, np.nan, np.nan, np.nan, np.nan, 9.0]
         )
         # Check interpolation values
-        interp = _interpolate_small_gaps(df, max_gap_rows=2)
+        interp = interpolate_small_gaps(df, max_gap_rows=2)
         assert interp["bg_mM"].iloc[1] == pytest.approx(2.0)
         assert interp["bg_mM"].iloc[3:8].isna().all()
 
@@ -166,7 +166,7 @@ class TestEdgeCasesAndContracts:
             index=idx,
         )
         df.index.name = "datetime"
-        result = _interpolate_small_gaps(df, max_gap_rows=3)
+        result = interpolate_small_gaps(df, max_gap_rows=3)
         # bg_mM filled
         assert result["bg_mM"].isna().sum() == 0
         # bolus untouched — still has 3 NaN
