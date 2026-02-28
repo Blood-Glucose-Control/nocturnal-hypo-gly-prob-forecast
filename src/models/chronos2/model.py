@@ -26,7 +26,7 @@ and notebook 4.17-ss-chronos2-pipeline-validation.ipynb.
 import json
 import logging
 import os
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -197,7 +197,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         self,
         data: pd.DataFrame,
         **kwargs,
-    ) -> np.ndarray:
+    ) -> Union[np.ndarray, pd.DataFrame]:
         """Make predictions using the fitted AutoGluon predictor.
 
         Accepts either:
@@ -210,12 +210,18 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Args:
             data: DataFrame with target_col (bg_mM) and optionally episode_id,
                 datetime, and covariate columns.
-            **kwargs: Unused (kept for interface compatibility).
+            **kwargs: Optional keyword arguments:
+                return_quantiles (bool): If True, return pd.DataFrame with
+                    target_col + quantile columns (e.g. "0.1", "0.5", "0.9")
+                    instead of a plain ndarray. Default False.
 
         Returns:
-            1D numpy array of predicted BG values for the forecast horizon.
+            If return_quantiles=False (default): 1D numpy array of mean predictions.
+            If return_quantiles=True: DataFrame with target_col and quantile columns.
         """
         from autogluon.timeseries import TimeSeriesDataFrame
+
+        return_quantiles = kwargs.pop("return_quantiles", False)
 
         if self.predictor is None:
             raise ValueError(
@@ -246,21 +252,35 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
         ag_predictions = self.predictor.predict(ts_data)
 
-        # AutoGluon returns MultiIndex (item_id, timestamp) with "mean" column.
+        # AutoGluon returns MultiIndex (item_id, timestamp) with columns:
+        # "mean", "0.1", "0.2", ..., "0.9" (quantile levels).
         episode_ids = (
             data["episode_id"].unique() if "episode_id" in data.columns else ["ep_0"]
         )
-        result_arrays = []
-        for episode_id in episode_ids:
-            item_id = episode_id
-            if item_id in ag_predictions.index.get_level_values(0):
-                pred_values = ag_predictions.loc[item_id]["mean"].values
-                result_arrays.append(pred_values)
 
-        if not result_arrays:
-            return np.array([])
-
-        return np.concatenate(result_arrays)
+        if return_quantiles:
+            # Return DataFrame with target_col + quantile columns
+            result_frames = []
+            for episode_id in episode_ids:
+                item_id = episode_id
+                if item_id in ag_predictions.index.get_level_values(0):
+                    ep_pred = ag_predictions.loc[item_id].copy()
+                    ep_pred = ep_pred.rename(columns={"mean": config.target_col})
+                    result_frames.append(ep_pred.reset_index(drop=True))
+            if not result_frames:
+                return pd.DataFrame()
+            return pd.concat(result_frames, ignore_index=True)
+        else:
+            # Original behavior: return 1D numpy array of mean predictions
+            result_arrays = []
+            for episode_id in episode_ids:
+                item_id = episode_id
+                if item_id in ag_predictions.index.get_level_values(0):
+                    pred_values = ag_predictions.loc[item_id]["mean"].values
+                    result_arrays.append(pred_values)
+            if not result_arrays:
+                return np.array([])
+            return np.concatenate(result_arrays)
 
     def predict_zero_shot(
         self,

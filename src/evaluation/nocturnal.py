@@ -45,6 +45,7 @@ def evaluate_nocturnal_forecasting(
     target_col: str = "bg_mM",
     covariate_cols: Optional[List[str]] = None,
     interval_mins: int = SAMPLING_INTERVAL_MINUTES,
+    extra_predict_kwargs: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Evaluate model on midnight-anchored nocturnal forecasting task.
 
@@ -61,6 +62,8 @@ def evaluate_nocturnal_forecasting(
         target_col: BG column name.
         covariate_cols: Covariate column names (e.g., ["iob"]).
         interval_mins: Sampling interval in minutes.
+        extra_predict_kwargs: Additional kwargs passed to model.predict()
+            (e.g., {"return_quantiles": True} for Chronos2).
 
     Returns:
         Dict with overall_rmse, total_episodes, per_patient, per_episode.
@@ -160,6 +163,8 @@ def evaluate_nocturnal_forecasting(
         predict_kwargs = {}
         if cov_df is not None:
             predict_kwargs["known_covariates"] = cov_df
+        if extra_predict_kwargs:
+            predict_kwargs.update(extra_predict_kwargs)
 
         raw = model.predict(ctx_df, **predict_kwargs)
 
@@ -370,7 +375,7 @@ def plot_stage_comparison_auto(
         ax.plot(t_pred, tgt, "k-", lw=2, label="Actual")
         ax.plot(t_pred, pred_s1, color="orange", lw=1.5, ls="--", alpha=0.9,
                 label=f"S1 ({s1['rmse']:.2f})")
-        ax.plot(t_pred, pred_s2, color="red", lw=2, alpha=0.9,
+        ax.plot(t_pred, pred_s2, color="#1f77b4", lw=2, alpha=0.9,
                 label=f"S2 ({s2['rmse']:.2f})")
 
         if has_quantiles:
@@ -380,7 +385,7 @@ def plot_stage_comparison_auto(
                 ax.fill_between(t_pred, q1["0.1"], q1["0.9"], color="orange", alpha=0.15,
                                 label="S1 10-90%")
             if "0.1" in q2 and "0.9" in q2:
-                ax.fill_between(t_pred, q2["0.1"], q2["0.9"], color="red", alpha=0.15,
+                ax.fill_between(t_pred, q2["0.1"], q2["0.9"], color="#1f77b4", alpha=0.15,
                                 label="S2 10-90%")
 
         ax.axvline(0, color="gray", ls=":", lw=1)

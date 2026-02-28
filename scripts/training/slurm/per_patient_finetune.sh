@@ -26,7 +26,7 @@
 : ${FT_STEPS:="5000"}
 : ${LR:="1e-5"}
 : ${COV:="iob"}
-: ${CONFIG_DIR:="configs/data/holdout_5pct"}
+: ${CONFIG_DIR:="configs/data/holdout_10pct"}
 
 # Use SLURM_SUBMIT_DIR (directory where sbatch was run) — BASH_SOURCE
 # doesn't work in SLURM because the script runs from /var/spool/.
