@@ -23,18 +23,40 @@ saves results JSON + example forecast plots.
 
 Usage:
     # Default: train + evaluate on Brown 2019
-    python scripts/examples/example_tide_holdout_workflow.py --datasets brown_2019
+    python scripts/examples/example_tide_holdout_workflow.py
+
+    # Different dataset
+    python scripts/examples/example_tide_holdout_workflow.py \\
+        --datasets lynch_2022
 
     # With YAML config override
     python scripts/examples/example_tide_holdout_workflow.py \\
-        --datasets brown_2019 \\
-        --model-config configs/models/tide/default.yaml
+        --model-config configs/models/tide/from_scratch.yaml
 
-    # Skip training (evaluate existing model)
+    # Custom time limit and learning rate
     python scripts/examples/example_tide_holdout_workflow.py \\
-        --datasets brown_2019 \\
+        --time-limit 1800 --learning-rate 0.001
+
+    # Skip training (evaluate existing model only)
+    python scripts/examples/example_tide_holdout_workflow.py \\
         --skip-training \\
         --output-dir trained_models/artifacts/tide/20260226_123456
+
+Arguments:
+    --datasets          Dataset name(s) from DatasetRegistry (default: brown_2019).
+                        Multiple datasets can be passed: --datasets brown_2019 lynch_2022
+    --config-dir        Holdout config directory (default: configs/data/holdout_5pct)
+    --output-dir        Output directory (default: auto-generated timestamp under
+                        trained_models/artifacts/tide/)
+    --model-config      Path to YAML config file (overrides TiDEConfig defaults)
+    --skip-training     Skip training, only load and evaluate existing model
+    --holdout-type      Holdout subset to evaluate: temporal, patient, or both (default: both)
+    --time-limit        AutoGluon training time limit in seconds (default: None = until
+                        convergence)
+    --learning-rate     Learning rate (default: 0.000931)
+    --batch-size        Training batch size (default: 256)
+    --context-length    Context window in steps (default: 512 = ~42.7h at 5min)
+    --forecast-length   Forecast horizon in steps (default: 72 = 6h at 5min)
 """
 
 import argparse
