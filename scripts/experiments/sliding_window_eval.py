@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""
+r"""
 Sliding Window Evaluation Script.
 
 Standardized benchmarking script for fair model comparison using sliding window
@@ -15,17 +15,42 @@ Usage:
     python scripts/experiments/sliding_window_eval.py --model sundial --model-config configs/models/sundial.yaml
     python scripts/experiments/sliding_window_eval.py --model sundial --checkpoint path/to/checkpoint
 
-    # TimeGrad — after first 10-epoch training run (lynch_2022):
+    # TTM zero-shot (no checkpoint):
     python scripts/experiments/sliding_window_eval.py \
-        --model timegrad \
-        --dataset lynch_2022 \
-        --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/model.pt
+        --model ttm \
+        --dataset brown_2019 \
+        --context-length 512 \
+        --forecast-length 96 \
+        --model-config /data/home/cjrisi/nocturnal/trained_models/artifacts/ttm/2026-02-27_05:17_RID20260227_051750_206895_holdout_workflow/model_config.yaml \
+        --cuda-device 0
 
-    # TimeGrad — after second 10-epoch resumed training run (lynch_2022, epochs 11–20):
+    # TimesFM zero-shot (no checkpoint):
+    python scripts/experiments/sliding_window_eval.py \
+        --model timesfm \
+        --dataset aleppo_2017 \
+        --context-length 512 \
+        --forecast-length 96 \
+        --model-config configs/models/timesfm/fine_tune.yaml \
+        --cuda-device 0
+
+    # TimeGrad — after first 10-epoch training run (aleppo_2017):
     python scripts/experiments/sliding_window_eval.py \
         --model timegrad \
-        --dataset lynch_2022 \
-        --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/resumed_training/model.pt
+        --dataset tamborlane_2008 \
+        --checkpoint trained_models/artifacts/timegrad/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/model.pt \
+        --context-length 512 \
+        --forecast-length 96 \
+        --model-config configs/models/timegrad/cgm_only.yaml \
+        --cuda-device 1
+
+    # TimeGrad — after second 10-epoch resumed training run (aleppo_2017, epochs 11–20):
+    python scripts/experiments/sliding_window_eval.py \
+        --model timegrad \
+        --dataset aleppo_2017 \
+        --checkpoint trained_models/artifacts/timegrad/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/resumed_training/model.pt \
+        --context-length 512 \
+        --forecast-length 48 \
+        --model-config configs/models/timegrad/cgm_only.yaml
 """
 
 import argparse
@@ -277,6 +302,7 @@ def save_experiment_config(
     cmd_parts.extend(["--config-dir", args.config_dir])
     cmd_parts.extend(["--context-length", str(args.context_length)])
     cmd_parts.extend(["--forecast-length", str(args.forecast_length)])
+    cmd_parts.extend(["--cuda-device", str(args.cuda_device)])
     if args.checkpoint:
         cmd_parts.extend(["--checkpoint", args.checkpoint])
     if args.model_config:
@@ -290,6 +316,7 @@ def save_experiment_config(
             "checkpoint": args.checkpoint,
             "context_length": args.context_length,
             "forecast_length": args.forecast_length,
+            "cuda_device": args.cuda_device,
             "model_config": args.model_config,
             "output_dir": args.output_dir,
         },
@@ -321,7 +348,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="sundial",
-        choices=["sundial", "ttm", "chronos", "moirai", "timegrad"],
+        choices=["sundial", "ttm", "chronos", "moirai", "timegrad", "timesfm", "tide"],
         help="Model type to use for evaluation",
     )
     parser.add_argument(
@@ -357,6 +384,12 @@ def parse_arguments() -> argparse.Namespace:
         type=int,
         default=None,
         help="Forecast horizon in steps (default: from checkpoint or 96)",
+    )
+    parser.add_argument(
+        "--cuda-device",
+        type=int,
+        default=1,
+        help="CUDA device ID to use (default: 1)",
     )
     return parser.parse_args()
 
@@ -486,6 +519,11 @@ def save_results(
 
 def main():
     args = parse_arguments()
+
+    # Set CUDA device to avoid DataParallel issues
+    import os
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.cuda_device)
 
     # Load config from file if provided
     config_dict = load_yaml_config(args.model_config) if args.model_config else {}
@@ -625,6 +663,7 @@ def main():
 
     if overall:
         total_episodes = sum(r["episodes"] for r in all_results)
+        overall["total_episodes"] = total_episodes
         logger.info("\n")
         logger.info("=" * 60)
         logger.info("OVERALL RESULTS")
@@ -674,8 +713,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # Use single GPU to avoid DataParallel issues
-    import os
-
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # Use GPU 1 (Blackwell)
     main()
