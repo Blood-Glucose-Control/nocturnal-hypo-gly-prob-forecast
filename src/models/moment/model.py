@@ -5,6 +5,7 @@ This module provides a concrete implementation of Moment that inherits from
 the base TSFM framework, demonstrating how to integrate foundation models.
 """
 
+import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -22,6 +23,10 @@ from src.utils.logging_helper import info_print, error_print
 
 # MOMENT sequence length limit (from notebook)
 MOMENT_MAX_LEN = 512
+
+# Minimum scale for per-window normalization (avoids division-by-near-zero on flat BG)
+# Same as TimesFM: prevents loss spikes on constant/imputed regions (see normalization investigation)
+NORMALIZATION_SCALE_FLOOR = 0.1
 
 
 def _optional_moment_import():
@@ -153,12 +158,19 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         prediction_length: int,
         scaler: Optional[Any] = None,
     ) -> np.ndarray:
-        """Single univariate forecast: scale context, mask future, impute, unscale."""
-        from sklearn.preprocessing import StandardScaler
+        """Single univariate forecast: per-window normalize context, mask future, impute, unscale.
 
-        scaler = scaler or StandardScaler()
-        context_flat = np.asarray(context, dtype=np.float64).reshape(-1, 1)
-        context_scaled = scaler.fit_transform(context_flat).flatten()  # type: ignore[union-attr]
+        Uses same scale floor as training (NORMALIZATION_SCALE_FLOOR) so fine-tuned
+        models see consistent normalization at inference.
+        """
+        context_flat = np.asarray(context, dtype=np.float64).flatten()
+        loc = float(np.nanmean(context_flat))
+        scale = float(np.nanstd(context_flat))
+        if np.isnan(loc):
+            loc = 0.0
+        if np.isnan(scale) or scale < NORMALIZATION_SCALE_FLOOR:
+            scale = NORMALIZATION_SCALE_FLOOR
+        context_scaled = ((context_flat - loc) / scale).astype(np.float32)
 
         full_len = len(context_scaled) + prediction_length
         if full_len > MOMENT_MAX_LEN:
@@ -189,8 +201,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         forecast_scaled = output.forecast.cpu().numpy()[0, 0, :]  # type: ignore[union-attr, call-overload]
         if len(forecast_scaled) > prediction_length:
             forecast_scaled = forecast_scaled[-prediction_length:]
-        pred = scaler.inverse_transform(forecast_scaled.reshape(-1, 1)).flatten()  # type: ignore[union-attr]
-        return pred.astype(np.float32)
+        # Unscale: pred = forecast_scaled * scale + loc (matches training space)
+        pred = (forecast_scaled * scale + loc).astype(np.float32)
+        return pred
 
     def _forecast_batch(
         self,
@@ -198,9 +211,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         prediction_length: int,
         context_lengths: Optional[np.ndarray] = None,
     ) -> np.ndarray:
-        """Batch of forecasts (loop over batch to match notebook scaling)."""
-        from sklearn.preprocessing import StandardScaler
-
+        """Batch of forecasts (per-window normalization, same as _forecast_single)."""
         preds = []
         for i in range(contexts.shape[0]):
             ctx = np.asarray(contexts[i], dtype=np.float64)
@@ -208,9 +219,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                 L = int(context_lengths[i])
                 if L < ctx.shape[0]:
                     ctx = ctx[-L:]
-            pred = self._forecast_single(
-                ctx, prediction_length, scaler=StandardScaler()
-            )
+            pred = self._forecast_single(ctx, prediction_length)
             preds.append(pred)
         return np.stack(preds, axis=0)
 
@@ -603,6 +612,11 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         info_print("Starting MOMENT fine-tuning...")
         os.makedirs(output_dir, exist_ok=True)
 
+        # Save config so holdout_eval can load checkpoint (model_path, context_length, etc.)
+        config_path = os.path.join(output_dir, "config.json")
+        with open(config_path, "w") as f:
+            json.dump(self.config.to_dict(), f, indent=2)
+
         # Prepare data loaders
         train_loader, val_loader, _ = self._prepare_training_data(train_data)
 
@@ -680,63 +694,51 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
                 for i in range(batch_size):
                     ctx_len = int(context_lens[i])
-                    ctx = contexts[i, -ctx_len:]  # Actual context (remove padding)
-                    tgt = targets[i]  # Target to predict
+                    ctx = contexts[i, -ctx_len:].float()  # Actual context (remove padding)
+                    tgt = targets[i].float()  # Target to predict
 
-                    # Normalize: fit scaler ONLY on context (matching inference)
-                    # Then transform both context and target with same scaler
-                    from sklearn.preprocessing import StandardScaler
+                    # Per-window normalization (same as TimesFM / Chronos-2): loss in
+                    # normalized space so gradients target temporal dynamics, not scale.
+                    # Scale clamped to avoid division-by-near-zero on flat/imputed regions.
+                    loc = ctx.mean()
+                    scale = ctx.std().clamp(min=NORMALIZATION_SCALE_FLOOR)
+                    ctx_norm = (ctx - loc) / scale
 
-                    scaler = StandardScaler()
-                    ctx_np = ctx.cpu().numpy()
-                    tgt_np = tgt.cpu().numpy()
-
-                    # Fit scaler on context only (like inference)
-                    ctx_scaled = scaler.fit_transform(ctx_np.reshape(-1, 1)).flatten()
-                    # Transform target with same scaler
-                    tgt_scaled_np = scaler.transform(tgt_np.reshape(-1, 1)).flatten()
-
-                    # Build full sequence: context + zeros for target (will be masked)
-                    full_len = len(ctx_scaled) + forecast_len
+                    # Build full sequence: normalized context + zeros for target (masked)
+                    full_len = ctx_norm.shape[0] + forecast_len
                     if full_len > MOMENT_MAX_LEN:
                         keep = MOMENT_MAX_LEN - forecast_len
-                        ctx_scaled = ctx_scaled[-keep:]
+                        ctx_norm = ctx_norm[-keep:]
                         full_len = MOMENT_MAX_LEN
                         ctx_len = keep
 
-                    # Create input tensor [1, 1, seq_len] with zeros for target
-                    input_seq = np.zeros(full_len, dtype=np.float32)
-                    input_seq[: len(ctx_scaled)] = ctx_scaled
-                    input_seq = torch.tensor(input_seq, dtype=torch.float32).to(
-                        self._device
+                    # Input tensor [1, 1, seq_len]
+                    input_seq = torch.zeros(
+                        full_len, dtype=torch.float32, device=self._device
                     )
+                    input_seq[: ctx_norm.shape[0]] = ctx_norm.to(self._device)
                     input_seq = input_seq.unsqueeze(0).unsqueeze(0)
 
-                    # Create mask: 1 = observed (context), 0 = to predict (target)
+                    # Mask: 1 = observed (context), 0 = to predict (target)
                     input_mask = torch.ones(
                         full_len, dtype=torch.long, device=self._device
                     )
-                    input_mask[len(ctx_scaled) :] = 0
+                    input_mask[ctx_norm.shape[0] :] = 0
                     input_mask = input_mask.unsqueeze(0)
 
-                    # Forward pass
+                    # Forward pass (model sees normalized context, outputs normalized space)
                     with torch.set_grad_enabled(True):
                         output = self.model.forecast(
                             x_enc=input_seq, input_mask=input_mask
                         )
-                        pred_scaled = output.forecast[
+                        pred_norm = output.forecast[
                             0, 0, :forecast_len
                         ]  # [forecast_len]
 
-                        # Ground truth (scaled with same scaler as context)
-                        tgt_scaled = torch.tensor(
-                            tgt_scaled_np[:forecast_len],
-                            dtype=torch.float32,
-                            device=self._device,
-                        )
-
-                        # Loss on scaled values
-                        loss = loss_fn(pred_scaled, tgt_scaled)
+                        # Loss in normalized space: normalize targets with same (loc, scale)
+                        target_norm = (tgt[:forecast_len] - loc) / scale
+                        target_norm = target_norm.to(self._device)
+                        loss = loss_fn(pred_norm, target_norm)
                         losses.append(loss)
 
                 # Average loss across batch
@@ -776,54 +778,41 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
                         for i in range(val_contexts.shape[0]):
                             ctx_len = int(val_context_lens[i])
-                            ctx = val_contexts[i, -ctx_len:]
-                            tgt = val_targets[i]
+                            ctx = val_contexts[i, -ctx_len:].float()
+                            tgt = val_targets[i].float()
 
-                            # Match training: fit scaler on context only, then transform target
-                            from sklearn.preprocessing import StandardScaler
+                            # Same per-window normalized loss as training
+                            loc = ctx.mean()
+                            scale = ctx.std().clamp(min=NORMALIZATION_SCALE_FLOOR)
+                            ctx_norm = (ctx - loc) / scale
 
-                            scaler = StandardScaler()
-                            ctx_np = ctx.cpu().numpy()
-                            tgt_np = tgt.cpu().numpy()
-
-                            ctx_scaled = scaler.fit_transform(
-                                ctx_np.reshape(-1, 1)
-                            ).flatten()
-                            tgt_scaled_np = scaler.transform(
-                                tgt_np.reshape(-1, 1)
-                            ).flatten()
-
-                            full_len = len(ctx_scaled) + len(tgt)
+                            full_len = ctx_norm.shape[0] + len(tgt)
                             if full_len > MOMENT_MAX_LEN:
                                 keep = MOMENT_MAX_LEN - len(tgt)
-                                ctx_scaled = ctx_scaled[-keep:]
+                                ctx_norm = ctx_norm[-keep:]
                                 full_len = MOMENT_MAX_LEN
-                                ctx_len = keep
 
-                            input_seq = np.zeros(full_len, dtype=np.float32)
-                            input_seq[: len(ctx_scaled)] = ctx_scaled
-                            input_seq = torch.tensor(input_seq, dtype=torch.float32).to(
-                                self._device
+                            input_seq = torch.zeros(
+                                full_len, dtype=torch.float32, device=self._device
                             )
+                            input_seq[: ctx_norm.shape[0]] = ctx_norm.to(self._device)
                             input_seq = input_seq.unsqueeze(0).unsqueeze(0)
 
                             input_mask = torch.ones(
                                 full_len, dtype=torch.long, device=self._device
                             )
-                            input_mask[len(ctx_scaled) :] = 0
+                            input_mask[ctx_norm.shape[0] :] = 0
                             input_mask = input_mask.unsqueeze(0)
 
                             output = self.model.forecast(
                                 x_enc=input_seq, input_mask=input_mask
                             )
-                            pred_scaled = output.forecast[0, 0, : len(tgt)]
-                            tgt_scaled = torch.tensor(
-                                tgt_scaled_np[: len(tgt)],
-                                dtype=torch.float32,
-                                device=self._device,
+                            pred_norm = output.forecast[0, 0, : len(tgt)]
+                            target_norm = (tgt - loc) / scale
+                            target_norm = target_norm.to(self._device)
+                            val_losses.append(
+                                loss_fn(pred_norm, target_norm).item()
                             )
-
-                            val_losses.append(loss_fn(pred_scaled, tgt_scaled).item())
 
                 val_loss = np.mean(val_losses) if val_losses else None
 

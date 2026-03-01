@@ -253,10 +253,23 @@ class HoldoutManager:
 
         # Determine holdout patients
         if config.has_predefined_patients():
-            # Use predefined patient list
-            holdout_patients = [p for p in config.holdout_patients if p in all_patients]
-            if len(holdout_patients) != len(config.holdout_patients):
-                missing = set(config.holdout_patients) - set(holdout_patients)
+            # Use predefined patient list; match by ID or normalized form (handles cache format mismatch, e.g. bro_164 vs 164)
+            def _normalize_pid(pid) -> str:
+                s = str(pid)
+                return s.split("_")[-1] if "_" in s else s
+
+            key_by_norm = {_normalize_pid(k): k for k in all_patients}
+            holdout_patients = []
+            for p in config.holdout_patients:
+                if p in all_patients:
+                    holdout_patients.append(p)
+                elif _normalize_pid(p) in key_by_norm:
+                    holdout_patients.append(key_by_norm[_normalize_pid(p)])
+            missing = [
+                p for p in config.holdout_patients
+                if p not in all_patients and _normalize_pid(p) not in key_by_norm
+            ]
+            if missing:
                 logger.warning(f"Some predefined holdout patients not found: {missing}")
         else:
             # Select patients randomly based on percentage
