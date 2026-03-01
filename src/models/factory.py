@@ -164,10 +164,7 @@ def create_model_and_config(
             model = TTMForecaster(config)
         return model, config
 
-    elif model_type == "chronos":
-        raise NotImplementedError("Chronos model not yet implemented")
-
-    elif model_type == "chronos2":
+    elif model_type in ("chronos2", "chronos"):
         from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
 
         if checkpoint:
@@ -191,7 +188,9 @@ def create_model_and_config(
             config = Chronos2Config(
                 context_length=kwargs.get("context_length", 512),
                 forecast_length=kwargs.get("forecast_length", 72),
-                training_mode="zero_shot",
+                fine_tune_steps=kwargs.get("fine_tune_steps", 15000),
+                fine_tune_lr=kwargs.get("fine_tune_lr", 1e-5),
+                training_mode=kwargs.get("training_mode", "zero_shot"),
             )
             model = Chronos2Forecaster(config)
         return model, config
