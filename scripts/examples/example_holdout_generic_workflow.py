@@ -29,7 +29,7 @@ Usage:
     python scripts/examples/example_holdout_generic_workflow.py --datasets lynch_2022 brown_2019
 
     # Run with specific model type
-    python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 aleppo_2017
+    python scripts/examples/example_holdout_generic_workflow.py --model-type tide --datasets aleppo_2017 brown_2019 lynch_2022 tamborlane_2008
 
     # Skip specific steps (e.g., skip zero-shot and resume training)
     python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 --skip-steps 4 7
@@ -170,6 +170,7 @@ class ModelFactory:
             "moment": "AutonLab/MOMENT-1-small",
             "timesfm": "google/timesfm-2.0-500m-pytorch",
             "timegrad": "",  # Trains from scratch, no pretrained path
+            "tide": "",  # Trains from scratch, no pretrained path
         }
         return defaults.get(model_type, "")
 
@@ -180,7 +181,7 @@ class ModelFactory:
         Models that always train from scratch (no concept of pretrained weights)
         cannot perform zero-shot evaluation regardless of any config override.
         """
-        from_scratch_only = {"timegrad"}
+        from_scratch_only = {"timegrad", "tide"}
         return model_type.lower() not in from_scratch_only
 
     @staticmethod
@@ -212,10 +213,12 @@ class ModelFactory:
             return ModelFactory._create_timesfm_model(config, distributed_config)
         elif model_type == "timegrad":
             return ModelFactory._create_timegrad_model(config, distributed_config)
+        elif model_type == "tide":
+            return ModelFactory._create_tide_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, moment, timesfm, timegrad"
+                f"Supported types: ttm, chronos, moment, timesfm, timegrad, tide"
             )
 
     @staticmethod
@@ -358,6 +361,40 @@ class ModelFactory:
             raise ImportError(
                 f"TimeGrad model not available. Install with: "
                 f"source scripts/setup_model_env.sh timegrad\n{e}"
+            )
+
+    @staticmethod
+    def _create_tide_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a TiDE model instance."""
+        try:
+            from src.models.tide import TiDEForecaster, TiDEConfig
+
+            # Extract lr from extra_config if present, otherwise use config.learning_rate
+            # This avoids passing lr twice when YAML config contains it
+            extra = config.extra_config.copy()
+            lr = extra.pop("lr", config.learning_rate)
+
+            tide_config = TiDEConfig(
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                training_mode=config.training_mode,
+                use_cpu=config.use_cpu,
+                lr=lr,
+                **extra,
+            )
+
+            return TiDEForecaster(
+                tide_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"TiDE model not available. Install with: "
+                f"source scripts/setup_model_env.sh tide\n{e}"
             )
 
     @staticmethod
@@ -1805,6 +1842,7 @@ Supported Model Types:
   - moment: AutonLab MOMENT
   - timesfm: Google TimesFM 2.0 (500M)
   - timegrad: TimeGrad (GRU + diffusion, trains from scratch)
+  - tide: TiDE (Time series Dense Encoder)
 
 Step 4 is auto-skipped for from-scratch models like timegrad.
 
@@ -1816,7 +1854,7 @@ stored in separate subdirectories for comparison.
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "moment", "timesfm", "timegrad"],
+        choices=["ttm", "chronos", "moment", "timesfm", "timegrad", "tide"],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(

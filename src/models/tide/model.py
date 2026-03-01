@@ -136,11 +136,16 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         config = self.config
         ts_train, _, _ = self._prepare_training_data(train_data)
 
-        info_print(f"Creating TimeSeriesPredictor at {output_dir}")
+        # Convert interval_mins to frequency string for AutoGluon
+        # e.g., 5 -> "5min", 15 -> "15min"
+        freq = f"{config.interval_mins}min"
+
+        info_print(f"Creating TimeSeriesPredictor at {output_dir} with freq={freq}")
         predictor = TimeSeriesPredictor(
             prediction_length=config.forecast_length,
             target="target",
             eval_metric=config.eval_metric,
+            freq=freq,
             path=output_dir,
         )
 
@@ -207,11 +212,38 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         # Convert episode_id -> item_id for AutoGluon
         context = data.copy()
         context["item_id"] = context["episode_id"]
-        context["timestamp"] = context.index
+        # AutoGluon requires a datetime64 timestamp; support either a
+        # dedicated column (e.g. 'datetime') or the DataFrame index.  The
+        # evaluation helper sometimes resets the index (for TTM), so using
+        # a column is more robust.  Convert to datetime and warn if we need
+        # to coerce from an integer index.
+        if "timestamp" in context.columns:
+            context["timestamp"] = pd.to_datetime(context["timestamp"])
+        elif "datetime" in context.columns:
+            context["timestamp"] = pd.to_datetime(context["datetime"])
+        else:
+            context["timestamp"] = context.index
+            if not pd.api.types.is_datetime64_any_dtype(context["timestamp"]):
+                # attempt coercion; this may still fail if the index is
+                # arbitrary integers.
+                context["timestamp"] = pd.to_datetime(context["timestamp"])
+
         context = context.rename(columns={config.target_col: "target"})
 
+        # Ensure required covariates are present; AutoGluon's saved
+        # predictor will expect the same set used during training, even if
+        # they are all zero.  If the evaluation dataset doesn't include a
+        # covariate (e.g., iob), add a zero-filled column so the predictor
+        # doesn't error out.
+        for cov_col in config.covariate_cols:
+            if cov_col not in context.columns:
+                logger.warning(
+                    "Covariate '%s' missing from input data; filling with zeros",
+                    cov_col,
+                )
+                context[cov_col] = 0.0
+
         ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
-        ag_cols = [c for c in ag_cols if c in context.columns]
         context = context[ag_cols].set_index(["item_id", "timestamp"])
         ts_data = TimeSeriesDataFrame(context)
 

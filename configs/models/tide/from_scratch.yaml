@@ -9,7 +9,7 @@
 model_type: "tide"
 training_mode: "from_scratch"
 context_length: 512
-forecast_length: 72
+forecast_length: 96
 
 # TiDE architecture
 encoder_hidden_dim: 256
@@ -32,8 +32,7 @@ precision: "16-mixed"
 imputation_threshold_mins: 45
 
 # Covariates
-covariate_cols:
-  - iob
+covariate_cols: []
 target_col: "bg_mM"
 patient_col: "p_num"
 time_col: "datetime"
@@ -42,4 +41,4 @@ interval_mins: 5
 # AutoGluon
 eval_metric: "RMSE"
 enable_ensemble: false
-time_limit: 3600
+time_limit: 1800

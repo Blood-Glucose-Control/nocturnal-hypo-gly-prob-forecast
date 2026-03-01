@@ -67,9 +67,29 @@ Usage:
         --context-length 512 \
         --forecast-length 96 \
         --checkpoint trained_models/artifacts/timegrad/2026-02-24_01:12_RID20260224_011201_2800320_holdout_workflow/resumed_training/model.pt
+
+    # Chronos-2 fine-tuned (checkpoint with model.pt/ directory):
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model chronos2 \
+        --dataset tamborlane_2008 \
+        --config-dir configs/data/holdout_10pct \
+        --context-length 512 \
+        --forecast-length 96 \
+        --cuda-device 0 \
+        --checkpoint trained_models/artifacts/chronos2/2026-02-28_05:54_RID20260228_055400_391511_holdout_workflow/resumed_training/model.pt
+
+    # TiDE fine-tuned:
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model tide \
+        --dataset tamborlane_2008 \
+        --config-dir configs/data/holdout_10pct \
+        --context-length 512 \
+        --forecast-length 96 \
+        --cuda-device 1 \
+        --checkpoint trained_models/artifacts/tide/2026-02-28_21:28_RID20260228_212852_496983_holdout_workflow/model.pt
         """
 
-import argparse
+import argparsed
 import json
 import logging
 import sys
@@ -257,11 +277,43 @@ def evaluate_nocturnal_forecasting(
         if len(target) < forecast_length:
             continue
 
-        # Predict using unified interface
-        pred = model.predict(ctx_df)
+        # Ensure the context frame has a datetime index for models that
+        # require it (TiDE) while still retaining the 'datetime' column for
+        # others (TTM).  The context df was originally reset_index in
+        # episode construction, so we put the column back on the index.
+        if "datetime" in ctx_df.columns and not isinstance(ctx_df.index, pd.DatetimeIndex):
+            ctx_df = ctx_df.set_index("datetime", drop=False)
 
-        # Handle multi-dimensional predictions: (batch, forecast_length, channels)
-        pred = np.asarray(pred)
+        # Predict using unified interface
+        raw_pred = model.predict(ctx_df)
+
+        # Convert heterogeneous outputs (DataFrame, Series, list, ndarray)
+        # into a flat numpy float array representing the forecast values.
+        if isinstance(raw_pred, pd.DataFrame):
+            # prefer the target column but fall back to numeric columns
+            if target_col in raw_pred.columns:
+                pred_vals = raw_pred[target_col].values
+            else:
+                num_cols = raw_pred.select_dtypes(include=[np.number]).columns
+                if len(num_cols) == 0:
+                    raise ValueError(
+                        "Prediction DataFrame contains no numeric columns"
+                    )
+                pred_vals = raw_pred[num_cols[0]].values
+        elif isinstance(raw_pred, pd.Series):
+            pred_vals = raw_pred.values
+        else:
+            pred_vals = np.asarray(raw_pred)
+
+        # Ensure numeric dtype (will raise if values cannot be converted)
+        try:
+            pred = np.asarray(pred_vals, dtype=float)
+        except Exception as e:  # pragma: no cover - defensive
+            logger.error("Failed to convert predictions to float: %s", e)
+            raise
+
+        # After conversion we may still have extra dims (e.g. 2D from DataFrame
+        # flattening) so apply earlier logic.
         if pred.ndim == 3:
             # Shape (batch, forecast_length, channels) -> (forecast_length,)
             pred = pred[0, :, 0]
@@ -663,6 +715,29 @@ def main():
     context_length = config.context_length
     forecast_length = config.forecast_length
 
+    # Warn if user asked for a different forecast length than the model's
+    # configuration.  This commonly happens when loading a checkpoint that was
+    # trained with a shorter horizon (e.g. 72) but the CLI requested a longer
+    # one (e.g. 96).  TiDE factory code refuses to increase the horizon beyond
+    # the trained value, so the printed forecast_length will remain the smaller
+    # number.  We surface that here so it's harder to miss.
+    if args.forecast_length is not None and args.forecast_length != forecast_length:
+        if args.forecast_length > forecast_length:
+            logger.warning(
+                "Requested forecast-length %d is larger than the model's trained "
+                "value (%d); using %d (training horizon).",
+                args.forecast_length,
+                forecast_length,
+                forecast_length,
+            )
+        else:
+            logger.info(
+                "Overriding model forecast_length %d -> %d as requested.",
+                forecast_length,
+                args.forecast_length,
+            )
+            forecast_length = args.forecast_length
+
     logger.info(f"Dataset: {args.dataset}")
     logger.info(
         f"Context: {context_length} steps ({context_length / STEPS_PER_HOUR:.1f} hours)"
@@ -710,6 +785,16 @@ def main():
     patients = holdout_data[patient_col].unique()
     logger.info(f"Holdout patients: {list(patients)}")
     logger.info(f"Total samples: {len(holdout_data):,}")
+
+    # Inform user if any requested covariates are absent in the dataset.
+    if args.covariate_cols:
+        missing = [c for c in args.covariate_cols if c not in holdout_data.columns]
+        if missing:
+            logger.warning(
+                "Dataset is missing requested covariate columns %s; "
+                "these will be filled with zeros during prediction.",
+                missing,
+            )
 
     # Save experiment configuration
     save_experiment_config(
