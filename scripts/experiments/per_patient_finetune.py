@@ -62,7 +62,7 @@ STEPS_PER_DAY = 288  # 5-min intervals × 24h
 SAMPLING_INTERVAL_MINUTES = 5
 STEPS_PER_HOUR = 60 // SAMPLING_INTERVAL_MINUTES
 MIN_FINETUNE_DAYS = 14  # Hard minimum for fine-tune window
-MIN_TOTAL_DAYS = 21     # Warn if patient has fewer than this
+MIN_TOTAL_DAYS = 21  # Warn if patient has fewer than this
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -73,6 +73,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
+
 
 def temporal_split(
     patient_df: pd.DataFrame,
@@ -111,10 +112,14 @@ def temporal_split(
     cutoff_val = last_ts - timedelta(days=test_days + val_days)
 
     test_df = df[df.index > cutoff_test].reset_index(names="datetime")
-    val_df = df[(df.index > cutoff_val) & (df.index <= cutoff_test)].reset_index(names="datetime")
+    val_df = df[(df.index > cutoff_val) & (df.index <= cutoff_test)].reset_index(
+        names="datetime"
+    )
     finetune_df = df[df.index <= cutoff_val].reset_index(names="datetime")
 
-    finetune_days = (df[df.index <= cutoff_val].index[-1] - df.index[0]).total_seconds() / 86400
+    finetune_days = (
+        df[df.index <= cutoff_val].index[-1] - df.index[0]
+    ).total_seconds() / 86400
     if finetune_days < MIN_FINETUNE_DAYS:
         raise ValueError(
             f"Fine-tune window only covers {finetune_days:.1f} days "
@@ -161,6 +166,7 @@ def verify_lopo(
 # ---------------------------------------------------------------------------
 # Output helpers
 # ---------------------------------------------------------------------------
+
 
 def setup_output_dir(
     model_type: str,
@@ -243,6 +249,7 @@ def write_summary_csv(summary_rows: List[Dict[str, Any]], output_dir: Path) -> N
 # Core: single-patient fine-tuning
 # ---------------------------------------------------------------------------
 
+
 def run_single_patient(
     args: argparse.Namespace,
     patient_id: str,
@@ -294,13 +301,16 @@ def run_single_patient(
 
     logger.info(
         "Patient '%s': %d rows, %.1f days of data",
-        patient_id, len(patient_df), total_days,
+        patient_id,
+        len(patient_df),
+        total_days,
     )
     if total_days < MIN_TOTAL_DAYS:
         logger.warning(
             "Patient has only %.1f days of data (< %d). "
             "Fine-tuning results may be unreliable.",
-            total_days, MIN_TOTAL_DAYS,
+            total_days,
+            MIN_TOTAL_DAYS,
         )
 
     # ── Temporal split ──────────────────────────────────────────────────────
@@ -312,10 +322,17 @@ def run_single_patient(
     training_input = pd.concat([finetune_df, val_df], ignore_index=True)
     val_frac = len(val_df) / len(training_input)
     train_frac = 1.0 - val_frac
-    stage2_split_config = {"train": round(train_frac, 4), "val": round(val_frac, 4), "test": 0.0}
+    stage2_split_config = {
+        "train": round(train_frac, 4),
+        "val": round(val_frac, 4),
+        "test": 0.0,
+    }
     logger.info(
         "Stage 2 split config: train=%.3f (%.0f rows), val=%.3f (%.0f rows), test excluded",
-        train_frac, len(finetune_df), val_frac, len(val_df),
+        train_frac,
+        len(finetune_df),
+        val_frac,
+        len(val_df),
     )
 
     # ── Load Stage 1 checkpoint (fresh copy per patient) ────────────────────
@@ -333,14 +350,26 @@ def run_single_patient(
     forecast_length = config.forecast_length
 
     logger.info("Loaded %s checkpoint", args.model.upper())
-    logger.info("  context_length:  %d steps (%.1fh)", context_length, context_length / STEPS_PER_HOUR)
-    logger.info("  forecast_length: %d steps (%.1fh)", forecast_length, forecast_length / STEPS_PER_HOUR)
+    logger.info(
+        "  context_length:  %d steps (%.1fh)",
+        context_length,
+        context_length / STEPS_PER_HOUR,
+    )
+    logger.info(
+        "  forecast_length: %d steps (%.1fh)",
+        forecast_length,
+        forecast_length / STEPS_PER_HOUR,
+    )
 
     # Auto-detect covariates from model config if not explicitly specified
     # (same logic as nocturnal_hypo_eval.py — required because AutoGluon
     # expects the same columns at predict time as were present during training)
     covariate_cols = args.covariate_cols
-    if covariate_cols is None and hasattr(config, "covariate_cols") and config.covariate_cols:
+    if (
+        covariate_cols is None
+        and hasattr(config, "covariate_cols")
+        and config.covariate_cols
+    ):
         covariate_cols = config.covariate_cols
         logger.info("Using covariates from model config: %s", covariate_cols)
 
@@ -365,7 +394,8 @@ def run_single_patient(
     stage1_rmse = stage1_results.get("overall_rmse", float("nan"))
     logger.info(
         "Stage 1 nocturnal RMSE: %.4f mmol/L (%d midnight episodes)",
-        stage1_rmse, stage1_results["total_episodes"],
+        stage1_rmse,
+        stage1_results["total_episodes"],
     )
 
     # ── Configure Stage 2 ──────────────────────────────────────────────────
@@ -379,7 +409,9 @@ def run_single_patient(
             dropout=0.1,
             auto_detect_modules=True,
         )
-        logger.info("LoRA configured: rank=%d, alpha=%d", args.lora_rank, args.lora_alpha)
+        logger.info(
+            "LoRA configured: rank=%d, alpha=%d", args.lora_rank, args.lora_alpha
+        )
     else:
         logger.info(
             "Note: %s does not support LoRA (not a transformer model). "
@@ -415,7 +447,10 @@ def run_single_patient(
         train_data=training_input,
         output_dir=finetune_checkpoint_dir,
     )
-    logger.info("Fine-tuning complete. Train metrics: %s", finetune_metrics.get("train_metrics", {}))
+    logger.info(
+        "Fine-tuning complete. Train metrics: %s",
+        finetune_metrics.get("train_metrics", {}),
+    )
 
     # ── Save Stage 2 checkpoint ────────────────────────────────────────────
     logger.info("\n--- Saving Stage 2 Checkpoint ---")
@@ -435,7 +470,8 @@ def run_single_patient(
     stage2_rmse = stage2_results.get("overall_rmse", float("nan"))
     logger.info(
         "Stage 2 nocturnal RMSE: %.4f mmol/L (%d midnight episodes)",
-        stage2_rmse, stage2_results["total_episodes"],
+        stage2_rmse,
+        stage2_results["total_episodes"],
     )
 
     # ── Summary ────────────────────────────────────────────────────────────
@@ -450,7 +486,8 @@ def run_single_patient(
         direction = "improvement" if rmse_delta > 0 else "regression"
         logger.info(
             "  Delta:                       %.4f mmol/L (%s)",
-            abs(rmse_delta), direction,
+            abs(rmse_delta),
+            direction,
         )
 
     # ── Plots ──────────────────────────────────────────────────────────────
@@ -516,7 +553,9 @@ def run_single_patient(
         },
         "delta": {
             "rmse": rmse_delta,
-            "direction": "improvement" if rmse_delta > 0 else ("regression" if rmse_delta < 0 else "neutral"),
+            "direction": "improvement"
+            if rmse_delta > 0
+            else ("regression" if rmse_delta < 0 else "neutral"),
         },
     }
     save_results(full_results, output_path)
@@ -530,7 +569,9 @@ def run_single_patient(
         "stage1_rmse": stage1_rmse,
         "stage2_rmse": stage2_rmse,
         "delta": rmse_delta,
-        "direction": "improvement" if rmse_delta > 0 else ("regression" if rmse_delta < 0 else "neutral"),
+        "direction": "improvement"
+        if rmse_delta > 0
+        else ("regression" if rmse_delta < 0 else "neutral"),
         "n_episodes": stage1_results.get("total_episodes", 0),
         "status": "OK",
     }
@@ -540,6 +581,7 @@ def run_single_patient(
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -547,50 +589,114 @@ def parse_arguments() -> argparse.Namespace:
             "Requires a Stage 1 checkpoint trained via the holdout workflow."
         )
     )
-    parser.add_argument("--model", type=str, required=True, choices=["ttm", "sundial", "chronos2"],
-                        help="Model type (must match checkpoint)")
-    parser.add_argument("--checkpoint", type=str, required=True,
-                        help="Path to Stage 1 checkpoint directory")
-    parser.add_argument("--dataset", type=str, required=True,
-                        help="Dataset name (e.g. brown_2019)")
+    parser.add_argument(
+        "--model",
+        type=str,
+        required=True,
+        choices=["ttm", "sundial", "chronos2"],
+        help="Model type (must match checkpoint)",
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        required=True,
+        help="Path to Stage 1 checkpoint directory",
+    )
+    parser.add_argument(
+        "--dataset", type=str, required=True, help="Dataset name (e.g. brown_2019)"
+    )
 
     # Patient selection: single or all
     patient_group = parser.add_mutually_exclusive_group(required=True)
-    patient_group.add_argument("--patient-id", type=str, default=None,
-                               help="Target patient ID (must be in holdout set)")
-    patient_group.add_argument("--all-patients", action="store_true",
-                               help="Run for ALL holdout patients (batch mode)")
+    patient_group.add_argument(
+        "--patient-id",
+        type=str,
+        default=None,
+        help="Target patient ID (must be in holdout set)",
+    )
+    patient_group.add_argument(
+        "--all-patients",
+        action="store_true",
+        help="Run for ALL holdout patients (batch mode)",
+    )
 
-    parser.add_argument("--output-dir", type=str, default=None,
-                        help="Output directory (auto-generated if not set)")
-    parser.add_argument("--config-dir", type=str, default="configs/data/holdout_10pct",
-                        help="Holdout config directory (default: holdout_10pct)")
-    parser.add_argument("--lora-rank", type=int, default=8,
-                        help="LoRA rank (default: 8; skipped for non-transformer models)")
-    parser.add_argument("--lora-alpha", type=int, default=16,
-                        help="LoRA alpha (default: 16)")
-    parser.add_argument("--learning-rate", type=float, default=3e-5,
-                        help="Stage 2 learning rate (default: 3e-5)")
-    parser.add_argument("--num-epochs", type=int, default=50,
-                        help="Maximum training epochs for TTM (default: 50 with early stopping)")
-    parser.add_argument("--fine-tune-steps", type=int, default=5000,
-                        help="Fine-tuning steps for Chronos2 (default: 5000)")
-    parser.add_argument("--val-days", type=int, default=7,
-                        help="Days reserved for validation (default: 7)")
-    parser.add_argument("--test-days", type=int, default=7,
-                        help="Days reserved for final test evaluation (default: 7)")
-    parser.add_argument("--context-length", type=int, default=None,
-                        help="Context window length in steps (uses checkpoint value by default)")
-    parser.add_argument("--forecast-length", type=int, default=72,
-                        help="Forecast horizon in steps (default: 72 = 6h nocturnal)")
-    parser.add_argument("--covariate-cols", type=str, nargs="*", default=None,
-                        help="Covariate column names for nocturnal eval (e.g. iob cob)")
+    parser.add_argument(
+        "--output-dir",
+        type=str,
+        default=None,
+        help="Output directory (auto-generated if not set)",
+    )
+    parser.add_argument(
+        "--config-dir",
+        type=str,
+        default="configs/data/holdout_10pct",
+        help="Holdout config directory (default: holdout_10pct)",
+    )
+    parser.add_argument(
+        "--lora-rank",
+        type=int,
+        default=8,
+        help="LoRA rank (default: 8; skipped for non-transformer models)",
+    )
+    parser.add_argument(
+        "--lora-alpha", type=int, default=16, help="LoRA alpha (default: 16)"
+    )
+    parser.add_argument(
+        "--learning-rate",
+        type=float,
+        default=3e-5,
+        help="Stage 2 learning rate (default: 3e-5)",
+    )
+    parser.add_argument(
+        "--num-epochs",
+        type=int,
+        default=50,
+        help="Maximum training epochs for TTM (default: 50 with early stopping)",
+    )
+    parser.add_argument(
+        "--fine-tune-steps",
+        type=int,
+        default=5000,
+        help="Fine-tuning steps for Chronos2 (default: 5000)",
+    )
+    parser.add_argument(
+        "--val-days",
+        type=int,
+        default=7,
+        help="Days reserved for validation (default: 7)",
+    )
+    parser.add_argument(
+        "--test-days",
+        type=int,
+        default=7,
+        help="Days reserved for final test evaluation (default: 7)",
+    )
+    parser.add_argument(
+        "--context-length",
+        type=int,
+        default=None,
+        help="Context window length in steps (uses checkpoint value by default)",
+    )
+    parser.add_argument(
+        "--forecast-length",
+        type=int,
+        default=72,
+        help="Forecast horizon in steps (default: 72 = 6h nocturnal)",
+    )
+    parser.add_argument(
+        "--covariate-cols",
+        type=str,
+        nargs="*",
+        default=None,
+        help="Covariate column names for nocturnal eval (e.g. iob cob)",
+    )
     return parser.parse_args()
 
 
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     args = parse_arguments()
@@ -652,15 +758,17 @@ def main() -> None:
             summary_rows.append(result)
         except Exception as e:
             logger.error("FAILED for patient %s: %s", patient_id, e, exc_info=True)
-            summary_rows.append({
-                "patient_id": patient_id,
-                "stage1_rmse": float("nan"),
-                "stage2_rmse": float("nan"),
-                "delta": float("nan"),
-                "direction": "error",
-                "n_episodes": 0,
-                "status": f"FAILED: {e}",
-            })
+            summary_rows.append(
+                {
+                    "patient_id": patient_id,
+                    "stage1_rmse": float("nan"),
+                    "stage2_rmse": float("nan"),
+                    "delta": float("nan"),
+                    "direction": "error",
+                    "n_episodes": 0,
+                    "status": f"FAILED: {e}",
+                }
+            )
 
     # ── Write summary CSV (batch mode or single patient) ────────────────────
     output_root = batch_root if batch_root is not None else patient_output

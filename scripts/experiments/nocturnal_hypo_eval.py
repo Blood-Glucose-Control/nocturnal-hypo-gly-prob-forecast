@@ -75,11 +75,14 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any, Dict, List
+from typing import Optional, Any, Dict
 
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.data.utils import get_patient_column
-from src.evaluation.nocturnal import evaluate_nocturnal_forecasting, plot_best_worst_episodes
+from src.evaluation.nocturnal import (
+    evaluate_nocturnal_forecasting,
+    plot_best_worst_episodes,
+)
 from src.models import create_model_and_config
 from src.utils import get_git_commit_hash, setup_file_logging, load_yaml_config
 
@@ -275,7 +278,11 @@ def main():
     forecast_length = config.forecast_length
 
     # Auto-detect covariates from model config if not explicitly specified
-    if args.covariate_cols is None and hasattr(config, "covariate_cols") and config.covariate_cols:
+    if (
+        args.covariate_cols is None
+        and hasattr(config, "covariate_cols")
+        and config.covariate_cols
+    ):
         args.covariate_cols = config.covariate_cols
         logger.info(f"Using covariates from model config: {args.covariate_cols}")
 

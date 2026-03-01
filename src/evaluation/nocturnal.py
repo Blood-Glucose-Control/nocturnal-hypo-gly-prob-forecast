@@ -298,7 +298,9 @@ def predict_with_quantiles(
     results = {}
     for ep_id, group in predictions.groupby("episode_id"):
         mean = group[target_col].to_numpy()
-        quantile_cols = [c for c in group.columns if c not in [target_col, "episode_id"]]
+        quantile_cols = [
+            c for c in group.columns if c not in [target_col, "episode_id"]
+        ]
         results[ep_id] = {
             "mean": mean,
             "quantiles": {c: group[c].to_numpy() for c in quantile_cols},
@@ -335,8 +337,12 @@ def plot_stage_comparison_auto(
         patient_id: Target patient ID.
         context_hours_to_show: Hours of context to display.
     """
-    s1_by_anchor = {ep["anchor"]: ep for ep in stage1_per_episode if ep.get("context_bg")}
-    s2_by_anchor = {ep["anchor"]: ep for ep in stage2_per_episode if ep.get("context_bg")}
+    s1_by_anchor = {
+        ep["anchor"]: ep for ep in stage1_per_episode if ep.get("context_bg")
+    }
+    s2_by_anchor = {
+        ep["anchor"]: ep for ep in stage2_per_episode if ep.get("context_bg")
+    }
     common_anchors = sorted(set(s1_by_anchor.keys()) & set(s2_by_anchor.keys()))
 
     if not common_anchors:
@@ -344,13 +350,17 @@ def plot_stage_comparison_auto(
         return
 
     # Use quantile bands when available (Chronos2 populates this via predict())
-    has_quantiles = bool(s1_by_anchor[common_anchors[0]].get("quantiles") and
-                         s2_by_anchor[common_anchors[0]].get("quantiles"))
+    has_quantiles = bool(
+        s1_by_anchor[common_anchors[0]].get("quantiles")
+        and s2_by_anchor[common_anchors[0]].get("quantiles")
+    )
 
     n_episodes = len(common_anchors)
     ncols = min(4, n_episodes)
     nrows = (n_episodes + ncols - 1) // ncols
-    fig, axes = plt.subplots(nrows, ncols, figsize=(5.5 * ncols, 4.5 * nrows), squeeze=False)
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=(5.5 * ncols, 4.5 * nrows), squeeze=False
+    )
     axes = axes.flatten()
 
     context_steps = context_hours_to_show * STEPS_PER_HOUR
@@ -373,20 +383,45 @@ def plot_stage_comparison_auto(
 
         ax.plot(t_ctx, ctx, "b-", lw=1.5, label="Context")
         ax.plot(t_pred, tgt, "k-", lw=2, label="Actual")
-        ax.plot(t_pred, pred_s1, color="orange", lw=1.5, ls="--", alpha=0.9,
-                label=f"S1 ({s1['rmse']:.2f})")
-        ax.plot(t_pred, pred_s2, color="#1f77b4", lw=2, alpha=0.9,
-                label=f"S2 ({s2['rmse']:.2f})")
+        ax.plot(
+            t_pred,
+            pred_s1,
+            color="orange",
+            lw=1.5,
+            ls="--",
+            alpha=0.9,
+            label=f"S1 ({s1['rmse']:.2f})",
+        )
+        ax.plot(
+            t_pred,
+            pred_s2,
+            color="#1f77b4",
+            lw=2,
+            alpha=0.9,
+            label=f"S2 ({s2['rmse']:.2f})",
+        )
 
         if has_quantiles:
             q1 = s1["quantiles"]
             q2 = s2["quantiles"]
             if "0.1" in q1 and "0.9" in q1:
-                ax.fill_between(t_pred, q1["0.1"], q1["0.9"], color="orange", alpha=0.15,
-                                label="S1 10-90%")
+                ax.fill_between(
+                    t_pred,
+                    q1["0.1"],
+                    q1["0.9"],
+                    color="orange",
+                    alpha=0.15,
+                    label="S1 10-90%",
+                )
             if "0.1" in q2 and "0.9" in q2:
-                ax.fill_between(t_pred, q2["0.1"], q2["0.9"], color="#1f77b4", alpha=0.15,
-                                label="S2 10-90%")
+                ax.fill_between(
+                    t_pred,
+                    q2["0.1"],
+                    q2["0.9"],
+                    color="#1f77b4",
+                    alpha=0.15,
+                    label="S2 10-90%",
+                )
 
         ax.axvline(0, color="gray", ls=":", lw=1)
         ax.axhline(HYPO_THRESHOLD_MMOL, color="crimson", ls="--", alpha=0.3, lw=1)
@@ -396,8 +431,11 @@ def plot_stage_comparison_auto(
         ax.set_title(anchor[:10], fontsize=9)
         ax.tick_params(labelsize=8)
         ax.grid(alpha=0.3)
-        ax.legend(fontsize=6 if has_quantiles else 7, loc="upper right",
-                  ncol=2 if has_quantiles else 1)
+        ax.legend(
+            fontsize=6 if has_quantiles else 7,
+            loc="upper right",
+            ncol=2 if has_quantiles else 1,
+        )
 
     for j in range(n_episodes, len(axes)):
         axes[j].set_visible(False)
@@ -409,12 +447,15 @@ def plot_stage_comparison_auto(
         f"{model_name.upper()} {plot_type} — {patient_id} ({dataset_name})\n"
         f"Population RMSE: {stage1_rmse:.3f}  |  Personalized RMSE: {stage2_rmse:.3f}  |  "
         f"Delta: {abs(delta):.3f} ({direction})",
-        fontsize=12, fontweight="bold",
+        fontsize=12,
+        fontweight="bold",
     )
     plt.tight_layout()
 
     plot_file = Path(output_path) / (
-        "quantile_stage_comparison.png" if has_quantiles else "stage1_vs_stage2_comparison.png"
+        "quantile_stage_comparison.png"
+        if has_quantiles
+        else "stage1_vs_stage2_comparison.png"
     )
     plt.savefig(plot_file, dpi=150, bbox_inches="tight")
     plt.close()
@@ -477,7 +518,11 @@ def plot_best_worst_episodes(
         tgt = np.array(ex["target_bg"])
         pred = np.array(ex["pred"])
 
-        ctx = ctx_full[-context_steps_to_show:] if len(ctx_full) > context_steps_to_show else ctx_full
+        ctx = (
+            ctx_full[-context_steps_to_show:]
+            if len(ctx_full) > context_steps_to_show
+            else ctx_full
+        )
 
         t_ctx = (np.arange(len(ctx)) - len(ctx)) / STEPS_PER_HOUR
         t_pred = np.arange(len(tgt)) / STEPS_PER_HOUR
@@ -487,7 +532,11 @@ def plot_best_worst_episodes(
         ax.plot(t_pred, pred, "r--", lw=2, alpha=0.8, label="BG (forecast)")
         ax.axvline(0, color="gray", ls=":", lw=1.5, label="Midnight")
         ax.axhline(
-            HYPO_THRESHOLD_MMOL, color="crimson", ls="--", alpha=0.4, lw=1,
+            HYPO_THRESHOLD_MMOL,
+            color="crimson",
+            ls="--",
+            alpha=0.4,
+            lw=1,
             label="Hypo threshold",
         )
 
