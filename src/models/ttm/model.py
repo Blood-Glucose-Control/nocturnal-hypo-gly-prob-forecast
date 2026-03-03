@@ -809,13 +809,17 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             "static_categorical_columns": [],
         }
 
-        # Filter to only include columns that exist in the data
+        # Filter to only include columns that exist in the data AND have
+        # at least some non-NaN values (e.g. Brown 2019 has cob/carb_availability
+        # columns as all-NaN placeholders because no meal data exists)
         available_columns = set(data.columns)
 
         for key, columns in column_specifiers.items():
             if isinstance(columns, list):
                 column_specifiers[key] = [
-                    col for col in columns if col in available_columns
+                    col
+                    for col in columns
+                    if col in available_columns and not data[col].isna().all()
                 ]
 
         return column_specifiers
