@@ -109,9 +109,9 @@ class TTMConfig(ModelConfig):
             split_sum = sum(self.split_config.values())
             if abs(split_sum - 1.0) > 1e-6:
                 errors.append(f"split_config must sum to 1.0, got {split_sum}")
-        if self.scaler_type not in ("standard", "minmax", "robust"):
+        if self.scaler_type not in ("standard", "minmax"):
             errors.append(
-                f"scaler_type must be standard/minmax/robust, got {self.scaler_type}"
+                f"scaler_type must be standard/minmax, got {self.scaler_type}"
             )
 
         if errors:
@@ -134,7 +134,13 @@ def create_default_ttm_config(**overrides) -> TTMConfig:
 
 def create_ttm_fine_tuning_config(**overrides) -> TTMConfig:
     """DEPRECATED: Use TTMConfig(training_mode="fine_tune", ...) directly."""
-    defaults = {"training_mode": "fine_tune", "learning_rate": 1e-5, "num_epochs": 5}
+    defaults = {
+        "training_mode": "fine_tune",
+        "freeze_backbone": False,
+        "learning_rate": 1e-5,
+        "num_epochs": 5,
+        "warmup_steps": 500,
+    }
     return create_default_ttm_config(**{**defaults, **overrides})
 
 
