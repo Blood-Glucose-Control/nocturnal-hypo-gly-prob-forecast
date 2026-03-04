@@ -20,7 +20,7 @@
 #   DATASET=lynch_2022 PATIENTS="lyn_270 lyn_400" bash scripts/training/slurm/per_patient_finetune_all.sh
 
 : ${DATASET:="brown_2019"}
-: ${CHECKPOINT:="models/chronos2_stage1/20260224_234112"}
+: ${CHECKPOINT:="models/chronos2_brown_2019/20260302_215010"}
 : ${MODEL:="chronos2"}
 : ${CONFIG_DIR:="configs/data/holdout_10pct"}
 : ${MODE:="single"}

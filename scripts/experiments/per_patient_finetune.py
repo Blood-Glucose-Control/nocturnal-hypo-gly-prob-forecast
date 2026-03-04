@@ -38,6 +38,7 @@ import argparse
 import json
 import logging
 import os
+import shutil
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -246,6 +247,75 @@ def write_summary_csv(summary_rows: List[Dict[str, Any]], output_dir: Path) -> N
 
 
 # ---------------------------------------------------------------------------
+# LoRA merge: Stage 1 checkpoint → merged base weights
+# ---------------------------------------------------------------------------
+
+
+def merge_stage1_lora(checkpoint_dir: str, output_dir: str) -> str:
+    """Merge Stage 1 LoRA adapter into base Chronos-2 weights.
+
+    AutoGluon stores fine-tuned Chronos-2 as a LoRA adapter (PEFT) on top of
+    the base model. Each call to predictor.fit() starts fresh from model_path,
+    so simply loading the Stage 1 checkpoint and calling fit() again would
+    discard the Stage 1 weights. This function merges the LoRA adapter into
+    the base model weights so they can be used as model_path for Stage 2.
+
+    Args:
+        checkpoint_dir: Path to the Stage 1 AutoGluon predictor directory
+            (contains models/Chronos2/W0/fine-tuned-ckpt/).
+        output_dir: Directory where the merged model will be saved.
+
+    Returns:
+        Path to the merged model directory (usable as model_path).
+
+    Raises:
+        FileNotFoundError: If the LoRA adapter is not found in checkpoint_dir.
+    """
+    from chronos.chronos2.model import Chronos2Model
+    from peft import PeftModel
+
+    # Locate the LoRA adapter
+    adapter_path = (
+        Path(checkpoint_dir) / "models" / "Chronos2" / "W0" / "fine-tuned-ckpt"
+    )
+    if not adapter_path.exists():
+        raise FileNotFoundError(
+            f"No LoRA adapter found at {adapter_path}. "
+            f"Is {checkpoint_dir} a valid fine-tuned Chronos-2 checkpoint?"
+        )
+
+    # Read base model path from adapter config
+    with open(adapter_path / "adapter_config.json") as f:
+        adapter_config = json.load(f)
+    base_model_path = adapter_config["base_model_name_or_path"]
+
+    logger.info("Merging Stage 1 LoRA into base model:")
+    logger.info("  Base model: %s", base_model_path)
+    logger.info("  Adapter:    %s", adapter_path)
+
+    # Load base model + LoRA, merge weights
+    base_model = Chronos2Model.from_pretrained(base_model_path)
+    peft_model = PeftModel.from_pretrained(base_model, str(adapter_path))
+    merged_model = peft_model.merge_and_unload()
+
+    # Save merged model
+    merged_dir = Path(output_dir) / "merged_stage1"
+    merged_dir.mkdir(parents=True, exist_ok=True)
+    merged_model.save_pretrained(str(merged_dir))
+
+    # Copy tokenizer/config files from base model (needed by AutoGluon)
+    from huggingface_hub import snapshot_download
+
+    cache_dir = snapshot_download(base_model_path)
+    for fname in os.listdir(cache_dir):
+        if fname.endswith(".json") and not (merged_dir / fname).exists():
+            shutil.copy2(os.path.join(cache_dir, fname), merged_dir)
+
+    logger.info("Merged model saved to: %s", merged_dir)
+    return str(merged_dir)
+
+
+# ---------------------------------------------------------------------------
 # Core: single-patient fine-tuning
 # ---------------------------------------------------------------------------
 
@@ -397,6 +467,20 @@ def run_single_patient(
         stage1_rmse,
         stage1_results["total_episodes"],
     )
+
+    # ── Merge Stage 1 LoRA into base weights (Chronos-2 only) ────────────
+    # AutoGluon creates a NEW predictor on each fit() call, starting fresh
+    # from model_path. Without merging, Stage 2 would fine-tune from the
+    # base pretrained model, not from Stage 1 weights. This merges the
+    # Stage 1 LoRA adapter into the base model so Stage 2 continues from it.
+    if args.model in ("chronos2", "chronos"):
+        logger.info("\n--- Merging Stage 1 LoRA into Base Model ---")
+        merged_model_path = merge_stage1_lora(
+            checkpoint_dir=args.checkpoint,
+            output_dir=str(output_path),
+        )
+        model.config.model_path = merged_model_path
+        logger.info("Updated model_path for Stage 2: %s", merged_model_path)
 
     # ── Configure Stage 2 ──────────────────────────────────────────────────
     logger.info("\n--- Configuring Stage 2 Fine-Tuning ---")

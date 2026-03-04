@@ -19,7 +19,7 @@
 #   CHECKPOINT=models/other/path sbatch scripts/training/slurm/per_patient_finetune.sh
 
 : ${MODEL:="chronos2"}
-: ${CHECKPOINT:="models/chronos2_stage1/20260224_234112"}
+: ${CHECKPOINT:="models/chronos2_brown_2019/20260302_215010"}
 : ${DATASET:="brown_2019"}
 : ${PATIENT:="bro_62"}
 : ${TEST_DAYS:="14"}
