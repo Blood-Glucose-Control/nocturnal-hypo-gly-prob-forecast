@@ -179,6 +179,10 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def supports_lora(self) -> bool:
         return False
 
+    @property
+    def supports_zero_shot(self) -> bool:
+        return True
+
     def predict(
         self, data: pd.DataFrame, prediction_length: Optional[int] = None
     ) -> np.ndarray:

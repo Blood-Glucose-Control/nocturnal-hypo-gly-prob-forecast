@@ -175,16 +175,6 @@ class ModelFactory:
         return defaults.get(model_type, "")
 
     @staticmethod
-    def supports_zero_shot(model_type: str) -> bool:
-        """Return True if the model type supports zero-shot evaluation.
-
-        Models that always train from scratch (no concept of pretrained weights)
-        cannot perform zero-shot evaluation regardless of any config override.
-        """
-        from_scratch_only = {"timegrad", "tide"}
-        return model_type.lower() not in from_scratch_only
-
-    @staticmethod
     def create_model(
         config: GenericModelConfig,
         distributed_config: Optional[DistributedConfig] = None,
@@ -1537,6 +1527,16 @@ def step4_zero_shot_evaluation(
 
     # Create model using the factory
     model = ModelFactory.create_model(config, distributed_config=distributed_config)
+
+    # Check if model actually supports zero-shot prediction
+    if not model.supports_zero_shot:
+        logger.info(
+            f"{model_type} does not support zero-shot (trains from scratch). "
+            "Skipping zero-shot evaluation."
+        )
+        del model
+        return None
+
     logger.info(f"✓ Pretrained {model_type.upper()} model loaded (zero-shot mode)")
 
     # Evaluate and plot for zero-shot phase
@@ -1954,30 +1954,18 @@ stored in separate subdirectories for comparison.
     skip_steps: set[int] = set(args.skip_steps)
     if args.skip_training:
         skip_steps.update({5, 6, 7})
-    # Auto-skip zero-shot for models that cannot perform zero-shot evaluation.
-    # Two cases require skipping:
-    #   1. The model type inherently trains from scratch (e.g. timegrad) and has
-    #      no pretrained weights, regardless of any YAML override.
-    #   2. A YAML config explicitly sets training_mode=from_scratch for a model
-    #      type that normally has pretrained weights (e.g. TTM configured to train
-    #      from scratch). get_default_model_path() would return a non-empty string
-    #      for such models and would incorrectly allow step 4 to run.
+    # Auto-skip zero-shot if YAML explicitly sets training_mode=from_scratch.
+    # The model-level check (model.supports_zero_shot) happens inside step 4
+    # after the model is created — no hardcoded model type list needed here.
     resolved_training_mode = (model_config_overrides or {}).get(
         "training_mode", "fine_tune"
     )
-    no_zero_shot = (
-        not ModelFactory.supports_zero_shot(args.model_type)
-        or resolved_training_mode == "from_scratch"
-    )
-    if no_zero_shot:
-        if 4 not in skip_steps:
-            reason = (
-                f"{args.model_type} trains from scratch and has no pretrained weights"
-                if not ModelFactory.supports_zero_shot(args.model_type)
-                else f"{args.model_type} is configured with training_mode=from_scratch"
-            )
-            logger.info(f"Auto-skipping step 4 (zero-shot): {reason}")
-            skip_steps.add(4)
+    if resolved_training_mode == "from_scratch" and 4 not in skip_steps:
+        logger.info(
+            f"Auto-skipping step 4 (zero-shot): "
+            f"{args.model_type} is configured with training_mode=from_scratch"
+        )
+        skip_steps.add(4)
 
     # Set output directory
     if args.output_dir is None:

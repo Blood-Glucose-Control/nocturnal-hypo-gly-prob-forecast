@@ -110,6 +110,10 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
     def supports_lora(self) -> bool:
         return False
 
+    @property
+    def supports_zero_shot(self) -> bool:
+        return False
+
     def _initialize_model(self) -> None:
         """Build the TimeGradEstimator (predictor is set after training or loading)."""
         info_print("Initializing TimeGrad estimator...")

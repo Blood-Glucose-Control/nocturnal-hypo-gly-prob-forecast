@@ -71,6 +71,10 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
     def supports_lora(self) -> bool:
         return False
 
+    @property
+    def supports_zero_shot(self) -> bool:
+        return True
+
     def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
         """Make predictions given context data.
 

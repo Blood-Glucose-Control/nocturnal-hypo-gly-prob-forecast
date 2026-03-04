@@ -130,6 +130,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         """
         return False
 
+    @property
+    def supports_zero_shot(self) -> bool:
+        return True
+
     # Abstract method implementations
     ## Abstract implemented public methods
     def predict(

@@ -140,12 +140,17 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
         return predictions
 
+    @property
     def supports_lora(self) -> bool:
         """Check if Moirai supports LoRA fine-tuning.
 
         Returns:
             True, as Moirai is transformer-based and supports LoRA.
         """
+        return True
+
+    @property
+    def supports_zero_shot(self) -> bool:
         return True
 
     def _initialize_model(self) -> Any:
