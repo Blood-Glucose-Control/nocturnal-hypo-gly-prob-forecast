@@ -136,15 +136,20 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
     # Abstract method implementations
     ## Abstract implemented public methods
-    def predict(
+    def _predict(
         self,
         data: Any,
         batch_size: Optional[int] = None,
         inverse_scale: bool = True,
         return_dict: bool = False,
     ) -> Union[np.ndarray, Dict[str, Any]]:
-        """Make predictions on new data. This will be very specific to each child class.
-            When designing this, just consider what the final data shape should look like.
+        """Make predictions on new data using TTM pipeline.
+
+        Branches on is_fitted to select the inference path:
+        - Fitted: uses TimeSeriesForecastingPipeline with the preprocessor
+          (external scaling fitted during training).
+        - Not fitted (zero-shot): uses pipeline without preprocessor;
+          TTM's internal RevIN handles per-window standardization.
 
         Args:
             data: Input data for prediction
@@ -156,37 +161,39 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Predictions as numpy array (in original scale if inverse_scale=True)
             or a dictionary with predictions and metadata if return_dict=True.
-
-        Raises:
-            ValueError: If model has not been fitted
         """
-        if not self.is_fitted or self.model is None:
-            raise ValueError("Model must be fitted before making predictions")
+        if self.is_fitted:
+            # Fine-tuned path: preprocessor handles scaling + inverse scaling
+            pipeline = TimeSeriesForecastingPipeline(
+                model=self.model,
+                feature_extractor=self.preprocessor,
+                explode_forecasts=True,
+                inverse_scale_outputs=inverse_scale,
+                batch_size=batch_size or self.config.batch_size,
+            )
+            forecast_df = pipeline(data)
+            target_col = self.preprocessor.target_columns[0]
+            predictions = forecast_df[target_col].values
+        else:
+            # Zero-shot path: no preprocessor, TTM's internal RevIN
+            # handles per-window standardization automatically
+            if self.column_specifiers is None:
+                self.column_specifiers = self._create_column_specifiers(data)
 
-        # For zero-shot mode without preprocessor, use predict_zero_shot
-        if self.preprocessor is None and self.config.training_mode == "zero_shot":
-            info_print("Using zero-shot prediction path (no preprocessor)")
-            predictions = self.predict_zero_shot(data, batch_size)
-            if return_dict:
-                return {
-                    "predictions": predictions,
-                    "model_config": self.config.to_dict(),
-                    "n_samples": len(predictions),
-                }
-            return predictions
-
-        # TimeSeriesForecastingPipeline is the official tsfm_public inference
-        # path — handles scaling → tensor → forward pass → inverse scaling.
-        pipeline = TimeSeriesForecastingPipeline(
-            model=self.model,
-            feature_extractor=self.preprocessor,
-            explode_forecasts=True,
-            inverse_scale_outputs=inverse_scale,
-            batch_size=batch_size or self.config.batch_size,
-        )
-        forecast_df = pipeline(data)
-        target_col = self.preprocessor.target_columns[0]
-        predictions = forecast_df[target_col].values
+            pipeline = TimeSeriesForecastingPipeline(
+                model=self.model,
+                timestamp_column=self.column_specifiers.get(
+                    "timestamp_column", ColumnNames.DATETIME.value
+                ),
+                id_columns=self.column_specifiers.get("id_columns", []),
+                target_columns=self.column_specifiers.get("target_columns", ["bg_mM"]),
+                observable_columns=self.column_specifiers.get("observable_columns", []),
+                explode_forecasts=True,
+                freq=f"{self.config.resolution_min}min",
+            )
+            forecast_df = pipeline(data)
+            target_col = self.column_specifiers["target_columns"][0]
+            predictions = forecast_df[target_col].values
 
         if return_dict:
             return {
@@ -345,8 +352,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 info_print("Freezing all parameters for zero-shot evaluation")
                 for param in ttm_model.parameters():
                     param.requires_grad = False
-                # Zero-shot models are ready to predict without training
-                self.is_fitted = True
             else:
                 # For any training scenario (fine_tune, from_scratch), enable gradients
                 info_print(
@@ -724,44 +729,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
     # TTM-specific public methods
     # NOTE: evaluate() is inherited from BaseTimeSeriesFoundationModel
     # It calls predict() and computes metrics using _compute_metrics()
-
-    def predict_zero_shot(
-        self,
-        data: Any,
-        batch_size: Optional[int] = None,
-    ) -> np.ndarray:
-        """Make zero-shot predictions without fine-tuning.
-
-        Uses TimeSeriesForecastingPipeline without a feature_extractor.
-        TTM's internal TinyTimeMixerStdScaler (RevIN) handles per-window
-        standardization automatically — no external scaling needed.
-
-        Args:
-            data: Input data for prediction (DataFrame)
-            batch_size: Batch size for prediction (unused, kept for API compat)
-
-        Returns:
-            Model predictions as numpy array (in original scale)
-        """
-        if self.column_specifiers is None:
-            self.column_specifiers = self._create_column_specifiers(data)
-
-        # Pipeline without feature_extractor — TTM's internal scaler
-        # handles per-window standardization and inverse scaling.
-        pipeline = TimeSeriesForecastingPipeline(
-            model=self.model,
-            timestamp_column=self.column_specifiers.get(
-                "timestamp_column", ColumnNames.DATETIME.value
-            ),
-            id_columns=self.column_specifiers.get("id_columns", []),
-            target_columns=self.column_specifiers.get("target_columns", ["bg_mM"]),
-            observable_columns=self.column_specifiers.get("observable_columns", []),
-            explode_forecasts=True,
-            freq=f"{self.config.resolution_min}min",
-        )
-        forecast_df = pipeline(data)
-        target_col = self.column_specifiers["target_columns"][0]
-        return forecast_df[target_col].values
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.
