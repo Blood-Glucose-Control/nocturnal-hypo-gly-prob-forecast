@@ -1,20 +1,26 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
+# For commercial licensing, contact: cjrisi/christopher AT uwaterloo/gluroo DOT ca/com
 
 """
-TiDE forecaster using AutoGluon's TimeSeriesPredictor backend.
+Chronos-2 forecaster using AutoGluon's TimeSeriesPredictor backend.
 
-TiDE delegates model loading, sliding windows, and training to AutoGluon
-internally. The primary model state is self.predictor (TimeSeriesPredictor).
+Unlike TTM (HuggingFace Trainer + PyTorch DataLoaders), Chronos-2 delegates
+model loading, LoRA, sliding windows, and training to AutoGluon internally.
+The primary model state is self.predictor (TimeSeriesPredictor), not
+self.model (torch.nn.Module) which stays None.
 
 Two separate pipelines exist in this class:
 
-  TRAINING:  flat_df -> patient_dict -> gap-handled segments -> TimeSeriesDataFrame
-             -> AutoGluon.fit() with sliding windows over full segments
+  TRAINING:  flat_df → patient_dict → gap-handled segments → TimeSeriesDataFrame
+             → AutoGluon.fit() with sliding windows over full segments
 
-  INFERENCE: flat_df -> patient_dict -> midnight-anchored episodes -> AutoGluon.predict()
+  INFERENCE: flat_df → patient_dict → midnight-anchored episodes → AutoGluon.predict()
              Each episode is one clinical question: "Given 42h of context ending
-             at midnight (with past covariates like iob), forecast BG for the next 6h."
+             at midnight + known future covariates, forecast BG for the next 6h."
+
+Extracted from validated experiment script (1.890 RMSE, -26% vs zero-shot)
+and notebook 4.17-ss-chronos2-pipeline-validation.ipynb.
 """
 
 import json
@@ -29,8 +35,7 @@ from src.data.preprocessing.gap_handling import segment_all_patients
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
 from src.utils.logging_helper import info_print
 
-from .config import TiDEConfig
-
+from .config import Chronos2Config
 from .utils import (
     convert_to_patient_dict,
     format_segments_for_autogluon,
@@ -39,25 +44,30 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
-class TiDEForecaster(BaseTimeSeriesFoundationModel):
-    """TiDE time series forecaster using AutoGluon backend.
+class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
+    """Chronos-2 time series forecaster using AutoGluon backend.
 
-    Implements the BaseTimeSeriesFoundationModel interface for TiDE,
+    Implements the BaseTimeSeriesFoundationModel interface for Chronos-2,
     wrapping AutoGluon's TimeSeriesPredictor for training and inference.
 
-    - Trains from scratch (no pre-trained weights or fine_tune flag)
-    - Uses TiDE-specific hyperparameters (encoder/decoder dims, MeanScaler)
+    Key differences from TTM/TimesFM:
+    - training_backend = CUSTOM (AutoGluon manages training internally)
+    - self.model stays None; self.predictor holds the AutoGluon predictor
+    - _prepare_training_data returns TimeSeriesDataFrame, not DataLoaders
+    - evaluate() is overridden for midnight-anchored nocturnal evaluation
     """
 
     def __init__(
         self,
-        config: TiDEConfig,
+        config: Chronos2Config,
         lora_config=None,
         distributed_config=None,
     ):
         # AutoGluon predictor — set before super().__init__() which calls
         # _initialize_model() (our no-op)
         self.predictor = None
+        # lora_config and distributed_config are accepted for base class
+        # compatibility but unused — AutoGluon handles LoRA internally
         super().__init__(config, lora_config, distributed_config)
 
     @property
@@ -66,6 +76,8 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
     @property
     def supports_lora(self) -> bool:
+        # AutoGluon handles LoRA internally; base class LoRA mechanism
+        # is unused since self.model stays None
         return False
 
     def _initialize_model(self) -> None:
@@ -89,15 +101,18 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Tuple of (TimeSeriesDataFrame, None, None). The Nones are
             because the base class signature expects (train, val, test)
-            but AutoGluon handles validation internally via sliding windows.
+            but Chronos-2 does not split — AutoGluon handles validation
+            internally via sliding windows.
         """
         config = self.config
 
+        # flat df -> per-patient dict
         patient_dict = convert_to_patient_dict(
             train_data, config.patient_col, config.time_col
         )
         info_print(f"Converted to {len(patient_dict)} patient dicts")
 
+        # gap handling: interpolate small gaps, segment at large gaps
         segments = segment_all_patients(
             patient_dict,
             imputation_threshold_mins=config.imputation_threshold_mins,
@@ -106,6 +121,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         )
         info_print(f"Gap handling: {len(segments)} segments")
 
+        # format for AutoGluon with covariates
         ts_train = format_segments_for_autogluon(
             segments, config.target_col, config.covariate_cols
         )
@@ -119,7 +135,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         output_dir: str,
         **kwargs,
     ) -> Dict[str, Any]:
-        """Train TiDE from scratch via AutoGluon's TimeSeriesPredictor.
+        """Fine-tune Chronos-2 via AutoGluon's TimeSeriesPredictor.
 
         The base class fit() passes raw train_data here (not pre-processed)
         for CUSTOM backends. We call _prepare_training_data ourselves.
@@ -137,16 +153,19 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         config = self.config
         ts_train, _, _ = self._prepare_training_data(train_data)
 
-        # Convert interval_mins to frequency string for AutoGluon
-        # e.g., 5 -> "5min", 15 -> "15min"
-        freq = f"{config.interval_mins}min"
-
-        info_print(f"Creating TimeSeriesPredictor at {output_dir} with freq={freq}")
+        info_print(f"Creating TimeSeriesPredictor at {output_dir}")
         predictor = TimeSeriesPredictor(
             prediction_length=config.forecast_length,
+            # "target" is the column name after format_segments_for_autogluon
+            # renames config.target_col (e.g. "bg_mM") -> "target"
             target="target",
+            # known_covariates_names intentionally NOT set — covariates (IOB,
+            # COB) are included as past-only context columns. Setting them as
+            # "known" would require providing future values at inference time,
+            # which constitutes data leakage (post-midnight IOB/COB are
+            # reactive to future BG and unknowable at the prediction origin).
+            freq=f"{config.interval_mins}min",
             eval_metric=config.eval_metric,
-            freq=freq,
             path=output_dir,
         )
 
@@ -159,10 +178,8 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
             fit_kwargs["time_limit"] = config.time_limit
 
         info_print(
-            f"Starting TiDE training: "
-            f"context={config.context_length}, "
-            f"hidden_dim={config.encoder_hidden_dim}, "
-            f"scaling={config.scaling}"
+            f"Starting Chronos-2 fine-tuning: "
+            f"{config.fine_tune_steps} steps, lr={config.fine_tune_lr}"
         )
         predictor.fit(**fit_kwargs)
         self.predictor = predictor
@@ -185,7 +202,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
         Accepts either:
         - A panel DataFrame with 'episode_id' column (multiple episodes)
-        - A plain context DataFrame (single context window)
+        - A plain context DataFrame (single context window from the workflow)
 
         If no 'episode_id' column is present, the entire DataFrame is treated
         as a single episode (synthetic episode_id assigned automatically).
@@ -193,8 +210,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         Args:
             data: DataFrame with target_col (bg_mM) and optionally episode_id,
                 datetime, and covariate columns.
-            **kwargs: Unused. Covariates (e.g. iob) are past-only — they
-                are included in the context data, not as future known values.
+            **kwargs: Unused (kept for interface compatibility).
 
         Returns:
             1D numpy array of predicted BG values for the forecast horizon.
@@ -202,7 +218,10 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         from autogluon.timeseries import TimeSeriesDataFrame
 
         if self.predictor is None:
-            raise ValueError("Model must be fitted or loaded before prediction")
+            raise ValueError(
+                "Model must be fitted or loaded before prediction. "
+                "For zero-shot inference, use predict_zero_shot()."
+            )
 
         config = self.config
         context = data.copy()
@@ -219,20 +238,9 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
             context["timestamp"] = context.index
         context = context.rename(columns={config.target_col: "target"})
 
-        # Ensure required covariates are present; AutoGluon's saved
-        # predictor will expect the same set used during training, even if
-        # they are all zero.  If the evaluation dataset doesn't include a
-        # covariate (e.g., iob), add a zero-filled column so the predictor
-        # doesn't error out.
-        for cov_col in config.covariate_cols:
-            if cov_col not in context.columns:
-                logger.warning(
-                    "Covariate '%s' missing from input data; filling with zeros",
-                    cov_col,
-                )
-                context[cov_col] = 0.0
-
+        # Select columns AutoGluon expects
         ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
+        ag_cols = [c for c in ag_cols if c in context.columns]
         context = context[ag_cols].set_index(["item_id", "timestamp"])
         ts_data = TimeSeriesDataFrame(context)
 
@@ -254,30 +262,127 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
         return np.concatenate(result_arrays)
 
+    def predict_zero_shot(
+        self,
+        data: pd.DataFrame,
+        **kwargs,
+    ) -> np.ndarray:
+        """Zero-shot prediction using pretrained Chronos-2 (no fine-tuning).
+
+        Creates a lightweight AutoGluon TimeSeriesPredictor with zero
+        fine-tune steps to get pretrained Chronos-2 predictions. The
+        predictor is lazily initialized and cached for reuse.
+
+        Args:
+            data: DataFrame with target_col (bg_mM) column as context window.
+            **kwargs: Unused.
+
+        Returns:
+            1D numpy array of predicted BG values for the forecast horizon.
+        """
+        from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
+
+        config = self.config
+
+        # Lazily create a zero-shot predictor (no fine-tuning)
+        if not hasattr(self, "_zs_predictor") or self._zs_predictor is None:
+            import tempfile
+
+            self._zs_tmpdir = tempfile.mkdtemp(prefix="chronos2_zs_")
+            zs_predictor = TimeSeriesPredictor(
+                prediction_length=config.forecast_length,
+                target="target",
+                freq=f"{config.interval_mins}min",
+                eval_metric=config.eval_metric,
+                path=self._zs_tmpdir,
+            )
+
+            # Build minimal training data (AutoGluon needs fit() before predict())
+            bg_col = config.target_col
+            bg_values = data[bg_col].values.astype(np.float32)
+            bg_values = bg_values[-config.context_length :]
+            ts_df = pd.DataFrame(
+                {
+                    "item_id": ["zs_train"] * len(bg_values),
+                    "timestamp": pd.date_range(
+                        "2000-01-01", periods=len(bg_values), freq="5min"
+                    ),
+                    "target": bg_values,
+                }
+            ).set_index(["item_id", "timestamp"])
+            ts_train = TimeSeriesDataFrame(ts_df)
+
+            # Fit with zero fine-tune steps = pretrained weights only
+            zs_hyperparams = {
+                "Chronos2": {
+                    "model_path": config.model_path,
+                    "fine_tune_steps": 0,
+                }
+            }
+            zs_predictor.fit(
+                train_data=ts_train,
+                hyperparameters=zs_hyperparams,
+                enable_ensemble=False,
+            )
+            self._zs_predictor = zs_predictor
+
+        # Build context as TimeSeriesDataFrame for prediction
+        bg_col = config.target_col
+        if bg_col not in data.columns:
+            raise ValueError(f"DataFrame must contain '{bg_col}' column")
+
+        context = data[bg_col].values.astype(np.float32)
+        context = context[-config.context_length :]
+
+        ts_ctx = pd.DataFrame(
+            {
+                "item_id": ["ep_0"] * len(context),
+                "timestamp": pd.date_range(
+                    "2000-01-01", periods=len(context), freq="5min"
+                ),
+                "target": context,
+            }
+        ).set_index(["item_id", "timestamp"])
+        ts_data = TimeSeriesDataFrame(ts_ctx)
+
+        ag_predictions = self._zs_predictor.predict(ts_data)
+        return ag_predictions.loc["ep_0"]["mean"].values
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
 
+    # Why override load(): The base class load() at base_model.py:553
+    # hardcodes `ModelConfig.from_dict(config_dict)`, which crashes when
+    # the saved config.json contains Chronos-2-specific fields (covariate_cols,
+    # fine_tune_steps, etc.) that ModelConfig doesn't accept. We override to
+    # deserialize as Chronos2Config instead, then delegate to super().load()
+    # with the pre-built config so it skips the ModelConfig.from_dict() path.
     @classmethod
-    def load(cls, model_path: str, config=None) -> "TiDEForecaster":
-        """Load a saved TiDE model.
+    def load(cls, model_path: str, config=None) -> "Chronos2Forecaster":
+        """Load a saved Chronos-2 model.
 
-        Overrides base class to deserialize config as TiDEConfig
-        (not ModelConfig), preserving TiDE-specific fields like
-        encoder_hidden_dim, scaling, covariate_cols, etc.
+        Overrides base class to deserialize config as Chronos2Config
+        (not ModelConfig), preserving Chronos-2-specific fields like
+        covariate_cols, fine_tune_steps, etc.
         """
         if config is None:
             config_path = os.path.join(model_path, "config.json")
             if os.path.exists(config_path):
                 with open(config_path) as f:
                     config_dict = json.load(f)
+                # Convert serialized enum strings back to enum values.
+                # ModelConfig.to_dict() saves enums as strings (e.g.
+                # TrainingBackend.CUSTOM -> "custom"), but dataclass
+                # constructors don't auto-coerce strings back to enums.
                 if "training_backend" in config_dict:
                     config_dict["training_backend"] = TrainingBackend(
                         config_dict["training_backend"]
                     )
-                config = TiDEConfig(**config_dict)
+                config = Chronos2Config(**config_dict)
             else:
                 raise ValueError(f"No config found at {config_path}")
+        # Pass pre-deserialized config to parent — skips ModelConfig.from_dict()
         return super().load(model_path, config=config)
 
     def _save_checkpoint(self, output_dir: str) -> None:
@@ -288,7 +393,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         the predictor directory later.
         """
         if self.predictor is not None:
-            ref_path = os.path.join(output_dir, "tide_predictor.json")
+            ref_path = os.path.join(output_dir, "chronos2_predictor.json")
             os.makedirs(output_dir, exist_ok=True)
             with open(ref_path, "w") as f:
                 json.dump({"predictor_path": str(self.predictor.path)}, f, indent=2)
@@ -297,20 +402,21 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load AutoGluon predictor from directory.
 
-        Checks for a tide_predictor.json reference file first (written
+        Checks for a chronos2_predictor.json reference file first (written
         by _save_checkpoint). Falls back to loading model_dir directly as
         an AutoGluon predictor path.
         """
         from autogluon.timeseries import TimeSeriesPredictor
 
-        ref_path = os.path.join(model_dir, "tide_predictor.json")
+        ref_path = os.path.join(model_dir, "chronos2_predictor.json")
         if os.path.exists(ref_path):
             with open(ref_path) as f:
                 predictor_path = json.load(f)["predictor_path"]
-            pkl_file = os.path.join(predictor_path, "predictor.pkl")
-            if not os.path.exists(pkl_file):
+            # Fall back to model_dir if the referenced path no longer exists
+            # (e.g. the model directory was relocated after training)
+            if not os.path.exists(predictor_path):
                 self.logger.warning(
-                    "Predictor not found at %s, falling back to %s",
+                    "Predictor path %s not found, falling back to %s",
                     predictor_path,
                     model_dir,
                 )
