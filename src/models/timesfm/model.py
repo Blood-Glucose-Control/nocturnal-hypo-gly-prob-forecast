@@ -253,12 +253,6 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         return forecast
 
-    def predict_zero_shot(
-        self, data: pd.DataFrame, prediction_length: Optional[int] = None
-    ) -> np.ndarray:
-        """Zero-shot prediction (identical to predict for TimesFM)."""
-        return self.predict(data, prediction_length)
-
     def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
         """Extract ground truth bg_mM values from the end of the test data."""
         if isinstance(test_data, pd.DataFrame) and "bg_mM" in test_data.columns:

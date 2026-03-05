@@ -55,7 +55,6 @@ This module provides a production-ready implementation of the TTM (TinyTimeMixer
 │  │ • evaluate()    │         │ • _load_model_weights()              │    │
 │  └─────────────────┘         │                                      │    │
 │                              │ TTM-Specific:                        │    │
-│                              │ • predict_zero_shot()                │    │
 │                              │ • get_ttm_specific_info()            │    │
 │                              └──────────────────────────────────────┘    │
 └──────────────────────────────────────────────────────────────────────────┘
@@ -255,7 +254,7 @@ Main model class that implements the TTM forecasting pipeline.
 - `predict(data)`: Generate predictions
 - `save(path)`: Save model and config
 - `load(path)`: Load model from disk
-- `predict_zero_shot(data)`: Inference without training
+- `predict(data)`: Generate predictions (zero-shot or fine-tuned)
 
 **Private Methods:**
 - `_initialize_model()`: Load pre-trained TTM
@@ -334,7 +333,7 @@ config = TTMConfig(
 )
 
 model = TTMForecaster(config)
-predictions = model.predict_zero_shot(test_data)
+predictions = model.predict(test_data)
 ```
 
 ### Fine-Tuning

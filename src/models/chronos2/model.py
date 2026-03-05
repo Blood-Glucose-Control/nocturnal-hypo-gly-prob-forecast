@@ -219,15 +219,69 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Returns:
             1D numpy array of predicted BG values for the forecast horizon.
         """
-        from autogluon.timeseries import TimeSeriesDataFrame
-
-        if self.predictor is None:
-            raise ValueError(
-                "Model must be fitted or loaded before prediction. "
-                "For zero-shot inference, use predict_zero_shot()."
-            )
+        from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
 
         config = self.config
+
+        if self.predictor is None:
+            # Zero-shot path: lazily create a predictor with no fine-tuning
+            if not hasattr(self, "_zs_predictor") or self._zs_predictor is None:
+                import tempfile
+
+                self._zs_tmpdir = tempfile.mkdtemp(prefix="chronos2_zs_")
+                zs_predictor = TimeSeriesPredictor(
+                    prediction_length=config.forecast_length,
+                    target="target",
+                    freq=f"{config.interval_mins}min",
+                    eval_metric=config.eval_metric,
+                    path=self._zs_tmpdir,
+                )
+
+                # AutoGluon needs fit() before predict(); use minimal training
+                # data with zero fine-tune steps to get pretrained weights only
+                bg_values = data[config.target_col].values.astype(np.float32)
+                bg_values = bg_values[-config.context_length :]
+                ts_df = pd.DataFrame(
+                    {
+                        "item_id": ["zs_train"] * len(bg_values),
+                        "timestamp": pd.date_range(
+                            "2000-01-01", periods=len(bg_values), freq="5min"
+                        ),
+                        "target": bg_values,
+                    }
+                ).set_index(["item_id", "timestamp"])
+                ts_train = TimeSeriesDataFrame(ts_df)
+
+                zs_predictor.fit(
+                    train_data=ts_train,
+                    hyperparameters={
+                        "Chronos2": {
+                            "model_path": config.model_path,
+                            "fine_tune_steps": 0,
+                        }
+                    },
+                    enable_ensemble=False,
+                )
+                self._zs_predictor = zs_predictor
+
+            # Build context and predict with zero-shot predictor
+            bg_col = config.target_col
+            context_vals = data[bg_col].values.astype(np.float32)
+            context_vals = context_vals[-config.context_length :]
+            ts_ctx = pd.DataFrame(
+                {
+                    "item_id": ["ep_0"] * len(context_vals),
+                    "timestamp": pd.date_range(
+                        "2000-01-01", periods=len(context_vals), freq="5min"
+                    ),
+                    "target": context_vals,
+                }
+            ).set_index(["item_id", "timestamp"])
+            ts_data = TimeSeriesDataFrame(ts_ctx)
+            ag_predictions = self._zs_predictor.predict(ts_data)
+            return ag_predictions.loc["ep_0"]["mean"].values
+
+        # Fine-tuned path: use fitted predictor
         context = data.copy()
 
         # If no episode_id, treat entire DataFrame as a single episode
@@ -265,92 +319,6 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             return np.array([])
 
         return np.concatenate(result_arrays)
-
-    def predict_zero_shot(
-        self,
-        data: pd.DataFrame,
-        **kwargs,
-    ) -> np.ndarray:
-        """Zero-shot prediction using pretrained Chronos-2 (no fine-tuning).
-
-        Creates a lightweight AutoGluon TimeSeriesPredictor with zero
-        fine-tune steps to get pretrained Chronos-2 predictions. The
-        predictor is lazily initialized and cached for reuse.
-
-        Args:
-            data: DataFrame with target_col (bg_mM) column as context window.
-            **kwargs: Unused.
-
-        Returns:
-            1D numpy array of predicted BG values for the forecast horizon.
-        """
-        from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
-
-        config = self.config
-
-        # Lazily create a zero-shot predictor (no fine-tuning)
-        if not hasattr(self, "_zs_predictor") or self._zs_predictor is None:
-            import tempfile
-
-            self._zs_tmpdir = tempfile.mkdtemp(prefix="chronos2_zs_")
-            zs_predictor = TimeSeriesPredictor(
-                prediction_length=config.forecast_length,
-                target="target",
-                freq=f"{config.interval_mins}min",
-                eval_metric=config.eval_metric,
-                path=self._zs_tmpdir,
-            )
-
-            # Build minimal training data (AutoGluon needs fit() before predict())
-            bg_col = config.target_col
-            bg_values = data[bg_col].values.astype(np.float32)
-            bg_values = bg_values[-config.context_length :]
-            ts_df = pd.DataFrame(
-                {
-                    "item_id": ["zs_train"] * len(bg_values),
-                    "timestamp": pd.date_range(
-                        "2000-01-01", periods=len(bg_values), freq="5min"
-                    ),
-                    "target": bg_values,
-                }
-            ).set_index(["item_id", "timestamp"])
-            ts_train = TimeSeriesDataFrame(ts_df)
-
-            # Fit with zero fine-tune steps = pretrained weights only
-            zs_hyperparams = {
-                "Chronos2": {
-                    "model_path": config.model_path,
-                    "fine_tune_steps": 0,
-                }
-            }
-            zs_predictor.fit(
-                train_data=ts_train,
-                hyperparameters=zs_hyperparams,
-                enable_ensemble=False,
-            )
-            self._zs_predictor = zs_predictor
-
-        # Build context as TimeSeriesDataFrame for prediction
-        bg_col = config.target_col
-        if bg_col not in data.columns:
-            raise ValueError(f"DataFrame must contain '{bg_col}' column")
-
-        context = data[bg_col].values.astype(np.float32)
-        context = context[-config.context_length :]
-
-        ts_ctx = pd.DataFrame(
-            {
-                "item_id": ["ep_0"] * len(context),
-                "timestamp": pd.date_range(
-                    "2000-01-01", periods=len(context), freq="5min"
-                ),
-                "target": context,
-            }
-        ).set_index(["item_id", "timestamp"])
-        ts_data = TimeSeriesDataFrame(ts_ctx)
-
-        ag_predictions = self._zs_predictor.predict(ts_data)
-        return ag_predictions.loc["ep_0"]["mean"].values
 
     # ------------------------------------------------------------------
     # Persistence
