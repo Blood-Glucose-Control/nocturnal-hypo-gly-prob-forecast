@@ -251,10 +251,9 @@ Main model class that implements the TTM forecasting pipeline.
 
 **Public Methods:**
 - `fit(train_data, output_dir)`: Train the model
-- `predict(data)`: Generate predictions
+- `predict(data)`: Generate predictions (zero-shot or fine-tuned)
 - `save(path)`: Save model and config
 - `load(path)`: Load model from disk
-- `predict(data)`: Generate predictions (zero-shot or fine-tuned)
 
 **Private Methods:**
 - `_initialize_model()`: Load pre-trained TTM
