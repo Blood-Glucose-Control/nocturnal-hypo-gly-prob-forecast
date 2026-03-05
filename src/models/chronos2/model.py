@@ -243,7 +243,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             quantiles, mean = self._zs_pipeline.predict_quantiles(
                 context, prediction_length=config.forecast_length
             )
-            return mean[0].numpy()
+            return mean[0].squeeze().numpy()
 
         # Fine-tuned path: use fitted AutoGluon predictor
         from autogluon.timeseries import TimeSeriesDataFrame
