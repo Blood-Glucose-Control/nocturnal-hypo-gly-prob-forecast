@@ -281,7 +281,9 @@ def evaluate_nocturnal_forecasting(
         # require it (TiDE) while still retaining the 'datetime' column for
         # others (TTM).  The context df was originally reset_index in
         # episode construction, so we put the column back on the index.
-        if "datetime" in ctx_df.columns and not isinstance(ctx_df.index, pd.DatetimeIndex):
+        if "datetime" in ctx_df.columns and not isinstance(
+            ctx_df.index, pd.DatetimeIndex
+        ):
             ctx_df = ctx_df.set_index("datetime", drop=False)
 
         # Predict using unified interface
@@ -296,9 +298,7 @@ def evaluate_nocturnal_forecasting(
             else:
                 num_cols = raw_pred.select_dtypes(include=[np.number]).columns
                 if len(num_cols) == 0:
-                    raise ValueError(
-                        "Prediction DataFrame contains no numeric columns"
-                    )
+                    raise ValueError("Prediction DataFrame contains no numeric columns")
                 pred_vals = raw_pred[num_cols[0]].values
         elif isinstance(raw_pred, pd.Series):
             pred_vals = raw_pred.values

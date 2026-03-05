@@ -84,7 +84,9 @@ def load_patient_data(pid: str) -> pd.DataFrame:
     """Load and concatenate train + validation data for a Brown 2019 patient."""
     from src.data.diabetes_datasets.data_loader import get_loader
 
-    loader = get_loader(data_source_name="brown_2019", dataset_type="train", use_cached=True)
+    loader = get_loader(
+        data_source_name="brown_2019", dataset_type="train", use_cached=True
+    )
 
     dfs = []
     if pid in loader.train_data:
@@ -191,21 +193,27 @@ def generate_predictions(
         n = min(len(mean), len(target_bg))
         rmse = float(np.sqrt(np.nanmean((mean[:n] - target_bg[:n]) ** 2)))
 
-        print(f"  {pid}: RMSE={rmse:.3f}, pred_len={len(mean)}, target_len={len(target_bg)}")
+        print(
+            f"  {pid}: RMSE={rmse:.3f}, pred_len={len(mean)}, target_len={len(target_bg)}"
+        )
 
         # Collect IOB for the forecast window (for plotting)
         forecast_iob = None
         if "iob" in patient_df.columns:
-            forecast_iob = patient_df.loc[midnight:fh_end, "iob"].values[
-                :FORECAST_HORIZON
-            ].tolist()
+            forecast_iob = (
+                patient_df.loc[midnight:fh_end, "iob"]
+                .values[:FORECAST_HORIZON]
+                .tolist()
+            )
 
         # IOB in context (for plotting)
         context_iob = None
         if "iob" in patient_df.columns:
-            context_iob = patient_df.loc[ctx_start:ctx_end, "iob"].values[
-                -CONTEXT_LENGTH:
-            ].tolist()
+            context_iob = (
+                patient_df.loc[ctx_start:ctx_end, "iob"]
+                .values[-CONTEXT_LENGTH:]
+                .tolist()
+            )
 
         results[pid] = {
             "episode_id": ep_info["episode_id"],
@@ -419,10 +427,24 @@ def plot_combined(
         t_target = _time_axis(len(target_bg), offset_hours=0.0)
 
         # Context BG
-        ax1.plot(t_ctx, ctx_bg_show, "k-", linewidth=2.0, label="Actual BG (context)", zorder=10)
+        ax1.plot(
+            t_ctx,
+            ctx_bg_show,
+            "k-",
+            linewidth=2.0,
+            label="Actual BG (context)",
+            zorder=10,
+        )
 
         # Target (ground truth)
-        ax1.plot(t_target, target_bg, "k--", linewidth=2.0, label="Actual BG (target)", zorder=10)
+        ax1.plot(
+            t_target,
+            target_bg,
+            "k--",
+            linewidth=2.0,
+            label="Actual BG (target)",
+            zorder=10,
+        )
 
         # Predicted mean
         ax1.plot(
@@ -436,25 +458,43 @@ def plot_combined(
 
         # Quantile band
         ax1.fill_between(
-            t_fh, pred_q10, pred_q90,
-            color="steelblue", alpha=0.15,
-            label="10th–90th pctl", zorder=3,
+            t_fh,
+            pred_q10,
+            pred_q90,
+            color="steelblue",
+            alpha=0.15,
+            label="10th–90th pctl",
+            zorder=3,
         )
 
         # Hypo threshold
-        ax1.axhline(y=HYPO_THRESHOLD, color="red", linestyle=":", linewidth=1.2, alpha=0.6)
+        ax1.axhline(
+            y=HYPO_THRESHOLD, color="red", linestyle=":", linewidth=1.2, alpha=0.6
+        )
 
         # Midnight
         ax1.axvline(x=0, color="gray", linestyle="-", linewidth=0.8, alpha=0.4)
 
         # IOB secondary axis
-        has_iob = ep.get("forecast_iob") is not None and ep.get("context_iob") is not None
+        has_iob = (
+            ep.get("forecast_iob") is not None and ep.get("context_iob") is not None
+        )
         if has_iob:
             ax2 = ax1.twinx()
             ctx_iob = np.array(ep["context_iob"])[-ctx_show:]
             fh_iob = np.array(ep["forecast_iob"])
-            ax2.plot(t_ctx, ctx_iob, color="gray", linestyle="--", linewidth=0.9, alpha=0.4)
-            ax2.plot(t_fh[: len(fh_iob)], fh_iob, color="gray", linestyle="--", linewidth=0.9, alpha=0.4, label="IOB")
+            ax2.plot(
+                t_ctx, ctx_iob, color="gray", linestyle="--", linewidth=0.9, alpha=0.4
+            )
+            ax2.plot(
+                t_fh[: len(fh_iob)],
+                fh_iob,
+                color="gray",
+                linestyle="--",
+                linewidth=0.9,
+                alpha=0.4,
+                label="IOB",
+            )
             ax2.set_ylabel("IOB (U)", fontsize=9, color="gray")
             ax2.tick_params(axis="y", labelcolor="gray", labelsize=7)
             max_iob = max(np.max(ctx_iob), np.max(fh_iob)) if len(fh_iob) > 0 else 1
