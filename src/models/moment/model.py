@@ -138,12 +138,17 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
         return predictions
 
+    @property
     def supports_lora(self) -> bool:
         """Check if Moment supports LoRA fine-tuning.
 
         Returns:
             True, as Moment is transformer-based and supports LoRA.
         """
+        return True
+
+    @property
+    def supports_zero_shot(self) -> bool:
         return True
 
     def _initialize_model(self) -> Any:

@@ -296,6 +296,17 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
+    @property
+    @abstractmethod
+    def supports_zero_shot(self) -> bool:
+        """
+        Check if this model can predict without training (pretrained weights).
+
+        Returns:
+            bool: True if the model supports zero-shot prediction, False otherwise
+        """
+        pass
+
     # Abstract methods that child classes must implement
     ## Abstract public API methods
     @abstractmethod
@@ -924,11 +935,16 @@ def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
 
         config = TTMConfig(**config_dict)
         return TTMForecaster(config)
-    elif model_type == "chronos":
-        from src.models.chronos.model import ChronosForecaster
+    elif model_type in ("chronos", "chronos2"):
+        from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
 
-        config = ModelConfig.from_dict(config_dict)
-        return ChronosForecaster(config)
+        config = Chronos2Config(**config_dict)
+        return Chronos2Forecaster(config)
+    elif model_type == "tide":
+        from src.models.tide import TiDEForecaster, TiDEConfig
+
+        config = TiDEConfig(**config_dict)
+        return TiDEForecaster(config)
     elif model_type == "tsmixer":
         from src.models.tsmixer import TSMixerForecaster, TSMixerConfig
 
