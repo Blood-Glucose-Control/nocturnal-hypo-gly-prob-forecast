@@ -319,8 +319,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         Args:
             data: DataFrame with 'bg_mM' column containing the context window.
                   May include additional columns for multivariate models.
-            **kwargs: Model-specific options (e.g., batch_size, num_samples,
-                     inverse_scale, return_dict).
+            **kwargs: Model-specific options (e.g., batch_size, inverse_scale).
 
         Returns:
             Predictions as numpy array of shape (forecast_length,) for single
@@ -351,8 +350,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         Args:
             data: DataFrame with 'bg_mM' column containing the context window.
                   May include additional columns for multivariate models.
-            **kwargs: Model-specific options (e.g., batch_size, num_samples,
-                     inverse_scale, return_dict).
+            **kwargs: Model-specific options (e.g., batch_size, inverse_scale).
 
         Returns:
             Predictions as numpy array of shape (forecast_length,) for single
