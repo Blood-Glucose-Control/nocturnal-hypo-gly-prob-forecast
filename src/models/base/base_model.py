@@ -296,6 +296,17 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
+    @property
+    @abstractmethod
+    def supports_zero_shot(self) -> bool:
+        """
+        Check if this model can predict without training (pretrained weights).
+
+        Returns:
+            bool: True if the model supports zero-shot prediction, False otherwise
+        """
+        pass
+
     # Abstract methods that child classes must implement
     ## Abstract public API methods
     @abstractmethod

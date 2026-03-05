@@ -68,6 +68,10 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     def supports_lora(self) -> bool:
         return False
 
+    @property
+    def supports_zero_shot(self) -> bool:
+        return False
+
     def _initialize_model(self) -> None:
         """No-op: AutoGluon predictor is created lazily in _train_model
         or _load_checkpoint."""
