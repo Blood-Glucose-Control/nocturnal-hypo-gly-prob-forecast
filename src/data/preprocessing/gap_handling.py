@@ -205,7 +205,7 @@ def _segment_single_patient(
     # Step 1: Interpolate small gaps
     max_gap_rows = imputation_threshold_mins // interval_mins
     nan_runs_before = _find_nan_runs(df[bg_col])
-    df = _interpolate_small_gaps(df, max_gap_rows, bg_col)
+    df = interpolate_small_gaps(df, max_gap_rows, bg_col)
 
     # Count NaN after interpolation and compute gap stats
     stats.total_nan_after_interp = int(df[bg_col].isna().sum())
@@ -283,7 +283,7 @@ def _find_nan_runs(series: pd.Series) -> list[tuple[int, int, int]]:
     return runs
 
 
-def _interpolate_small_gaps(
+def interpolate_small_gaps(
     df: pd.DataFrame,
     max_gap_rows: int,
     bg_col: str = DEFAULT_BG_COL,
