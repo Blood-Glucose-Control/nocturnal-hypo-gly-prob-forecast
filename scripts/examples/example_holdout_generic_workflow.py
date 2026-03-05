@@ -1535,6 +1535,14 @@ def step4_zero_shot_evaluation(
             "Skipping zero-shot evaluation."
         )
         del model
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                logger.info("GPU memory cleared after skipping zero-shot evaluation")
+        except Exception:
+            pass
         return None
 
     logger.info(f"✓ Pretrained {model_type.upper()} model loaded (zero-shot mode)")
