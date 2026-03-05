@@ -35,11 +35,10 @@ from src.data.diabetes_datasets import Brown2019DataLoader
 from src.data.diabetes_datasets import BrisT1DDataLoader
 from src.data.diabetes_datasets import GlurooDataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
-from src.data.diabetes_datasets import AleppoDataLoader
+from src.data.diabetes_datasets import Aleppo2017DataLoader
 from src.data.diabetes_datasets import Tamborlane2008DataLoader
 
 
-# TODO: Add train_percentage parameter
 @overload
 def get_loader(
     data_source_name: Literal["lynch_2022"],
@@ -48,9 +47,8 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
-    max_workers: int = 3,
+    max_workers: int = 14,
 ) -> Lynch2022DataLoader: ...
 
 
@@ -62,9 +60,8 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
-    max_workers: int = 3,
+    max_workers: int = 14,
 ) -> Brown2019DataLoader: ...
 
 
@@ -76,9 +73,8 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
-    max_workers: int = 3,
+    max_workers: int = 14,
 ) -> BrisT1DDataLoader: ...
 
 
@@ -90,23 +86,23 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
+    max_workers: int = 14,
+    load_all: bool = False,
 ) -> GlurooDataLoader: ...
 
 
 @overload
 def get_loader(
-    data_source_name: Literal["aleppo"],
+    data_source_name: Literal["aleppo_2017"],
     dataset_type: str = "train",
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
-    max_workers: int = 3,
-) -> AleppoDataLoader: ...
+    max_workers: int = 14,
+) -> Aleppo2017DataLoader: ...
 
 
 @overload
@@ -117,9 +113,8 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 7,
     train_percentage: float = ...,
-    config: dict | None = None,
     parallel: bool = True,
-    max_workers: int = 3,
+    max_workers: int = 14,
 ) -> Tamborlane2008DataLoader: ...
 
 
@@ -130,14 +125,14 @@ def get_loader(
     use_cached: bool = False,
     num_validation_days: int = 20,
     train_percentage: float = 0.9,
-    config: dict | None = None,
     parallel: bool = True,
-    max_workers: int = 3,
+    max_workers: int = 14,
+    load_all: bool = False,
 ) -> Union[
     BrisT1DDataLoader,
     GlurooDataLoader,
+    Aleppo2017DataLoader,
     Lynch2022DataLoader,
-    AleppoDataLoader,
     Brown2019DataLoader,
     Tamborlane2008DataLoader,
 ]:
@@ -159,8 +154,6 @@ def get_loader(
         use_cached (bool): Whether to use cached data if available. Default: False
         num_validation_days (int): Number of days to use for validation. Default: 20
         train_percentage (float): Percentage of the data to use for training. Default: 0.9
-        config (dict | None): Additional configuration parameters for the data loader.
-                            Default: None
 
     Returns:
         DatasetBase: A data loader instance implementing the DatasetBase interface.
@@ -180,12 +173,13 @@ def get_loader(
     elif data_source_name == "gluroo":
         return GlurooDataLoader(
             keep_columns=keep_columns,
-            num_validation_days=num_validation_days,
-            config=config,
-            parallel=parallel,
+            # num_validation_days=num_validation_days,
+            # parallel=parallel,
+            max_workers=max_workers,
+            load_all=load_all,
         )
-    elif data_source_name == "aleppo":
-        return AleppoDataLoader(
+    elif data_source_name == "aleppo_2017":
+        return Aleppo2017DataLoader(
             keep_columns=keep_columns,
             use_cached=use_cached,
             train_percentage=train_percentage,
@@ -214,7 +208,7 @@ def get_loader(
             dataset_type=dataset_type,
             parallel=parallel,
             max_workers=max_workers,
-            extract_features=config.get("extract_features", True) if config else True,
+            extract_features=True,
         )
     else:
         raise ValueError(f"Invalid dataset_name: {data_source_name}.")

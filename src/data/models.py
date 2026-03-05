@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
@@ -11,7 +11,7 @@ class DatasetSourceType(str, Enum):
     LOCAL = "local"
     GLUROO = "gluroo"
     HUGGING_FACE = "hugging_face"
-    ALEPPO = "aleppo"
+    ALEPPO_2017 = "aleppo_2017"
     LYNCH_2022 = "lynch_2022"
     BROWN_2019 = "brown_2019"
     SIMGLUCOSE = "simglucose"
@@ -21,7 +21,7 @@ class DatasetSourceType(str, Enum):
 # TODO: Add to the mean_cols list in sampling.py / ensure_regular_time_intervals_with_aggregation if the column is describing rate of change.
 class ColumnNames(str, Enum):
     BG = "bg_mM"
-    DATETIME = "datetime"
+    DATETIME = "datetime"  # This shoud be INDEX
     P_NUM = "p_num"
     DOSE_UNITS = "dose_units"
     BOLUS = "bolus"

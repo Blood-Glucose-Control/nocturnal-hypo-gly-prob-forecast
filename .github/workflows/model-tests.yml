@@ -1,0 +1,67 @@
+name: Model Integration Tests
+
+# These tests are NOT run on every PR — they require per-model virtual
+# environments and download/train HuggingFace models.
+#
+# Trigger manually from the GitHub Actions UI when model code changes,
+# or on pushes that touch src/models/ or tests/models/.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Which model to test'
+        required: true
+        default: 'ttm'
+        type: choice
+        options: [ttm, sundial]
+
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/models/**'
+      - 'tests/models/**'
+
+jobs:
+  model-tests:
+    name: Model tests (${{ matrix.model }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Only include models that have a matching [project.optional-dependencies]
+        # entry in pyproject.toml. Add timesfm here once its extras are defined.
+        model:
+          - ttm
+          - sundial
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip dependencies (${{ matrix.model }})
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.model }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.model }}-
+
+      - name: Install base dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Install model-specific dependencies into venv
+        run: |
+          python -m venv .venvs/${{ matrix.model }}
+          .venvs/${{ matrix.model }}/bin/pip install --upgrade pip
+          .venvs/${{ matrix.model }}/bin/pip install -e ".[${{ matrix.model }}]" pytest
+
+      - name: Run ${{ matrix.model }} model tests
+        run: |
+          make test-${{ matrix.model }}

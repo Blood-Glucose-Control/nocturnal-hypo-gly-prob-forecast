@@ -6,76 +6,85 @@ the base TSFM framework, demonstrating how to integrate existing models.
 """
 
 import os
-from typing import Any, Dict, List, Optional, Tuple, Union
+import logging
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
 
 import numpy as np
 import pandas as pd
-import torch
 from torch.utils.data import DataLoader
 from transformers import (
     TrainingArguments,
     Trainer,
-    EarlyStoppingCallback,
 )
 
 # Import your existing TTM-related modules
 from tsfm_public import (
     TimeSeriesPreprocessor,
+    TimeSeriesForecastingPipeline,
     get_datasets,
 )
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 # Local imports
-from src.models.base import BaseTSFM, TrainingStrategy
+from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
 from src.models.ttm.config import TTMConfig
-from src.data.diabetes_datasets.data_loader import get_loader
 from src.data.models import ColumnNames
 from src.data.preprocessing.split_or_combine_patients import (
     reduce_features_multi_patient,
 )
 from src.utils.logging_helper import info_print, debug_print, error_print
 
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
-class TTMForecaster(BaseTSFM):
-    """TTM (TinyTimeMixer) forecaster implementation using the base TSFM framework.
 
-    TinyTimeMixer is an MLP-based time series foundation model that uses mixing
-    layers instead of attention mechanisms. This class integrates TTM with the
-    unified base framework while preserving all existing functionality.
+class ColumnSpecifiers(TypedDict, total=False):
+    """Type definition for TimeSeriesPreprocessor column configuration.
 
     Attributes:
-        config: TTM-specific configuration (TTMConfig instance).
-        preprocessor: TimeSeriesPreprocessor for data normalization and windowing.
+        id_columns: Columns identifying unique time series (e.g., patient_id).
+        timestamp_column: Single column name for timestamps.
+        target_columns: Columns to forecast.
+        observable_columns: Known in past, unknown in future.
+        control_columns: Known in both past and future.
+        conditional_columns: Conditional features.
+        static_categorical_columns: Static categorical features.
+    """
+
+    id_columns: List[str]
+    timestamp_column: str
+    target_columns: List[str]
+    observable_columns: List[str]
+    control_columns: List[str]
+    conditional_columns: List[str]
+    static_categorical_columns: List[str]
+
+
+class TTMForecaster(BaseTimeSeriesFoundationModel):
+    """TTM (TinyTimeMixer) forecaster implementation.
+
+    TinyTimeMixer is an MLP-based time series foundation model that uses mixing
+    layers instead of attention mechanisms.
+
+    Attributes:
+        config: TTM-specific configuration
+        preprocessor: TimeSeriesPreprocessor for data normalization and windowing
         column_specifiers: Dictionary mapping data columns to their roles
-            (id, timestamp, target, control, etc.).
 
     Note:
-        TTM does NOT support LoRA fine-tuning as it lacks transformer attention
-        layers. The supports_lora() method returns False.
-
-    Example:
-        >>> config = TTMConfig(model_path="ibm-granite/granite-timeseries-ttm-r2")
-        >>> model = TTMForecaster(config)
-        >>> model.fit(train_data="kaggle_brist1d")
-        >>> predictions = model.predict(test_data)
+        TTM does not support LoRA fine-tuning (no transformer attention layers)
     """
 
     def __init__(self, config: TTMConfig, lora_config=None, distributed_config=None):
         """Initialize the TTM forecaster.
 
         Args:
-            config: TTM configuration object. If a non-TTMConfig is passed,
-                it will be converted using essential parameters.
-            lora_config: LoRA configuration (ignored for TTM as it doesn't
-                support LoRA fine-tuning).
+            config: TTM configuration object
+            lora_config: LoRA configuration (ignored for TTM)
             distributed_config: Configuration for distributed training
-                (DDP, DeepSpeed, or FSDP).
-
-        Note:
-            The model is initialized during construction via _initialize_model().
-            The preprocessor and column_specifiers are initialized lazily during
-            the first call to _prepare_data().
         """
         # Use the config as-is if it's already a TTMConfig
         # Only convert if we receive a different type
@@ -95,102 +104,211 @@ class TTMForecaster(BaseTSFM):
 
         # Type annotation to help linter understand config type
         self.config: TTMConfig = self.config
+        info_print("TTMForecaster initialized with configuration:")
+        for key, value in self.config.__dict__.items():
+            info_print(f"  {key}: {value}")
+        # TTM-specific attributes (lazily initialized in _prepare_data)
+        self.preprocessor: Optional[TimeSeriesPreprocessor] = None
+        self.column_specifiers: Optional[ColumnSpecifiers] = None
 
-        # TTM-specific attributes
-        self.preprocessor = None
-        self.column_specifiers = None
+    # Properties
+    @property
+    def training_backend(self) -> TrainingBackend:
+        """Return the training backend used by TTM.
+
+        Returns:
+            TrainingBackend.TRANSFORMERS
+        """
+        return TrainingBackend.TRANSFORMERS
+
+    @property
+    def supports_lora(self) -> bool:
+        """Check if TTM supports LoRA fine-tuning.
+
+        Returns:
+            False (TTM is MLP-based, lacks attention layers)
+        """
+        return False
+
+    @property
+    def supports_zero_shot(self) -> bool:
+        return True
 
     # Abstract method implementations
     ## Abstract implemented public methods
     def predict(
-        self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
+        self,
+        data: Any,
+        batch_size: Optional[int] = None,
+        inverse_scale: bool = True,
+        return_dict: bool = False,
     ) -> Union[np.ndarray, Dict[str, Any]]:
-        """
-        Make predictions on new data.
+        """Make predictions on new data. This will be very specific to each child class.
+            When designing this, just consider what the final data shape should look like.
 
         Args:
             data: Input data for prediction
-            batch_size: Batch size for prediction (defaults to config.batch_size)
-            return_dict: Whether to return additional information
+            batch_size: Batch size for prediction
+            inverse_scale: If True, inverse transform predictions to original scale.
+                          Requires preprocessor to have been fitted during training.
+            return_dict: If True, return a dictionary with predictions and metadata.
 
         Returns:
-            Predictions as numpy array or dictionary with additional info
+            Predictions as numpy array (in original scale if inverse_scale=True)
+            or a dictionary with predictions and metadata if return_dict=True.
+
+        Raises:
+            ValueError: If model has not been fitted
         """
         if not self.is_fitted or self.model is None:
             raise ValueError("Model must be fitted before making predictions")
 
-        # Prepare data for prediction
-        data_loader, _, _ = self._prepare_data(data)
+        # For zero-shot mode without preprocessor, use predict_zero_shot
+        if self.preprocessor is None and self.config.training_mode == "zero_shot":
+            info_print("Using zero-shot prediction path (no preprocessor)")
+            predictions = self.predict_zero_shot(data, batch_size)
+            if return_dict:
+                return {
+                    "predictions": predictions,
+                    "model_config": self.config.to_dict(),
+                    "n_samples": len(predictions),
+                }
+            return predictions
 
-        # Set model to evaluation mode
-        self.model.eval()
-
-        predictions = []
-        with torch.no_grad():
-            for batch in data_loader:
-                # Move batch to appropriate device
-                if torch.cuda.is_available() and not self.config.use_cpu:
-                    batch = {
-                        k: v.cuda()
-                        for k, v in batch.items()
-                        if isinstance(v, torch.Tensor)
-                    }
-
-                # Forward pass
-                outputs = self.model(**batch)
-
-                # Extract predictions (implementation depends on model)
-                if hasattr(outputs, "prediction_logits"):
-                    batch_predictions = outputs.prediction_logits
-                elif hasattr(outputs, "logits"):
-                    batch_predictions = outputs.logits
-                else:
-                    batch_predictions = outputs
-
-                predictions.append(batch_predictions.cpu().numpy())
-
-        # Concatenate all predictions
-        predictions = np.concatenate(predictions, axis=0)
+        # TimeSeriesForecastingPipeline is the official tsfm_public inference
+        # path — handles scaling → tensor → forward pass → inverse scaling.
+        pipeline = TimeSeriesForecastingPipeline(
+            model=self.model,
+            feature_extractor=self.preprocessor,
+            explode_forecasts=True,
+            inverse_scale_outputs=inverse_scale,
+            batch_size=batch_size or self.config.batch_size,
+        )
+        forecast_df = pipeline(data)
+        target_col = self.preprocessor.target_columns[0]
+        predictions = forecast_df[target_col].values
 
         if return_dict:
             return {
                 "predictions": predictions,
                 "model_config": self.config.to_dict(),
                 "n_samples": len(predictions),
+                "forecast_df": forecast_df,
             }
-
         return predictions
 
-    def get_training_strategy(self) -> TrainingStrategy:
-        """Return the training strategy used by TTM.
+    def _inverse_scale_predictions(
+        self, predictions: np.ndarray, data: Any
+    ) -> np.ndarray:
+        """Inverse scale predictions back to original units.
+
+        When the preprocessor uses global scaling (scaling_id_columns=[]),
+        we can directly use the global scaler to inverse transform predictions.
+
+        Args:
+            predictions: Scaled predictions array of shape (samples, forecast_length, channels)
+                        or (forecast_length, channels) or (forecast_length,)
+            data: Original data (used for context, not currently needed for global scaling)
 
         Returns:
-            TrainingStrategy: Always returns TrainingStrategy.TRANSFORMERS as
-                TTM uses the HuggingFace Transformers Trainer for training.
+            Predictions inverse-scaled to original units
         """
-        return TrainingStrategy.TRANSFORMERS
+        if self.preprocessor is None:
+            logger.warning(
+                "No preprocessor available - predictions will be returned in SCALED units (z-scores). "
+                "This will cause incorrect metrics if comparing to unscaled ground truth."
+            )
+            return predictions
 
-    def supports_lora(self) -> bool:
-        """Check if TTM supports LoRA fine-tuning.
+        if not self.preprocessor.scaling:
+            info_print("Scaling disabled, returning predictions as-is")
+            return predictions
 
-        Returns:
-            bool: Always returns False. TTM is an MLP-based (Mixer) architecture
-                that lacks transformer attention layers required for LoRA.
-        """
-        return False
+        if len(self.preprocessor.target_scaler_dict) == 0:
+            logger.warning(
+                "No scalers trained in preprocessor - predictions will be returned in SCALED units. "
+                "The preprocessor may not have been fitted correctly during training."
+            )
+            return predictions
+
+        # Get the target scaler
+        # When using global scaling (scaling_id_columns=[]), the key is '__id'
+        from tsfm_public.toolkit.time_series_preprocessor import INTERNAL_ID_COLUMN
+
+        scaler_key = INTERNAL_ID_COLUMN  # '__id' for global scaling
+        if scaler_key not in self.preprocessor.target_scaler_dict:
+            # Fall back to first available scaler if global key not found
+            scaler_key = next(iter(self.preprocessor.target_scaler_dict.keys()))
+            info_print(f"Using scaler key: {scaler_key}")
+
+        scaler = self.preprocessor.target_scaler_dict[scaler_key]
+
+        # Log scaler parameters for debugging
+        if hasattr(scaler, "mean_"):
+            scaler_mean = (
+                scaler.mean_[0] if hasattr(scaler.mean_, "__len__") else scaler.mean_
+            )
+            scaler_scale = (
+                scaler.scale_[0] if hasattr(scaler.scale_, "__len__") else scaler.scale_
+            )
+            debug_print(
+                f"Using scaler with mean={scaler_mean:.4f}, scale={scaler_scale:.4f} "
+                f"(key: {scaler_key})"
+            )
+
+        # Handle different prediction shapes
+        original_shape = predictions.shape
+        info_print(f"Inverse scaling predictions with shape: {original_shape}")
+
+        # Reshape to 2D for sklearn scaler (samples, features)
+        if len(original_shape) == 1:
+            # (forecast_length,) -> (forecast_length, 1)
+            predictions_2d = predictions.reshape(-1, 1)
+        elif len(original_shape) == 2:
+            # (forecast_length, channels) or (samples, forecast_length)
+            # Assume (samples, forecast_length) and reshape to (samples * forecast_length, 1)
+            predictions_2d = predictions.reshape(-1, 1)
+        elif len(original_shape) == 3:
+            # (samples, forecast_length, channels)
+            # For target channel (channel 0), reshape to (samples * forecast_length, 1)
+            n_samples, forecast_len, n_channels = original_shape
+            # Only inverse scale the target channel(s) - typically just channel 0
+            predictions_2d = predictions[:, :, 0].reshape(-1, 1)
+        else:
+            info_print(f"Unexpected prediction shape {original_shape}, returning as-is")
+            return predictions
+
+        # Inverse transform using the scaler
+        try:
+            predictions_unscaled = scaler.inverse_transform(predictions_2d)
+
+            # Reshape back to original shape
+            if len(original_shape) == 1:
+                result = predictions_unscaled.flatten()
+            elif len(original_shape) == 2:
+                result = predictions_unscaled.reshape(
+                    original_shape[0], original_shape[1]
+                )
+            elif len(original_shape) == 3:
+                # Put unscaled values back into channel 0, keep other channels as-is
+                result = predictions.copy()
+                result[:, :, 0] = predictions_unscaled.reshape(n_samples, forecast_len)
+
+            return result
+
+        except Exception as e:
+            error_print(f"Failed to inverse scale predictions: {e}")
+            return predictions
 
     ## Abstract implemented private methods
     def _initialize_model(self) -> None:
         """Initialize the TTM model architecture.
 
-        Loads the pre-trained TTM model from the configured model_path and
-        configures parameter gradients based on the fit_strategy:
-        - 'zero_shot': All parameters frozen (no training)
-        - 'fine_tune' or 'from_scratch': All parameters trainable
+        Loads pre-trained model and configures parameter gradients based
+        on training_mode.
 
         Raises:
-            Exception: If model initialization fails (e.g., invalid model_path,
-                network issues, or incompatible configuration).
+            Exception: If model initialization fails
         """
         try:
             info_print(f"Initializing TTM model from {self.config.model_path}")
@@ -201,6 +319,7 @@ class TTMForecaster(BaseTSFM):
                 "context_length": self.config.context_length,
                 "prediction_length": self.config.forecast_length,
                 "freq": f"{self.config.resolution_min}min",
+                "return_model_key": False,  # Ensure we get the model object, not a string
             }
 
             # Only add prediction_filter_length if it's not None
@@ -209,18 +328,29 @@ class TTMForecaster(BaseTSFM):
                     self.config.prediction_filter_length
                 )
 
+            info_print(
+                f"Attempting to load TTM model with the following parameters: \n {model_params}"
+            )
             # Get TTM model using the existing tsfm_public toolkit
             ttm_model = get_model(**model_params)
 
+            # Validate that we received a model object, not a string
+            if isinstance(ttm_model, str):
+                raise TypeError(
+                    f"Expected model object from get_model(), but received string: {ttm_model}"
+                )
+
             # Configure parameter gradients based on training strategy
-            if self.config.fit_strategy == "zero_shot":
+            if self.config.training_mode == "zero_shot":
                 info_print("Freezing all parameters for zero-shot evaluation")
                 for param in ttm_model.parameters():
                     param.requires_grad = False
+                # Zero-shot models are ready to predict without training
+                self.is_fitted = True
             else:
                 # For any training scenario (fine_tune, from_scratch), enable gradients
                 info_print(
-                    f"Enabling gradients for all parameters ({self.config.fit_strategy} mode)"
+                    f"Enabling gradients for all parameters ({self.config.training_mode} mode)"
                 )
                 for param in ttm_model.parameters():
                     param.requires_grad = True
@@ -232,56 +362,33 @@ class TTMForecaster(BaseTSFM):
             error_print(f"Failed to initialize TTM model: {str(e)}")
             raise
 
-    def _prepare_data(
+    def _prepare_training_data(
         self,
         train_data: Any,
-        val_data: Optional[Any] = None,
-        test_data: Optional[Any] = None,
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
-        """Prepare data loaders for TTM training, validation, and testing.
+        """Prepare data loaders for training, validation, and testing.
 
-        Handles multiple input formats and integrates with the existing data
-        loading pipeline. Creates TimeSeriesPreprocessor for normalization
-        and windowing on first call.
+        Data splitting is controlled by self.config.split_config.
 
         Args:
-            train_data: Training data in one of the following formats:
-                - str: Data source name (e.g., "kaggle_brist1d") to load via get_loader
-                - pd.DataFrame: Pre-loaded DataFrame with time series data
-                - dict: Multi-patient dictionary to be converted to DataFrame
-            val_data: Validation data (currently unused, split from train_data).
-            test_data: Test data (currently unused, split from train_data).
+            train_data: Training data (DataFrame or dict of patient DataFrames)
 
         Returns:
-            Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
-                - train_loader: DataLoader for training data
-                - val_loader: DataLoader for validation data (or None)
-                - test_loader: DataLoader for test data (or None)
+            Tuple of train, validation, and test DataLoaders (split based on config)
 
         Raises:
-            ValueError: If train_data is not a supported type.
-            Exception: If data preprocessing or dataset creation fails.
+            ValueError: If train_data is not a DataFrame or dict
+            Exception: If data preprocessing fails
         """
         info_print("Preparing data for TTM training...")
 
-        # If train_data is a string, assume it's a data source name
-        if isinstance(train_data, str):
-            data_source_name = train_data
+        # Validate input type
+        if not isinstance(train_data, (pd.DataFrame, dict)):
+            raise ValueError(
+                f"train_data must be a DataFrame or dict, got {type(train_data)}"
+            )
 
-            # Load data using your existing loader
-            loader = get_loader(
-                data_source_name=data_source_name,
-                num_validation_days=20,  # Adjust as needed
-                use_cached=True,
-            )
-            data = loader.processed_data
-            debug_print(
-                f"Loaded data from source '{data_source_name}' with data.head:\n{data[ next(iter(data))].head()}"
-            )
-        elif isinstance(train_data, pd.DataFrame):
-            data = train_data
-        else:
-            raise ValueError(f"Unsupported data type: {type(train_data)}")
+        data = train_data
 
         # Check if dataset conversion is needed
         if isinstance(data, dict):
@@ -300,6 +407,9 @@ class TTMForecaster(BaseTSFM):
         if self.column_specifiers is None:
             self.column_specifiers = self._create_column_specifiers(data)
 
+        info_print("Using column specifiers:")
+        for key, value in self.column_specifiers.items():
+            info_print(f"  {key}: {value}")
         # Create preprocessor
         if self.preprocessor is None:
             self.preprocessor = TimeSeriesPreprocessor(
@@ -307,13 +417,18 @@ class TTMForecaster(BaseTSFM):
                 context_length=self.config.context_length,
                 prediction_length=self.config.forecast_length,
                 scaling=True,
-                encoder_categorical=False,
-                scaler_type=ScalerType.STANDARD.value,
+                scaling_id_columns=[],  # Use global scaler for all patients (supports holdout/new patients)
+                encode_categorical=False,
+                scaler_type=ScalerType.STANDARD.value,  # type: ignore[arg-type]
             )
 
-        # Create datasets using your existing function
+        # Create datasets using tsfm_public get_datasets
+        # Note: get_datasets returns (train, val, test) datasets but lacks type stubs
+        logger.info("\n")
+        info_print("Splitting data into train/val/test sets...")
+        info_print(f"  Split config: {self.config.split_config}")
         try:
-            dset_train, dset_val, dset_test = get_datasets(
+            dset_train, dset_val, dset_test = get_datasets(  # type: ignore[misc]
                 ts_preprocessor=self.preprocessor,
                 dataset=data,
                 split_config=self.config.split_config,
@@ -348,9 +463,9 @@ class TTMForecaster(BaseTSFM):
                 )
 
             info_print("Data preparation complete:")
-            info_print(f"  Train samples: {len(dset_train) if dset_train else 0}")
-            info_print(f"  Val samples: {len(dset_val) if dset_val else 0}")
-            info_print(f"  Test samples: {len(dset_test) if dset_test else 0}")
+            info_print(f"  Train samples: {len(dset_train) if dset_train else 0:,}")
+            info_print(f"  Val samples: {len(dset_val) if dset_val else 0:,}")
+            info_print(f"  Test samples: {len(dset_test) if dset_test else 0:,}")
 
             return train_loader, val_loader, test_loader
 
@@ -358,72 +473,181 @@ class TTMForecaster(BaseTSFM):
             error_print(f"Failed to prepare data: {str(e)}")
             raise
 
-    def _save_model_weights(self, output_dir: str) -> None:
-        """Save TTM model weights using HuggingFace format.
+    def _save_checkpoint(self, output_dir: str) -> None:
+        """Save model checkpoint and preprocessor.
 
         Args:
-            output_dir: Directory path where model weights will be saved.
-
-        Note:
-            Uses save_pretrained() for HuggingFace-compatible format that
-            can be loaded with AutoModel.from_pretrained().
+            output_dir: Directory path for saving checkpoint
         """
-        if self.model is not None:
-            self.model.save_pretrained(output_dir)
+        import pickle
+
+        if self.model is not None and hasattr(self.model, "save_pretrained"):
+            self.model.save_pretrained(output_dir)  # type: ignore[union-attr]
             info_print(f"TTM model saved to {output_dir}")
 
-    def _load_model_weights(self, model_dir: str) -> None:
-        """Load TTM model weights from a directory.
+        # Save the preprocessor for inference (critical for new/holdout patients)
+        # Using pickle because tsfm_public's save_pretrained uses json.dumps(sort_keys=True)
+        # which fails when preprocessor has mixed key types (float patient IDs + string keys)
+        # Save to BOTH root and model.pt to handle different load scenarios
+        if self.preprocessor is not None:
+            # Save to root directory (primary location for _load_checkpoint)
+            preprocessor_path = os.path.join(output_dir, "preprocessor.pkl")
+            with open(preprocessor_path, "wb") as f:
+                pickle.dump(self.preprocessor, f)
+            info_print(f"Preprocessor saved to {preprocessor_path}")
+
+            # Also save to model.pt if it exists (for consistency with HF Trainer structure)
+            model_pt_dir = os.path.join(output_dir, "model.pt")
+            if os.path.exists(model_pt_dir):
+                preprocessor_path_model_pt = os.path.join(
+                    model_pt_dir, "preprocessor.pkl"
+                )
+                with open(preprocessor_path_model_pt, "wb") as f:
+                    pickle.dump(self.preprocessor, f)
+                info_print(f"Preprocessor also saved to {preprocessor_path_model_pt}")
+        else:
+            logger.warning(
+                "Preprocessor is None - not saved. "
+                "This will cause inference to return scaled predictions instead of original units."
+            )
+
+    def _load_checkpoint(self, model_dir: str) -> None:
+        """Load model checkpoint.
 
         Args:
-            model_dir: Directory containing saved model weights in
-                HuggingFace format.
+            model_dir: Directory containing saved checkpoint
 
         Raises:
-            Exception: If loading fails (e.g., corrupted files, incompatible
-                model version, or missing files).
+            Exception: If loading fails
         """
-        try:
-            # TTM models can be loaded using the transformers library
-            from transformers import AutoModel
+        import pickle
 
-            self.model = AutoModel.from_pretrained(model_dir)
-            info_print(f"TTM model weights loaded from {model_dir}")
+        try:
+            # Use get_model() to load the TTM architecture from the checkpoint directory
+            # This properly handles the custom TTM model type
+            model_params = {
+                "model_path": model_dir,  # Load from checkpoint directory
+                "context_length": self.config.context_length,
+                "prediction_length": self.config.forecast_length,
+                "freq": f"{self.config.resolution_min}min",
+                "return_model_key": False,  # Ensure we get the model object, not a string
+            }
+
+            # Only add prediction_filter_length if it's not None
+            if self.config.prediction_filter_length is not None:
+                model_params["prediction_filter_length"] = (
+                    self.config.prediction_filter_length
+                )
+
+            info_print(
+                f"Loading TTM checkpoint from {model_dir} with params: {model_params}"
+            )
+            ttm_model = get_model(**model_params)
+
+            # Validate that we received a model object, not a string
+            if isinstance(ttm_model, str):
+                raise TypeError(
+                    f"Expected model object from get_model(), but received string: {ttm_model}"
+                )
+
+            self.model = ttm_model
+            info_print(f"TTM model checkpoint loaded from {model_dir}")
+
+            # Load the preprocessor if saved (critical for inference on holdout patients)
+            # Try multiple locations as save structure can vary:
+            # 1. Direct in model_dir (new format)
+            # 2. In model.pt subdirectory (HuggingFace Trainer creates this)
+            # 3. preprocessor/ subdirectory (legacy TSFM format)
+            preprocessor_pkl_path = os.path.join(model_dir, "preprocessor.pkl")
+            preprocessor_pkl_model_pt = os.path.join(
+                model_dir, "model.pt", "preprocessor.pkl"
+            )
+            preprocessor_dir = os.path.join(model_dir, "preprocessor")
+
+            if os.path.exists(preprocessor_pkl_path):
+                with open(preprocessor_pkl_path, "rb") as f:
+                    self.preprocessor = pickle.load(f)
+                info_print(f"Preprocessor loaded from {preprocessor_pkl_path}")
+            elif os.path.exists(preprocessor_pkl_model_pt):
+                # HuggingFace Trainer sometimes saves to model.pt subdirectory
+                with open(preprocessor_pkl_model_pt, "rb") as f:
+                    self.preprocessor = pickle.load(f)
+                info_print(f"Preprocessor loaded from {preprocessor_pkl_model_pt}")
+            elif os.path.exists(preprocessor_dir):
+                # Legacy format - try from_pretrained
+                self.preprocessor = TimeSeriesPreprocessor.from_pretrained(
+                    preprocessor_dir
+                )
+                info_print(
+                    f"Preprocessor loaded from {preprocessor_dir} (legacy format)"
+                )
+            else:
+                logger.warning(
+                    f"No preprocessor found at {model_dir}. "
+                    "Predictions will return SCALED values (z-scores) instead of original units. "
+                    "This will cause incorrect metrics if comparing to unscaled ground truth. "
+                    "Ensure preprocessor.pkl was saved during training."
+                )
+
+            # Mark model as fitted since we successfully loaded a trained checkpoint
+            self.is_fitted = True
 
         except Exception as e:
-            error_print(f"Failed to load model weights: {str(e)}")
+            error_print(f"Failed to load model checkpoint: {str(e)}")
             raise
 
     def _train_model(
         self,
         train_data: Any,
-        val_data: Optional[Any] = None,
-        test_data: Optional[Any] = None,
         output_dir: str = "./output",
         **kwargs,
     ) -> Dict[str, Any]:
-        """Execute TTM training using the HuggingFace Trainer.
+        """Execute model training.
 
-        Implements the model-specific training loop using Transformers Trainer
-        with configured callbacks, metrics, and distributed training support.
+        Data splitting for train/val/test is controlled by self.config.split_config.
 
         Args:
-            train_data: Training data (see _prepare_data for supported formats).
-            val_data: Validation data (currently unused, split from train_data).
-            test_data: Test data (currently unused, split from train_data).
-            output_dir: Directory for saving model checkpoints and logs.
-            **kwargs: Additional arguments:
-                - resume_from_checkpoint: Path to checkpoint to resume from.
+            train_data: Training data (will be split based on config)
+            output_dir: Directory for saving checkpoints and logs
+            **kwargs: Additional arguments (e.g., resume_from_checkpoint)
 
         Returns:
-            Dict[str, Any]: Dictionary containing:
-                - train_metrics: Metrics from training (loss, runtime, etc.)
-                - test_metrics: Metrics from test evaluation (if test data provided)
+            Dictionary containing train_metrics and test_metrics
         """
-        # Prepare data loaders
-        train_loader, val_loader, test_loader = self._prepare_data(
-            train_data, val_data, test_data
-        )
+        # Configure tqdm to update less frequently (every 30 seconds instead of constantly)
+        # This reduces log file bloat while still showing progress
+        import os
+
+        os.environ["TQDM_MININTERVAL"] = "30"  # Update progress bar every 30 seconds
+
+        # Prevent GPU memory fragmentation. PyTorch's default CUDA allocator uses
+        # fixed-size blocks that can't be merged when freed, causing "reserved but
+        # unallocated" memory to grow over time (especially when switching between
+        # training and evaluation, which produce different tensor sizes).
+        # expandable_segments:True allows memory segments to grow/shrink dynamically,
+        # making freed memory actually reclaimable. This is safe and stable since
+        # PyTorch 2.1 with no performance downside.
+        #
+        # NOTE: This is a fallback for users running the training module directly.
+        # For reliable configuration, set PYTORCH_ALLOC_CONF in your shell/runner
+        # script BEFORE invoking Python (e.g., in run_holdout_generic_workflow.sh).
+        # Setting it here may not take effect if CUDA was already initialized.
+        if "PYTORCH_ALLOC_CONF" not in os.environ:
+            os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
+            # Check if CUDA allocator was already initialized (setting won't take effect)
+            import torch
+
+            if torch.cuda.is_initialized():
+                logger.warning(
+                    "PYTORCH_ALLOC_CONF was set after CUDA initialization. "
+                    "The 'expandable_segments:True' setting may not take effect. "
+                    "For reliable memory fragmentation prevention, set "
+                    "PYTORCH_ALLOC_CONF in your shell before running Python."
+                )
+
+        info_print("Starting TTM training using HuggingFace Trainer...")
+        # Prepare data loaders (splits based on config)
+        train_loader, val_loader, test_loader = self._prepare_training_data(train_data)
 
         # Create training arguments
         training_args = self._create_training_arguments(output_dir)
@@ -447,20 +671,60 @@ class TTMForecaster(BaseTSFM):
             train_result = trainer.train()
 
         # Save the model
-        trainer.save_model()
+        trainer.save_model(output_dir=output_dir)
+
+        # Save the preprocessor (critical for inference on holdout patients)
+        self._save_checkpoint(output_dir)
+
+        # Get training history directly from trainer.state (in memory)
+        # This is more reliable than reading from file since trainer_state.json
+        # is only saved in checkpoint directories, not at output_dir root
+        training_history = {}
+        if hasattr(trainer, "state") and trainer.state is not None:
+            training_history = {
+                "log_history": trainer.state.log_history,
+                "best_metric": trainer.state.best_metric,
+                "best_model_checkpoint": trainer.state.best_model_checkpoint,
+                "global_step": trainer.state.global_step,
+                "epoch": trainer.state.epoch,
+            }
+            info_print("Captured training history from trainer state")
+            info_print(f"  Total log entries: {len(trainer.state.log_history)}")
+        else:
+            info_print("Warning: Could not access trainer.state")
 
         # Evaluate on test set if provided
+        # Note: This evaluation can be memory-intensive for large test sets
+        # because HF Trainer accumulates all prediction tensors on GPU.
+        # Free training state first to maximize available memory.
         test_metrics = {}
         if test_loader is not None:
-            test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
-            info_print(f"Test metrics: {test_metrics}")
+            import torch
+
+            # Clear training-related GPU cache before evaluation
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            try:
+                test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
+                info_print(f"Test metrics: {test_metrics}")
+            except torch.cuda.OutOfMemoryError:
+                info_print(
+                    "Warning: Test evaluation skipped due to GPU OOM. "
+                    "This is non-fatal — full holdout evaluation runs separately in step 8."
+                )
+                # Clear the failed allocation
+                torch.cuda.empty_cache()
 
         return {
             "train_metrics": train_result.metrics,
             "test_metrics": test_metrics,
+            "training_history": training_history,
         }
 
     # TTM-specific public methods
+    # NOTE: evaluate() is inherited from BaseTimeSeriesFoundationModel
+    # It calls predict() and computes metrics using _compute_metrics()
+
     def predict_zero_shot(
         self,
         data: Any,
@@ -468,48 +732,42 @@ class TTMForecaster(BaseTSFM):
     ) -> np.ndarray:
         """Make zero-shot predictions without fine-tuning.
 
-        Temporarily sets the fit strategy to 'zero_shot' and generates
-        predictions using the pre-trained model weights.
+        Uses TimeSeriesForecastingPipeline without a feature_extractor.
+        TTM's internal TinyTimeMixerStdScaler (RevIN) handles per-window
+        standardization automatically — no external scaling needed.
 
         Args:
-            data: Input data for prediction (see _prepare_data for formats).
-            batch_size: Batch size for prediction. If None, uses config default.
+            data: Input data for prediction (DataFrame)
+            batch_size: Batch size for prediction (unused, kept for API compat)
 
         Returns:
-            np.ndarray: Model predictions with shape (n_samples, forecast_length).
-
-        Note:
-            This method temporarily overrides is_fitted check. The original
-            fit_strategy is restored after prediction.
+            Model predictions as numpy array (in original scale)
         """
-        info_print("Making zero-shot predictions with TTM")
+        if self.column_specifiers is None:
+            self.column_specifiers = self._create_column_specifiers(data)
 
-        # Temporarily override fit strategy
-        original_strategy = self.config.fit_strategy
-        self.config.fit_strategy = "zero_shot"
-
-        try:
-            predictions = self.predict(data, batch_size)
-            return predictions
-        finally:
-            # Restore original strategy
-            self.config.fit_strategy = original_strategy
+        # Pipeline without feature_extractor — TTM's internal scaler
+        # handles per-window standardization and inverse scaling.
+        pipeline = TimeSeriesForecastingPipeline(
+            model=self.model,
+            timestamp_column=self.column_specifiers.get(
+                "timestamp_column", ColumnNames.DATETIME.value
+            ),
+            id_columns=self.column_specifiers.get("id_columns", []),
+            target_columns=self.column_specifiers.get("target_columns", ["bg_mM"]),
+            observable_columns=self.column_specifiers.get("observable_columns", []),
+            explode_forecasts=True,
+            freq=f"{self.config.resolution_min}min",
+        )
+        forecast_df = pipeline(data)
+        target_col = self.column_specifiers["target_columns"][0]
+        return forecast_df[target_col].values
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.
 
-        Extends the base get_model_info() with TTM-specific details.
-
         Returns:
-            Dict[str, Any]: Dictionary containing base model info plus
-                'ttm_specific' key with:
-                - model_path: HuggingFace model path
-                - context_length: Input sequence length
-                - forecast_length: Prediction horizon
-                - num_input_channels: Number of input features
-                - num_output_channels: Number of output features
-                - freeze_backbone: Whether backbone is frozen
-                - scaler_type: Data normalization method
+            Dictionary containing model info with TTM-specific details
         """
         base_info = self.get_model_info()
 
@@ -527,62 +785,54 @@ class TTMForecaster(BaseTSFM):
         return base_info
 
     # TTM-specific private methods
-    def _create_column_specifiers(self, data: pd.DataFrame) -> Dict[str, List[str]]:
-        """Create column specifiers based on available data columns.
-
-        Maps data columns to the roles expected by TimeSeriesPreprocessor:
-        id, timestamp, target, control, observable, conditional, and
-        static categorical columns.
+    def _create_column_specifiers(self, data: pd.DataFrame) -> ColumnSpecifiers:
+        """Create column specifiers for TimeSeriesPreprocessor.
 
         Args:
-            data: DataFrame containing the time series data.
+            data: DataFrame containing time series data
 
         Returns:
-            Dict[str, List[str]]: Dictionary mapping column roles to lists of
-                column names. Only includes columns that exist in the data.
-
-        Note:
-            Default mappings use ColumnNames enum values. Modify this method
-            if your data uses different column naming conventions.
+            ColumnSpecifiers with properly typed column configuration
         """
         # Default mappings - adapt these to your data structure
-        column_specifiers = {
+        # NOTE: target_columns are the ONLY columns that will be forecasted by the model
+        # control_columns, observable_columns, and conditional_columns are used as INPUT features only
+
+        # Use input_features from config instead of hardcoded list
+        observable_cols = (
+            self.config.input_features if self.config.input_features else []
+        )
+
+        column_specifiers: ColumnSpecifiers = {
             "id_columns": [ColumnNames.P_NUM.value],
             "timestamp_column": ColumnNames.DATETIME.value,
-            "target_columns": [ColumnNames.BG.value],
-            "observable_columns": [],
-            "control_columns": [
-                ColumnNames.STEPS.value,
-                ColumnNames.COB.value,
-                ColumnNames.CARB_AVAILABILITY.value,
-                ColumnNames.INSULIN_AVAILABILITY.value,
-                ColumnNames.IOB.value,
-            ],
+            "target_columns": self.config.target_features,  # Use config target features
+            "observable_columns": observable_cols,  # Use config input features
+            "control_columns": [],  # Control columns: known in past AND future (we don't have any)
             "conditional_columns": [],
             "static_categorical_columns": [],
         }
 
-        # Filter to only include columns that exist in the data
+        # Filter to only include columns that exist in the data AND have
+        # at least some non-NaN values (e.g. Brown 2019 has cob/carb_availability
+        # columns as all-NaN placeholders because no meal data exists)
         available_columns = set(data.columns)
 
         for key, columns in column_specifiers.items():
             if isinstance(columns, list):
                 column_specifiers[key] = [
-                    col for col in columns if col in available_columns
+                    col
+                    for col in columns
+                    if col in available_columns and not data[col].isna().all()
                 ]
 
         return column_specifiers
 
     def _get_distributed_training_args(self) -> Dict[str, Any]:
-        """Get distributed training arguments for HuggingFace TrainingArguments.
-
-        Builds a dictionary of distributed training parameters based on the
-        configured strategy (DDP, DeepSpeed, or FSDP).
+        """Get distributed training arguments.
 
         Returns:
-            Dict[str, Any]: Dictionary of distributed training arguments to be
-                merged into TrainingArguments. Returns empty dict if distributed
-                training is not enabled.
+            Dictionary of distributed training parameters for TrainingArguments
         """
         if not self.distributed_config.enabled:
             return {}
@@ -613,50 +863,94 @@ class TTMForecaster(BaseTSFM):
 
         return args
 
-    def _compute_trainer_metrics(self, eval_pred) -> Dict[str, float]:
-        """Compute evaluation metrics for the HuggingFace Trainer.
+    def _compute_trainer_metrics(self, eval_pred) -> Dict[str, Any]:
+        """Compute evaluation metrics for Trainer.
 
-        This method is passed to Trainer's compute_metrics parameter and handles
-        the EvalPrediction object format used by the Transformers library.
+        The HuggingFace Trainer passes an EvalPrediction object containing:
+        - predictions: Model outputs (for TTM, this is a tuple of (forecasts, embeddings))
+        - label_ids: Ground truth labels (requires label_names=["future_values"] in TrainingArguments)
 
         Args:
-            eval_pred: EvalPrediction object from HuggingFace Trainer containing:
-                - predictions: Model predictions (may be nested)
-                - label_ids: Ground truth labels (may be nested)
+            eval_pred: EvalPrediction object from Trainer
 
         Returns:
-            Dict[str, float]: Dictionary containing computed metrics:
-                - mse: Mean Squared Error
-                - rmse: Root Mean Squared Error
-                - mae: Mean Absolute Error
-                - mape: Mean Absolute Percentage Error
-
-        Note:
-            This is separate from BaseTSFM._compute_metrics() because the
-            Trainer passes EvalPrediction objects rather than raw arrays.
+            Dictionary containing computed metrics (mse, rmse, mae, mape)
         """
         try:
-            # Extract predictions and labels (handle TTM's output format)
-            if hasattr(eval_pred, "predictions"):
-                predictions = eval_pred.predictions
-                labels = eval_pred.label_ids
-            else:
-                predictions, labels = eval_pred
+            # Extract predictions and labels from EvalPrediction
+            predictions = eval_pred.predictions
+            labels = eval_pred.label_ids
+            # Log initial shapes for debugging
+            debug_print(f"Raw predictions type: {type(predictions)}")
+            debug_print(f"Raw labels type: {type(labels)}")
 
-            # Handle nested structures (common with TTM)
-            if isinstance(predictions, (tuple, list)) and len(predictions) > 0:
-                if hasattr(predictions[0], "shape"):
+            # Handle TTM's output format: predictions is (forecasts, embeddings) tuple
+            if isinstance(predictions, (tuple, list)):
+                info_print(
+                    f"Predictions is tuple/list with {len(predictions)} elements - extracting forecasts only"
+                )
+                if len(predictions) > 0 and hasattr(predictions[0], "shape"):
+                    # First element is the forecasts, second is embeddings (discarded)
                     predictions = predictions[0]
+                    info_print(f"Extracted forecasts shape: {predictions.shape}")
+                else:
+                    info_print(
+                        "WARNING: Could not extract forecasts from tuple - using raw predictions"
+                    )
 
-            if isinstance(labels, (tuple, list)) and len(labels) > 0:
-                if hasattr(labels[0], "shape"):
+            # Handle labels - may be tuple/list or direct array
+            if isinstance(labels, (tuple, list)):
+                debug_print(f"Labels is tuple/list with {len(labels)} elements")
+                if len(labels) > 0 and hasattr(labels[0], "shape"):
                     labels = labels[0]
+                    debug_print(f"Extracted labels shape: {labels.shape}")
 
             # Convert to numpy arrays
             if not isinstance(predictions, np.ndarray):
                 predictions = np.array(predictions)
             if not isinstance(labels, np.ndarray):
                 labels = np.array(labels)
+
+            info_print(f"Final predictions shape: {predictions.shape}")
+            info_print(f"Final labels shape: {labels.shape}")
+            # Print first few values AFTER extraction to see actual scaled values
+            info_print(
+                f"  Predictions (first 5 of first sample): {predictions[0, :5, 0] if len(predictions.shape) == 3 else predictions[:5]}"
+            )
+            info_print(
+                f"  Labels (first 5 of first sample): {labels[0, :5, 0] if len(labels.shape) == 3 else labels[:5]}"
+            )
+
+            # Check for empty labels (indicates label_names not configured properly)
+            if labels.size == 0:
+                error_print(
+                    "Labels array is empty. Ensure TrainingArguments has "
+                    "label_names=['future_values'] configured."
+                )
+                return {"custom_error": "Empty labels - check label_names config"}
+
+            # Handle shape mismatch - predictions and labels should align
+            # Predictions shape: (batch, forecast_length, num_output_channels)
+            # Labels shape: (batch, forecast_length, num_channels) where num_channels >= num_output_channels
+            if predictions.shape != labels.shape:
+                # If predictions has fewer channels than labels (target_columns subset),
+                # slice labels to match the number of output channels
+                if (
+                    len(predictions.shape) == 3
+                    and len(labels.shape) == 3
+                    and predictions.shape[:2] == labels.shape[:2]
+                ):
+                    num_output_channels = predictions.shape[2]
+                    labels = labels[:, :, :num_output_channels]
+                    debug_print(f"Sliced labels to match predictions: {labels.shape}")
+                else:
+                    error_print(
+                        f"Shape mismatch: predictions {predictions.shape} vs "
+                        f"labels {labels.shape}"
+                    )
+                    return {
+                        "custom_error": f"Shape mismatch: {predictions.shape} vs {labels.shape}"
+                    }
 
             # Compute metrics
             mse = np.mean((predictions - labels) ** 2)
@@ -678,71 +972,80 @@ class TTMForecaster(BaseTSFM):
                 "mape": float(mape),
             }
 
-            debug_print(f"Computed metrics: {metrics}")
+            info_print(f"Computed evaluation metrics: {metrics}")
             return metrics
 
         except Exception as e:
-            error_print(f"Error computing metrics: {str(e)}")
+            error_print(f"\nError computing metrics: {str(e)}")
+            import traceback
+
+            debug_print(traceback.format_exc())
             return {"custom_error": str(e)}
 
     def _get_callbacks(self) -> List:
-        """Get training callbacks for the HuggingFace Trainer.
-
-        Creates callbacks based on the model configuration, including
-        early stopping if patience > 0.
+        """Get training callbacks.
 
         Returns:
-            List[TrainerCallback]: List of callback instances to pass to Trainer.
+            List of callback instances for Trainer
         """
 
         callbacks = []
 
-        # Early stopping
-        if self.config.early_stopping_patience > 0:
-            callbacks.append(
-                EarlyStoppingCallback(
-                    early_stopping_patience=self.config.early_stopping_patience,
-                    early_stopping_threshold=0.0,
-                )
-            )
+        # Early stopping only works if evaluation is enabled
+        # Since we use eval_strategy="no" for speed, skip early stopping
+        # if self.config.early_stopping_patience > 0:
+        #     callbacks.append(
+        #         EarlyStoppingCallback(
+        #             early_stopping_patience=self.config.early_stopping_patience,
+        #             early_stopping_threshold=0.0,
+        #         )
+        #     )
 
         return callbacks
 
     def _create_training_arguments(self, output_dir: str) -> TrainingArguments:
-        """Create HuggingFace TrainingArguments for TTM training.
-
-        Builds TrainingArguments from the model configuration, including
-        distributed training settings if enabled.
+        """Create TrainingArguments for model training.
 
         Args:
-            output_dir: Directory path for saving checkpoints, logs, and
-                the final trained model.
+            output_dir: Directory for checkpoints and logs
 
         Returns:
-            TrainingArguments: Configured training arguments for the
-                HuggingFace Trainer.
+            Configured TrainingArguments instance
         """
+        # Store checkpoints in a dedicated subdirectory to keep the output dir clean
+        checkpoint_dir = os.path.join(output_dir, "checkpoints")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+
         # Base training arguments
         base_args = {
-            "output_dir": output_dir,
+            "output_dir": checkpoint_dir,
             "learning_rate": self.config.learning_rate,
             "num_train_epochs": self.config.num_epochs,
             "per_device_train_batch_size": self.config.batch_size,
             "per_device_eval_batch_size": self.config.batch_size,
             "warmup_steps": self.config.warmup_steps,
             "weight_decay": self.config.weight_decay,
-            "logging_dir": os.path.join(output_dir, "logs"),
-            "logging_steps": self.config.logging_steps,
-            "eval_strategy": self.config.eval_strategy,
-            "eval_steps": self.config.eval_steps,
+            "logging_dir": self.config.logging_dir
+            if self.config.logging_dir
+            else os.path.join(output_dir, "logs"),
+            "logging_steps": 1000,  # Log every 1000 steps (reduces log verbosity significantly)
+            "eval_strategy": "no",  # Disable evaluation during training for speed
+            "save_strategy": "epoch",  # Only save at end of epoch
+            "eval_steps": None,
             "save_steps": self.config.save_steps,
             "metric_for_best_model": self.config.metric_for_best_model,
             "greater_is_better": self.config.greater_is_better,
-            "load_best_model_at_end": True,
+            "load_best_model_at_end": False,  # Disabled since eval is off
             "fp16": self.config.fp16,
             "dataloader_num_workers": self.config.dataloader_num_workers,
+            # Tell Trainer that 'future_values' in the batch is the labels field
+            # This ensures EvalPrediction.label_ids is populated correctly
+            "label_names": ["future_values"],
             "use_cpu": self.config.use_cpu,
             "report_to": "none",  # Disable wandb/tensorboard by default
+            "disable_tqdm": False,  # Keep progress bar enabled
+            "logging_first_step": True,
+            "logging_nan_inf_filter": False,
         }
 
         # Add distributed training arguments
@@ -750,32 +1053,3 @@ class TTMForecaster(BaseTSFM):
         base_args.update(distributed_args)
 
         return TrainingArguments(**base_args)
-
-
-# Factory function for creating TTM models
-def create_ttm_model(
-    model_path: str = "ibm-granite/granite-timeseries-ttm-r2",
-    context_length: int = 512,
-    forecast_length: int = 96,
-    **kwargs,
-) -> TTMForecaster:
-    """
-    Factory function to create a TTM model with sensible defaults.
-
-    Args:
-        model_path: Path to TTM model
-        context_length: Input sequence length
-        forecast_length: Prediction horizon
-        **kwargs: Additional configuration parameters
-
-    Returns:
-        Configured TTM forecaster
-    """
-    config = TTMConfig(
-        model_path=model_path,
-        context_length=context_length,
-        forecast_length=forecast_length,
-        **kwargs,
-    )
-
-    return TTMForecaster(config)

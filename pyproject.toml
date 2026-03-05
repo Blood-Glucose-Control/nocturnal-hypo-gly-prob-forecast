@@ -1,4 +1,90 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nocturnal-forecast"
+version = "0.1.0"
+description = "Nocturnal hypoglycemia and glycemic forecasting"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    # Development tools
+    "accelerate>=0.26.0",
+    "pre-commit",
+    "pytest",
+    "pytest-mock",
+    "ruff>=0.3.0",
+
+    # Data Science & ML
+    "datasets",
+    "ipynb",
+    "ipython",
+    "ipywidgets",
+    "jupyterlab",
+    "kaggle",
+    "loguru",
+    "notebook",
+    "numba",
+    "numpy",
+    "orjson",
+    "pandas",
+    "pyarrow>=14.0.0",
+    "pydantic",
+    "pyreadstat",
+    "python-dotenv",
+    "PyWavelets",
+    "scikit-learn",
+    "skchange",
+    "sktime",
+    "tabulate",
+    "torch",
+    "transformers",
+    "tqdm",
+
+    # Visualization
+    "matplotlib",
+    "seaborn",
+
+    # Documentation
+    "mkdocs",
+    "mkdocs-material",
+
+    # Experiment tracking
+    "mlflow",
+
+    # Utilities
+    "typer",
+]
+
+[project.optional-dependencies]
+ttm = [
+    "granite-tsfm[notebooks] @ git+https://github.com/ibm-granite/granite-tsfm.git@v0.3.3",
+    "transformers[torch]==4.56.0",
+]
+sundial = [
+    "transformers==4.40.1",
+]
+chronos2 = [
+    "autogluon.timeseries==1.5.0",
+    "transformers==4.56.0",
+]
+timegrad = [
+    "pytorchts",
+    "gluonts>=0.9.0,<0.10.0",
+]
+timesfm = [
+    "transformers>=5.2.0",
+]
+tide = [
+    "autogluon.timeseries==1.5.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
 [tool.pytest.ini_options]
+pythonpath = ["."]
 norecursedirs = [
     "_noct_dep/tests"
 ]

@@ -1,0 +1,22 @@
+{
+  "cli_args": {
+    "model": "ttm",
+    "dataset": "aleppo_2017",
+    "config_dir": "configs/data/20260214_holdout_10pct",
+    "checkpoint": null,
+    "context_length": null,
+    "forecast_length": null,
+    "model_config": null,
+    "output_dir": null
+  },
+  "model_config": {
+    "context_length": 512,
+    "forecast_length": 96
+  },
+  "environment": {
+    "git_commit": "daba098",
+    "python_version": "3.12.3",
+    "timestamp": "2026-02-15T23:53:44.805458"
+  },
+  "reproducibility_command": "python scripts/examples/holdout_eval.py --model ttm --dataset aleppo_2017 --config-dir configs/data/20260214_holdout_10pct --context-length None --forecast-length None"
+}

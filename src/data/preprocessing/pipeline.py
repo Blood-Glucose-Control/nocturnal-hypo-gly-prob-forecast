@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """
 Data preprocessing pipeline for diabetes patient monitoring data.
@@ -128,9 +128,13 @@ def preprocessing_pipeline(
         )
 
     patient_df = df.copy(deep=True)
-    processed_df = create_physiological_features(
-        patient_df,
-        use_aggregation=use_aggregation,
-        basal_delivery_type=basal_delivery_type,
-    )
+    try:
+        processed_df = create_physiological_features(
+            patient_df,
+            use_aggregation=use_aggregation,
+            basal_delivery_type=basal_delivery_type,
+        )
+    except Exception as e:
+        logger.error(f"Error preprocessing patient {p_num}: {e}")
+        raise
     return processed_df

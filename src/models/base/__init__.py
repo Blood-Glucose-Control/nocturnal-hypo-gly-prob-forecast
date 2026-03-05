@@ -6,11 +6,11 @@ time series foundation models in a unified, scalable framework.
 """
 
 from .base_model import (
-    BaseTSFM,
+    BaseTimeSeriesFoundationModel,
     ModelConfig,
     LoRAConfig,
     DistributedConfig,
-    TrainingStrategy,
+    TrainingBackend,
     create_model_from_config,
 )
 
@@ -38,11 +38,11 @@ from .lora_utils import (
 
 __all__ = [
     # Base model classes
-    "BaseTSFM",
+    "BaseTimeSeriesFoundationModel",
     "ModelConfig",
     "LoRAConfig",
     "DistributedConfig",
-    "TrainingStrategy",
+    "TrainingBackend",
     # Factory functions
     "create_model_from_config",
     # Distributed training

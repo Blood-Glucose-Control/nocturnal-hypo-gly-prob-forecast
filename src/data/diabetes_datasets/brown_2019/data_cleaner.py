@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """
 Data cleaning utilities for the Brown 2019 DCLP3 diabetes dataset.
@@ -34,6 +34,7 @@ from src.data.preprocessing.data_splitting import split_multipatient_dataframe
 from src.data.preprocessing.sampling import (
     ensure_regular_time_intervals_with_aggregation,
 )
+from src.data.utils.patient_id import format_patient_id
 from src.utils.os_helper import get_project_root
 from src.utils.unit import mg_dl_to_mmol_l
 
@@ -146,16 +147,31 @@ def clean_brown_2019_data(
     bolus_df = bolus_df.copy()
 
     # ========== STEP 1: Parse timestamps ==========
-    # CGM has format: '11DEC17:23:59:25' (DDmmmYY:HH:MM:SS)
+    # Raw data may have SAS format '11DEC17:23:59:25' or ISO8601 '2017-12-11 23:59:25'
+    # Try ISO8601 first (more common), fall back to SAS format
     dt_col = ColumnNames.DATETIME.value
-    cgm_df[dt_col] = pd.to_datetime(cgm_df["DataDtTm"], format="%d%b%y:%H:%M:%S")
+
+    def parse_datetime_flexible(series: pd.Series) -> pd.Series:
+        """Parse datetime series that may contain ISO8601 or SAS format."""
+        # Try ISO8601 first (pandas default)
+        result = pd.to_datetime(series, format="ISO8601", errors="coerce")
+        # Fill any NaT with SAS format parse
+        mask = result.isna() & series.notna()
+        if mask.any():
+            sas_parsed = pd.to_datetime(
+                series[mask], format="%d%b%y:%H:%M:%S", errors="coerce"
+            )
+            result = result.fillna(sas_parsed)
+        return result
+
+    cgm_df[dt_col] = parse_datetime_flexible(cgm_df["DataDtTm"])
 
     # Basal/Bolus: use DataDtTm_adjusted if available (corrected timestamps)
     # Some patients (114, 165) have incorrect dates in DataDtTm (e.g., 2010 instead of 2018)
-    basal_df[dt_col] = pd.to_datetime(
+    basal_df[dt_col] = parse_datetime_flexible(
         basal_df["DataDtTm_adjusted"].fillna(basal_df["DataDtTm"])
     )
-    bolus_df[dt_col] = pd.to_datetime(
+    bolus_df[dt_col] = parse_datetime_flexible(
         bolus_df["DataDtTm_adjusted"].fillna(bolus_df["DataDtTm"])
     )
 
@@ -182,9 +198,10 @@ def clean_brown_2019_data(
     bolus_df = bolus_df.drop(columns=["DataDtTm", "DataDtTm_adjusted", "RecID"])
 
     # ========== STEP 3: Floor timestamps to 5-min grid ==========
-    cgm_df[dt_col] = cgm_df[dt_col].dt.floor("5min")
-    basal_df[dt_col] = basal_df[dt_col].dt.floor("5min")
-    bolus_df[dt_col] = bolus_df[dt_col].dt.floor("5min")
+    # type: ignore comments needed due to pandas-stubs not exposing .dt.floor() correctly
+    cgm_df[dt_col] = cgm_df[dt_col].dt.floor("5min")  # type: ignore[attr-defined]
+    basal_df[dt_col] = basal_df[dt_col].dt.floor("5min")  # type: ignore[attr-defined]
+    bolus_df[dt_col] = bolus_df[dt_col].dt.floor("5min")  # type: ignore[attr-defined]
 
     # ========== STEP 4: Aggregate collisions ==========
     # When multiple readings fall in same 5-min bin:
@@ -222,7 +239,7 @@ def clean_brown_2019_data(
 
     processed_patients = {}
     for i, (pid, pdf) in enumerate(patient_dict.items()):
-        processed_df, freq = ensure_regular_time_intervals_with_aggregation(pdf)
+        processed_df, _freq = ensure_regular_time_intervals_with_aggregation(pdf)
         processed_patients[pid] = processed_df
 
         if (i + 1) % 50 == 0:
@@ -307,6 +324,11 @@ def clean_brown_2019_data(
     output_df = merged[final_columns].copy()
     output_df = output_df.set_index(dt_col).sort_index()
 
+    # Apply standardized patient ID format: bro_###
+    output_df[p_num_col] = output_df[p_num_col].apply(
+        lambda x: format_patient_id("brown_2019", x)
+    )
+
     logger.info(
         f"Final output: {output_df.shape[0]:,} rows, {output_df[p_num_col].nunique()} patients"
     )
@@ -375,8 +397,9 @@ if __name__ == "__main__":
     print(output_df.head(20))
 
     print("\n=== Validation ===")
+    # type: ignore needed - pandas-stubs doesn't expose DatetimeIndex attributes correctly
     print(
-        f"All timestamps on 5-min grid: {((output_df.index.minute % 5 == 0) & (output_df.index.second == 0)).all()}"
+        f"All timestamps on 5-min grid: {((output_df.index.minute % 5 == 0) & (output_df.index.second == 0)).all()}"  # type: ignore[attr-defined]
     )
     print(f"No negative BG: {(output_df[ColumnNames.BG.value].dropna() >= 0).all()}")
     print(f"No negative bolus: {(output_df[ColumnNames.DOSE_UNITS.value] >= 0).all()}")

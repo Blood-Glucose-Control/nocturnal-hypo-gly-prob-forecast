@@ -1,0 +1,61 @@
+dataset_name: tamborlane_2008
+holdout_type: hybrid
+description: 'Hybrid holdout strategy: 10% temporal split + 10% patient holdout. Holdout
+  patients: 45. Fixed seed=42 for reproducibility.'
+created_date: '2026-02-14T01:41:56.155951'
+version: '1.0'
+temporal_config:
+  holdout_percentage: 0.1
+  min_train_samples: 608
+  min_holdout_samples: 608
+patient_config:
+  holdout_patients:
+  - tam_469
+  - tam_464
+  - tam_176
+  - tam_187
+  - tam_362
+  - tam_25
+  - tam_231
+  - tam_55
+  - tam_467
+  - tam_500
+  - tam_145
+  - tam_449
+  - tam_372
+  - tam_180
+  - tam_450
+  - tam_85
+  - tam_15
+  - tam_479
+  - tam_361
+  - tam_14
+  - tam_220
+  - tam_75
+  - tam_311
+  - tam_229
+  - tam_380
+  - tam_139
+  - tam_122
+  - tam_253
+  - tam_444
+  - tam_320
+  - tam_244
+  - tam_41
+  - tam_295
+  - tam_163
+  - tam_204
+  - tam_424
+  - tam_118
+  - tam_199
+  - tam_195
+  - tam_43
+  - tam_387
+  - tam_132
+  - tam_84
+  - tam_248
+  - tam_430
+  holdout_percentage: 0.1
+  min_train_patients: 10
+  min_holdout_patients: 10
+  random_seed: 42

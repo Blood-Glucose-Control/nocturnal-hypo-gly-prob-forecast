@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 CARB_ABSORPTION = 0.8  # 80% of the carbs are absorbed - Hovorka model
 TS_MIN = 1  # Time step in minutes for simulation

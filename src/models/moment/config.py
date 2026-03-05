@@ -8,7 +8,7 @@ extending the base model configuration with Moment-specific parameters.
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 
-from src.models.base import ModelConfig, TrainingStrategy
+from src.models.base import ModelConfig, TrainingBackend
 
 
 @dataclass
@@ -26,8 +26,6 @@ class MomentTrainingConfig:
             "huber", or "custom".
         scaler_type: Data normalization method. Options: "standard", "minmax",
             or "robust".
-        imputation_strategy: Strategy for handling missing values. Options:
-            "mean", "median", or "forward_fill".
     """
 
     # Moment specific training parameters
@@ -40,7 +38,6 @@ class MomentTrainingConfig:
 
     # Moment preprocessing
     scaler_type: str = "standard"  # "standard", "minmax", "robust"
-    imputation_strategy: str = "mean"  # "mean", "median", "forward_fill"
 
 
 @dataclass
@@ -224,7 +221,7 @@ def create_moment_fine_tuning_config(**kwargs) -> MomentConfig:
         "model_path": "AutonLab/MOMENT-1-large",
         "context_length": 512,
         "forecast_length": 96,
-        "training_strategy": TrainingStrategy.FINE_TUNE,
+        "training_backend": TrainingBackend.FINE_TUNE,
         "use_lora": True,
         "lora_r": 8,
         "lora_alpha": 16,
@@ -251,7 +248,7 @@ def create_moment_zero_shot_config(**kwargs) -> MomentConfig:
         "model_path": "AutonLab/MOMENT-1-large",
         "context_length": 512,
         "forecast_length": 96,
-        "training_strategy": TrainingStrategy.ZERO_SHOT,
+        "training_backend": TrainingBackend.ZERO_SHOT,
         "batch_size": 64,
     }
     defaults.update(kwargs)

@@ -13,7 +13,7 @@ model:
   forecast_length: 96
 
 data:
-  source_name: "aleppo"
+  source_name: "aleppo_2017"
   y_feature: ["bg_mM"]
   x_features: ["cob", "carb_availability", "insulin_availability", "iob"]
   timestamp_column: "datetime"

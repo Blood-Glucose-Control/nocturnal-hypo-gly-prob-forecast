@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: [Add your contact information]
+# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """
 Data cleaning utilities for the Lynch 2022 IOBP2 RCT dataset.
@@ -28,6 +28,7 @@ from src.data.physiological.insulin_model.insulin_model import (
 )
 from src.data.preprocessing.pipeline import preprocessing_pipeline
 from src.data.preprocessing.sampling import ensure_regular_time_intervals
+from src.data.utils.patient_id import format_patient_id
 
 logger = logging.getLogger(__name__)
 
@@ -215,8 +216,8 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     df["bg_mM"] = pd.to_numeric(df["gl"], errors="coerce") / 18.0
     df = df.dropna(subset=["bg_mM"])
 
-    # Patient ID and required columns for downstream pipeline
-    df["p_num"] = df["id"].map(lambda pid: f"lynch_{int(pid)}")
+    # Patient ID with standardized format: lyn_###
+    df["p_num"] = df["id"].map(lambda pid: format_patient_id("lynch_2022", pid))
 
     # dose_units and food_g are already calculated in load_lynch2022_raw_dataset
     # Ensure they exist and have proper types

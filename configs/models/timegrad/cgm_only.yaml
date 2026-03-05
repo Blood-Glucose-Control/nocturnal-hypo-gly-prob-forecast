@@ -1,0 +1,51 @@
+# =============================================================================
+# TimeGrad Model Configuration - CGM Only
+# =============================================================================
+# Trains TimeGrad using only the CGM signal (bg_mM) with no auxiliary features.
+# Pass this config via:
+#
+#   MODEL_CONFIG="configs/models/timegrad/cgm_only.yaml" \
+#   MODEL_TYPE="timegrad" \
+#   EPOCHS=10 \
+#   DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" \
+#   ./scripts/examples/run_holdout_generic_workflow.sh
+#
+# CLI arguments (--epochs, --batch-size) override values in this file.
+# =============================================================================
+
+# --- Training Configuration ---
+training_mode: "from_scratch"
+num_epochs: 10
+
+# --- Data Features ---
+# No auxiliary input features — CGM signal only
+input_features: []
+
+# Target feature the model predicts
+target_features:
+  - bg_mM
+
+# --- Data Preprocessing ---
+scaler_type: "standard"
+resolution_min: 5                # 5-minute CGM resolution
+
+# --- Data Splitting ---
+split_config:
+  train: 0.9
+  val: 0.05
+  test: 0.05
+
+# --- TimeGrad-Specific ---
+diff_steps: 10
+beta_end: 0.1
+beta_schedule: "linear"
+loss_type: "l2"
+cell_type: "GRU"
+num_cells: 100
+num_layers: 2
+residual_layers: 8
+residual_channels: 8
+num_samples: 10
+scaling: true
+num_batches_per_epoch: 1000
+freq: "5T"

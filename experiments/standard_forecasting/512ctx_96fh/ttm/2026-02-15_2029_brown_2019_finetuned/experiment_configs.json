@@ -1,0 +1,22 @@
+{
+  "cli_args": {
+    "model": "ttm",
+    "dataset": "brown_2019",
+    "config_dir": "configs/data/20260214_holdout_10pct",
+    "checkpoint": "trained_models/artifacts/_tsfm_testing/2026-02-15_05:06_RID20260215_050614_1879726_holdout_workflow/resumed_training",
+    "context_length": null,
+    "forecast_length": null,
+    "model_config": null,
+    "output_dir": null
+  },
+  "model_config": {
+    "context_length": 512,
+    "forecast_length": 96
+  },
+  "environment": {
+    "git_commit": "daba098",
+    "python_version": "3.12.3",
+    "timestamp": "2026-02-15T20:29:31.415374"
+  },
+  "reproducibility_command": "python scripts/examples/holdout_eval.py --model ttm --dataset brown_2019 --config-dir configs/data/20260214_holdout_10pct --context-length None --forecast-length None --checkpoint trained_models/artifacts/_tsfm_testing/2026-02-15_05:06_RID20260215_050614_1879726_holdout_workflow/resumed_training"
+}
