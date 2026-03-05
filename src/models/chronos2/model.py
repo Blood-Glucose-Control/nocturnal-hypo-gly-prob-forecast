@@ -239,10 +239,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             bg_values = bg_values[-config.context_length :]
             context = torch.tensor(bg_values).unsqueeze(0)
 
-            samples = self._zs_pipeline.predict(
-                context, prediction_length=config.forecast_length, num_samples=20
+            quantiles, mean = self._zs_pipeline.predict_quantiles(
+                context, prediction_length=config.forecast_length
             )
-            return samples.squeeze(0).numpy().mean(axis=0)
+            return mean[0].numpy()
 
         # Fine-tuned path: use fitted AutoGluon predictor
         from autogluon.timeseries import TimeSeriesDataFrame
