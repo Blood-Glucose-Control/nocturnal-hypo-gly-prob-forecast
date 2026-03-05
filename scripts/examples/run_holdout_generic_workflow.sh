@@ -34,16 +34,21 @@
 # All datasets combined with specific model:
 #   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="ttm" MODEL_CONFIG="configs/models/ttm/00_fine_tune_cgm_only.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 #
+# Chronos2, all datasets, cgm-only/BG-only config (fast smoke test):
+#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="chronos2" MODEL_CONFIG="configs/models/chronos2/01_bg_iob_insulin_availability.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 # TimeGrad, all datasets, CGM only (10 epochs):
 #   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="timegrad" MODEL_CONFIG="configs/models/timegrad/cgm_only.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=1 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 # Timesfm, all datasets, CGM only (10 epochs):
 #   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="timesfm" MODEL_CONFIG="configs/models/timesfm/fine_tune.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=3 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
+#
+# TiDE, all datasets, BG + covariates:
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="tide" MODEL_CONFIG="configs/models/tide/from_scratch.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=1 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
-# Generate a unique run ID (replaces SLURM_JOB_ID for local runs)gh pr checkout 348
+# Generate a unique run ID (replaces SLURM_JOB_ID for local runs)
 # Uses timestamp + random suffix for uniqueness
 RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 

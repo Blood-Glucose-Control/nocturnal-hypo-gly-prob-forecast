@@ -21,7 +21,7 @@ Workflow Steps:
   7. Resume training on loaded model
 
 Individual steps can be skipped via --skip-steps. Step 4 is auto-skipped for
-models that train from scratch (e.g., timegrad) since they have no pretrained
+models that train from scratch (e.g., timegrad, tide) since they have no pretrained
 weights for zero-shot inference.
 
 Usage:
@@ -29,7 +29,7 @@ Usage:
     python scripts/examples/example_holdout_generic_workflow.py --datasets lynch_2022 brown_2019
 
     # Run with specific model type
-    python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 aleppo_2017
+    python scripts/examples/example_holdout_generic_workflow.py --model-type tide --datasets aleppo_2017 brown_2019 lynch_2022 tamborlane_2008
 
     # Skip specific steps (e.g., skip zero-shot and resume training)
     python scripts/examples/example_holdout_generic_workflow.py --model-type ttm --datasets lynch_2022 --skip-steps 4 7
@@ -170,18 +170,9 @@ class ModelFactory:
             "moment": "AutonLab/MOMENT-1-small",
             "timesfm": "google/timesfm-2.0-500m-pytorch",
             "timegrad": "",  # Trains from scratch, no pretrained path
+            "tide": "",  # Trains from scratch, no pretrained path
         }
         return defaults.get(model_type, "")
-
-    @staticmethod
-    def supports_zero_shot(model_type: str) -> bool:
-        """Return True if the model type supports zero-shot evaluation.
-
-        Models that always train from scratch (no concept of pretrained weights)
-        cannot perform zero-shot evaluation regardless of any config override.
-        """
-        from_scratch_only = {"timegrad"}
-        return model_type.lower() not in from_scratch_only
 
     @staticmethod
     def create_model(
@@ -214,10 +205,12 @@ class ModelFactory:
             return ModelFactory._create_timesfm_model(config, distributed_config)
         elif model_type == "timegrad":
             return ModelFactory._create_timegrad_model(config, distributed_config)
+        elif model_type == "tide":
+            return ModelFactory._create_tide_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide"
             )
 
     @staticmethod
@@ -391,6 +384,30 @@ class ModelFactory:
             raise ImportError(
                 f"TimeGrad model not available. Install with: "
                 f"source scripts/setup_model_env.sh timegrad\n{e}"
+            )
+
+    @staticmethod
+    def _create_tide_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a TiDE model instance."""
+        try:
+            from src.models.tide import TiDEForecaster, TiDEConfig
+
+            tide_config = TiDEConfig(
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                training_mode=config.training_mode,
+                **config.extra_config,
+            )
+
+            return TiDEForecaster(tide_config)
+        except ImportError as e:
+            raise ImportError(
+                f"TiDE model not available. Install with: "
+                f"pip install 'nocturnal-hypo-gly-prob-forecast[tide]': {e}"
             )
 
     @staticmethod
@@ -653,10 +670,14 @@ class ModelFactory:
                 **config.extra_config,
             )
             return TimeGradForecaster.load(model_path, timegrad_config)
+        elif model_type_lower == "tide":
+            from src.models.tide import TiDEForecaster
+
+            return TiDEForecaster.load(model_path)
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide"
             )
 
 
@@ -1506,6 +1527,24 @@ def step4_zero_shot_evaluation(
 
     # Create model using the factory
     model = ModelFactory.create_model(config, distributed_config=distributed_config)
+
+    # Check if model actually supports zero-shot prediction
+    if not model.supports_zero_shot:
+        logger.info(
+            f"{model_type} does not support zero-shot (trains from scratch). "
+            "Skipping zero-shot evaluation."
+        )
+        del model
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                logger.info("GPU memory cleared after skipping zero-shot evaluation")
+        except Exception:
+            pass
+        return None
+
     logger.info(f"✓ Pretrained {model_type.upper()} model loaded (zero-shot mode)")
 
     # Evaluate and plot for zero-shot phase
@@ -1850,8 +1889,9 @@ Supported Model Types:
   - moment: AutonLab MOMENT
   - timesfm: Google TimesFM 2.0 (500M)
   - timegrad: TimeGrad (GRU + diffusion, trains from scratch)
+  - tide: TiDE (Time-series Dense Encoder, trains from scratch via AutoGluon)
 
-Step 4 is auto-skipped for from-scratch models like timegrad.
+Step 4 is auto-skipped for from-scratch models like timegrad, tide.
 
 Each evaluation phase (4, 5, 6, 7) generates predictions and plots
 stored in separate subdirectories for comparison.
@@ -1861,7 +1901,7 @@ stored in separate subdirectories for comparison.
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "chronos2", "moment", "timesfm", "timegrad"],
+        choices=["ttm", "chronos", "chronos2", "moment", "timesfm", "timegrad", "tide"],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(
@@ -1922,30 +1962,18 @@ stored in separate subdirectories for comparison.
     skip_steps: set[int] = set(args.skip_steps)
     if args.skip_training:
         skip_steps.update({5, 6, 7})
-    # Auto-skip zero-shot for models that cannot perform zero-shot evaluation.
-    # Two cases require skipping:
-    #   1. The model type inherently trains from scratch (e.g. timegrad) and has
-    #      no pretrained weights, regardless of any YAML override.
-    #   2. A YAML config explicitly sets training_mode=from_scratch for a model
-    #      type that normally has pretrained weights (e.g. TTM configured to train
-    #      from scratch). get_default_model_path() would return a non-empty string
-    #      for such models and would incorrectly allow step 4 to run.
+    # Auto-skip zero-shot if YAML explicitly sets training_mode=from_scratch.
+    # The model-level check (model.supports_zero_shot) happens inside step 4
+    # after the model is created — no hardcoded model type list needed here.
     resolved_training_mode = (model_config_overrides or {}).get(
         "training_mode", "fine_tune"
     )
-    no_zero_shot = (
-        not ModelFactory.supports_zero_shot(args.model_type)
-        or resolved_training_mode == "from_scratch"
-    )
-    if no_zero_shot:
-        if 4 not in skip_steps:
-            reason = (
-                f"{args.model_type} trains from scratch and has no pretrained weights"
-                if not ModelFactory.supports_zero_shot(args.model_type)
-                else f"{args.model_type} is configured with training_mode=from_scratch"
-            )
-            logger.info(f"Auto-skipping step 4 (zero-shot): {reason}")
-            skip_steps.add(4)
+    if resolved_training_mode == "from_scratch" and 4 not in skip_steps:
+        logger.info(
+            f"Auto-skipping step 4 (zero-shot): "
+            f"{args.model_type} is configured with training_mode=from_scratch"
+        )
+        skip_steps.add(4)
 
     # Set output directory
     if args.output_dir is None:
