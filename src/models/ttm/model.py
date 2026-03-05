@@ -7,7 +7,7 @@ the base TSFM framework, demonstrating how to integrate existing models.
 
 import os
 import logging
-from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -141,8 +141,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         data: Any,
         batch_size: Optional[int] = None,
         inverse_scale: bool = True,
-        return_dict: bool = False,
-    ) -> Union[np.ndarray, Dict[str, Any]]:
+    ) -> np.ndarray:
         """Make predictions on new data using TTM pipeline.
 
         Branches on is_fitted to select the inference path:
@@ -156,11 +155,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             batch_size: Batch size for prediction
             inverse_scale: If True, inverse transform predictions to original scale.
                           Requires preprocessor to have been fitted during training.
-            return_dict: If True, return a dictionary with predictions and metadata.
 
         Returns:
-            Predictions as numpy array (in original scale if inverse_scale=True)
-            or a dictionary with predictions and metadata if return_dict=True.
+            Predictions as numpy array (in original scale if inverse_scale=True).
         """
         if self.is_fitted:
             # Fine-tuned path: preprocessor handles scaling + inverse scaling
@@ -195,13 +192,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             target_col = self.column_specifiers["target_columns"][0]
             predictions = forecast_df[target_col].values
 
-        if return_dict:
-            return {
-                "predictions": predictions,
-                "model_config": self.config.to_dict(),
-                "n_samples": len(predictions),
-                "forecast_df": forecast_df,
-            }
         return predictions
 
     def _inverse_scale_predictions(

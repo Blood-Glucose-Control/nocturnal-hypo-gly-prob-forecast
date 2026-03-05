@@ -447,7 +447,7 @@ def parse_args() -> argparse.Namespace:
         "--datasets",
         nargs="+",
         default=["brown_2019"],
-        help="Datasets to train on (first is used for eval)",
+        help="Datasets to train on (all are used for eval)",
     )
     p.add_argument(
         "--config-dir",

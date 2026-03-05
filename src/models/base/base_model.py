@@ -333,7 +333,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         if not self.is_fitted and not self.supports_zero_shot:
             raise RuntimeError(
                 f"{self.__class__.__name__} requires training before prediction. "
-                f"Call fit() first."
+                f"Call fit() or load() first."
             )
         return self._predict(data, **kwargs)
 
