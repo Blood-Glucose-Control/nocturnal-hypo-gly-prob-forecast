@@ -54,7 +54,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     - training_backend = CUSTOM (AutoGluon manages training internally)
     - self.model stays None; self.predictor holds the AutoGluon predictor
     - _prepare_training_data returns TimeSeriesDataFrame, not DataLoaders
-    - evaluate() is overridden for midnight-anchored nocturnal evaluation
+    - Midnight-anchored nocturnal evaluation uses evaluate_with_covariates()
     """
 
     def __init__(

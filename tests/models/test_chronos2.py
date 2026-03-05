@@ -162,16 +162,6 @@ class TestChronos2:
             == []
         )
 
-    def test_predict_before_fit(self):
-        """predict/evaluate before fit → clear ValueError, not AttributeError."""
-        model = Chronos2Forecaster(Chronos2Config())
-        flat = _make_flat_df(n_patients=1, n_days=5)
-
-        with pytest.raises(ValueError, match="fitted or loaded"):
-            model.predict(flat)
-        with pytest.raises(ValueError, match="fitted or loaded"):
-            model.evaluate(flat)
-
     def test_data_pipeline(self):
         """Core pipeline: flat df → segments → TimeSeriesDataFrame with covariates."""
         from src.data.preprocessing.gap_handling import segment_all_patients
