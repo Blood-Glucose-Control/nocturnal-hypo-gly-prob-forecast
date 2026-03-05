@@ -79,7 +79,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         self.column_specifiers = None
 
     # Abstract method implementations
-    def predict(
+    def _predict(
         self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
     ) -> Union[np.ndarray, Dict[str, Any]]:
         """
@@ -93,8 +93,8 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Predictions as numpy array or dictionary with additional info
         """
-        if not self.is_fitted or self.model is None:
-            raise ValueError("Model must be fitted before making predictions")
+        if self.model is None:
+            raise ValueError("Model must be initialized before making predictions")
 
         # Prepare data for prediction
         data_loader, _, _ = self._prepare_training_data(data)

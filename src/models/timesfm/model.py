@@ -183,7 +183,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def supports_zero_shot(self) -> bool:
         return True
 
-    def predict(
+    def _predict(
         self, data: pd.DataFrame, prediction_length: Optional[int] = None
     ) -> np.ndarray:
         """Make predictions given context data.

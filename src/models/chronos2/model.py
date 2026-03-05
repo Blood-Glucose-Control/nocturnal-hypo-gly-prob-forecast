@@ -197,7 +197,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     # Inference
     # ------------------------------------------------------------------
 
-    def predict(
+    def _predict(
         self,
         data: pd.DataFrame,
         **kwargs,
