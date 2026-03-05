@@ -237,7 +237,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
             bg_values = data[config.target_col].values.astype(np.float32)
             bg_values = bg_values[-config.context_length :]
-            context = torch.tensor(bg_values).unsqueeze(0)
+            # Chronos-2 expects (n_series, n_variates, history_length)
+            context = torch.tensor(bg_values).reshape(1, 1, -1)
 
             quantiles, mean = self._zs_pipeline.predict_quantiles(
                 context, prediction_length=config.forecast_length
