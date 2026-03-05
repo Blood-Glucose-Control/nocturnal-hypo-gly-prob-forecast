@@ -75,7 +75,7 @@ Usage:
         --config-dir configs/data/holdout_10pct \
         --context-length 512 \
         --forecast-length 96 \
-        --cuda-device 0 \
+        --cuda-device 1 \
         --checkpoint trained_models/artifacts/chronos2/2026-02-28_05:54_RID20260228_055400_391511_holdout_workflow/resumed_training/model.pt
 
     # TiDE fine-tuned:
@@ -89,7 +89,7 @@ Usage:
         --checkpoint trained_models/artifacts/tide/2026-02-28_21:28_RID20260228_212852_496983_holdout_workflow/model.pt
         """
 
-import argparsed
+import argparse
 import json
 import logging
 import sys

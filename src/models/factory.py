@@ -167,6 +167,43 @@ def create_model_and_config(
     elif model_type == "chronos":
         raise NotImplementedError("Chronos model not yet implemented")
 
+    elif model_type == "chronos2":
+        from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
+
+        if checkpoint:
+            # Handle checkpoint path: strip /model.pt suffix if present
+            checkpoint_dir = checkpoint
+            if checkpoint_dir.endswith("/model.pt") or checkpoint_dir.endswith(
+                "\\model.pt"
+            ):
+                checkpoint_dir = os.path.dirname(checkpoint_dir)
+
+            model = Chronos2Forecaster.load(checkpoint_dir)
+            config = model.config
+
+            # Apply valid overrides
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = Chronos2Config(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 72),
+            )
+            model = Chronos2Forecaster(config)
+        return model, config
+
     elif model_type == "tide":
         from src.models.tide import TiDEForecaster, TiDEConfig
 
@@ -334,5 +371,5 @@ def create_model_and_config(
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, moirai, timegrad, timesfm, tide"
+            f"Available: sundial, ttm, chronos, chronos2, moirai, timegrad, timesfm, tide"
         )
