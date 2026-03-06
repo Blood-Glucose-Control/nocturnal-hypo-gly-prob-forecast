@@ -161,6 +161,12 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         """
         if self.is_fitted:
             # Fine-tuned path: preprocessor handles scaling + inverse scaling
+            if self.preprocessor is None:
+                raise RuntimeError(
+                    "Model is marked as fitted but preprocessor is None. "
+                    "The checkpoint was likely saved without a preprocessor. "
+                    "Re-train the model or use zero-shot inference instead."
+                )
             pipeline = TimeSeriesForecastingPipeline(
                 model=self.model,
                 feature_extractor=self.preprocessor,
@@ -177,6 +183,15 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             if self.column_specifiers is None:
                 self.column_specifiers = self._create_column_specifiers(data)
 
+            target_columns = self.column_specifiers.get("target_columns", [])
+            if not target_columns:
+                expected = self.config.target_features
+                raise ValueError(
+                    f"target_columns is empty after filtering: none of the configured "
+                    f"target features {expected} were found (or had non-NaN values) in "
+                    f"the input data. Available columns: {list(data.columns)}"
+                )
+
             pipeline = TimeSeriesForecastingPipeline(
                 model=self.model,
                 timestamp_column=self.column_specifiers.get(
@@ -189,7 +204,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 freq=f"{self.config.resolution_min}min",
             )
             forecast_df = pipeline(data)
-            target_col = self.column_specifiers["target_columns"][0]
+            target_col = target_columns[0]
             predictions = forecast_df[target_col].values
 
         return predictions
@@ -584,8 +599,19 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                     "Ensure preprocessor.pkl was saved during training."
                 )
 
-            # Mark model as fitted since we successfully loaded a trained checkpoint
-            self.is_fitted = True
+            # Only mark as fitted if the preprocessor was also successfully loaded.
+            # The fitted inference path in _predict() unconditionally dereferences
+            # self.preprocessor, so setting is_fitted=True without a preprocessor
+            # would cause an AttributeError at inference time.
+            if self.preprocessor is not None:
+                self.is_fitted = True
+                info_print("Model marked as fitted (preprocessor loaded successfully).")
+            else:
+                self.is_fitted = False
+                logger.warning(
+                    "Model checkpoint loaded but is_fitted=False: preprocessor is missing. "
+                    "Falling back to zero-shot inference path (TTM internal RevIN only)."
+                )
 
         except Exception as e:
             error_print(f"Failed to load model checkpoint: {str(e)}")
