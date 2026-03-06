@@ -54,7 +54,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     - training_backend = CUSTOM (AutoGluon manages training internally)
     - self.model stays None; self.predictor holds the AutoGluon predictor
     - _prepare_training_data returns TimeSeriesDataFrame, not DataLoaders
-    - Midnight-anchored nocturnal evaluation uses evaluate_with_covariates()
+    - Midnight-anchored nocturnal evaluation is a separate concern handled
+      by the standalone evaluate_with_covariates() utility in chronos2/utils.py,
+      which takes (predictor, test_data, known_covariates, episodes) directly.
+      It is not wired into this class because known_covariates and episode
+      metadata are external pipeline concerns, not model-internal state.
     """
 
     def __init__(
@@ -235,6 +239,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                     torch_dtype=torch.float32,
                 )
 
+            if config.target_col not in data.columns:
+                raise ValueError(
+                    f"Expected target column '{config.target_col}' not found in input "
+                    f"DataFrame. Available columns: {list(data.columns)}"
+                )
             bg_values = data[config.target_col].values.astype(np.float32)
             bg_values = bg_values[-config.context_length :]
             # Chronos-2 expects (n_series, n_variates, history_length)
