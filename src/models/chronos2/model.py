@@ -295,6 +295,93 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
         return np.concatenate(result_arrays)
 
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+    ) -> "Dict[str, np.ndarray]":
+        """Native batch prediction for multiple episodes.
+
+        - Fine-tuned path: packs all episodes into one TimeSeriesDataFrame
+          and calls self.predictor.predict() once.
+        - Zero-shot path: batches via Chronos2Pipeline.predict_quantiles()
+          with an (N, 1, L) tensor for N series in one forward pass.
+
+        Args:
+            data: Panel DataFrame containing episode_col with episode IDs,
+                target_col (bg_mM), and optional covariate columns.
+            episode_col: Column name identifying episodes.
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+        """
+        config = self.config
+        episode_ids = [str(eid) for eid in data[episode_col].unique()]
+
+        if self.predictor is not None:
+            # Fine-tuned path: single AutoGluon predict call
+            from autogluon.timeseries import TimeSeriesDataFrame
+
+            context = data.copy()
+            context["item_id"] = context[episode_col].astype(str)
+            if config.time_col in context.columns:
+                context["timestamp"] = pd.to_datetime(context[config.time_col])
+            else:
+                context["timestamp"] = context.index
+            context = context.rename(columns={config.target_col: "target"})
+
+            ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
+            ag_cols = [c for c in ag_cols if c in context.columns]
+            context = context[ag_cols].set_index(["item_id", "timestamp"])
+            ts_data = TimeSeriesDataFrame(context)
+
+            ag_predictions = self.predictor.predict(ts_data)
+
+            results: Dict[str, np.ndarray] = {}
+            for item_id in episode_ids:
+                if item_id in ag_predictions.index.get_level_values(0):
+                    results[item_id] = ag_predictions.loc[item_id]["mean"].values
+            return results
+
+        # Zero-shot path: batch via Chronos2Pipeline
+        import torch
+        from chronos import Chronos2Pipeline
+
+        if self._zs_pipeline is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            self._zs_pipeline = Chronos2Pipeline.from_pretrained(
+                config.model_path,
+                device_map=device,
+                torch_dtype=torch.float32,
+            )
+
+        # Build (N, 1, L) tensor — one series per episode
+        series_list = []
+        for ep_id in episode_ids:
+            ep_data = data[data[episode_col].astype(str) == ep_id]
+            bg = ep_data[config.target_col].values.astype(np.float32)
+            bg = bg[-config.context_length :]
+            series_list.append(torch.tensor(bg))
+
+        # Pad to same length for stacking
+        max_len = max(len(s) for s in series_list)
+        padded = torch.stack(
+            [
+                torch.nn.functional.pad(s, (max_len - len(s), 0), value=float("nan"))
+                for s in series_list
+            ]
+        )  # (N, L)
+        context_tensor = padded.unsqueeze(1)  # (N, 1, L)
+
+        _, mean = self._zs_pipeline.predict_quantiles(
+            context_tensor, prediction_length=config.forecast_length
+        )
+
+        results = {}
+        for i, ep_id in enumerate(episode_ids):
+            results[ep_id] = mean[i].squeeze().detach().cpu().numpy()
+        return results
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

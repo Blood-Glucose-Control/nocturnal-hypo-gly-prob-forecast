@@ -358,6 +358,51 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
+    def predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str = "episode_id",
+    ) -> Dict[str, np.ndarray]:
+        """Make predictions for multiple episodes in a panel DataFrame.
+
+        Dispatches to _predict_batch(), which models can override for
+        GPU-efficient native batching. The default implementation loops
+        sequentially over episodes using predict().
+
+        Args:
+            data: Panel DataFrame containing an episode_col column that
+                identifies individual episodes (e.g. "episode_id").
+            episode_col: Column name identifying episodes. Defaults to
+                "episode_id" (the project's standard episode identifier).
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+        """
+        return self._predict_batch(data, episode_col)
+
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+    ) -> Dict[str, np.ndarray]:
+        """Default sequential loop for multi-episode prediction.
+
+        Iterates over grouped episodes and calls predict() for each one.
+        Models that support native GPU batching (e.g. Chronos2, TTM) should
+        override this method for more efficient inference.
+
+        Args:
+            data: Panel DataFrame with an episode_col column.
+            episode_col: Column name identifying episodes.
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+        """
+        results: Dict[str, np.ndarray] = {}
+        for ep_id, ep_data in data.groupby(episode_col):
+            results[str(ep_id)] = self.predict(ep_data)
+        return results
+
     ## Abstract Protected Methods
     @abstractmethod
     def _initialize_model(self) -> None:
