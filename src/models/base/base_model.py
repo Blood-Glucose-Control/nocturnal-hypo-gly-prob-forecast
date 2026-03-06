@@ -496,13 +496,10 @@ class BaseTimeSeriesFoundationModel(ABC):
             save_config: Whether to save the model configuration to config.json.
             save_metadata: Whether to save training metadata to metadata.json.
 
-        Raises:
-            NotImplementedError: Always raised by base class. Child classes
-                must override to save model weights.
-
         Note:
             Child classes should call super().save() first to save
-            configuration and metadata, then save model-specific weights.
+            configuration and metadata, then save model-specific weights
+            via _save_checkpoint().
         """
         os.makedirs(model_path, exist_ok=True)
 
@@ -767,7 +764,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             return
 
         # Check if this model supports LoRA
-        if not self.supports_lora():
+        if not self.supports_lora:
             info_print(
                 f"LoRA is not supported for {self.__class__.__name__} architecture"
             )
