@@ -591,7 +591,7 @@ class TestDiagnostics:
         ].head(100)
 
         try:
-            zs_preds = zs_model.predict_zero_shot(sample_data)
+            zs_preds = zs_model.predict(sample_data)
         except Exception as e:
             import traceback
 
