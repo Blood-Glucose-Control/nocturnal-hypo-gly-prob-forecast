@@ -284,6 +284,35 @@ def create_model_and_config(
             model = TimeGradForecaster(config)
         return model, config
 
+    elif model_type == "toto":
+        from src.models.toto import TotoForecaster, TotoConfig
+
+        if checkpoint:
+            model = TotoForecaster.load(checkpoint)
+            config = model.config
+
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = TotoConfig(
+                forecast_length=kwargs.get("forecast_length", 72),
+                num_samples=kwargs.get("num_samples", 20),
+            )
+            model = TotoForecaster(config)
+        return model, config
+
     elif model_type == "timesfm":
         from src.models.timesfm import TimesFMForecaster, TimesFMConfig
 
@@ -371,5 +400,5 @@ def create_model_and_config(
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, chronos2, moirai, timegrad, timesfm, tide"
+            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, tide"
         )
