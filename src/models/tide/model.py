@@ -258,6 +258,63 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
         return np.concatenate(result_arrays)
 
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+    ) -> Dict[str, np.ndarray]:
+        """Native batch prediction using a single AutoGluon predictor call.
+
+        Packs all episodes into one TimeSeriesDataFrame and calls
+        self.predictor.predict() once, which fans out across AutoGluon's
+        internal DataLoader.
+
+        Args:
+            data: Panel DataFrame containing episode_col with episode IDs,
+                target_col (bg_mM), and optional covariate columns.
+            episode_col: Column name identifying episodes.
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+        """
+        from autogluon.timeseries import TimeSeriesDataFrame
+
+        if self.predictor is None:
+            raise ValueError("Model must be fitted or loaded before prediction")
+
+        config = self.config
+        context = data.copy()
+
+        context["item_id"] = context[episode_col].astype(str)
+        if config.time_col in context.columns:
+            context["timestamp"] = pd.to_datetime(context[config.time_col])
+        else:
+            context["timestamp"] = context.index
+        context = context.rename(columns={config.target_col: "target"})
+
+        # Zero-fill missing covariates (predictor expects same columns as training)
+        for cov_col in config.covariate_cols:
+            if cov_col not in context.columns:
+                logger.warning(
+                    "Covariate '%s' missing from input data; filling with zeros",
+                    cov_col,
+                )
+                context[cov_col] = 0.0
+
+        ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
+        ag_cols = [c for c in ag_cols if c in context.columns]
+        context = context[ag_cols].set_index(["item_id", "timestamp"])
+        ts_data = TimeSeriesDataFrame(context)
+
+        ag_predictions = self.predictor.predict(ts_data)
+
+        episode_ids = [str(eid) for eid in data[episode_col].unique()]
+        results: Dict[str, np.ndarray] = {}
+        for item_id in episode_ids:
+            if item_id in ag_predictions.index.get_level_values(0):
+                results[item_id] = ag_predictions.loc[item_id]["mean"].values
+        return results
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
