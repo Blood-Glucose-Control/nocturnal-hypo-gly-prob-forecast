@@ -5,10 +5,12 @@ These tests use a lightweight stub model so they run in any environment
 without model-specific virtual environments (no AutoGluon, tsfm_public, etc.).
 """
 
+import logging
 import unittest.mock as mock
 
 import numpy as np
 import pandas as pd
+import pytest
 
 # ---------------------------------------------------------------------------
 # Minimal stub model (no GPU / ML deps needed)
@@ -165,3 +167,41 @@ class TestBatchOverride:
         panel = _make_panel(episode_ids=["a", "b", "c"])
         result = self.model.predict_batch(panel)
         assert set(result.keys()) == {"a", "b", "c"}
+
+
+# ---------------------------------------------------------------------------
+# Tests: validation and warnings
+# ---------------------------------------------------------------------------
+
+
+class TestPredictBatchValidation:
+    def setup_method(self):
+        config = ModelConfig()
+        self.model = _StubModel(config)
+
+    def test_missing_episode_col_raises(self):
+        panel = _make_panel(episode_ids=["ep_0"])
+        panel = panel.drop(columns=["episode_id"])
+        with pytest.raises(ValueError, match="Column 'episode_id' not found"):
+            self.model.predict_batch(panel)
+
+    def test_missing_episode_col_custom_name(self):
+        panel = _make_panel(episode_ids=["ep_0"])
+        with pytest.raises(ValueError, match="Column 'night_id' not found"):
+            self.model.predict_batch(panel, episode_col="night_id")
+
+    def test_missing_episode_warning(self, caplog):
+        """Warn when _predict_batch drops an episode."""
+
+        class _DroppingModel(_StubModel):
+            def _predict_batch(self, data, episode_col):
+                # Only return results for the first episode
+                ids = list(data[episode_col].unique())
+                return {str(ids[0]): np.array([1.0])}
+
+        model = _DroppingModel(ModelConfig())
+        panel = _make_panel(episode_ids=["ep_0", "ep_1"])
+        with caplog.at_level(logging.WARNING):
+            result = model.predict_batch(panel)
+        assert "ep_1" not in result
+        assert "1 episode(s) produced no predictions" in caplog.text

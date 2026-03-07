@@ -185,20 +185,13 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         data: pd.DataFrame,
         **kwargs,
     ) -> np.ndarray:
-        """Make predictions using the fitted AutoGluon predictor.
-
-        Accepts either:
-        - A panel DataFrame with 'episode_id' column (multiple episodes)
-        - A plain context DataFrame (single context window)
-
-        If no 'episode_id' column is present, the entire DataFrame is treated
-        as a single episode (synthetic episode_id assigned automatically).
+        """Make predictions for a single episode using the fitted predictor.
 
         Args:
-            data: DataFrame with target_col (bg_mM) and optionally episode_id,
-                datetime, and covariate columns.
-            **kwargs: Unused. Covariates (e.g. iob) are past-only — they
-                are included in the context data, not as future known values.
+            data: Single-episode DataFrame with target_col (bg_mM) and
+                optional covariate columns (e.g. iob). Covariates are
+                past-only — included in context, not as future known values.
+            **kwargs: Unused.
 
         Returns:
             1D numpy array of predicted BG values for the forecast horizon.
@@ -210,24 +203,14 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
         config = self.config
         context = data.copy()
-
-        # If no episode_id, treat entire DataFrame as a single episode
-        if "episode_id" not in context.columns:
-            context["episode_id"] = "ep_0"
-
-        # Convert episode_id -> item_id for AutoGluon
-        context["item_id"] = context["episode_id"]
+        context["item_id"] = "ep_0"
         if config.time_col in context.columns:
             context["timestamp"] = pd.to_datetime(context[config.time_col])
         else:
             context["timestamp"] = context.index
         context = context.rename(columns={config.target_col: "target"})
 
-        # Ensure required covariates are present; AutoGluon's saved
-        # predictor will expect the same set used during training, even if
-        # they are all zero.  If the evaluation dataset doesn't include a
-        # covariate (e.g., iob), add a zero-filled column so the predictor
-        # doesn't error out.
+        # Zero-fill missing covariates (predictor expects same columns as training)
         for cov_col in config.covariate_cols:
             if cov_col not in context.columns:
                 logger.warning(
@@ -237,26 +220,12 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
                 context[cov_col] = 0.0
 
         ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
+        ag_cols = [c for c in ag_cols if c in context.columns]
         context = context[ag_cols].set_index(["item_id", "timestamp"])
         ts_data = TimeSeriesDataFrame(context)
 
         ag_predictions = self.predictor.predict(ts_data)
-
-        # AutoGluon returns MultiIndex (item_id, timestamp) with "mean" column.
-        episode_ids = (
-            data["episode_id"].unique() if "episode_id" in data.columns else ["ep_0"]
-        )
-        result_arrays = []
-        for episode_id in episode_ids:
-            item_id = episode_id
-            if item_id in ag_predictions.index.get_level_values(0):
-                pred_values = ag_predictions.loc[item_id]["mean"].values
-                result_arrays.append(pred_values)
-
-        if not result_arrays:
-            return np.array([])
-
-        return np.concatenate(result_arrays)
+        return ag_predictions.loc["ep_0"]["mean"].values
 
     def _predict_batch(
         self,

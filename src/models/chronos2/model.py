@@ -254,46 +254,24 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             )
             return mean[0].squeeze().detach().cpu().numpy()
 
-        # Fine-tuned path: use fitted AutoGluon predictor
+        # Fine-tuned path: single episode via AutoGluon predictor
         from autogluon.timeseries import TimeSeriesDataFrame
 
         context = data.copy()
-
-        # If no episode_id, treat entire DataFrame as a single episode
-        if "episode_id" not in context.columns:
-            context["episode_id"] = "ep_0"
-
-        # Convert episode_id -> item_id for AutoGluon
-        context["item_id"] = context["episode_id"]
+        context["item_id"] = "ep_0"
         if config.time_col in context.columns:
             context["timestamp"] = pd.to_datetime(context[config.time_col])
         else:
             context["timestamp"] = context.index
         context = context.rename(columns={config.target_col: "target"})
 
-        # Select columns AutoGluon expects
         ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
         ag_cols = [c for c in ag_cols if c in context.columns]
         context = context[ag_cols].set_index(["item_id", "timestamp"])
         ts_data = TimeSeriesDataFrame(context)
 
         ag_predictions = self.predictor.predict(ts_data)
-
-        # AutoGluon returns MultiIndex (item_id, timestamp) with "mean" column.
-        episode_ids = (
-            data["episode_id"].unique() if "episode_id" in data.columns else ["ep_0"]
-        )
-        result_arrays = []
-        for episode_id in episode_ids:
-            item_id = episode_id
-            if item_id in ag_predictions.index.get_level_values(0):
-                pred_values = ag_predictions.loc[item_id]["mean"].values
-                result_arrays.append(pred_values)
-
-        if not result_arrays:
-            return np.array([])
-
-        return np.concatenate(result_arrays)
+        return ag_predictions.loc["ep_0"]["mean"].values
 
     def _predict_batch(
         self,

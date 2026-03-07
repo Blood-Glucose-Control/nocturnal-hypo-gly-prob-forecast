@@ -370,15 +370,35 @@ class BaseTimeSeriesFoundationModel(ABC):
         sequentially over episodes using predict().
 
         Args:
-            data: Panel DataFrame containing an episode_col column that
-                identifies individual episodes (e.g. "episode_id").
+            data: Flat DataFrame with an ``episode_col`` column identifying
+                episodes. Each episode's rows should match what predict()
+                accepts (same columns, same format).
             episode_col: Column name identifying episodes. Defaults to
                 "episode_id" (the project's standard episode identifier).
 
         Returns:
             Dict mapping episode ID (as str) to 1-D numpy forecast array.
+            Currently returns univariate point forecasts only; multivariate
+            outputs may be supported in a future revision.
         """
-        return self._predict_batch(data, episode_col)
+        if episode_col not in data.columns:
+            raise ValueError(
+                f"Column '{episode_col}' not found in data. "
+                f"Available columns: {list(data.columns)}"
+            )
+
+        input_ids = {str(eid) for eid in data[episode_col].unique()}
+        results = self._predict_batch(data, episode_col)
+
+        missing = input_ids - set(results.keys())
+        if missing:
+            self.logger.warning(
+                "%d episode(s) produced no predictions: %s",
+                len(missing),
+                sorted(missing)[:10],
+            )
+
+        return results
 
     def _predict_batch(
         self,
