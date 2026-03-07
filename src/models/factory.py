@@ -306,10 +306,9 @@ def create_model_and_config(
                         f"({config.forecast_length}). Using saved value."
                     )
         else:
-            config = TotoConfig(
-                forecast_length=kwargs.get("forecast_length", 72),
-                num_samples=kwargs.get("num_samples", 20),
-            )
+            toto_kwargs = {**kwargs}
+            toto_kwargs.setdefault("forecast_length", 72)
+            config = TotoConfig(**toto_kwargs)
             model = TotoForecaster(config)
         return model, config
 
