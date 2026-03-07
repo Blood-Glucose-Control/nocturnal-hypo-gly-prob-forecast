@@ -41,7 +41,7 @@ class _StubModel(BaseTimeSeriesFoundationModel):
     def supports_zero_shot(self) -> bool:
         return True
 
-    def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
+    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
         # Return a fixed forecast of length 3 for easy assertion.
         return np.array([1.0, 2.0, 3.0])
 
@@ -67,8 +67,7 @@ class _BatchStubModel(_StubModel):
     def _predict_batch(self, data: pd.DataFrame, episode_col: str):
         # Return a known sentinel value to distinguish from default loop.
         return {
-            str(ep_id): np.array([10.0, 20.0])
-            for ep_id in data[episode_col].unique()
+            str(ep_id): np.array([10.0, 20.0]) for ep_id in data[episode_col].unique()
         }
 
 
