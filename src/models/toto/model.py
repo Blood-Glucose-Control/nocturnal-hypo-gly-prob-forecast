@@ -85,28 +85,46 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             raise ValueError(f"DataFrame must contain '{bg_col}' column")
 
         context = data[bg_col].values
-        timestamps = data.index
+        # Timestamps may be in the index (DatetimeIndex) or a 'datetime' column
+        if isinstance(data.index, pd.DatetimeIndex):
+            timestamps = data.index
+        elif "datetime" in data.columns:
+            timestamps = pd.to_datetime(data["datetime"])
+        else:
+            raise ValueError("Data must have a DatetimeIndex or 'datetime' column")
 
-        # Build MaskedTimeseries input
-        series = (
-            torch.tensor(context, dtype=torch.float32).unsqueeze(0).to(self.device)
+        # Build variate list: target (BG) first, then covariates at the end
+        variates = [torch.tensor(context, dtype=torch.float32)]
+        covariate_cols = self.config.covariate_cols or []
+        for col in covariate_cols:
+            if col not in data.columns:
+                raise ValueError(f"Covariate column '{col}' not found in data")
+            variates.append(torch.tensor(data[col].values, dtype=torch.float32))
+
+        num_exogenous = len(covariate_cols)
+
+        # Stack variates: shape (1, num_variates, series_len)
+        series = torch.stack(variates, dim=0).unsqueeze(0).to(self.device)
+
+        ts_seconds_1d = torch.tensor(
+            [ts.timestamp() for ts in timestamps], dtype=torch.float32
         )
-        ts_seconds = (
-            torch.tensor(
-                [ts.timestamp() for ts in timestamps], dtype=torch.float32
-            )
-            .unsqueeze(0)
-            .to(self.device)
-        )
+        # Broadcast timestamps across all variates
+        ts_seconds = ts_seconds_1d.unsqueeze(0).expand(series.shape[1], -1).unsqueeze(0).to(self.device)
+
+        # All variates share the same id_mask (same multivariate group)
+        id_mask = torch.zeros_like(series)
+        interval = torch.tensor(
+            [INTERVAL_MINS * 60] * series.shape[1], dtype=torch.float32
+        ).to(self.device)
 
         inputs = MaskedTimeseries(
             series=series,
             padding_mask=torch.ones_like(series, dtype=torch.bool),
-            id_mask=torch.zeros_like(series),
+            id_mask=id_mask,
             timestamp_seconds=ts_seconds,
-            time_interval_seconds=torch.tensor(
-                [INTERVAL_MINS * 60], dtype=torch.float32
-            ).to(self.device),
+            time_interval_seconds=interval,
+            num_exogenous_variables=num_exogenous,
         )
 
         with torch.no_grad():
@@ -117,19 +135,19 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
                 samples_per_batch=self.config.samples_per_batch,
             )
 
-        # When num_samples is None, forecast has .mean only (single forward pass).
-        # When num_samples is set, use .median across sampled trajectories.
+        # forecast shape: (batch, variates, future_time_steps)
+        # Extract only the first variate (target BG), ignore exogenous forecasts
         if self.config.num_samples is None:
-            result = forecast.mean.cpu().numpy()
+            result = forecast.mean[:, 0, :].cpu().numpy()
         else:
-            result = forecast.median.cpu().numpy()
+            result = forecast.median[:, 0, :].cpu().numpy()
         return result.flatten()
 
     def _dataframe_to_hf_dataset(self, train_data: pd.DataFrame):
         """Convert a flat DataFrame to HuggingFace Dataset format for Toto.
 
         Each patient's contiguous BG series becomes one row in the HF dataset
-        with 'timestamp' and 'target' fields.
+        with 'timestamp', 'target', and optional covariate fields.
 
         Args:
             train_data: DataFrame with 'bg_mM', 'datetime', and 'p_num' columns.
@@ -142,6 +160,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         patient_col = "p_num" if "p_num" in train_data.columns else "id"
         bg_col = "bg_mM"
         time_col = "datetime"
+        covariate_cols = self.config.covariate_cols or []
 
         records = []
         for pid, group in train_data.groupby(patient_col):
@@ -160,18 +179,30 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
             # Convert timestamps to strings for HF serialization
             ts_strings = [t.isoformat() for t in timestamps]
-            # Include a dummy exogenous field (zeros) — required by
-            # transform_fev_dataset which always concatenates ev_fields.
-            records.append({
+            record = {
                 "timestamp": ts_strings,
                 "target": target.tolist(),
-                "feat_dynamic_real": np.zeros_like(target).tolist(),
-            })
+            }
+
+            # Add covariates as separate fields (each becomes an ev_field)
+            if covariate_cols:
+                for col in covariate_cols:
+                    values = group[col].values.astype(np.float32)
+                    # Fill NaNs with 0 for covariates
+                    values = np.nan_to_num(values, nan=0.0)
+                    record[col] = values.tolist()
+            else:
+                # Dummy exogenous field required by transform_fev_dataset
+                record["feat_dynamic_real"] = np.zeros_like(target).tolist()
+
+            records.append(record)
 
         if not records:
             raise ValueError("No patient series long enough for fine-tuning")
 
         info_print(f"Prepared {len(records)} patient series for fine-tuning")
+        if covariate_cols:
+            info_print(f"  Covariates: {covariate_cols}")
         return hfds.Dataset.from_list(records)
 
     def _prepare_training_data(
@@ -192,6 +223,16 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         if max_context_length is None:
             max_context_length = 8 * self._patch_size
 
+        covariate_cols = self.config.covariate_cols or []
+        if covariate_cols:
+            ev_fields = list(covariate_cols)
+            ev_transform_fns = [lambda x: np.asarray(x, dtype=np.float32)] * len(covariate_cols)
+            add_exogenous = True
+        else:
+            ev_fields = ["feat_dynamic_real"]
+            ev_transform_fns = [lambda x: np.asarray(x, dtype=np.float32)]
+            add_exogenous = False
+
         dm = FinetuneDataModule(
             dataset=hf_dataset,
             max_context_length=max_context_length,
@@ -201,10 +242,11 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             val_batch_size=self.config.val_batch_size,
             num_workers=0,
             num_train_samples=1,
+            add_exogenous_features=add_exogenous,
             target_fields=["target"],
             target_transform_fns=[lambda x: np.asarray(x, dtype=np.float32)],
-            ev_fields=["feat_dynamic_real"],
-            ev_transform_fns=[lambda x: np.asarray(x, dtype=np.float32)],
+            ev_fields=ev_fields,
+            ev_transform_fns=ev_transform_fns,
         )
 
         return (dm, None, None)
@@ -228,6 +270,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         dm, _, _ = self._prepare_training_data(train_data)
 
         # Create Lightning module from current backbone
+        has_covariates = bool(self.config.covariate_cols)
         lightning_module = TotoForFinetuning(
             pretrained_backbone=self.model,
             val_prediction_len=self.config.val_prediction_len,
@@ -236,6 +279,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             warmup_steps=self.config.warmup_steps,
             lr=self.config.lr,
             min_lr=self.config.min_lr,
+            add_exogenous_features=has_covariates,
         )
         lightning_module.to(self.device)
 
@@ -373,6 +417,9 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             )
 
         state_dict = torch.load(weights_path, map_location=self.device)
+        # Enable variate labels if the checkpoint has them (covariate-trained model)
+        if "target_variate_label" in state_dict:
+            self.model.enable_variate_labels()
         self.model.load_state_dict(state_dict)
         self.forecaster = _TotoForecaster(self.model)
         self.is_fitted = True

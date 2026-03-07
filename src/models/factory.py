@@ -293,6 +293,8 @@ def create_model_and_config(
 
             if "batch_size" in kwargs:
                 config.batch_size = kwargs["batch_size"]
+            if "covariate_cols" in kwargs:
+                config.covariate_cols = kwargs["covariate_cols"]
             if "forecast_length" in kwargs:
                 requested = kwargs["forecast_length"]
                 if requested <= config.forecast_length:

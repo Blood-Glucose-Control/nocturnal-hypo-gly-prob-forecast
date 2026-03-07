@@ -28,6 +28,7 @@ class TotoConfig(ModelConfig):
             "max_steps", "num_epochs", "lr", "min_lr",
             "warmup_steps", "stable_steps", "decay_steps",
             "train_batch_size", "val_batch_size", "val_prediction_len",
+            "covariate_cols",
         }
 
         # Filter out Toto-specific params from kwargs for parent class
@@ -59,3 +60,6 @@ class TotoConfig(ModelConfig):
         self.train_batch_size = kwargs.get("train_batch_size", 4)
         self.val_batch_size = kwargs.get("val_batch_size", 1)
         self.val_prediction_len = kwargs.get("val_prediction_len", 96)
+
+        # Covariates — past-only exogenous variables (e.g., ["iob"])
+        self.covariate_cols = kwargs.get("covariate_cols", None) or []
