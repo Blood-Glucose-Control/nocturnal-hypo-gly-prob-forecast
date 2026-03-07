@@ -358,6 +358,71 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
+    def predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str = "episode_id",
+    ) -> Dict[str, np.ndarray]:
+        """Make predictions for multiple episodes in a panel DataFrame.
+
+        Dispatches to _predict_batch(), which models can override for
+        GPU-efficient native batching. The default implementation loops
+        sequentially over episodes using predict().
+
+        Args:
+            data: Flat DataFrame with an ``episode_col`` column identifying
+                episodes. Each episode's rows should match what predict()
+                accepts (same columns, same format).
+            episode_col: Column name identifying episodes. Defaults to
+                "episode_id" (the project's standard episode identifier).
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+            Currently returns univariate point forecasts only; multivariate
+            outputs may be supported in a future revision.
+        """
+        if episode_col not in data.columns:
+            raise ValueError(
+                f"Column '{episode_col}' not found in data. "
+                f"Available columns: {list(data.columns)}"
+            )
+
+        input_ids = {str(eid) for eid in data[episode_col].unique()}
+        results = self._predict_batch(data, episode_col)
+
+        missing = input_ids - set(results.keys())
+        if missing:
+            self.logger.warning(
+                "%d episode(s) produced no predictions: %s",
+                len(missing),
+                sorted(missing)[:10],
+            )
+
+        return results
+
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+    ) -> Dict[str, np.ndarray]:
+        """Default sequential loop for multi-episode prediction.
+
+        Iterates over grouped episodes and calls predict() for each one.
+        Models that support native GPU batching (e.g. Chronos2, TTM) should
+        override this method for more efficient inference.
+
+        Args:
+            data: Panel DataFrame with an episode_col column.
+            episode_col: Column name identifying episodes.
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+        """
+        results: Dict[str, np.ndarray] = {}
+        for ep_id, ep_data in data.groupby(episode_col):
+            results[str(ep_id)] = self.predict(ep_data)
+        return results
+
     ## Abstract Protected Methods
     @abstractmethod
     def _initialize_model(self) -> None:
