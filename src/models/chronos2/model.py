@@ -210,10 +210,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     ) -> np.ndarray:
         """Generate forecasts using Chronos-2.
 
-        Two inference paths:
-        - Zero-shot (self.predictor is None): Uses Chronos2Pipeline directly
-          from the chronos-forecasting library. No AutoGluon overhead.
-        - Fine-tuned (self.predictor exists): Uses the fitted AutoGluon
+        Two inference paths, selected by is_fitted:
+        - Zero-shot (not fitted): Uses Chronos2Pipeline directly from the
+          chronos-forecasting library. No AutoGluon overhead.
+        - Fine-tuned (fitted): Uses the fitted AutoGluon
           TimeSeriesPredictor with LoRA-adapted weights.
 
         Args:

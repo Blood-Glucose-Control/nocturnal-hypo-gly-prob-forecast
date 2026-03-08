@@ -38,9 +38,9 @@ with mock.patch.dict("sys.modules", _mocks):
 class _StubModel(BaseTimeSeriesFoundationModel):
     """Minimal concrete subclass with configurable supports_zero_shot."""
 
-    def __init__(self, zero_shot: bool = True):
+    def __init__(self, config=None, *, zero_shot: bool = True):
         self._zero_shot = zero_shot
-        super().__init__(ModelConfig())
+        super().__init__(config or ModelConfig())
 
     @property
     def training_backend(self) -> TrainingBackend:
