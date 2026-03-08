@@ -232,7 +232,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
         config = self.config
 
-        if self.predictor is None:
+        if not self.is_fitted:
             # Zero-shot: use Chronos2Pipeline directly (no AutoGluon overhead)
             import torch
             from chronos import Chronos2Pipeline
@@ -302,7 +302,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         config = self.config
         episode_ids = [str(eid) for eid in data[episode_col].unique()]
 
-        if self.predictor is not None:
+        if self.is_fitted:
             # Fine-tuned path: single AutoGluon predict call
             from autogluon.timeseries import TimeSeriesDataFrame
 
