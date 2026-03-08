@@ -217,13 +217,19 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
           TimeSeriesPredictor with LoRA-adapted weights.
 
         Args:
-            data: DataFrame with target_col (bg_mM) and optionally episode_id,
-                datetime, and covariate columns.
+            data: Single-episode DataFrame with target_col (bg_mM).
+                For multi-episode panels, use predict_batch() instead.
             **kwargs: Unused (kept for interface compatibility).
 
         Returns:
             1D numpy array of predicted BG values for the forecast horizon.
         """
+        if "episode_id" in data.columns and data["episode_id"].nunique() > 1:
+            raise ValueError(
+                "_predict() handles a single episode. "
+                "Use predict_batch() for multi-episode panels."
+            )
+
         config = self.config
 
         if self.predictor is None:
@@ -277,7 +283,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         self,
         data: pd.DataFrame,
         episode_col: str,
-    ) -> "Dict[str, np.ndarray]":
+    ) -> Dict[str, np.ndarray]:
         """Native batch prediction for multiple episodes.
 
         - Fine-tuned path: packs all episodes into one TimeSeriesDataFrame
@@ -334,9 +340,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             )
 
         # Build (N, 1, L) tensor — one series per episode
+        grouped = data.groupby(data[episode_col].astype(str))
         series_list = []
         for ep_id in episode_ids:
-            ep_data = data[data[episode_col].astype(str) == ep_id]
+            ep_data = grouped.get_group(ep_id)
             bg = ep_data[config.target_col].values.astype(np.float32)
             bg = bg[-config.context_length :]
             series_list.append(torch.tensor(bg))

@@ -786,12 +786,8 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                     "timestamp_column", ColumnNames.DATETIME.value
                 ),
                 id_columns=id_cols,
-                target_columns=self.column_specifiers.get(
-                    "target_columns", ["bg_mM"]
-                ),
-                observable_columns=self.column_specifiers.get(
-                    "observable_columns", []
-                ),
+                target_columns=self.column_specifiers.get("target_columns", ["bg_mM"]),
+                observable_columns=self.column_specifiers.get("observable_columns", []),
                 explode_forecasts=True,
                 freq=f"{self.config.resolution_min}min",
             )
@@ -801,7 +797,8 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             results: Dict[str, np.ndarray] = {}
             for ep_id in episode_ids:
                 mask = forecast_df[episode_col] == ep_id
-                results[str(ep_id)] = forecast_df.loc[mask, target_col].values
+                if mask.any():
+                    results[str(ep_id)] = forecast_df.loc[mask, target_col].values
             return results
 
         # Fitted path: call predict() per episode (sequential loop).

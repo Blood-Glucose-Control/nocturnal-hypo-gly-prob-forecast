@@ -381,6 +381,12 @@ class BaseTimeSeriesFoundationModel(ABC):
             Currently returns univariate point forecasts only; multivariate
             outputs may be supported in a future revision.
         """
+        if not self.is_fitted and not self.supports_zero_shot:
+            raise RuntimeError(
+                f"{self.__class__.__name__} requires training before prediction. "
+                f"Call fit() or load() first."
+            )
+
         if episode_col not in data.columns:
             raise ValueError(
                 f"Column '{episode_col}' not found in data. "
@@ -388,6 +394,9 @@ class BaseTimeSeriesFoundationModel(ABC):
             )
 
         input_ids = {str(eid) for eid in data[episode_col].unique()}
+        if not input_ids:
+            return {}
+
         results = self._predict_batch(data, episode_col)
 
         missing = input_ids - set(results.keys())

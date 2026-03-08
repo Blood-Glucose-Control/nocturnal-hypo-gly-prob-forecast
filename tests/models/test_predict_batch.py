@@ -168,6 +168,12 @@ class TestBatchOverride:
         result = self.model.predict_batch(panel)
         assert set(result.keys()) == {"a", "b", "c"}
 
+    def test_empty_panel_returns_empty_dict_with_override(self):
+        """Even with an overridden _predict_batch(), empty input must yield {}."""
+        panel = pd.DataFrame(columns=["episode_id", "datetime", "bg_mM"])
+        result = self.model.predict_batch(panel)
+        assert result == {}
+
 
 # ---------------------------------------------------------------------------
 # Tests: validation and warnings
