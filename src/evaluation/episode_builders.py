@@ -251,9 +251,16 @@ def build_patient_episodes(
         if "datetime" in pdf.columns:
             pdf = pdf.set_index(pd.to_datetime(pdf["datetime"]))
         episodes, _ = build_midnight_episodes(
-            pdf, context_length, forecast_length, covariate_cols=covariate_cols,
+            pdf,
+            context_length,
+            forecast_length,
+            covariate_cols=covariate_cols,
         )
-        valid = [ep | {"patient_id": pid} for ep in episodes if len(ep["target_bg"]) >= forecast_length]
+        valid = [
+            ep | {"patient_id": pid}
+            for ep in episodes
+            if len(ep["target_bg"]) >= forecast_length
+        ]
         if valid:
             episodes_by_patient[pid] = valid
 
