@@ -31,6 +31,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+# Default holdout config directory (can be overridden by callers)
+DEFAULT_HOLDOUT_CONFIG_DIR = "configs/data/holdout_10pct"
+
 # Default sampling interval for CGM data
 SAMPLING_INTERVAL_MINUTES = 5
 
@@ -194,3 +197,84 @@ def build_midnight_episodes(
         )
 
     return episodes, skip_stats
+
+
+# ---------------------------------------------------------------------------
+# Holdout loading helpers
+# ---------------------------------------------------------------------------
+
+
+def get_holdout_patients(
+    dataset: str,
+    config_dir: str = DEFAULT_HOLDOUT_CONFIG_DIR,
+) -> List[str]:
+    """Return the holdout patient list for a dataset."""
+    from src.data.versioning.dataset_registry import DatasetRegistry
+
+    hc = DatasetRegistry(holdout_config_dir=config_dir).get_holdout_config(dataset)
+    if hc is None or hc.patient_config is None:
+        raise ValueError(f"No patient holdout config found for {dataset}")
+    return hc.patient_config.holdout_patients
+
+
+# ---------------------------------------------------------------------------
+# Multi-patient episode building
+# ---------------------------------------------------------------------------
+
+
+def build_patient_episodes(
+    holdout_data: pd.DataFrame,
+    patients: List[str],
+    context_length: int,
+    forecast_length: int,
+    covariate_cols: Optional[List[str]] = None,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Build midnight episodes grouped by patient.
+
+    Args:
+        holdout_data: Combined holdout DataFrame (all patients).
+        patients: Patient IDs to include.
+        context_length: Number of context steps per episode.
+        forecast_length: Number of forecast steps per episode.
+        covariate_cols: Optional covariate columns to include.
+
+    Returns:
+        Dict mapping patient_id -> list of episode dicts (each with 'patient_id' added).
+    """
+    patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
+    episodes_by_patient: Dict[str, List[Dict[str, Any]]] = {}
+
+    for pid in patients:
+        pdf = holdout_data[holdout_data[patient_col] == pid]
+        if pdf.empty:
+            continue
+        if "datetime" in pdf.columns:
+            pdf = pdf.set_index(pd.to_datetime(pdf["datetime"]))
+        episodes, _ = build_midnight_episodes(
+            pdf, context_length, forecast_length, covariate_cols=covariate_cols,
+        )
+        valid = [ep | {"patient_id": pid} for ep in episodes if len(ep["target_bg"]) >= forecast_length]
+        if valid:
+            episodes_by_patient[pid] = valid
+
+    return episodes_by_patient
+
+
+def select_episodes_stratified(
+    episodes_by_patient: Dict[str, List[Dict[str, Any]]],
+    per_patient: int,
+    seed: int = 42,
+) -> List[Dict[str, Any]]:
+    """Stratified episode sampling: pick `per_patient` random episodes from each patient.
+
+    Sorting patients alphabetically before sampling ensures reproducibility
+    across calls with the same seed, regardless of dict insertion order.
+    """
+    rng = np.random.RandomState(seed)
+    selected = []
+    for pid in sorted(episodes_by_patient.keys()):
+        eps = episodes_by_patient[pid]
+        n = min(per_patient, len(eps))
+        for i in sorted(rng.choice(len(eps), n, replace=False)):
+            selected.append(eps[i])
+    return selected
