@@ -54,7 +54,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     - training_backend = CUSTOM (AutoGluon manages training internally)
     - self.model stays None; self.predictor holds the AutoGluon predictor
     - _prepare_training_data returns TimeSeriesDataFrame, not DataLoaders
-    - evaluate() is overridden for midnight-anchored nocturnal evaluation
+    - Midnight-anchored nocturnal evaluation is a separate concern handled
+      by the standalone evaluate_with_covariates() utility in chronos2/utils.py,
+      which takes (predictor, test_data, known_covariates, episodes) directly.
+      It is not wired into this class because known_covariates and episode
+      metadata are external pipeline concerns, not model-internal state.
     """
 
     def __init__(
@@ -66,6 +70,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         # AutoGluon predictor — set before super().__init__() which calls
         # _initialize_model() (our no-op)
         self.predictor = None
+        # Chronos2Pipeline for zero-shot inference (lazily initialized)
+        self._zs_pipeline = None
         # lora_config and distributed_config are accepted for base class
         # compatibility but unused — AutoGluon handles LoRA internally
         super().__init__(config, lora_config, distributed_config)
@@ -197,19 +203,18 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     # Inference
     # ------------------------------------------------------------------
 
-    def predict(
+    def _predict(
         self,
         data: pd.DataFrame,
         **kwargs,
     ) -> np.ndarray:
-        """Make predictions using the fitted AutoGluon predictor.
+        """Generate forecasts using Chronos-2.
 
-        Accepts either:
-        - A panel DataFrame with 'episode_id' column (multiple episodes)
-        - A plain context DataFrame (single context window from the workflow)
-
-        If no 'episode_id' column is present, the entire DataFrame is treated
-        as a single episode (synthetic episode_id assigned automatically).
+        Two inference paths:
+        - Zero-shot (self.predictor is None): Uses Chronos2Pipeline directly
+          from the chronos-forecasting library. No AutoGluon overhead.
+        - Fine-tuned (self.predictor exists): Uses the fitted AutoGluon
+          TimeSeriesPredictor with LoRA-adapted weights.
 
         Args:
             data: DataFrame with target_col (bg_mM) and optionally episode_id,
@@ -219,15 +224,39 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Returns:
             1D numpy array of predicted BG values for the forecast horizon.
         """
-        from autogluon.timeseries import TimeSeriesDataFrame
+        config = self.config
 
         if self.predictor is None:
-            raise ValueError(
-                "Model must be fitted or loaded before prediction. "
-                "For zero-shot inference, use predict_zero_shot()."
-            )
+            # Zero-shot: use Chronos2Pipeline directly (no AutoGluon overhead)
+            import torch
+            from chronos import Chronos2Pipeline
 
-        config = self.config
+            if self._zs_pipeline is None:
+                device = "cuda" if torch.cuda.is_available() else "cpu"
+                self._zs_pipeline = Chronos2Pipeline.from_pretrained(
+                    config.model_path,
+                    device_map=device,
+                    torch_dtype=torch.float32,
+                )
+
+            if config.target_col not in data.columns:
+                raise ValueError(
+                    f"Expected target column '{config.target_col}' not found in input "
+                    f"DataFrame. Available columns: {list(data.columns)}"
+                )
+            bg_values = data[config.target_col].values.astype(np.float32)
+            bg_values = bg_values[-config.context_length :]
+            # Chronos-2 expects (n_series, n_variates, history_length)
+            context = torch.tensor(bg_values).reshape(1, 1, -1)
+
+            quantiles, mean = self._zs_pipeline.predict_quantiles(
+                context, prediction_length=config.forecast_length
+            )
+            return mean[0].squeeze().detach().cpu().numpy()
+
+        # Fine-tuned path: use fitted AutoGluon predictor
+        from autogluon.timeseries import TimeSeriesDataFrame
+
         context = data.copy()
 
         # If no episode_id, treat entire DataFrame as a single episode
@@ -265,92 +294,6 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             return np.array([])
 
         return np.concatenate(result_arrays)
-
-    def predict_zero_shot(
-        self,
-        data: pd.DataFrame,
-        **kwargs,
-    ) -> np.ndarray:
-        """Zero-shot prediction using pretrained Chronos-2 (no fine-tuning).
-
-        Creates a lightweight AutoGluon TimeSeriesPredictor with zero
-        fine-tune steps to get pretrained Chronos-2 predictions. The
-        predictor is lazily initialized and cached for reuse.
-
-        Args:
-            data: DataFrame with target_col (bg_mM) column as context window.
-            **kwargs: Unused.
-
-        Returns:
-            1D numpy array of predicted BG values for the forecast horizon.
-        """
-        from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor
-
-        config = self.config
-
-        # Lazily create a zero-shot predictor (no fine-tuning)
-        if not hasattr(self, "_zs_predictor") or self._zs_predictor is None:
-            import tempfile
-
-            self._zs_tmpdir = tempfile.mkdtemp(prefix="chronos2_zs_")
-            zs_predictor = TimeSeriesPredictor(
-                prediction_length=config.forecast_length,
-                target="target",
-                freq=f"{config.interval_mins}min",
-                eval_metric=config.eval_metric,
-                path=self._zs_tmpdir,
-            )
-
-            # Build minimal training data (AutoGluon needs fit() before predict())
-            bg_col = config.target_col
-            bg_values = data[bg_col].values.astype(np.float32)
-            bg_values = bg_values[-config.context_length :]
-            ts_df = pd.DataFrame(
-                {
-                    "item_id": ["zs_train"] * len(bg_values),
-                    "timestamp": pd.date_range(
-                        "2000-01-01", periods=len(bg_values), freq="5min"
-                    ),
-                    "target": bg_values,
-                }
-            ).set_index(["item_id", "timestamp"])
-            ts_train = TimeSeriesDataFrame(ts_df)
-
-            # Fit with zero fine-tune steps = pretrained weights only
-            zs_hyperparams = {
-                "Chronos2": {
-                    "model_path": config.model_path,
-                    "fine_tune_steps": 0,
-                }
-            }
-            zs_predictor.fit(
-                train_data=ts_train,
-                hyperparameters=zs_hyperparams,
-                enable_ensemble=False,
-            )
-            self._zs_predictor = zs_predictor
-
-        # Build context as TimeSeriesDataFrame for prediction
-        bg_col = config.target_col
-        if bg_col not in data.columns:
-            raise ValueError(f"DataFrame must contain '{bg_col}' column")
-
-        context = data[bg_col].values.astype(np.float32)
-        context = context[-config.context_length :]
-
-        ts_ctx = pd.DataFrame(
-            {
-                "item_id": ["ep_0"] * len(context),
-                "timestamp": pd.date_range(
-                    "2000-01-01", periods=len(context), freq="5min"
-                ),
-                "target": context,
-            }
-        ).set_index(["item_id", "timestamp"])
-        ts_data = TimeSeriesDataFrame(ts_ctx)
-
-        ag_predictions = self._zs_predictor.predict(ts_data)
-        return ag_predictions.loc["ep_0"]["mean"].values
 
     # ------------------------------------------------------------------
     # Persistence

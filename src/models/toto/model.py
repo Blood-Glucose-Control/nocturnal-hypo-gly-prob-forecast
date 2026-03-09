@@ -65,7 +65,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
     def supports_zero_shot(self) -> bool:
         return True
 
-    def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
+    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
         """Make predictions given context data.
 
         Args:

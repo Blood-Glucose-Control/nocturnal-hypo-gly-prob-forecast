@@ -180,7 +180,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     # Inference
     # ------------------------------------------------------------------
 
-    def predict(
+    def _predict(
         self,
         data: pd.DataFrame,
         **kwargs,

@@ -728,7 +728,6 @@ def _generate_forecasts(
     config_dir: str,
     output_dir: str,
     phase_name: str,
-    zero_shot: bool = False,
     model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Dict]]:
     """Helper: Generate forecasts using the model and holdout data.
@@ -740,7 +739,6 @@ def _generate_forecasts(
         config_dir: Directory containing holdout configurations
         output_dir: Directory where prediction files will be saved
         phase_name: Identifier for this phase (e.g., "zero_shot", "after_training")
-        zero_shot: If True, use predict_zero_shot() instead of predict()
         model_config_overrides: Optional dict with input_features/target_features
 
     Returns:
@@ -868,10 +866,7 @@ def _generate_forecasts(
             logger.info(f"  Context data shape: {context_data.shape}")
 
             # Generate predictions — model only sees context, predicts forward
-            if zero_shot and hasattr(model, "predict_zero_shot"):
-                predictions_raw = model.predict_zero_shot(context_data)
-            else:
-                predictions_raw = model.predict(context_data)
+            predictions_raw = model.predict(context_data)
 
             logger.info(f"    Raw predictions shape: {predictions_raw.shape}")
 
@@ -1164,7 +1159,6 @@ def _evaluate_and_plot(
     config_dir: str,
     output_dir: str,
     phase_name: str,
-    zero_shot: bool = False,
     model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict]:
     """Helper: Generate forecasts and plots for a given phase.
@@ -1179,7 +1173,6 @@ def _evaluate_and_plot(
         config_dir: Holdout config directory
         output_dir: Output directory for artifacts
         phase_name: Identifier for this phase
-        zero_shot: If True, use predict_zero_shot() for inference
         model_config_overrides: Optional dict with input_features/target_features
 
     Returns:
@@ -1197,7 +1190,6 @@ def _evaluate_and_plot(
         config_dir=config_dir,
         output_dir=output_dir,
         phase_name=phase_name,
-        zero_shot=zero_shot,
         model_config_overrides=model_config_overrides,
     )
 
@@ -1590,7 +1582,6 @@ def step4_zero_shot_evaluation(
         config_dir=config_dir,
         output_dir=output_dir,
         phase_name="0_zero_shot",
-        zero_shot=True,
         model_config_overrides=model_config_overrides,
     )
 

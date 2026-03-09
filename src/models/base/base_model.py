@@ -307,23 +307,50 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
-    # Abstract methods that child classes must implement
-    ## Abstract public API methods
-    @abstractmethod
+    # Public API methods
     def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
         """
         Make predictions on new data using configured forecast_length.
 
-        Each model must implement this method to handle its specific
-        prediction logic and output format. The forecast horizon is
-        determined by self.config.forecast_length (set at model creation),
-        following sklearn/PyTorch conventions.
+        Validates that the model is ready for inference, then delegates
+        to the model-specific _predict() implementation. Following the
+        sktime BaseForecaster pattern (predict -> _predict).
 
         Args:
             data: DataFrame with 'bg_mM' column containing the context window.
                   May include additional columns for multivariate models.
-            **kwargs: Model-specific options (e.g., batch_size, num_samples,
-                     inverse_scale, return_dict).
+            **kwargs: Model-specific options (e.g., batch_size, inverse_scale).
+
+        Returns:
+            Predictions as numpy array of shape (forecast_length,) for single
+            sample or (n_samples, forecast_length) for batch predictions.
+
+        Raises:
+            RuntimeError: If the model has not been fitted and does not
+                support zero-shot prediction.
+        """
+        if not self.is_fitted and not self.supports_zero_shot:
+            raise RuntimeError(
+                f"{self.__class__.__name__} requires training before prediction. "
+                f"Call fit() or load() first."
+            )
+        return self._predict(data, **kwargs)
+
+    # Abstract methods that child classes must implement
+    ## Abstract public API methods
+    @abstractmethod
+    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
+        """
+        Model-specific prediction logic.
+
+        Subclasses implement this instead of predict(). Inputs are
+        guaranteed to be valid (model is either fitted or supports
+        zero-shot inference).
+
+        Args:
+            data: DataFrame with 'bg_mM' column containing the context window.
+                  May include additional columns for multivariate models.
+            **kwargs: Model-specific options (e.g., batch_size, inverse_scale).
 
         Returns:
             Predictions as numpy array of shape (forecast_length,) for single
@@ -469,13 +496,10 @@ class BaseTimeSeriesFoundationModel(ABC):
             save_config: Whether to save the model configuration to config.json.
             save_metadata: Whether to save training metadata to metadata.json.
 
-        Raises:
-            NotImplementedError: Always raised by base class. Child classes
-                must override to save model weights.
-
         Note:
             Child classes should call super().save() first to save
-            configuration and metadata, then save model-specific weights.
+            configuration and metadata, then save model-specific weights
+            via _save_checkpoint().
         """
         os.makedirs(model_path, exist_ok=True)
 
@@ -740,7 +764,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             return
 
         # Check if this model supports LoRA
-        if not self.supports_lora():
+        if not self.supports_lora:
             info_print(
                 f"LoRA is not supported for {self.__class__.__name__} architecture"
             )

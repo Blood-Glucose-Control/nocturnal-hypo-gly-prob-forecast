@@ -84,7 +84,7 @@ def _generate_forecasts(
         config_dir: Directory containing holdout configurations
         output_dir: Directory where prediction files will be saved
         phase_name: Identifier for this phase (e.g., "zero_shot", "after_training")
-        zero_shot: If True, use predict_zero_shot() instead of predict()
+        zero_shot: Unused, kept for backwards compatibility
 
     Returns:
         Dict[str, Dict]: Dictionary mapping dataset names to forecast results
@@ -143,10 +143,7 @@ def _generate_forecasts(
             forecast_data_for_model = forecast_data[forecast_cols_for_model].copy()
 
             # Generate predictions
-            if zero_shot:
-                predictions_raw = model.predict_zero_shot(forecast_data_for_model)
-            else:
-                predictions_raw = model.predict(forecast_data_for_model)
+            predictions_raw = model.predict(forecast_data_for_model)
 
             # TTM returns predictions in shape (samples, forecast_length, num_channels)
             # For univariate glucose prediction, we need channel 0
@@ -467,7 +464,7 @@ def _evaluate_and_plot(
         config_dir: Holdout config directory
         output_dir: Output directory for artifacts
         phase_name: Identifier for this phase
-        zero_shot: If True, use predict_zero_shot() for inference
+        zero_shot: Unused, kept for backwards compatibility
 
     Returns:
         dict: Forecast results, or None if failed
