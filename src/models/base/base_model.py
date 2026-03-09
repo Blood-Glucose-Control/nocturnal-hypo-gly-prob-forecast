@@ -328,11 +328,18 @@ class BaseTimeSeriesFoundationModel(ABC):
         Raises:
             RuntimeError: If the model has not been fitted and does not
                 support zero-shot prediction.
+            ValueError: If data contains multiple episode IDs. Use
+                predict_batch() for multi-episode panels.
         """
         if not self.is_fitted and not self.supports_zero_shot:
             raise RuntimeError(
                 f"{self.__class__.__name__} requires training before prediction. "
                 f"Call fit() or load() first."
+            )
+        if "episode_id" in data.columns and data["episode_id"].nunique() > 1:
+            raise ValueError(
+                "predict() handles a single episode. "
+                "Use predict_batch() for multi-episode panels."
             )
         return self._predict(data, **kwargs)
 

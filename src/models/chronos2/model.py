@@ -224,12 +224,6 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Returns:
             1D numpy array of predicted BG values for the forecast horizon.
         """
-        if "episode_id" in data.columns and data["episode_id"].nunique() > 1:
-            raise ValueError(
-                "_predict() handles a single episode. "
-                "Use predict_batch() for multi-episode panels."
-            )
-
         config = self.config
 
         if not self.is_fitted:
