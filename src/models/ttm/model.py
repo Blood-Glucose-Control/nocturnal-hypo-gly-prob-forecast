@@ -780,19 +780,28 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             if episode_col not in id_cols:
                 id_cols = [episode_col] + id_cols
 
+            target_columns = self.column_specifiers.get("target_columns", [])
+            if not target_columns:
+                expected = self.config.target_features
+                raise ValueError(
+                    f"target_columns is empty after filtering: none of the configured "
+                    f"target features {expected} were found (or had non-NaN values) in "
+                    f"the input data. Available columns: {list(data.columns)}"
+                )
+
             pipeline = TimeSeriesForecastingPipeline(
                 model=self.model,
                 timestamp_column=self.column_specifiers.get(
                     "timestamp_column", ColumnNames.DATETIME.value
                 ),
                 id_columns=id_cols,
-                target_columns=self.column_specifiers.get("target_columns", ["bg_mM"]),
+                target_columns=target_columns,
                 observable_columns=self.column_specifiers.get("observable_columns", []),
                 explode_forecasts=True,
                 freq=f"{self.config.resolution_min}min",
             )
             forecast_df = pipeline(data)
-            target_col = self.column_specifiers["target_columns"][0]
+            target_col = target_columns[0]
 
             results: Dict[str, np.ndarray] = {}
             for ep_id in episode_ids:
