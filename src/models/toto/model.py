@@ -102,7 +102,12 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             [ts.timestamp() for ts in timestamps], dtype=torch.float32
         )
         # Broadcast timestamps across all variates
-        ts_seconds = ts_seconds_1d.unsqueeze(0).expand(series.shape[1], -1).unsqueeze(0).to(self.device)
+        ts_seconds = (
+            ts_seconds_1d.unsqueeze(0)
+            .expand(series.shape[1], -1)
+            .unsqueeze(0)
+            .to(self.device)
+        )
 
         # All variates share the same id_mask (same multivariate group)
         id_mask = torch.zeros_like(series)
@@ -165,7 +170,9 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             if len(target) < min_len:
                 logger.warning(
                     "Patient %s has only %d steps (need %d), skipping",
-                    pid, len(target), min_len,
+                    pid,
+                    len(target),
+                    min_len,
                 )
                 continue
 
@@ -218,7 +225,9 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         covariate_cols = self.config.covariate_cols or []
         if covariate_cols:
             ev_fields = list(covariate_cols)
-            ev_transform_fns = [lambda x: np.asarray(x, dtype=np.float32)] * len(covariate_cols)
+            ev_transform_fns = [lambda x: np.asarray(x, dtype=np.float32)] * len(
+                covariate_cols
+            )
             add_exogenous = True
         else:
             ev_fields = ["feat_dynamic_real"]
@@ -303,10 +312,14 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         )
         if self.config.num_epochs is not None:
             trainer_kwargs["max_epochs"] = self.config.num_epochs
-            info_print(f"Starting Toto fine-tuning for {self.config.num_epochs} epoch(s)...")
+            info_print(
+                f"Starting Toto fine-tuning for {self.config.num_epochs} epoch(s)..."
+            )
         else:
             trainer_kwargs["max_steps"] = self.config.max_steps
-            info_print(f"Starting Toto fine-tuning for {self.config.max_steps} steps...")
+            info_print(
+                f"Starting Toto fine-tuning for {self.config.max_steps} steps..."
+            )
 
         trainer = Trainer(**trainer_kwargs)
         trainer.fit(lightning_module, datamodule=dm)
@@ -376,9 +389,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             weights_path = os.path.join(model_dir, "toto_backbone.pt")
 
         if not os.path.exists(weights_path):
-            raise FileNotFoundError(
-                f"Toto checkpoint not found at {weights_path}"
-            )
+            raise FileNotFoundError(f"Toto checkpoint not found at {weights_path}")
 
         state_dict = torch.load(weights_path, map_location=self.device)
         # Enable variate labels if the checkpoint has them (covariate-trained model)

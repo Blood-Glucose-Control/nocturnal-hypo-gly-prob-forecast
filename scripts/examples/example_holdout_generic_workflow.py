@@ -432,9 +432,7 @@ class ModelFactory:
                 **config.extra_config,
             )
 
-            return TotoForecaster(
-                toto_config, distributed_config=distributed_config
-            )
+            return TotoForecaster(toto_config, distributed_config=distributed_config)
         except ImportError as e:
             raise ImportError(
                 f"Toto model not available. Install with: "
@@ -1927,7 +1925,16 @@ stored in separate subdirectories for comparison.
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "chronos2", "moment", "timesfm", "timegrad", "tide", "toto"],
+        choices=[
+            "ttm",
+            "chronos",
+            "chronos2",
+            "moment",
+            "timesfm",
+            "timegrad",
+            "tide",
+            "toto",
+        ],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(

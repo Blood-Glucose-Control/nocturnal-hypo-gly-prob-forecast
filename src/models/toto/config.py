@@ -24,17 +24,23 @@ class TotoConfig(ModelConfig):
 
     def __init__(self, **kwargs):
         toto_specific_params = {
-            "num_samples", "samples_per_batch",
-            "max_steps", "num_epochs", "lr", "min_lr",
-            "warmup_steps", "stable_steps", "decay_steps",
-            "train_batch_size", "val_batch_size", "val_prediction_len",
+            "num_samples",
+            "samples_per_batch",
+            "max_steps",
+            "num_epochs",
+            "lr",
+            "min_lr",
+            "warmup_steps",
+            "stable_steps",
+            "decay_steps",
+            "train_batch_size",
+            "val_batch_size",
+            "val_prediction_len",
             "covariate_cols",
         }
 
         # Filter out Toto-specific params from kwargs for parent class
-        base_kwargs = {
-            k: v for k, v in kwargs.items() if k not in toto_specific_params
-        }
+        base_kwargs = {k: v for k, v in kwargs.items() if k not in toto_specific_params}
 
         # Call parent with filtered kwargs
         super().__init__(**base_kwargs)
