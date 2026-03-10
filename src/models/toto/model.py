@@ -99,7 +99,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         series = torch.stack(variates, dim=0).unsqueeze(0).to(self.device)
 
         ts_seconds_1d = torch.tensor(
-            [ts.timestamp() for ts in timestamps], dtype=torch.float32
+            timestamps.astype(np.int64) // 1_000_000_000, dtype=torch.float32
         )
         # Broadcast timestamps across all variates
         ts_seconds = (
@@ -162,7 +162,6 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         records = []
         for pid, group in train_data.groupby(patient_col):
             group = group.sort_values(time_col)
-            timestamps = pd.to_datetime(group[time_col]).tolist()
             target = group[bg_col].values.astype(np.float32)
 
             # Skip series that are too short
@@ -176,8 +175,11 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
                 )
                 continue
 
-            # Convert timestamps to strings for HF serialization
-            ts_strings = [t.isoformat() for t in timestamps]
+            ts_strings = (
+                pd.to_datetime(group[time_col])
+                .dt.strftime("%Y-%m-%dT%H:%M:%S")
+                .tolist()
+            )
             record = {
                 "timestamp": ts_strings,
                 "target": target.tolist(),
