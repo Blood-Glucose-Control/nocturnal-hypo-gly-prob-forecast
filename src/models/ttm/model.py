@@ -809,12 +809,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 if mask.any():
                     results[str(ep_id)] = forecast_df.loc[mask, target_col].values
             return results
-
-        # Fitted path: call predict() per episode (sequential loop).
-        results = {}
-        for ep_id, ep_data in data.groupby(episode_col):
-            results[str(ep_id)] = self.predict(ep_data)
-        return results
+        
+        # Fitted path: delegate to base class sequential loop.
+        return super()._predict_batch(data, episode_col)
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.
