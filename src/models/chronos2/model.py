@@ -300,9 +300,16 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         """
         config = self.config
         episode_ids = data[episode_col].astype(str).unique().tolist()
+        if not episode_ids:
+            return {}
 
         if self.is_fitted:
             # Fine-tuned path: single AutoGluon predict call
+            if self.predictor is None:
+                raise ValueError(
+                    "Model is marked as fitted but predictor is None. "
+                    "The checkpoint may not have loaded correctly."
+                )
             from autogluon.timeseries import TimeSeriesDataFrame
 
             context = data.copy()
