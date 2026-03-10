@@ -277,7 +277,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
         ag_predictions = self.predictor.predict(ts_data)
 
-        episode_ids = [str(eid) for eid in data[episode_col].unique()]
+        episode_ids = data[episode_col].astype(str).unique().tolist()
         results: Dict[str, np.ndarray] = {}
         for item_id in episode_ids:
             if item_id in ag_predictions.index.get_level_values(0):

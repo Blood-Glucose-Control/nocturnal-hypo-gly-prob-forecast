@@ -255,6 +255,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             return mean[0].squeeze().detach().cpu().numpy()
 
         # Fine-tuned path: single episode via AutoGluon predictor
+        if self.predictor is None:
+            raise ValueError(
+                "Model is marked as fitted but predictor is None. "
+                "The checkpoint may not have loaded correctly."
+            )
         from autogluon.timeseries import TimeSeriesDataFrame
 
         context = data.copy()
@@ -294,7 +299,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             Dict mapping episode ID (as str) to 1-D numpy forecast array.
         """
         config = self.config
-        episode_ids = [str(eid) for eid in data[episode_col].unique()]
+        episode_ids = data[episode_col].astype(str).unique().tolist()
 
         if self.is_fitted:
             # Fine-tuned path: single AutoGluon predict call
@@ -331,6 +336,12 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 config.model_path,
                 device_map=device,
                 torch_dtype=torch.float32,
+            )
+
+        if config.target_col not in data.columns:
+            raise ValueError(
+                f"Target column '{config.target_col}' not found in data. "
+                f"Available columns: {list(data.columns)}"
             )
 
         # Build (N, 1, L) tensor — one series per episode
