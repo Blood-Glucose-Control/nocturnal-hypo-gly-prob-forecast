@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import DataLoader
 
 from toto.model.toto import Toto
 from toto.data.util.dataset import MaskedTimeseries
@@ -18,7 +17,7 @@ from toto.inference.forecaster import TotoForecaster as _TotoForecaster
 
 from src.models.toto.config import TotoConfig
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.utils.logging_helper import info_print, error_print
+from src.utils.logging_helper import info_print
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +27,8 @@ INTERVAL_MINS = 5
 class TotoForecaster(BaseTimeSeriesFoundationModel):
     """Toto forecaster implementation."""
 
+    config_class = TotoConfig
     config: TotoConfig
-
-    def __init__(
-        self, config: TotoConfig, lora_config=None, distributed_config=None
-    ):
-        super().__init__(config, lora_config, distributed_config)
 
     def _initialize_model(self) -> None:
         """Load the Toto model from HuggingFace."""
@@ -75,9 +70,6 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Forecast as 1D numpy array of shape (forecast_length,)
         """
-        if self.model is None:
-            raise ValueError("Model not initialized. Call _initialize_model first.")
-
         forecast_length = self.config.forecast_length
 
         bg_col = "bg_mM"
@@ -311,17 +303,12 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         )
         if self.config.num_epochs is not None:
             trainer_kwargs["max_epochs"] = self.config.num_epochs
-            info_print(f"Training for {self.config.num_epochs} epoch(s)")
-        else:
-            trainer_kwargs["max_steps"] = self.config.max_steps
-            info_print(f"Training for {self.config.max_steps} steps")
-
-        trainer = Trainer(**trainer_kwargs)
-
-        if self.config.num_epochs is not None:
             info_print(f"Starting Toto fine-tuning for {self.config.num_epochs} epoch(s)...")
         else:
+            trainer_kwargs["max_steps"] = self.config.max_steps
             info_print(f"Starting Toto fine-tuning for {self.config.max_steps} steps...")
+
+        trainer = Trainer(**trainer_kwargs)
         trainer.fit(lightning_module, datamodule=dm)
 
         best_ckpt = checkpoint_callback.best_model_path
@@ -345,7 +332,6 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             self.model = lightning_module.model.to(self.device)
 
         self.forecaster = _TotoForecaster(self.model)
-        self.is_fitted = True
 
         info_print(f"Fine-tuning complete. Best checkpoint: {best_ckpt}")
         if best_score is not None:
@@ -356,25 +342,6 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             "best_val_loss": best_score,
             "max_steps": self.config.max_steps,
         }
-
-    @classmethod
-    def load(cls, model_path: str, config: Optional[TotoConfig] = None):
-        """Load a Toto model from a saved checkpoint.
-
-        Overrides the base class to use TotoConfig for deserialization.
-        """
-        if config is None:
-            config_path = os.path.join(model_path, "config.json")
-            if os.path.exists(config_path):
-                with open(config_path, "r") as f:
-                    config_dict = json.load(f)
-                config = TotoConfig(**config_dict)
-            else:
-                raise ValueError(f"No config found at {config_path}")
-
-        instance = cls(config)
-        instance._load_checkpoint(model_path)
-        return instance
 
     def _save_checkpoint(self, output_dir: str) -> None:
         """Save the fine-tuned model checkpoint.
@@ -390,10 +357,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
         ref_path = os.path.join(output_dir, "toto_checkpoint.json")
         with open(ref_path, "w") as f:
-            json.dump({
-                "weights_file": "toto_backbone.pt",
-                "patch_size": self._patch_size,
-            }, f, indent=2)
+            json.dump({"weights_file": "toto_backbone.pt"}, f, indent=2)
 
         logger.info("Toto checkpoint saved to %s", output_dir)
 
