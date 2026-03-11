@@ -58,6 +58,17 @@ MARGIN = 10
 # The SQL query to convert the raw data to a database by merging 4 tables and sort by pid and date.
 # Note that each table only have a day offset from enrollment date so we here use 2020-01-01 as the base date.
 # Full outer join takes way too long to process.
+#
+# Pre-enrollment filtering (DeviceDtTmDaysFromEnroll >= 0):
+# The REPLACE-BG trial included a 2-10 week run-in phase before randomization.
+# During the first 14 days, participants wore a *blinded* Dexcom G4 (recording but
+# not displaying glucose), managing insulin using fingerstick BGM only. After that,
+# CGM-naive participants (53% of cohort) had up to 8 weeks of unblinded CGM training.
+# This pre-enrollment data represents different behavioral regimes (no CGM feedback,
+# then learning curve) where the insulin→BG causal structure differs from the
+# randomized trial period. The original authors excluded run-in from outcome analyses,
+# using it only as a baseline covariate (Aleppo et al., Diabetes Care 2017;
+# NCT02258373). We filter it here for the same reason.
 template_query = """
 WITH
   params AS (
@@ -91,6 +102,7 @@ FROM (
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceBolus
+    WHERE HDeviceBolus.DeviceDtTmDaysFromEnroll >= 0
 
     UNION ALL
 
@@ -115,6 +127,7 @@ FROM (
         NULL as suprBasalType,
         NULL as suprRate
     FROM HDeviceWizard
+    WHERE HDeviceWizard.DeviceDtTmDaysFromEnroll >= 0
 
     UNION ALL
 
@@ -141,6 +154,7 @@ FROM (
     FROM HDeviceCGM
     WHERE HDeviceCGM.GlucoseValue IS NOT NULL
     AND HDeviceCGM.RecordType = 'CGM'
+    AND HDeviceCGM.DeviceDtTmDaysFromEnroll >= 0
 
     UNION ALL
 
@@ -165,6 +179,7 @@ FROM (
         HDeviceBasal.SuprBasalType as suprBasalType,
         HDeviceBasal.SuprRate as suprRate
     FROM HDeviceBasal
+    WHERE HDeviceBasal.DeviceDtTmDaysFromEnroll >= 0
 )
 ORDER BY pid, date ASC;
 """
