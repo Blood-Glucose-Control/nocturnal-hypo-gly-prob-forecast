@@ -177,13 +177,20 @@ def ensure_regular_time_intervals_with_aggregation(
     # Rate of change columns we use mean aggregation.
     mean_cols = [ColumnNames.BG.value, ColumnNames.RATE.value, ColumnNames.HR_BPM.value]
 
+    # Columns where zero is a legitimate value and must NOT be replaced with NaN.
+    # rate=0 means pump suspension (zero insulin delivery) — converting to NaN
+    # would cause forward-fill to create phantom insulin during basal rollover.
+    zero_preserving_cols = {ColumnNames.RATE.value}
+
     # Prepare aggregation dict
     agg_dict = {}
     for col in df.columns:
         if col in numerical_cols:
             if col in mean_cols:
-                # Convert numerical zeros to NaN to avoid skewing the aggregation.
-                df[col] = df[col].replace(0, np.nan)
+                # Convert numerical zeros to NaN to avoid skewing the aggregation,
+                # but skip columns where zero is a legitimate measurement.
+                if col not in zero_preserving_cols:
+                    df[col] = df[col].replace(0, np.nan)
                 agg_dict[col] = "mean"
             else:
                 agg_dict[col] = "sum"
