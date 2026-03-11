@@ -809,7 +809,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 if mask.any():
                     results[str(ep_id)] = forecast_df.loc[mask, target_col].values
             return results
-        
+
         # Fitted path: delegate to base class sequential loop.
         return super()._predict_batch(data, episode_col)
 

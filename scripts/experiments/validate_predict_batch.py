@@ -70,7 +70,6 @@ import pandas as pd
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.data.utils import get_patient_column
 from src.evaluation.episode_builders import build_midnight_episodes
-from src.evaluation.metrics import compute_regression_metrics
 from src.models import create_model_and_config
 
 logging.basicConfig(
@@ -84,6 +83,7 @@ SAMPLING_INTERVAL_MINUTES = 5
 # ---------------------------------------------------------------------------
 # Episode building (mirrors Phase 1 of evaluate_nocturnal_forecasting)
 # ---------------------------------------------------------------------------
+
 
 def build_episode_panel(
     holdout_data: pd.DataFrame,
@@ -151,7 +151,9 @@ def build_episode_panel(
             )
 
             if max_episodes is not None and len(episode_metadata) >= max_episodes:
-                logger.info("Reached --max-episodes %d, stopping episode build.", max_episodes)
+                logger.info(
+                    "Reached --max-episodes %d, stopping episode build.", max_episodes
+                )
                 panel_df = pd.concat(context_dfs, ignore_index=True)
                 return episode_metadata, panel_df
 
@@ -166,7 +168,10 @@ def build_episode_panel(
 # Run A: sequential predict()
 # ---------------------------------------------------------------------------
 
-def run_sequential(model, episode_metadata: list, panel_df: pd.DataFrame) -> Dict[str, np.ndarray]:
+
+def run_sequential(
+    model, episode_metadata: list, panel_df: pd.DataFrame
+) -> Dict[str, np.ndarray]:
     """Call model.predict(ctx_df) once per episode — the current production path."""
     results: Dict[str, np.ndarray] = {}
     ep_ids = [m["episode_id"] for m in episode_metadata]
@@ -187,6 +192,7 @@ def run_sequential(model, episode_metadata: list, panel_df: pd.DataFrame) -> Dic
 # Run B: predict_batch()
 # ---------------------------------------------------------------------------
 
+
 def run_batch(model, panel_df: pd.DataFrame) -> Dict[str, np.ndarray]:
     """Call model.predict_batch(panel_df) — exercises the new predict_batch path."""
     raw = model.predict_batch(panel_df, episode_col="episode_id")
@@ -206,6 +212,7 @@ def run_batch(model, panel_df: pd.DataFrame) -> Dict[str, np.ndarray]:
 # Comparison
 # ---------------------------------------------------------------------------
 
+
 def compare_results(
     seq_preds: Dict[str, np.ndarray],
     batch_preds: Dict[str, np.ndarray],
@@ -221,11 +228,17 @@ def compare_results(
     missing_in_batch = set(ep_ids) - set(batch_preds.keys())
     extra_in_batch = set(batch_preds.keys()) - set(ep_ids)
     if missing_in_batch:
-        logger.error("FAIL — predict_batch() dropped %d episode(s): %s",
-                     len(missing_in_batch), sorted(missing_in_batch)[:5])
+        logger.error(
+            "FAIL — predict_batch() dropped %d episode(s): %s",
+            len(missing_in_batch),
+            sorted(missing_in_batch)[:5],
+        )
     if extra_in_batch:
-        logger.warning("predict_batch() returned %d unexpected episode(s): %s",
-                       len(extra_in_batch), sorted(extra_in_batch)[:5])
+        logger.warning(
+            "predict_batch() returned %d unexpected episode(s): %s",
+            len(extra_in_batch),
+            sorted(extra_in_batch)[:5],
+        )
 
     max_diffs: list[float] = []
     failures: list[str] = []
@@ -244,7 +257,10 @@ def compare_results(
         if len(a) != len(b):
             logger.debug(
                 "Episode %s: length mismatch seq=%d batch=%d — comparing first %d steps",
-                ep_id, len(a), len(b), min_len,
+                ep_id,
+                len(a),
+                len(b),
+                min_len,
             )
         a, b = a[:min_len], b[:min_len]
 
@@ -253,7 +269,11 @@ def compare_results(
         if max_diff > tolerance:
             failures.append(ep_id)
 
-    passed = len(ep_ids) - len(missing_in_batch) - len([f for f in failures if f not in missing_in_batch])
+    passed = (
+        len(ep_ids)
+        - len(missing_in_batch)
+        - len([f for f in failures if f not in missing_in_batch])
+    )
     failed = len(failures)
 
     logger.info("")
@@ -263,8 +283,12 @@ def compare_results(
     logger.info("Episodes compared : %d", len(ep_ids))
     logger.info("Tolerance         : %.2e", tolerance)
     logger.info("Max diff (overall): %.6e", max(max_diffs, default=float("nan")))
-    logger.info("Mean max diff     : %.6e", float(np.nanmean(max_diffs)) if max_diffs else float("nan"))
+    logger.info(
+        "Mean max diff     : %.6e",
+        float(np.nanmean(max_diffs)) if max_diffs else float("nan"),
+    )
     logger.info("Passed            : %d", len(ep_ids) - failed)
+    logger.info("Passed (strict)   : %d", passed)
     logger.info("Failed            : %d", failed)
 
     if failures:
@@ -295,15 +319,24 @@ def _compare_rmse(seq_preds, batch_preds, ep_ids):
     all_seq = np.concatenate([seq_preds[ep] for ep in ep_ids if ep in seq_preds])
     all_bat = np.concatenate([batch_preds[ep] for ep in ep_ids if ep in batch_preds])
     logger.info("")
-    logger.info("Prediction stats (seq  ): mean=%.4f  std=%.4f  n=%d",
-                float(np.mean(all_seq)), float(np.std(all_seq)), len(all_seq))
-    logger.info("Prediction stats (batch): mean=%.4f  std=%.4f  n=%d",
-                float(np.mean(all_bat)), float(np.std(all_bat)), len(all_bat))
+    logger.info(
+        "Prediction stats (seq  ): mean=%.4f  std=%.4f  n=%d",
+        float(np.mean(all_seq)),
+        float(np.std(all_seq)),
+        len(all_seq),
+    )
+    logger.info(
+        "Prediction stats (batch): mean=%.4f  std=%.4f  n=%d",
+        float(np.mean(all_bat)),
+        float(np.std(all_bat)),
+        len(all_bat),
+    )
 
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -315,12 +348,17 @@ def parse_arguments() -> argparse.Namespace:
         default="ttm",
         choices=["sundial", "ttm", "chronos2", "moirai", "timegrad", "timesfm", "tide"],
     )
-    parser.add_argument("--model-config", type=str, default=None,
-                        help="Path to model config YAML file")
+    parser.add_argument(
+        "--model-config", type=str, default=None, help="Path to model config YAML file"
+    )
     parser.add_argument("--dataset", type=str, default="aleppo_2017")
     parser.add_argument("--config-dir", type=str, default="configs/data/holdout_10pct")
-    parser.add_argument("--checkpoint", type=str, default=None,
-                        help="Path to fine-tuned checkpoint (omit for zero-shot)")
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Path to fine-tuned checkpoint (omit for zero-shot)",
+    )
     parser.add_argument("--context-length", type=int, default=512)
     parser.add_argument("--forecast-length", type=int, default=96)
     parser.add_argument(
@@ -328,14 +366,14 @@ def parse_arguments() -> argparse.Namespace:
         type=int,
         default=50,
         help="Number of midnight episodes to process (default: 50 for speed)."
-             " Set to 0 to run all episodes.",
+        " Set to 0 to run all episodes.",
     )
     parser.add_argument(
         "--tolerance",
         type=float,
         default=1e-6,
         help="Max absolute difference per prediction step to consider a pass "
-             "(default: 1e-6; use ~1e-4 for zero-shot TTM batched pipeline).",
+        "(default: 1e-6; use ~1e-4 for zero-shot TTM batched pipeline).",
     )
     parser.add_argument("--cuda-device", type=int, default=1)
     return parser.parse_args()
@@ -358,6 +396,7 @@ def main():
 
     # --- Load model ---
     from src.utils import load_yaml_config
+
     config_dict = load_yaml_config(args.model_config) if args.model_config else {}
     model_kwargs = {
         **config_dict,
@@ -385,11 +424,15 @@ def main():
     )
 
     if not episode_metadata:
-        logger.error("No valid episodes found — check dataset and context/forecast lengths.")
+        logger.error(
+            "No valid episodes found — check dataset and context/forecast lengths."
+        )
         sys.exit(2)
 
     n_patients = len({m["patient_id"] for m in episode_metadata})
-    logger.info("Built %d episodes across %d patients", len(episode_metadata), n_patients)
+    logger.info(
+        "Built %d episodes across %d patients", len(episode_metadata), n_patients
+    )
     logger.info("Panel shape: %s", panel_df.shape)
 
     # --- Run A: sequential predict() ---
@@ -408,7 +451,10 @@ def main():
 
     if passed:
         logger.info("")
-        logger.info("PASS — predict_batch() matches predict()-per-episode within %.2e", args.tolerance)
+        logger.info(
+            "PASS — predict_batch() matches predict()-per-episode within %.2e",
+            args.tolerance,
+        )
         sys.exit(0)
     else:
         logger.error("")
