@@ -28,6 +28,7 @@ import pandas as pd
 from src.data.utils import get_patient_column
 from src.evaluation.episode_builders import build_midnight_episodes
 from src.evaluation.metrics import compute_regression_metrics
+from src.evaluation.metrics.probabilistic import compute_wql, compute_brier_score
 
 # Constants
 SAMPLING_INTERVAL_MINUTES = 5
@@ -45,22 +46,33 @@ def evaluate_nocturnal_forecasting(
     target_col: str = "bg_mM",
     covariate_cols: Optional[List[str]] = None,
     interval_mins: int = SAMPLING_INTERVAL_MINUTES,
+    probabilistic: bool = False,
 ) -> Dict[str, Any]:
     """Evaluate model on midnight-anchored nocturnal forecasting task.
 
-    Builds midnight episodes per patient and calls model.predict() per episode.
+    Builds midnight episodes per patient and calls model.predict() (or
+    model.predict_quantiles() when probabilistic=True) per episode.
+
+    When probabilistic=True:
+      - Calls predict_quantiles() only (no separate predict() call).
+      - Extracts the median (0.5 quantile) as the point forecast for RMSE.
+      - Computes WQL and Brier@3.9 from the full quantile distribution.
 
     Args:
-        model: Model implementing predict(data) -> np.ndarray.
+        model: Model implementing predict(data) -> np.ndarray. Must also
+            implement predict_quantiles() when probabilistic=True.
         holdout_data: Flat DataFrame with all holdout patients.
         context_length: Context window size in steps.
         forecast_length: Forecast horizon in steps.
         target_col: BG column name.
         covariate_cols: Covariate column names (e.g., ["iob"]).
         interval_mins: Sampling interval in minutes.
+        probabilistic: If True, use predict_quantiles() and compute WQL/Brier.
 
     Returns:
         Dict with overall_rmse, total_episodes, per_patient, per_episode.
+        When probabilistic=True, also includes overall_wql, overall_brier,
+        and quantile_levels.
     """
     patient_col = get_patient_column(holdout_data)
     patients = holdout_data[patient_col].unique()
@@ -136,34 +148,58 @@ def evaluate_nocturnal_forecasting(
         len(set(m["patient_id"] for m in episode_metadata)),
     )
 
+    if probabilistic:
+        quantile_levels = (
+            getattr(model.config, "quantile_levels", None)
+            or model.DEFAULT_QUANTILE_LEVELS
+        )
+        # Ensure 0.5 is present so we can extract the median as point forecast.
+        if 0.5 not in quantile_levels:
+            quantile_levels = sorted(set(quantile_levels) | {0.5})
+        median_idx = quantile_levels.index(0.5)
+        logger.info(
+            "Probabilistic mode — computing WQL and Brier@%.1f (quantiles: %s)",
+            HYPO_THRESHOLD_MMOL,
+            quantile_levels,
+        )
+
     all_episode_results = []
     patient_episodes: Dict[str, list] = {}
 
     for ctx_df, meta in zip(context_dfs, episode_metadata):
-        pred = model.predict(ctx_df)
+        target = np.asarray(meta["target_bg"])
+        context_bg = ctx_df[target_col].values if target_col in ctx_df.columns else None
 
-        # Normalize multi-dimensional predictions
-        pred = np.asarray(pred)
-        if pred.ndim == 3:
-            pred = pred[0, :, 0]
-        elif pred.ndim == 2:
-            pred = pred.flatten()
+        if probabilistic:
+            q_forecast = model.predict_quantiles(ctx_df, quantile_levels=quantile_levels)
+            q_forecast = q_forecast[:, : len(target)]
+            pred = q_forecast[median_idx]  # median as point forecast
+            ep_wql = float(compute_wql(q_forecast, target, quantile_levels))
+            ep_brier = float(compute_brier_score(q_forecast, target, quantile_levels))
+        else:
+            pred = model.predict(ctx_df)
+            pred = np.asarray(pred)
+            if pred.ndim == 3:
+                pred = pred[0, :, 0]
+            elif pred.ndim == 2:
+                pred = pred.flatten()
+            pred = pred[: len(target)]
 
-        target = meta["target_bg"]
-        pred = pred[: len(target)]
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
 
-        context_bg = ctx_df[target_col].values if target_col in ctx_df.columns else None
-        all_episode_results.append(
-            {
-                "patient_id": meta["patient_id"],
-                "anchor": meta["anchor"].isoformat(),
-                "rmse": ep_rmse,
-                "pred": pred.tolist(),
-                "target_bg": target.tolist(),
-                "context_bg": context_bg.tolist() if context_bg is not None else None,
-            }
-        )
+        ep_result = {
+            "patient_id": meta["patient_id"],
+            "anchor": meta["anchor"].isoformat(),
+            "rmse": ep_rmse,
+            "pred": pred.tolist(),
+            "target_bg": target.tolist(),
+            "context_bg": context_bg.tolist() if context_bg is not None else None,
+        }
+        if probabilistic:
+            ep_result["wql"] = ep_wql
+            ep_result["brier"] = ep_brier
+
+        all_episode_results.append(ep_result)
 
         pid = meta["patient_id"]
         patient_episodes.setdefault(pid, []).append((pred, target))
@@ -175,39 +211,47 @@ def evaluate_nocturnal_forecasting(
         targets = np.concatenate([t for _, t in ep_list])
         metrics = compute_regression_metrics(preds, targets)
 
-        all_patient_results.append(
-            {
-                "patient_id": pid,
-                "episodes": len(ep_list),
-                **metrics,
-            }
-        )
+        patient_result = {
+            "patient_id": pid,
+            "episodes": len(ep_list),
+            **metrics,
+        }
 
-        logger.info(
-            "  Patient %s: RMSE=%.3f, MAE=%.3f (%d midnight episodes)",
-            pid,
-            metrics["rmse"],
-            metrics["mae"],
-            len(ep_list),
-        )
+        if probabilistic:
+            pid_eps = [ep for ep in all_episode_results if ep["patient_id"] == pid]
+            patient_result["wql"] = float(np.mean([ep["wql"] for ep in pid_eps]))
+            patient_result["brier"] = float(np.mean([ep["brier"] for ep in pid_eps]))
+
+        all_patient_results.append(patient_result)
+
+        log_msg = f"  Patient {pid}: RMSE={metrics['rmse']:.3f}, MAE={metrics['mae']:.3f}"
+        if probabilistic:
+            log_msg += f", WQL={patient_result['wql']:.4f}, Brier={patient_result['brier']:.4f}"
+        log_msg += f" ({len(ep_list)} midnight episodes)"
+        logger.info(log_msg)
 
     # Overall metrics (concatenated predictions, consistent with per-patient)
     all_preds = np.concatenate([ep["pred"] for ep in all_episode_results])
     all_targets = np.concatenate([ep["target_bg"] for ep in all_episode_results])
     overall_rmse = float(np.sqrt(np.mean((all_preds - all_targets) ** 2)))
 
-    logger.info(
-        "Nocturnal evaluation: %.4f RMSE over %d midnight episodes",
-        overall_rmse,
-        len(all_episode_results),
-    )
-
-    return {
+    results = {
         "overall_rmse": overall_rmse,
         "total_episodes": len(all_episode_results),
         "per_patient": all_patient_results,
         "per_episode": all_episode_results,
     }
+
+    log_msg = f"Nocturnal evaluation: {overall_rmse:.4f} RMSE"
+    if probabilistic:
+        results["overall_wql"] = float(np.mean([ep["wql"] for ep in all_episode_results]))
+        results["overall_brier"] = float(np.mean([ep["brier"] for ep in all_episode_results]))
+        results["quantile_levels"] = quantile_levels
+        log_msg += f", {results['overall_wql']:.4f} WQL, {results['overall_brier']:.4f} Brier@{HYPO_THRESHOLD_MMOL}"
+    log_msg += f" over {len(all_episode_results)} midnight episodes"
+    logger.info(log_msg)
+
+    return results
 
 
 def plot_stage_comparison_auto(

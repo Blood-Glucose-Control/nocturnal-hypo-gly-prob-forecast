@@ -114,6 +114,12 @@ class ModelConfig:
     # Loss function
     loss_function: str = "mse"  # "mse", "mae", "huber", "pinball"
 
+    # Probabilistic forecasting — quantile levels to produce at inference time.
+    # None means each model uses its own default (e.g. AutoGluon uses [0.1..0.9]).
+    # Set explicitly (e.g. [0.1, 0.2, ..., 0.9]) to control which quantiles are
+    # registered at training time and returned by predict_quantiles().
+    quantile_levels: Optional[List[float]] = None
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to a dictionary.
 
@@ -237,6 +243,10 @@ class BaseTimeSeriesFoundationModel(ABC):
     - Evaluation and metrics computation
     """
 
+    # Default quantile levels used by predict_quantiles() when neither the caller
+    # nor config.quantile_levels specifies a value. Matches AutoGluon's default.
+    DEFAULT_QUANTILE_LEVELS: List[float] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
     def __init__(
         self,
         config: ModelConfig,
@@ -307,6 +317,18 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        """Check if this model can produce calibrated quantile forecasts.
+
+        Returns False by default. Models that implement _predict_quantiles()
+        should override this to return True.
+
+        Returns:
+            bool: True if the model supports predict_quantiles(), False otherwise
+        """
+        return False
+
     # Public API methods
     def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
         """
@@ -336,6 +358,56 @@ class BaseTimeSeriesFoundationModel(ABC):
             )
         return self._predict(data, **kwargs)
 
+    def predict_quantiles(
+        self,
+        data: pd.DataFrame,
+        quantile_levels: Optional[List[float]] = None,
+        **kwargs,
+    ) -> np.ndarray:
+        """Generate probabilistic forecasts as quantile trajectories.
+
+        Quantile level resolution priority (first non-None wins):
+          1. quantile_levels argument passed by the caller
+          2. self.config.quantile_levels (set in model config)
+          3. self.DEFAULT_QUANTILE_LEVELS ([0.1, 0.2, ..., 0.9])
+
+        Args:
+            data: DataFrame with target column and optional covariates,
+                same format as predict().
+            quantile_levels: Quantile levels to return, e.g. [0.1, 0.5, 0.9].
+                For AutoGluon-backed models (Chronos2, TiDE) these must be a
+                subset of the levels registered at training time via
+                config.quantile_levels (or DEFAULT_QUANTILE_LEVELS if unset).
+            **kwargs: Passed through to _predict_quantiles().
+
+        Returns:
+            np.ndarray of shape (len(quantile_levels), forecast_length) for a
+            single episode. For multiple episodes the forecast_length axis is
+            concatenated (matching predict() behaviour).
+
+        Raises:
+            NotImplementedError: If the model does not support probabilistic
+                forecasting (supports_probabilistic_forecast is False).
+            RuntimeError: If the model has not been fitted and does not support
+                zero-shot prediction.
+        """
+        if not self.supports_probabilistic_forecast:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} does not support probabilistic forecasting. "
+                f"Use predict() for point forecasts."
+            )
+        if not self.is_fitted and not self.supports_zero_shot:
+            raise RuntimeError(
+                f"{self.__class__.__name__} requires training before prediction. "
+                f"Call fit() or load() first."
+            )
+        resolved_levels = (
+            quantile_levels
+            or self.config.quantile_levels
+            or self.DEFAULT_QUANTILE_LEVELS
+        )
+        return self._predict_quantiles(data, resolved_levels, **kwargs)
+
     # Abstract methods that child classes must implement
     ## Abstract public API methods
     @abstractmethod
@@ -357,6 +429,30 @@ class BaseTimeSeriesFoundationModel(ABC):
             sample or (n_samples, forecast_length) for batch predictions.
         """
         pass
+
+    def _predict_quantiles(
+        self,
+        data: pd.DataFrame,
+        quantile_levels: List[float],
+        **kwargs,
+    ) -> np.ndarray:
+        """Model-specific quantile forecast implementation.
+
+        Override this in subclasses that set supports_probabilistic_forecast=True.
+        Called by predict_quantiles() after validation; inputs are guaranteed valid.
+
+        Args:
+            data: DataFrame with target column and optional covariates.
+            quantile_levels: Resolved quantile levels (never None here).
+            **kwargs: Model-specific options.
+
+        Returns:
+            np.ndarray of shape (len(quantile_levels), forecast_length).
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement _predict_quantiles() "
+            f"when supports_probabilistic_forecast returns True."
+        )
 
     ## Abstract Protected Methods
     @abstractmethod

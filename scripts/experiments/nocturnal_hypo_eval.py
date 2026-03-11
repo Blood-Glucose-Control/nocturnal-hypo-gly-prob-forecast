@@ -258,6 +258,13 @@ def parse_arguments() -> argparse.Namespace:
         default=1,
         help="CUDA device ID to use (default: 1)",
     )
+    parser.add_argument(
+        "--probabilistic",
+        action="store_true",
+        default=False,
+        help="Use predict_quantiles() and compute WQL + Brier@3.9 "
+        "(model must support probabilistic forecasting)",
+    )
     return parser.parse_args()
 
 
@@ -361,6 +368,7 @@ def main():
         context_length=context_length,
         forecast_length=forecast_length,
         covariate_cols=args.covariate_cols,
+        probabilistic=args.probabilistic,
     )
 
     # Log overall results
@@ -369,6 +377,9 @@ def main():
     logger.info("OVERALL RESULTS")
     logger.info("=" * 60)
     logger.info(f"Overall RMSE: {results['overall_rmse']:.4f}")
+    if "overall_wql" in results:
+        logger.info(f"Overall WQL:  {results['overall_wql']:.4f}")
+        logger.info(f"Overall Brier@3.9: {results['overall_brier']:.4f}")
     logger.info(f"Total midnight episodes: {results['total_episodes']}")
 
     # Prepare full results

@@ -90,6 +90,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     def supports_zero_shot(self) -> bool:
         return True
 
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        return True
+
     def _initialize_model(self) -> None:
         """No-op: AutoGluon predictor is created lazily in _train_model
         or _load_checkpoint."""
@@ -164,7 +168,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         ts_train, _, _ = self._prepare_training_data(train_data)
 
         info_print(f"Creating TimeSeriesPredictor at {output_dir}")
-        predictor = TimeSeriesPredictor(
+        predictor_kwargs = dict(
             prediction_length=config.forecast_length,
             # "target" is the column name after format_segments_for_autogluon
             # renames config.target_col (e.g. "bg_mM") -> "target"
@@ -178,6 +182,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             eval_metric=config.eval_metric,
             path=output_dir,
         )
+        if config.quantile_levels is not None:
+            predictor_kwargs["quantile_levels"] = config.quantile_levels
+        predictor = TimeSeriesPredictor(**predictor_kwargs)
 
         fit_kwargs = {
             "train_data": ts_train,
@@ -200,70 +207,58 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         }
 
     # ------------------------------------------------------------------
-    # Inference
+    # Inference helpers
     # ------------------------------------------------------------------
 
-    def _predict(
-        self,
-        data: pd.DataFrame,
-        **kwargs,
-    ) -> np.ndarray:
-        """Generate forecasts using Chronos-2.
-
-        Two inference paths:
-        - Zero-shot (self.predictor is None): Uses Chronos2Pipeline directly
-          from the chronos-forecasting library. No AutoGluon overhead.
-        - Fine-tuned (self.predictor exists): Uses the fitted AutoGluon
-          TimeSeriesPredictor with LoRA-adapted weights.
-
-        Args:
-            data: DataFrame with target_col (bg_mM) and optionally episode_id,
-                datetime, and covariate columns.
-            **kwargs: Unused (kept for interface compatibility).
-
-        Returns:
-            1D numpy array of predicted BG values for the forecast horizon.
-        """
-        config = self.config
-
-        if self.predictor is None:
-            # Zero-shot: use Chronos2Pipeline directly (no AutoGluon overhead)
+    def _ensure_zs_pipeline(self):
+        """Lazily initialise the zero-shot Chronos2Pipeline."""
+        if self._zs_pipeline is None:
             import torch
             from chronos import Chronos2Pipeline
 
-            if self._zs_pipeline is None:
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-                self._zs_pipeline = Chronos2Pipeline.from_pretrained(
-                    config.model_path,
-                    device_map=device,
-                    torch_dtype=torch.float32,
-                )
-
-            if config.target_col not in data.columns:
-                raise ValueError(
-                    f"Expected target column '{config.target_col}' not found in input "
-                    f"DataFrame. Available columns: {list(data.columns)}"
-                )
-            bg_values = data[config.target_col].values.astype(np.float32)
-            bg_values = bg_values[-config.context_length :]
-            # Chronos-2 expects (n_series, n_variates, history_length)
-            context = torch.tensor(bg_values).reshape(1, 1, -1)
-
-            quantiles, mean = self._zs_pipeline.predict_quantiles(
-                context, prediction_length=config.forecast_length
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            self._zs_pipeline = Chronos2Pipeline.from_pretrained(
+                self.config.model_path,
+                device_map=device,
+                torch_dtype=torch.float32,
             )
-            return mean[0].squeeze().detach().cpu().numpy()
 
-        # Fine-tuned path: use fitted AutoGluon predictor
+    def _prepare_zero_shot_context(self, data: pd.DataFrame):
+        """Validate target column and return a Chronos-2 context tensor.
+
+        Returns:
+            torch.Tensor of shape (1, 1, context_length).
+        """
+        import torch
+
+        config = self.config
+        if config.target_col not in data.columns:
+            raise ValueError(
+                f"Expected target column '{config.target_col}' not found in input "
+                f"DataFrame. Available columns: {list(data.columns)}"
+            )
+        bg_values = data[config.target_col].values.astype(np.float32)
+        bg_values = bg_values[-config.context_length :]
+        return torch.tensor(bg_values).reshape(1, 1, -1)
+
+    def _prepare_autogluon_data(self, data: pd.DataFrame):
+        """Format a raw inference DataFrame into a TimeSeriesDataFrame.
+
+        Handles episode_id assignment, timestamp conversion, target column
+        renaming, and covariate column selection — the shared boilerplate
+        required before calling ``self.predictor.predict()``.
+
+        Returns:
+            TimeSeriesDataFrame ready for AutoGluon prediction.
+        """
         from autogluon.timeseries import TimeSeriesDataFrame
 
+        config = self.config
         context = data.copy()
 
-        # If no episode_id, treat entire DataFrame as a single episode
         if "episode_id" not in context.columns:
             context["episode_id"] = "ep_0"
 
-        # Convert episode_id -> item_id for AutoGluon
         context["item_id"] = context["episode_id"]
         if config.time_col in context.columns:
             context["timestamp"] = pd.to_datetime(context[config.time_col])
@@ -271,29 +266,119 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             context["timestamp"] = context.index
         context = context.rename(columns={config.target_col: "target"})
 
-        # Select columns AutoGluon expects
         ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
         ag_cols = [c for c in ag_cols if c in context.columns]
         context = context[ag_cols].set_index(["item_id", "timestamp"])
-        ts_data = TimeSeriesDataFrame(context)
+        return TimeSeriesDataFrame(context)
 
-        ag_predictions = self.predictor.predict(ts_data)
+    @staticmethod
+    def _episode_ids_from(data: pd.DataFrame) -> np.ndarray:
+        """Return the array of episode IDs present in *data*."""
+        if "episode_id" in data.columns:
+            return data["episode_id"].unique()
+        return np.array(["ep_0"])
 
-        # AutoGluon returns MultiIndex (item_id, timestamp) with "mean" column.
-        episode_ids = (
-            data["episode_id"].unique() if "episode_id" in data.columns else ["ep_0"]
+    def _zero_shot_forecast(self, data: pd.DataFrame, quantile_levels=None):
+        """Run zero-shot inference via Chronos2Pipeline.
+
+        Returns:
+            Tuple of (quantiles_np, mean_np) where:
+              - quantiles_np: shape (n_quantile_levels, forecast_length)
+              - mean_np: shape (forecast_length,)
+        """
+        self._ensure_zs_pipeline()
+        context = self._prepare_zero_shot_context(data)
+        kwargs = dict(prediction_length=self.config.forecast_length)
+        if quantile_levels is not None:
+            kwargs["quantile_levels"] = quantile_levels
+        quantiles, mean = self._zs_pipeline.predict_quantiles(context, **kwargs)
+        return (
+            quantiles[0].detach().cpu().numpy(),
+            mean[0].squeeze().detach().cpu().numpy(),
         )
+
+    def _autogluon_extract(self, data: pd.DataFrame, columns: list) -> np.ndarray:
+        """Run fine-tuned AutoGluon inference and extract specified columns.
+
+        Args:
+            data: Input DataFrame (same format as _predict).
+            columns: Column names to extract from AutoGluon predictions,
+                e.g. ["mean"] for point forecast or ["0.1", "0.2", ...] for
+                quantiles. Multiple columns are stacked along axis 0.
+
+        Returns:
+            np.ndarray. For a single column: shape (n_episodes * forecast_length,).
+            For multiple columns: shape (len(columns), n_episodes * forecast_length).
+        """
+        ts_data = self._prepare_autogluon_data(data)
+        ag_predictions = self.predictor.predict(ts_data)
+        multi = len(columns) > 1
+
         result_arrays = []
-        for episode_id in episode_ids:
-            item_id = episode_id
-            if item_id in ag_predictions.index.get_level_values(0):
-                pred_values = ag_predictions.loc[item_id]["mean"].values
-                result_arrays.append(pred_values)
+        for episode_id in self._episode_ids_from(data):
+            if episode_id not in ag_predictions.index.get_level_values(0):
+                continue
+            ep_preds = ag_predictions.loc[episode_id]
+            if multi:
+                result_arrays.append(
+                    np.stack([ep_preds[c].values for c in columns])
+                )
+            else:
+                result_arrays.append(ep_preds[columns[0]].values)
 
         if not result_arrays:
-            return np.array([])
+            return np.empty((len(columns), 0)) if multi else np.array([])
+        return np.concatenate(result_arrays, axis=-1)
 
-        return np.concatenate(result_arrays)
+    # ------------------------------------------------------------------
+    # Inference
+    # ------------------------------------------------------------------
+
+    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
+        """Generate point forecasts using Chronos-2.
+
+        Two inference paths:
+        - Zero-shot (self.predictor is None): Uses Chronos2Pipeline directly.
+        - Fine-tuned (self.predictor exists): Uses AutoGluon predictor.
+
+        Returns:
+            1D numpy array of predicted BG values for the forecast horizon.
+        """
+        if self.predictor is None:
+            _, mean = self._zero_shot_forecast(data)
+            return mean
+        return self._autogluon_extract(data, columns=["mean"])
+
+    def _predict_quantiles(
+        self,
+        data: pd.DataFrame,
+        quantile_levels: list,
+        **kwargs,
+    ) -> np.ndarray:
+        """Generate quantile forecasts using Chronos-2.
+
+        Returns:
+            np.ndarray of shape (len(quantile_levels), forecast_length) for a
+            single episode. Multiple episodes are concatenated along the horizon
+            axis (matching _predict() behaviour).
+        """
+        if self.predictor is None:
+            quantiles, _ = self._zero_shot_forecast(data, quantile_levels)
+            return quantiles
+
+        # Validate requested levels against training-time registration.
+        available = set(
+            round(q, 8)
+            for q in (self.config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS)
+        )
+        missing = [q for q in quantile_levels if round(q, 8) not in available]
+        if missing:
+            raise ValueError(
+                f"Quantile levels {missing} were not registered at training time. "
+                f"Available: {sorted(available)}. Re-train with these levels set in "
+                f"config.quantile_levels, or request a subset of the available levels."
+            )
+        return self._autogluon_extract(data, columns=[str(q) for q in quantile_levels])
 
     # ------------------------------------------------------------------
     # Persistence
