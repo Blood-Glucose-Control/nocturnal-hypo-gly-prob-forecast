@@ -171,12 +171,15 @@ def create_model_and_config(
         from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
 
         if checkpoint:
-            # Handle checkpoint path: strip /model.pt suffix if present
+            # Handle checkpoint path: strip /model.pt suffix only when model.pt
+            # is a file (TTM/TiDE pattern).  For Chronos2, model.pt is itself
+            # the checkpoint *directory* containing config.json, so keep it.
             checkpoint_dir = checkpoint
             if checkpoint_dir.endswith("/model.pt") or checkpoint_dir.endswith(
                 "\\model.pt"
             ):
-                checkpoint_dir = os.path.dirname(checkpoint_dir)
+                if not os.path.isdir(checkpoint_dir):
+                    checkpoint_dir = os.path.dirname(checkpoint_dir)
 
             model = Chronos2Forecaster.load(checkpoint_dir)
             config = model.config
