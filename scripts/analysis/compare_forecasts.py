@@ -1,48 +1,35 @@
 #!/usr/bin/env python3
-"""Generic model forecast comparison on holdout episodes.
+"""Compare nocturnal forecast results from pre-computed JSON files.
 
-Compares any combination of models (zero-shot or fine-tuned) on midnight-
-anchored nocturnal episodes from the holdout set. Generates a grid plot
-with context + ground truth + all model forecasts overlaid.
-
-Model specs use the format: type:checkpoint:label
-  - type        required (toto, chronos2, ttm, sundial, ...)
-  - checkpoint  optional; empty = zero-shot
-  - label       optional; defaults to 'type' or 'type-ft'
+Reads N nocturnal_results.json files (produced by nocturnal_hypo_eval.py),
+matches episodes by (patient_id, anchor), and generates comparison plots +
+summary statistics. No model imports — runs in any Python env with
+numpy + matplotlib.
 
 Usage:
-    python scripts/analysis/compare_forecasts.py \\
-        --model toto::Zero-shot \\
-        --model toto:path/to/ft/checkpoint:Fine-tuned \\
-        --model chronos2:path/to/ckpt:Chronos2
+    python scripts/analysis/compare_forecasts.py \
+        --results experiments/.../chronos2/nocturnal_results.json "Chronos2-ft" \
+                  experiments/.../toto/nocturnal_results.json "Toto-zs" \
+        --output-dir experiments/comparisons/chronos2_vs_toto/
+
+    # Subset to specific patients
+    python scripts/analysis/compare_forecasts.py \
+        --results path/a.json "Model A" path/b.json "Model B" \
+        --patients bro_92 bro_57 \
+        --max-episodes 20
 """
 
 import argparse
+import csv
 import json
 import os
 import sys
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from src.data.versioning.dataset_registry import DatasetRegistry
-from src.evaluation.episode_builders import (
-    DEFAULT_HOLDOUT_CONFIG_DIR,
-    build_patient_episodes,
-    get_holdout_patients,
-    select_episodes_stratified,
-)
-from src.models.factory import create_model_and_config
-
-CONTEXT_LENGTH = 512
-FORECAST_LENGTH = 72
 INTERVAL_MIN = 5
-DEFAULT_DATASET = "brown_2019"
-DEFAULT_EPISODES_PER_PATIENT = 4
-DEFAULT_SEED = 42
+CONTEXT_TAIL_STEPS = 36  # 3h of context shown in plots
 
 COLOR_CYCLE = [
     "#1f77b4",
@@ -58,16 +45,21 @@ COLOR_CYCLE = [
 ]
 
 
-def parse_model_spec(spec):
-    """Parse 'type:checkpoint:label' into (model_type, checkpoint, label)."""
-    parts = spec.split(":")
-    model_type = parts[0]
-    checkpoint = parts[1] if len(parts) > 1 and parts[1] else None
-    if len(parts) > 2 and parts[2]:
-        label = parts[2]
-    else:
-        label = model_type if not checkpoint else f"{model_type}-ft"
-    return model_type, checkpoint, label
+def parse_results_args(results_args: list) -> list:
+    """Parse --results args as alternating path label pairs.
+
+    Accepts: path1 label1 path2 label2 ...
+    Labels are required — every path must be followed by a label string.
+    """
+    if len(results_args) % 2 != 0:
+        print(
+            "Error: --results requires pairs of <path> <label>",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return [
+        (results_args[i], results_args[i + 1]) for i in range(0, len(results_args), 2)
+    ]
 
 
 def main():
@@ -75,158 +67,135 @@ def main():
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument(
-        "--model",
-        action="append",
+        "--results",
+        nargs="+",
         required=True,
-        help="type:checkpoint:label  (repeatable; empty checkpoint = zero-shot)",
-    )
-    parser.add_argument("--dataset", default=DEFAULT_DATASET)
-    parser.add_argument("--config-dir", default=DEFAULT_HOLDOUT_CONFIG_DIR)
-    parser.add_argument(
-        "--episodes-per-patient", type=int, default=DEFAULT_EPISODES_PER_PATIENT
+        help="Alternating pairs of: path/to/nocturnal_results.json label",
     )
     parser.add_argument(
         "--patients",
         nargs="+",
         default=None,
-        help="Holdout patient IDs to include (default: all holdout patients)",
+        help="Filter to these patient IDs (default: all common patients)",
     )
     parser.add_argument(
-        "--covariate-cols",
-        nargs="+",
+        "--max-episodes",
+        type=int,
         default=None,
-        help="Covariate columns to include in episodes (e.g. iob); "
-        "fine-tuned checkpoints are also auto-detected",
+        help="Max episodes to plot (default: all matched episodes)",
     )
-    parser.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    parser.add_argument("--output-dir", default=None)
+    parser.add_argument(
+        "--sort-by",
+        choices=["rmse", "divergence", "patient"],
+        default="rmse",
+        help="Sort episodes by: rmse (first model), divergence (max pred diff), patient",
+    )
+    parser.add_argument("--output-dir", default="experiments/comparisons")
     parser.add_argument("--output-name", default=None)
     args = parser.parse_args()
 
-    model_specs = [parse_model_spec(s) for s in args.model]
+    entries = parse_results_args(args.results)
 
-    output_dir = args.output_dir or f"experiments/{args.dataset}_comparison"
-    os.makedirs(output_dir, exist_ok=True)
-
-    patients = (
-        args.patients
-        if args.patients is not None
-        else get_holdout_patients(args.dataset, args.config_dir)
-    )
-    print(f"Using {len(patients)} patients")
-
-    print("Loading holdout data...")
-    holdout_data = DatasetRegistry(
-        holdout_config_dir=args.config_dir
-    ).load_holdout_data_only(args.dataset)
-
-    # Collect covariate cols needed by any fine-tuned model (auto-detected from config.json)
-    covariate_cols = set(args.covariate_cols or [])
-    for _, checkpoint, _ in model_specs:
-        if checkpoint:
-            config_path = os.path.join(checkpoint, "config.json")
-            if os.path.exists(config_path):
-                with open(config_path) as f:
-                    for col in json.load(f).get("covariate_cols") or []:
-                        covariate_cols.add(col)
-    covariate_cols = list(covariate_cols) or None
-
-    print("Building episodes...")
-    episodes_by_patient = build_patient_episodes(
-        holdout_data,
-        patients,
-        CONTEXT_LENGTH,
-        FORECAST_LENGTH,
-        covariate_cols=covariate_cols,
-    )
-    selected = select_episodes_stratified(
-        episodes_by_patient, args.episodes_per_patient, args.seed
-    )
-    print(
-        f"Selected {len(selected)} episodes ({args.episodes_per_patient}/patient, {len(episodes_by_patient)} patients)"
-    )
-
-    # Load models
+    # Load and index all result files (keep only the index, not the full data)
     models = []
-    for model_type, checkpoint, label in model_specs:
-        print(
-            f"Loading {label} ({model_type}{', zero-shot' if not checkpoint else ''})..."
-        )
-        kwargs: dict = {"forecast_length": FORECAST_LENGTH}
-        if covariate_cols and model_type == "toto":
-            kwargs["covariate_cols"] = covariate_cols
-        model, _ = create_model_and_config(model_type, checkpoint, **kwargs)
-        models.append((model, label, model_type))
+    for path, label in entries:
+        with open(path) as f:
+            data = json.load(f)
+        n_episodes = len(data["per_episode"])
+        index = {(ep["patient_id"], ep["anchor"]): ep for ep in data["per_episode"]}
+        models.append({"label": label, "index": index})
+        print(f"Loaded {label}: {n_episodes} episodes from {path}")
 
+    # Find common episodes across all models
+    common_keys = set(models[0]["index"].keys())
+    for m in models[1:]:
+        common_keys &= set(m["index"].keys())
+
+    if args.patients:
+        patient_set = set(args.patients)
+        common_keys = {k for k in common_keys if k[0] in patient_set}
+
+    print(f"Common episodes: {len(common_keys)}")
+    if not common_keys:
+        print(
+            "No common episodes found. Check that result files cover the same patients/dataset."
+        )
+        sys.exit(1)
+
+    # Build matched results
+    labels = [m["label"] for m in models]
+    matched = []
+    for key in common_keys:
+        patient_id, anchor = key
+        ep0 = models[0]["index"][key]
+        forecast_len = len(ep0["pred"])
+
+        entry = {
+            "patient_id": patient_id,
+            "anchor": anchor,
+            "target_bg": np.array(ep0["target_bg"][:forecast_len]),
+            "context_bg": np.array(ep0["context_bg"][-CONTEXT_TAIL_STEPS:]),
+            "forecasts": {},
+            "rmses": {},
+        }
+        for m in models:
+            ep = m["index"][key]
+            entry["forecasts"][m["label"]] = np.array(ep["pred"][:forecast_len])
+            entry["rmses"][m["label"]] = float(ep["rmse"])
+        matched.append(entry)
+
+    # Free index memory now that matching is done
+    del models
+
+    # Sort
+    if args.sort_by == "rmse":
+        matched.sort(key=lambda r: r["rmses"].get(labels[0], float("inf")))
+    elif args.sort_by == "divergence" and len(labels) >= 2:
+        # Pre-compute divergence once per episode to avoid repeated work during sort
+        for r in matched:
+            preds = list(r["forecasts"].values())
+            r["_divergence"] = max(
+                np.sqrt(np.mean((preds[i] - preds[j]) ** 2))
+                for i in range(len(preds))
+                for j in range(i + 1, len(preds))
+            )
+        matched.sort(key=lambda r: r["_divergence"], reverse=True)
+    elif args.sort_by == "patient":
+        matched.sort(key=lambda r: (r["patient_id"], r["anchor"]))
+
+    if args.max_episodes:
+        matched = matched[: args.max_episodes]
+
+    n_plots = len(matched)
+    print(f"Plotting {n_plots} episodes")
+
+    # --- Output setup ---
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    # --- Plot grid ---
     label_colors = {
-        label: COLOR_CYCLE[i % len(COLOR_CYCLE)]
-        for i, (_, label, _) in enumerate(models)
+        label: COLOR_CYCLE[i % len(COLOR_CYCLE)] for i, label in enumerate(labels)
     }
 
-    # Generate forecasts
-    print("Generating forecasts...")
-    results = []
-    for i, ep in enumerate(selected):
-        ctx = ep["context_df"].copy().reset_index(names="datetime")
-        ctx["p_num"] = ep["patient_id"]
-        target = ep["target_bg"][:FORECAST_LENGTH]
-
-        try:
-            forecasts, rmses = {}, {}
-            for model, label, _ in models:
-                pred = model.predict(ctx)[:FORECAST_LENGTH]
-                forecasts[label] = pred
-                rmses[label] = np.sqrt(np.mean((pred[: len(target)] - target) ** 2))
-
-            results.append(
-                {
-                    "patient_id": ep["patient_id"],
-                    "anchor": str(ep["anchor"]),
-                    "context_bg": ep["context_df"]["bg_mM"].values[-36:],
-                    "target_bg": target,
-                    "forecasts": forecasts,
-                    "rmses": rmses,
-                }
-            )
-            rmse_str = "  ".join(
-                f"{label}={rmses[label]:.2f}" for _, label, _ in models
-            )
-            print(
-                f"  [{i+1}/{len(selected)}] {ep['patient_id']} {ep['anchor']}: {rmse_str}"
-            )
-
-        except Exception as e:
-            print(
-                f"  [{i+1}/{len(selected)}] {ep['patient_id']} {ep['anchor']}: FAILED - {e}"
-            )
-
-    print(f"\nSuccessful forecasts: {len(results)}/{len(selected)}")
-    if not results:
-        return
-
-    # Sort by first model RMSE (best to worst)
-    results.sort(key=lambda r: r["rmses"].get(model_specs[0][2], float("inf")))
-
-    # --- Plot ---
-    n_plots = len(results)
-    n_cols = 5
+    n_cols = min(5, n_plots)
     n_rows = max(1, (n_plots + n_cols - 1) // n_cols)
 
     fig, axes = plt.subplots(
         n_rows, n_cols, figsize=(5 * n_cols, 3.5 * n_rows), squeeze=False
     )
-    axes = axes.flatten()
+    axes_flat = axes.flatten()
 
-    time_ctx = np.arange(-36, 0) * INTERVAL_MIN / 60  # 3h context tail (hours)
-    time_fh = np.arange(FORECAST_LENGTH) * INTERVAL_MIN / 60  # forecast horizon (hours)
+    forecast_len = len(matched[0]["target_bg"])
+    time_ctx = np.arange(-CONTEXT_TAIL_STEPS, 0) * INTERVAL_MIN / 60
+    time_fh = np.arange(forecast_len) * INTERVAL_MIN / 60
 
-    for idx, r in enumerate(results):
-        ax = axes[idx]
+    for idx, r in enumerate(matched):
+        ax = axes_flat[idx]
         ax.plot(time_ctx, r["context_bg"], color="gray", linewidth=0.8, alpha=0.6)
         ax.plot(
             time_fh, r["target_bg"], color="black", linewidth=1.5, label="Ground truth"
         )
-        for _, label, _ in models:
+        for label in labels:
             ax.plot(
                 time_fh,
                 r["forecasts"][label],
@@ -236,19 +205,19 @@ def main():
             )
         ax.axhline(y=3.9, color="red", linewidth=0.5, linestyle="--", alpha=0.5)
         ax.axvline(x=0, color="gray", linewidth=0.5, linestyle=":", alpha=0.5)
-        rmse_parts = [f"{label}:{r['rmses'][label]:.1f}" for _, label, _ in models]
+        rmse_parts = [f"{label}:{r['rmses'][label]:.1f}" for label in labels]
         ax.set_title(f"{r['patient_id']} | {' '.join(rmse_parts)}", fontsize=7)
         ax.set_xlim(time_ctx[0], time_fh[-1])
         ax.tick_params(labelsize=6)
         if idx == 0:
             ax.legend(fontsize=5, loc="upper right")
 
-    for idx in range(n_plots, len(axes)):
-        axes[idx].set_visible(False)
+    for idx in range(n_plots, len(axes_flat)):
+        axes_flat[idx].set_visible(False)
 
     fig.suptitle(
-        f"Nocturnal Forecast Comparison — {', '.join(label for _, label, _ in models)}\n"
-        f"Black: ground truth | Red dashed: 3.9 mmol/L",
+        f"Nocturnal Forecast Comparison — {', '.join(labels)}\n"
+        f"Black: ground truth | Red dashed: 3.9 mmol/L | {n_plots} episodes",
         fontsize=10,
         y=1.01,
     )
@@ -256,26 +225,44 @@ def main():
 
     out_name = args.output_name or (
         "comparison_"
-        + "_vs_".join(label.replace(" ", "-") for _, label, _ in models)
+        + "_vs_".join(lbl.replace(" ", "-") for lbl in labels)
         + f"_{n_plots}ep.png"
     )
-    out_path = os.path.join(output_dir, out_name)
+    out_path = os.path.join(args.output_dir, out_name)
     fig.savefig(out_path, dpi=200, bbox_inches="tight")
-    print(f"\nPlot saved to: {out_path}")
+    print(f"Plot saved to: {out_path}")
     plt.close()
 
-    # Summary
-    labels = [label for _, label, _ in models]
+    # --- RMSE summary CSV ---
+    csv_path = os.path.join(args.output_dir, out_name.replace(".png", "_rmse.csv"))
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["patient_id", "anchor"] + [f"rmse_{lbl}" for lbl in labels])
+        for r in matched:
+            writer.writerow(
+                [r["patient_id"], r["anchor"]]
+                + [f"{r['rmses'][lbl]:.4f}" for lbl in labels]
+            )
+    print(f"RMSE CSV saved to: {csv_path}")
+
+    # --- Summary stats ---
     print(f"\nSummary ({n_plots} episodes):")
     for label in labels:
+        rmses = [r["rmses"][label] for r in matched]
         print(
-            f"  {label}: mean RMSE = {np.mean([r['rmses'][label] for r in results]):.3f}"
+            f"  {label}: mean RMSE = {np.mean(rmses):.3f}, median = {np.median(rmses):.3f}"
         )
-    for i in range(len(labels)):
-        for j in range(i + 1, len(labels)):
-            li, lj = labels[i], labels[j]
-            wins = sum(r["rmses"][lj] < r["rmses"][li] for r in results)
-            print(f"  {lj} wins over {li}: {wins}/{n_plots}")
+
+    if len(labels) >= 2:
+        for i in range(len(labels)):
+            for j in range(i + 1, len(labels)):
+                li, lj = labels[i], labels[j]
+                wins_j = sum(r["rmses"][lj] < r["rmses"][li] for r in matched)
+                wins_i = sum(r["rmses"][li] < r["rmses"][lj] for r in matched)
+                ties = n_plots - wins_i - wins_j
+                print(
+                    f"  {lj} wins {wins_j}/{n_plots}, {li} wins {wins_i}/{n_plots}, ties {ties}"
+                )
 
 
 if __name__ == "__main__":
