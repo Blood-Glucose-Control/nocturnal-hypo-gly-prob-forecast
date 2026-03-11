@@ -174,7 +174,9 @@ FROM (
         NULL as cr,
         NULL as isf,
         NULL as bgMgdl,
-        HDeviceBasal.Rate as rate,
+        -- Bug B fix: suspend events have Rate=NULL in Tidepool format (rate is always zero,
+        -- so not specified). Set explicitly to 0 to prevent phantom insulin in rollover.
+        CASE WHEN HDeviceBasal.BasalType = 'suspend' THEN 0 ELSE HDeviceBasal.Rate END as rate,
         HDeviceBasal.Duration / 60000 as basalDurationMins,
         HDeviceBasal.SuprBasalType as suprBasalType,
         HDeviceBasal.SuprRate as suprRate
