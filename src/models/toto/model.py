@@ -5,7 +5,7 @@ Toto model implementation using the base TSFM framework.
 import json
 import logging
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -60,85 +60,164 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
     def supports_zero_shot(self) -> bool:
         return True
 
-    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
-        """Make predictions given context data.
+    # ------------------------------------------------------------------
+    # Shared inference helpers
+    # ------------------------------------------------------------------
 
-        Args:
-            data: DataFrame with 'bg_mM' column and a DatetimeIndex
-            **kwargs: Additional options (unused for zero-shot)
+    @staticmethod
+    def _extract_timestamps(data: pd.DataFrame) -> pd.DatetimeIndex:
+        """Get timestamps from DatetimeIndex or 'datetime' column."""
+        if isinstance(data.index, pd.DatetimeIndex):
+            return data.index
+        if "datetime" in data.columns:
+            return pd.DatetimeIndex(pd.to_datetime(data["datetime"]))
+        raise ValueError("Data must have a DatetimeIndex or 'datetime' column")
 
-        Returns:
-            Forecast as 1D numpy array of shape (forecast_length,)
-        """
-        forecast_length = self.config.forecast_length
+    @staticmethod
+    def _timestamps_to_seconds(timestamps: pd.DatetimeIndex) -> torch.Tensor:
+        """Convert pandas timestamps to seconds-since-epoch float tensor."""
+        return torch.tensor(
+            np.asarray(timestamps.astype(np.int64)) // 1_000_000_000,
+            dtype=torch.float32,
+        )
 
+    def _build_variates(self, data: pd.DataFrame) -> List[torch.Tensor]:
+        """Extract BG target + covariate tensors from a single episode."""
         bg_col = "bg_mM"
         if bg_col not in data.columns:
             raise ValueError(f"DataFrame must contain '{bg_col}' column")
-
-        context = data[bg_col].values
-        # Timestamps may be in the index (DatetimeIndex) or a 'datetime' column
-        if isinstance(data.index, pd.DatetimeIndex):
-            timestamps = data.index
-        elif "datetime" in data.columns:
-            timestamps = pd.to_datetime(data["datetime"])
-        else:
-            raise ValueError("Data must have a DatetimeIndex or 'datetime' column")
-
-        # Build variate list: target (BG) first, then covariates at the end
-        variates = [torch.tensor(context, dtype=torch.float32)]
-        covariate_cols = self.config.covariate_cols or []
-        for col in covariate_cols:
+        variates = [torch.tensor(data[bg_col].values, dtype=torch.float32)]
+        for col in self.config.covariate_cols or []:
             if col not in data.columns:
                 raise ValueError(f"Covariate column '{col}' not found in data")
             variates.append(torch.tensor(data[col].values, dtype=torch.float32))
+        return variates
 
-        num_exogenous = len(covariate_cols)
+    def _extract_bg_forecast(self, forecast) -> np.ndarray:
+        """Extract BG (variate 0) from a Toto Forecast object.
 
-        # Stack variates: shape (1, num_variates, series_len)
+        Returns shape (batch, forecast_length). Uses median when sampling,
+        mean otherwise.
+        """
+        if self.config.num_samples is None:
+            return forecast.mean[:, 0, :].cpu().numpy()
+        return forecast.median[:, 0, :].cpu().numpy()
+
+    def _run_forecast(self, inputs: MaskedTimeseries) -> np.ndarray:
+        """Run forecaster and return BG predictions as numpy array."""
+        with torch.no_grad():
+            forecast = self.forecaster.forecast(
+                inputs,
+                prediction_length=self.config.forecast_length,
+                num_samples=self.config.num_samples,
+                samples_per_batch=self.config.samples_per_batch,
+            )
+        return self._extract_bg_forecast(forecast)
+
+    # ------------------------------------------------------------------
+    # Prediction
+    # ------------------------------------------------------------------
+
+    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
+        """Predict a single episode. Returns 1D array of shape (forecast_length,)."""
+        timestamps = self._extract_timestamps(data)
+        variates = self._build_variates(data)
+        num_covariates = len(self.config.covariate_cols or [])
+
+        # (1, num_variates, series_len)
         series = torch.stack(variates, dim=0).unsqueeze(0).to(self.device)
+        num_variates = series.shape[1]
 
-        ts_seconds_1d = torch.tensor(
-            timestamps.astype(np.int64) // 1_000_000_000, dtype=torch.float32
-        )
-        # Broadcast timestamps across all variates
+        # Broadcast timestamps to (1, num_variates, series_len)
         ts_seconds = (
-            ts_seconds_1d.unsqueeze(0)
-            .expand(series.shape[1], -1)
+            self._timestamps_to_seconds(timestamps)
+            .unsqueeze(0)
+            .expand(num_variates, -1)
             .unsqueeze(0)
             .to(self.device)
         )
 
-        # All variates share the same id_mask (same multivariate group)
-        id_mask = torch.zeros_like(series)
-        interval = torch.tensor(
-            [INTERVAL_MINS * 60] * series.shape[1], dtype=torch.float32
-        ).to(self.device)
-
         inputs = MaskedTimeseries(
             series=series,
             padding_mask=torch.ones_like(series, dtype=torch.bool),
-            id_mask=id_mask,
+            id_mask=torch.zeros_like(series),
             timestamp_seconds=ts_seconds,
-            time_interval_seconds=interval,
-            num_exogenous_variables=num_exogenous,
+            time_interval_seconds=torch.full(
+                (num_variates,),
+                INTERVAL_MINS * 60,
+                dtype=torch.float32,
+                device=self.device,
+            ),
+            num_exogenous_variables=num_covariates,
         )
 
-        with torch.no_grad():
-            forecast = self.forecaster.forecast(
-                inputs,
-                prediction_length=forecast_length,
-                num_samples=self.config.num_samples,
-                samples_per_batch=self.config.samples_per_batch,
-            )
+        return self._run_forecast(inputs).flatten()
 
-        # forecast shape: (batch, variates, future_time_steps)
-        # Extract only the first variate (target BG), ignore exogenous forecasts
-        if self.config.num_samples is None:
-            result = forecast.mean[:, 0, :].cpu().numpy()
-        else:
-            result = forecast.median[:, 0, :].cpu().numpy()
-        return result.flatten()
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+    ) -> Dict[str, np.ndarray]:
+        """Batched prediction: stack episodes into one forward pass.
+
+        Episodes are left-padded to the longest context length so the most
+        recent timesteps are right-aligned. The padding_mask tells the model
+        which timesteps are real data.
+        """
+        covariate_cols = self.config.covariate_cols or []
+        num_covariates = len(covariate_cols)
+        num_variates = 1 + num_covariates
+
+        # Group episodes and build per-episode tensors
+        episode_ids: List[str] = []
+        all_series: List[torch.Tensor] = []  # each (num_variates, T)
+        all_ts: List[torch.Tensor] = []  # each (T,)
+
+        for ep_id, ep_data in data.groupby(episode_col):
+            episode_ids.append(str(ep_id))
+            all_ts.append(
+                self._timestamps_to_seconds(self._extract_timestamps(ep_data))
+            )
+            all_series.append(torch.stack(self._build_variates(ep_data), dim=0))
+
+        if not episode_ids:
+            return {}
+
+        # Left-pad to max length so recent context is right-aligned
+        max_len = max(s.shape[1] for s in all_series)
+        batch_size = len(all_series)
+
+        series = torch.zeros(batch_size, num_variates, max_len)
+        padding_mask = torch.zeros(batch_size, num_variates, max_len, dtype=torch.bool)
+        ts_batch = torch.zeros(batch_size, num_variates, max_len)
+
+        for i, (s, ts) in enumerate(zip(all_series, all_ts)):
+            series_len = s.shape[1]
+            pad_start = max_len - series_len
+            series[i, :, pad_start:] = s
+            padding_mask[i, :, pad_start:] = True
+            ts_batch[i, :, pad_start:] = ts.unsqueeze(0).expand(num_variates, -1)
+
+        series = series.to(self.device)
+        padding_mask = padding_mask.to(self.device)
+        ts_batch = ts_batch.to(self.device)
+
+        inputs = MaskedTimeseries(
+            series=series,
+            padding_mask=padding_mask,
+            id_mask=torch.zeros_like(series),
+            timestamp_seconds=ts_batch,
+            time_interval_seconds=torch.full(
+                (batch_size, num_variates),
+                INTERVAL_MINS * 60,
+                dtype=torch.float32,
+                device=self.device,
+            ),
+            num_exogenous_variables=num_covariates,
+        )
+
+        preds = self._run_forecast(inputs)
+        return {eid: preds[i] for i, eid in enumerate(episode_ids)}
 
     def _dataframe_to_hf_dataset(self, train_data: pd.DataFrame):
         """Convert a flat DataFrame to HuggingFace Dataset format for Toto.
