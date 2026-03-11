@@ -328,11 +328,18 @@ class BaseTimeSeriesFoundationModel(ABC):
         Raises:
             RuntimeError: If the model has not been fitted and does not
                 support zero-shot prediction.
+            ValueError: If data contains multiple episode IDs. Use
+                predict_batch() for multi-episode panels.
         """
         if not self.is_fitted and not self.supports_zero_shot:
             raise RuntimeError(
                 f"{self.__class__.__name__} requires training before prediction. "
                 f"Call fit() or load() first."
+            )
+        if "episode_id" in data.columns and data["episode_id"].nunique() > 1:
+            raise ValueError(
+                "predict() handles a single episode. "
+                "Use predict_batch() for multi-episode panels."
             )
         return self._predict(data, **kwargs)
 
@@ -357,6 +364,80 @@ class BaseTimeSeriesFoundationModel(ABC):
             sample or (n_samples, forecast_length) for batch predictions.
         """
         pass
+
+    def predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str = "episode_id",
+    ) -> Dict[str, np.ndarray]:
+        """Make predictions for multiple episodes in a panel DataFrame.
+
+        Dispatches to _predict_batch(), which models can override for
+        GPU-efficient native batching. The default implementation loops
+        sequentially over episodes using predict().
+
+        Args:
+            data: Flat DataFrame with an ``episode_col`` column identifying
+                episodes. Each episode's rows should match what predict()
+                accepts (same columns, same format).
+            episode_col: Column name identifying episodes. Defaults to
+                "episode_id" (the project's standard episode identifier).
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+            Currently returns univariate point forecasts only; multivariate
+            outputs may be supported in a future revision.
+        """
+        if not self.is_fitted and not self.supports_zero_shot:
+            raise RuntimeError(
+                f"{self.__class__.__name__} requires training before prediction. "
+                f"Call fit() or load() first."
+            )
+
+        if episode_col not in data.columns:
+            raise ValueError(
+                f"Column '{episode_col}' not found in data. "
+                f"Available columns: {list(data.columns)}"
+            )
+
+        input_ids = {str(eid) for eid in data[episode_col].unique()}
+        if not input_ids:
+            return {}
+
+        results = self._predict_batch(data, episode_col)
+
+        missing = input_ids - set(results.keys())
+        if missing:
+            self.logger.warning(
+                "%d episode(s) produced no predictions: %s",
+                len(missing),
+                sorted(missing)[:10],
+            )
+
+        return results
+
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+    ) -> Dict[str, np.ndarray]:
+        """Default sequential loop for multi-episode prediction.
+
+        Iterates over grouped episodes and calls predict() for each one.
+        Models that support native GPU batching (e.g. Chronos2, TTM) should
+        override this method for more efficient inference.
+
+        Args:
+            data: Panel DataFrame with an episode_col column.
+            episode_col: Column name identifying episodes.
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+        """
+        results: Dict[str, np.ndarray] = {}
+        for ep_id, ep_data in data.groupby(episode_col):
+            results[str(ep_id)] = self.predict(ep_data)
+        return results
 
     ## Abstract Protected Methods
     @abstractmethod

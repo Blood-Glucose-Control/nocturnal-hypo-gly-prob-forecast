@@ -746,6 +746,73 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
     # NOTE: evaluate() is inherited from BaseTimeSeriesFoundationModel
     # It calls predict() and computes metrics using _compute_metrics()
 
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+    ) -> Dict[str, np.ndarray]:
+        """Batch prediction using TimeSeriesForecastingPipeline.
+
+        For zero-shot mode, passes all episodes to the pipeline in a single
+        call with ``episode_col`` included as an id column so that TTM's
+        internal DataLoader can process them together.
+
+        For fitted mode the preprocessor was fitted without ``episode_col``
+        as an id column, so falls back to the default sequential loop.
+
+        Args:
+            data: Panel DataFrame containing episode_col and the columns
+                required by the model (timestamp, target, covariates).
+            episode_col: Column name that identifies individual episodes.
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+        """
+        episode_ids = data[episode_col].unique()
+
+        # Zero-shot path: include episode_col in id_columns so the pipeline
+        # groups episodes correctly in a single batched forward pass.
+        if self.preprocessor is None and self.config.training_mode == "zero_shot":
+            if self.column_specifiers is None:
+                self.column_specifiers = self._create_column_specifiers(data)
+
+            id_cols: List[str] = list(self.column_specifiers.get("id_columns", []))
+            if episode_col not in id_cols:
+                id_cols = [episode_col] + id_cols
+
+            target_columns = self.column_specifiers.get("target_columns", [])
+            if not target_columns:
+                expected = self.config.target_features
+                raise ValueError(
+                    f"target_columns is empty after filtering: none of the configured "
+                    f"target features {expected} were found (or had non-NaN values) in "
+                    f"the input data. Available columns: {list(data.columns)}"
+                )
+
+            pipeline = TimeSeriesForecastingPipeline(
+                model=self.model,
+                timestamp_column=self.column_specifiers.get(
+                    "timestamp_column", ColumnNames.DATETIME.value
+                ),
+                id_columns=id_cols,
+                target_columns=target_columns,
+                observable_columns=self.column_specifiers.get("observable_columns", []),
+                explode_forecasts=True,
+                freq=f"{self.config.resolution_min}min",
+            )
+            forecast_df = pipeline(data)
+            target_col = target_columns[0]
+
+            results: Dict[str, np.ndarray] = {}
+            for ep_id in episode_ids:
+                mask = forecast_df[episode_col] == ep_id
+                if mask.any():
+                    results[str(ep_id)] = forecast_df.loc[mask, target_col].values
+            return results
+
+        # Fitted path: delegate to base class sequential loop.
+        return super()._predict_batch(data, episode_col)
+
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.
 
