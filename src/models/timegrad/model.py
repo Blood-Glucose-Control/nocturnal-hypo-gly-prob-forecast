@@ -110,6 +110,10 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
     def supports_lora(self) -> bool:
         return False
 
+    @property
+    def supports_zero_shot(self) -> bool:
+        return False
+
     def _initialize_model(self) -> None:
         """Build the TimeGradEstimator (predictor is set after training or loading)."""
         info_print("Initializing TimeGrad estimator...")
@@ -152,7 +156,7 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
             f"device={self.device})"
         )
 
-    def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
+    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
         """Make predictions given context data.
 
         Args:

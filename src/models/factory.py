@@ -20,7 +20,7 @@ def create_model_and_config(
     """Factory function to create model and config based on type.
 
     Args:
-        model_type: One of 'sundial', 'ttm', 'chronos', 'moirai'
+        model_type: One of 'sundial', 'ttm', 'chronos', 'tide', 'moirai'
         checkpoint: Optional path to fine-tuned checkpoint
         **kwargs: Additional config parameters (e.g., num_samples, forecast_length)
 
@@ -167,6 +167,75 @@ def create_model_and_config(
     elif model_type == "chronos":
         raise NotImplementedError("Chronos model not yet implemented")
 
+    elif model_type == "chronos2":
+        from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
+
+        if checkpoint:
+            # Handle checkpoint path: strip /model.pt suffix only when model.pt
+            # is a file (TTM/TiDE pattern).  For Chronos2, model.pt is itself
+            # the checkpoint *directory* containing config.json, so keep it.
+            checkpoint_dir = checkpoint
+            if checkpoint_dir.endswith("/model.pt") or checkpoint_dir.endswith(
+                "\\model.pt"
+            ):
+                if not os.path.isdir(checkpoint_dir):
+                    checkpoint_dir = os.path.dirname(checkpoint_dir)
+
+            model = Chronos2Forecaster.load(checkpoint_dir)
+            config = model.config
+
+            # Apply valid overrides
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = Chronos2Config(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 72),
+            )
+            model = Chronos2Forecaster(config)
+        return model, config
+
+    elif model_type == "tide":
+        from src.models.tide import TiDEForecaster, TiDEConfig
+
+        if checkpoint:
+            model = TiDEForecaster.load(checkpoint)
+            config = model.config
+
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = TiDEConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 72),
+            )
+            model = TiDEForecaster(config)
+        return model, config
+
     elif model_type == "moirai":
         raise NotImplementedError("Moirai model not yet implemented")
 
@@ -305,5 +374,5 @@ def create_model_and_config(
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, moirai, timegrad, timesfm, tide"
+            f"Available: sundial, ttm, chronos, chronos2, moirai, timegrad, timesfm, tide"
         )

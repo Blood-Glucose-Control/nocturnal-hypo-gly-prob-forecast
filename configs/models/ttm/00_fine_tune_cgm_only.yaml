@@ -20,7 +20,7 @@ num_epochs: 5
 warmup_steps: 1000
 weight_decay: 0.01
 
-input_features:
+input_features: []
 
 target_features:
   - bg_mM

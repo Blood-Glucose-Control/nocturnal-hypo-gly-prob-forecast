@@ -296,29 +296,148 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
-    # Abstract methods that child classes must implement
-    ## Abstract public API methods
+    @property
     @abstractmethod
+    def supports_zero_shot(self) -> bool:
+        """
+        Check if this model can predict without training (pretrained weights).
+
+        Returns:
+            bool: True if the model supports zero-shot prediction, False otherwise
+        """
+        pass
+
+    # Public API methods
     def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
         """
         Make predictions on new data using configured forecast_length.
 
-        Each model must implement this method to handle its specific
-        prediction logic and output format. The forecast horizon is
-        determined by self.config.forecast_length (set at model creation),
-        following sklearn/PyTorch conventions.
+        Validates that the model is ready for inference, then delegates
+        to the model-specific _predict() implementation. Following the
+        sktime BaseForecaster pattern (predict -> _predict).
 
         Args:
             data: DataFrame with 'bg_mM' column containing the context window.
                   May include additional columns for multivariate models.
-            **kwargs: Model-specific options (e.g., batch_size, num_samples,
-                     inverse_scale, return_dict).
+            **kwargs: Model-specific options (e.g., batch_size, inverse_scale).
+
+        Returns:
+            Predictions as numpy array of shape (forecast_length,) for single
+            sample or (n_samples, forecast_length) for batch predictions.
+
+        Raises:
+            RuntimeError: If the model has not been fitted and does not
+                support zero-shot prediction.
+            ValueError: If data contains multiple episode IDs. Use
+                predict_batch() for multi-episode panels.
+        """
+        if not self.is_fitted and not self.supports_zero_shot:
+            raise RuntimeError(
+                f"{self.__class__.__name__} requires training before prediction. "
+                f"Call fit() or load() first."
+            )
+        if "episode_id" in data.columns and data["episode_id"].nunique() > 1:
+            raise ValueError(
+                "predict() handles a single episode. "
+                "Use predict_batch() for multi-episode panels."
+            )
+        return self._predict(data, **kwargs)
+
+    # Abstract methods that child classes must implement
+    ## Abstract public API methods
+    @abstractmethod
+    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
+        """
+        Model-specific prediction logic.
+
+        Subclasses implement this instead of predict(). Inputs are
+        guaranteed to be valid (model is either fitted or supports
+        zero-shot inference).
+
+        Args:
+            data: DataFrame with 'bg_mM' column containing the context window.
+                  May include additional columns for multivariate models.
+            **kwargs: Model-specific options (e.g., batch_size, inverse_scale).
 
         Returns:
             Predictions as numpy array of shape (forecast_length,) for single
             sample or (n_samples, forecast_length) for batch predictions.
         """
         pass
+
+    def predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str = "episode_id",
+    ) -> Dict[str, np.ndarray]:
+        """Make predictions for multiple episodes in a panel DataFrame.
+
+        Dispatches to _predict_batch(), which models can override for
+        GPU-efficient native batching. The default implementation loops
+        sequentially over episodes using predict().
+
+        Args:
+            data: Flat DataFrame with an ``episode_col`` column identifying
+                episodes. Each episode's rows should match what predict()
+                accepts (same columns, same format).
+            episode_col: Column name identifying episodes. Defaults to
+                "episode_id" (the project's standard episode identifier).
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+            Currently returns univariate point forecasts only; multivariate
+            outputs may be supported in a future revision.
+        """
+        if not self.is_fitted and not self.supports_zero_shot:
+            raise RuntimeError(
+                f"{self.__class__.__name__} requires training before prediction. "
+                f"Call fit() or load() first."
+            )
+
+        if episode_col not in data.columns:
+            raise ValueError(
+                f"Column '{episode_col}' not found in data. "
+                f"Available columns: {list(data.columns)}"
+            )
+
+        input_ids = {str(eid) for eid in data[episode_col].unique()}
+        if not input_ids:
+            return {}
+
+        results = self._predict_batch(data, episode_col)
+
+        missing = input_ids - set(results.keys())
+        if missing:
+            self.logger.warning(
+                "%d episode(s) produced no predictions: %s",
+                len(missing),
+                sorted(missing)[:10],
+            )
+
+        return results
+
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+    ) -> Dict[str, np.ndarray]:
+        """Default sequential loop for multi-episode prediction.
+
+        Iterates over grouped episodes and calls predict() for each one.
+        Models that support native GPU batching (e.g. Chronos2, TTM) should
+        override this method for more efficient inference.
+
+        Args:
+            data: Panel DataFrame with an episode_col column.
+            episode_col: Column name identifying episodes.
+
+        Returns:
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+        """
+        results: Dict[str, np.ndarray] = {}
+        for ep_id, ep_data in data.groupby(episode_col):
+            results[str(ep_id)] = self.predict(ep_data)
+        return results
 
     ## Abstract Protected Methods
     @abstractmethod
@@ -458,13 +577,10 @@ class BaseTimeSeriesFoundationModel(ABC):
             save_config: Whether to save the model configuration to config.json.
             save_metadata: Whether to save training metadata to metadata.json.
 
-        Raises:
-            NotImplementedError: Always raised by base class. Child classes
-                must override to save model weights.
-
         Note:
             Child classes should call super().save() first to save
-            configuration and metadata, then save model-specific weights.
+            configuration and metadata, then save model-specific weights
+            via _save_checkpoint().
         """
         os.makedirs(model_path, exist_ok=True)
 
@@ -729,7 +845,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             return
 
         # Check if this model supports LoRA
-        if not self.supports_lora():
+        if not self.supports_lora:
             info_print(
                 f"LoRA is not supported for {self.__class__.__name__} architecture"
             )
@@ -924,11 +1040,16 @@ def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
 
         config = TTMConfig(**config_dict)
         return TTMForecaster(config)
-    elif model_type == "chronos":
-        from src.models.chronos.model import ChronosForecaster
+    elif model_type in ("chronos", "chronos2"):
+        from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
 
-        config = ModelConfig.from_dict(config_dict)
-        return ChronosForecaster(config)
+        config = Chronos2Config(**config_dict)
+        return Chronos2Forecaster(config)
+    elif model_type == "tide":
+        from src.models.tide import TiDEForecaster, TiDEConfig
+
+        config = TiDEConfig(**config_dict)
+        return TiDEForecaster(config)
     elif model_type == "tsmixer":
         from src.models.tsmixer import TSMixerForecaster, TSMixerConfig
 
