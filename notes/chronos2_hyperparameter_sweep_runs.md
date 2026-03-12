@@ -1,7 +1,23 @@
 # Chronos-2 Hyperparameter Sweep — Training Commands
 
-All commands assume you are in the repo root and the virtualenv is active.
+All commands assume you are in the repo root.
 `CONFIG_DIR` is set to `holdout_10pct` throughout; change if needed.
+
+---
+
+## Environment Setup (run once per session)
+
+**1. Activate conda base environment:**
+```bash
+conda activate env-in-conda
+```
+
+**2. Create or activate the Chronos-2 model venv** (first run creates `.venvs/chronos2` and installs deps; subsequent runs just activate it):
+```bash
+source scripts/setup_model_env.sh chronos2
+```
+
+> The training workflow script (`run_holdout_generic_workflow.sh`) will auto-activate `.venvs/chronos2` once it exists. The `source scripts/setup_model_env.sh chronos2` step above is only needed to create it the first time, or if you want to run Python directly outside the workflow script.
 
 ---
 
@@ -78,6 +94,56 @@ CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="chronos2" MODEL_CONFIG="configs/models/chrono
 ```bash
 CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="chronos2" MODEL_CONFIG="configs/models/chronos2/01_bg_iob_insulin_availability.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="aleppo_2017 brown_2019 lynch_2022" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 ```
+
+---
+
+## Nocturnal Evaluation — Latest Trained Model
+
+The latest run (`2026-03-12`) trained `02_bg_iob.yaml` (`[iob]`, lr=1e-5, ctx=512) on `aleppo_2017`.
+Checkpoint: `trained_models/artifacts/chronos2/2026-03-12_04:26_RID20260312_042610_1124210_holdout_workflow/resumed_training/model.pt`
+
+Run nocturnal evaluation against the `aleppo_2017` holdout:
+```bash
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset aleppo_2017 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/02_bg_iob.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/2026-03-12_04:26_RID20260312_042610_1124210_holdout_workflow/resumed_training/model.pt
+```
+
+To evaluate on the other two insulin-capable datasets against the same checkpoint:
+```bash
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset brown_2019 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/02_bg_iob.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/2026-03-12_04:26_RID20260312_042610_1124210_holdout_workflow/resumed_training/model.pt
+```
+
+```bash
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/02_bg_iob.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/2026-03-12_04:26_RID20260312_042610_1124210_holdout_workflow/resumed_training/model.pt
+```
+
+> Results are written to `experiments/nocturnal_forecasting/512ctx_96fh/chronos2/`.
 
 ---
 
