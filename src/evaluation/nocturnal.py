@@ -50,17 +50,18 @@ def evaluate_nocturnal_forecasting(
 ) -> Dict[str, Any]:
     """Evaluate model on midnight-anchored nocturnal forecasting task.
 
-    Builds midnight episodes per patient and calls model.predict() (or
-    model.predict_quantiles() when probabilistic=True) per episode.
+    Builds midnight episodes per patient and calls model.predict_batch() to
+    forecast all episodes in a single call. When probabilistic=True, calls
+    model.predict_quantiles() per episode instead, extracts the median (0.5
+    quantile) as the point forecast for RMSE, and computes WQL and Brier@3.9
+    from the full quantile distribution.
 
-    When probabilistic=True:
-      - Calls predict_quantiles() only (no separate predict() call).
-      - Extracts the median (0.5 quantile) as the point forecast for RMSE.
-      - Computes WQL and Brier@3.9 from the full quantile distribution.
+    Also computes per-episode discontinuity (absolute jump between last context
+    BG and first predicted BG).
 
     Args:
-        model: Model implementing predict(data) -> np.ndarray. Must also
-            implement predict_quantiles() when probabilistic=True.
+        model: Model implementing predict_batch(panel_df, episode_col) -> Dict[str, np.ndarray].
+            Must also implement predict_quantiles() when probabilistic=True.
         holdout_data: Flat DataFrame with all holdout patients.
         context_length: Context window size in steps.
         forecast_length: Forecast horizon in steps.
@@ -70,15 +71,16 @@ def evaluate_nocturnal_forecasting(
         probabilistic: If True, use predict_quantiles() and compute WQL/Brier.
 
     Returns:
-        Dict with overall_rmse, total_episodes, per_patient, per_episode.
-        When probabilistic=True, also includes overall_wql, overall_brier,
-        and quantile_levels.
+        Dict with overall_rmse, mean_discontinuity, total_episodes, per_patient,
+        per_episode. When probabilistic=True, also includes overall_wql,
+        overall_brier, and quantile_levels.
     """
     patient_col = get_patient_column(holdout_data)
     patients = holdout_data[patient_col].unique()
 
     # --- Phase 1: Build episodes for all patients ---
     # Collect episodes and track which patient each belongs to.
+    episode_col = "episode_id"
     episode_metadata = []
     context_dfs = []
 
@@ -117,8 +119,7 @@ def evaluate_nocturnal_forecasting(
             ep_id = f"{patient_id}::ep{i:03d}"
             ctx = ep["context_df"].copy().reset_index(names="datetime")
             ctx["p_num"] = patient_id
-            ctx["episode_id"] = ep_id
-            ctx["group"] = ep_id
+            ctx[episode_col] = ep_id
             context_dfs.append(ctx)
             episode_metadata.append(
                 {
@@ -133,19 +134,18 @@ def evaluate_nocturnal_forecasting(
         logger.warning("No valid midnight episodes found across all patients")
         return {
             "overall_rmse": float("nan"),
+            "mean_discontinuity": float("nan"),
             "total_episodes": 0,
             "per_patient": [],
             "per_episode": [],
         }
 
-    # --- Phase 2: Predict per episode ---
-    # Per-episode calls keep each model's predict() interface simple: one time
-    # series in, one forecast out. Models that support panel predict internally
-    # (e.g. Chronos2) handle batching themselves.
+    # --- Phase 2: Predict ---
+    n_unique_patients = len(set(m["patient_id"] for m in episode_metadata))
     logger.info(
         "Evaluating %d midnight episodes across %d patients",
         len(episode_metadata),
-        len(set(m["patient_id"] for m in episode_metadata)),
+        n_unique_patients,
     )
 
     if probabilistic:
@@ -162,13 +162,29 @@ def evaluate_nocturnal_forecasting(
             HYPO_THRESHOLD_MMOL,
             quantile_levels,
         )
+        # Probabilistic path: per-episode predict_quantiles() calls
+        # (no predict_quantiles_batch() yet)
+        batch_results = None
+    else:
+        # Batch prediction path: single predict_batch() call
+        panel_df = pd.concat(context_dfs, ignore_index=True)
+        batch_results = model.predict_batch(panel_df, episode_col=episode_col)
+
+    # Build episode_id -> context-BG lookups for quick access
+    ctx_bg_by_id = {
+        m[episode_col]: ctx[target_col].values
+        for ctx, m in zip(context_dfs, episode_metadata)
+        if target_col in ctx.columns
+    }
 
     all_episode_results = []
     patient_episodes: Dict[str, list] = {}
+    discontinuities = []
 
     for ctx_df, meta in zip(context_dfs, episode_metadata):
+        ep_id = meta["episode_id"]
         target = np.asarray(meta["target_bg"])
-        context_bg = ctx_df[target_col].values if target_col in ctx_df.columns else None
+        context_bg = ctx_bg_by_id.get(ep_id)
 
         if probabilistic:
             q_forecast = model.predict_quantiles(
@@ -179,20 +195,26 @@ def evaluate_nocturnal_forecasting(
             ep_wql = float(compute_wql(q_forecast, target, quantile_levels))
             ep_brier = float(compute_brier_score(q_forecast, target, quantile_levels))
         else:
-            pred = model.predict(ctx_df)
+            pred = batch_results.get(ep_id)
+            if pred is None:
+                logger.warning("Episode %s: no prediction returned, skipping", ep_id)
+                continue
             pred = np.asarray(pred)
-            if pred.ndim == 3:
-                pred = pred[0, :, 0]
-            elif pred.ndim == 2:
-                pred = pred.flatten()
             pred = pred[: len(target)]
 
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
+
+        # Discontinuity: absolute BG jump at the context-forecast boundary.
+        disc = float("nan")
+        if context_bg is not None and len(context_bg) > 0 and len(pred) > 0:
+            disc = abs(float(context_bg[-1]) - float(pred[0]))
+        discontinuities.append(disc)
 
         ep_result = {
             "patient_id": meta["patient_id"],
             "anchor": meta["anchor"].isoformat(),
             "rmse": ep_rmse,
+            "discontinuity": disc,
             "pred": pred.tolist(),
             "target_bg": target.tolist(),
             "context_bg": context_bg.tolist() if context_bg is not None else None,
@@ -205,6 +227,16 @@ def evaluate_nocturnal_forecasting(
 
         pid = meta["patient_id"]
         patient_episodes.setdefault(pid, []).append((pred, target))
+
+    if not all_episode_results:
+        logger.warning("All episodes were dropped — no predictions")
+        return {
+            "overall_rmse": float("nan"),
+            "mean_discontinuity": float("nan"),
+            "total_episodes": 0,
+            "per_patient": [],
+            "per_episode": [],
+        }
 
     # Per-patient aggregate
     all_patient_results = []
@@ -239,14 +271,19 @@ def evaluate_nocturnal_forecasting(
     all_targets = np.concatenate([ep["target_bg"] for ep in all_episode_results])
     overall_rmse = float(np.sqrt(np.mean((all_preds - all_targets) ** 2)))
 
+    # Mean discontinuity (ignoring NaN)
+    valid_discs = [d for d in discontinuities if not np.isnan(d)]
+    mean_disc = float(np.mean(valid_discs)) if valid_discs else float("nan")
+
     results = {
         "overall_rmse": overall_rmse,
+        "mean_discontinuity": mean_disc,
         "total_episodes": len(all_episode_results),
         "per_patient": all_patient_results,
         "per_episode": all_episode_results,
     }
 
-    log_msg = f"Nocturnal evaluation: {overall_rmse:.4f} RMSE"
+    log_msg = f"Nocturnal evaluation: {overall_rmse:.4f} RMSE, {mean_disc:.4f} mean discontinuity"
     if probabilistic:
         results["overall_wql"] = float(
             np.mean([ep["wql"] for ep in all_episode_results])
