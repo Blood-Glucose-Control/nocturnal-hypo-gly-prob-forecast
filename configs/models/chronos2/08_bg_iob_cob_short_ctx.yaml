@@ -35,6 +35,7 @@ freeze_backbone: false
 
 fine_tune_steps: 50000
 fine_tune_lr: 1.0e-5
+fine_tune_batch_size: 256  # default=32; GPU has ~96GB VRAM, 32→~4GB so 256→~32GB
 
 covariate_cols: [iob, cob]
 target_col: "bg_mM"
