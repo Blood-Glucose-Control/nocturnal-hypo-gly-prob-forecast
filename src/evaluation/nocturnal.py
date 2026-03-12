@@ -48,10 +48,12 @@ def evaluate_nocturnal_forecasting(
 ) -> Dict[str, Any]:
     """Evaluate model on midnight-anchored nocturnal forecasting task.
 
-    Builds midnight episodes per patient and calls model.predict() per episode.
+    Builds midnight episodes per patient and calls model.predict_batch() to
+    forecast all episodes in a single call. Also computes per-episode
+    discontinuity (absolute jump between last context BG and first predicted BG).
 
     Args:
-        model: Model implementing predict(data) -> np.ndarray.
+        model: Model implementing predict_batch(panel_df, episode_col) -> Dict[str, np.ndarray].
         holdout_data: Flat DataFrame with all holdout patients.
         context_length: Context window size in steps.
         forecast_length: Forecast horizon in steps.
@@ -60,13 +62,15 @@ def evaluate_nocturnal_forecasting(
         interval_mins: Sampling interval in minutes.
 
     Returns:
-        Dict with overall_rmse, total_episodes, per_patient, per_episode.
+        Dict with overall_rmse, mean_discontinuity, total_episodes,
+        per_patient, per_episode.
     """
     patient_col = get_patient_column(holdout_data)
     patients = holdout_data[patient_col].unique()
 
     # --- Phase 1: Build episodes for all patients ---
     # Collect episodes and track which patient each belongs to.
+    episode_col = "episode_id"
     episode_metadata = []
     context_dfs = []
 
@@ -105,8 +109,7 @@ def evaluate_nocturnal_forecasting(
             ep_id = f"{patient_id}::ep{i:03d}"
             ctx = ep["context_df"].copy().reset_index(names="datetime")
             ctx["p_num"] = patient_id
-            ctx["episode_id"] = ep_id
-            ctx["group"] = ep_id
+            ctx[episode_col] = ep_id
             context_dfs.append(ctx)
             episode_metadata.append(
                 {
@@ -121,26 +124,43 @@ def evaluate_nocturnal_forecasting(
         logger.warning("No valid midnight episodes found across all patients")
         return {
             "overall_rmse": float("nan"),
+            "mean_discontinuity": float("nan"),
             "total_episodes": 0,
             "per_patient": [],
             "per_episode": [],
         }
 
-    # --- Phase 2: Predict per episode ---
-    # Per-episode calls keep each model's predict() interface simple: one time
-    # series in, one forecast out. Models that support panel predict internally
-    # (e.g. Chronos2) handle batching themselves.
+    # --- Phase 2: Batch predict all episodes ---
+    # Build a single panel DataFrame and call predict_batch() once.
+    # Models that override _predict_batch() get native GPU batching;
+    # the default base-class implementation loops sequentially.
+    n_unique_patients = len(set(m["patient_id"] for m in episode_metadata))
     logger.info(
-        "Evaluating %d midnight episodes across %d patients",
+        "Evaluating %d midnight episodes across %d patients (batch mode)",
         len(episode_metadata),
-        len(set(m["patient_id"] for m in episode_metadata)),
+        n_unique_patients,
     )
+
+    panel_df = pd.concat(context_dfs, ignore_index=True)
+    batch_results = model.predict_batch(panel_df, episode_col=episode_col)
+
+    # Build episode_id -> metadata / context-BG lookups for quick access
+    meta_by_id = {m[episode_col]: m for m in episode_metadata}
+    ctx_bg_by_id = {
+        m[episode_col]: ctx[target_col].values
+        for ctx, m in zip(context_dfs, episode_metadata)
+        if target_col in ctx.columns
+    }
 
     all_episode_results = []
     patient_episodes: Dict[str, list] = {}
+    discontinuities = []
 
-    for ctx_df, meta in zip(context_dfs, episode_metadata):
-        pred = model.predict(ctx_df)
+    for ep_id, meta in meta_by_id.items():
+        pred = batch_results.get(ep_id)
+        if pred is None:
+            logger.warning("Episode %s: no prediction returned, skipping", ep_id)
+            continue
 
         # Normalize multi-dimensional predictions
         pred = np.asarray(pred)
@@ -153,12 +173,24 @@ def evaluate_nocturnal_forecasting(
         pred = pred[: len(target)]
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
 
-        context_bg = ctx_df[target_col].values if target_col in ctx_df.columns else None
+        context_bg = ctx_bg_by_id.get(ep_id)
+
+        # Discontinuity: absolute BG jump at the context-forecast boundary.
+        # Models using instance normalization or standard scaling can re-center
+        # inputs, causing a visible "step" at prediction onset. Clinically
+        # relevant for nocturnal hypo detection where the first prediction
+        # matters most. Typical range: 0.1-0.3 mM for well-calibrated models.
+        disc = float("nan")
+        if context_bg is not None and len(context_bg) > 0 and len(pred) > 0:
+            disc = abs(float(context_bg[-1]) - float(pred[0]))
+        discontinuities.append(disc)
+
         all_episode_results.append(
             {
                 "patient_id": meta["patient_id"],
                 "anchor": meta["anchor"].isoformat(),
                 "rmse": ep_rmse,
+                "discontinuity": disc,
                 "pred": pred.tolist(),
                 "target_bg": target.tolist(),
                 "context_bg": context_bg.tolist() if context_bg is not None else None,
@@ -167,6 +199,16 @@ def evaluate_nocturnal_forecasting(
 
         pid = meta["patient_id"]
         patient_episodes.setdefault(pid, []).append((pred, target))
+
+    if not all_episode_results:
+        logger.warning("All episodes were dropped by predict_batch — no predictions")
+        return {
+            "overall_rmse": float("nan"),
+            "mean_discontinuity": float("nan"),
+            "total_episodes": 0,
+            "per_patient": [],
+            "per_episode": [],
+        }
 
     # Per-patient aggregate
     all_patient_results = []
@@ -196,14 +238,20 @@ def evaluate_nocturnal_forecasting(
     all_targets = np.concatenate([ep["target_bg"] for ep in all_episode_results])
     overall_rmse = float(np.sqrt(np.mean((all_preds - all_targets) ** 2)))
 
+    # Mean discontinuity (ignoring NaN)
+    valid_discs = [d for d in discontinuities if not np.isnan(d)]
+    mean_disc = float(np.mean(valid_discs)) if valid_discs else float("nan")
+
     logger.info(
-        "Nocturnal evaluation: %.4f RMSE over %d midnight episodes",
+        "Nocturnal evaluation: %.4f RMSE, %.4f mean discontinuity over %d episodes",
         overall_rmse,
+        mean_disc,
         len(all_episode_results),
     )
 
     return {
         "overall_rmse": overall_rmse,
+        "mean_discontinuity": mean_disc,
         "total_episodes": len(all_episode_results),
         "per_patient": all_patient_results,
         "per_episode": all_episode_results,
