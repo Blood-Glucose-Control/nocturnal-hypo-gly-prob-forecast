@@ -265,3 +265,77 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
 
         # 00:22:00 bin should have data from 00:22:15
         assert np.isclose(result.loc["2024-01-01 00:22:00", "bg_mM"], 9.0)
+
+    def test_rate_zero_preserved_not_replaced_with_nan(self):
+        """
+        Bug A (issue #350): rate=0 means pump suspension (zero insulin delivery).
+        The zero-to-NaN replacement for mean-aggregated columns must NOT apply
+        to the rate column, otherwise pump suspensions are destroyed and basal
+        rollover forward-fills phantom insulin into the IOB calculation.
+        """
+        dt = pd.to_datetime(
+            [
+                "2024-01-01 00:00:00",
+                "2024-01-01 00:05:00",
+                "2024-01-01 00:10:00",
+                "2024-01-01 00:15:00",
+            ]
+        )
+
+        df = pd.DataFrame(
+            {
+                "p_num": ["patient_01"] * 4,
+                "bg_mM": [6.0, 7.0, 5.5, 6.5],
+                "rate": [0.8, 0.0, 0.0, 0.6],  # Two pump suspensions (rate=0)
+                "hr_bpm": [70, 72, 74, 69],
+                "food_g": [0, 0, 0, 0],
+            },
+            index=dt,
+        )
+        df.index.name = "datetime"
+
+        result, freq = ensure_regular_time_intervals_with_aggregation(df)
+
+        assert freq == 5
+
+        # rate=0 must be preserved as 0.0, NOT converted to NaN
+        assert result.loc["2024-01-01 00:05:00", "rate"] == 0.0
+        assert result.loc["2024-01-01 00:10:00", "rate"] == 0.0
+        assert not np.isnan(result.loc["2024-01-01 00:05:00", "rate"])
+        assert not np.isnan(result.loc["2024-01-01 00:10:00", "rate"])
+
+        # Non-zero rates should still be correct
+        assert np.isclose(result.loc["2024-01-01 00:00:00", "rate"], 0.8)
+        assert np.isclose(result.loc["2024-01-01 00:15:00", "rate"], 0.6)
+
+    def test_rate_zero_aggregation_preserves_pump_suspension(self):
+        """
+        When two rows aggregate in the same bin and one has rate=0 (pump suspension),
+        the mean should include the zero, not skip it.
+        """
+        dt = pd.to_datetime(
+            [
+                "2024-01-01 00:00:00",
+                "2024-01-01 00:05:00",
+                "2024-01-01 00:06:00",  # rounds to 00:05 bin
+                "2024-01-01 00:15:00",
+            ]
+        )
+
+        df = pd.DataFrame(
+            {
+                "p_num": ["patient_01"] * 4,
+                "bg_mM": [6.0, 7.0, 5.0, 6.5],
+                "rate": [0.8, 0.0, 0.4, 0.6],  # 00:05 bin: mean(0.0, 0.4) = 0.2
+                "hr_bpm": [70, 72, 74, 69],
+                "food_g": [0, 0, 0, 0],
+            },
+            index=dt,
+        )
+        df.index.name = "datetime"
+
+        result, freq = ensure_regular_time_intervals_with_aggregation(df)
+
+        # The 00:05 bin aggregates rate=0.0 and rate=0.4 -> mean should be 0.2
+        # If the bug exists, rate=0.0 would become NaN and the mean would be 0.4
+        assert np.isclose(result.loc["2024-01-01 00:05:00", "rate"], 0.2)
