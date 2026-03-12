@@ -1,6 +1,5 @@
 """Tests for the predict_quantiles() base class dispatch logic."""
 
-
 import numpy as np
 import pandas as pd
 import pytest
