@@ -87,7 +87,9 @@ def compute_wql(
     # q_col: (n_quantiles, 1) for broadcasting against (n_quantiles, forecast_length)
     q_col = np.array(quantile_levels, dtype=np.float64).reshape(-1, 1)
 
-    errors = actuals[np.newaxis, :] - quantile_forecasts  # (n_quantiles, forecast_length)
+    errors = (
+        actuals[np.newaxis, :] - quantile_forecasts
+    )  # (n_quantiles, forecast_length)
     pinball = np.where(errors >= 0, q_col * errors, (q_col - 1.0) * errors)
 
     return float(np.mean(pinball))
@@ -163,8 +165,8 @@ def compute_brier_score(
             threshold,
             x_vals,
             q_arr,
-            left=q_arr[0],   # clamp: threshold below all quantiles → P = q_min
-            right=q_arr[-1], # clamp: threshold above all quantiles → P = q_max
+            left=q_arr[0],  # clamp: threshold below all quantiles → P = q_min
+            right=q_arr[-1],  # clamp: threshold above all quantiles → P = q_max
         )
 
     indicator = (actuals < threshold).astype(np.float64)

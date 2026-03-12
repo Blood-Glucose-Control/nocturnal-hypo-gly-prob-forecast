@@ -171,7 +171,9 @@ def evaluate_nocturnal_forecasting(
         context_bg = ctx_df[target_col].values if target_col in ctx_df.columns else None
 
         if probabilistic:
-            q_forecast = model.predict_quantiles(ctx_df, quantile_levels=quantile_levels)
+            q_forecast = model.predict_quantiles(
+                ctx_df, quantile_levels=quantile_levels
+            )
             q_forecast = q_forecast[:, : len(target)]
             pred = q_forecast[median_idx]  # median as point forecast
             ep_wql = float(compute_wql(q_forecast, target, quantile_levels))
@@ -224,7 +226,9 @@ def evaluate_nocturnal_forecasting(
 
         all_patient_results.append(patient_result)
 
-        log_msg = f"  Patient {pid}: RMSE={metrics['rmse']:.3f}, MAE={metrics['mae']:.3f}"
+        log_msg = (
+            f"  Patient {pid}: RMSE={metrics['rmse']:.3f}, MAE={metrics['mae']:.3f}"
+        )
         if probabilistic:
             log_msg += f", WQL={patient_result['wql']:.4f}, Brier={patient_result['brier']:.4f}"
         log_msg += f" ({len(ep_list)} midnight episodes)"
@@ -244,8 +248,12 @@ def evaluate_nocturnal_forecasting(
 
     log_msg = f"Nocturnal evaluation: {overall_rmse:.4f} RMSE"
     if probabilistic:
-        results["overall_wql"] = float(np.mean([ep["wql"] for ep in all_episode_results]))
-        results["overall_brier"] = float(np.mean([ep["brier"] for ep in all_episode_results]))
+        results["overall_wql"] = float(
+            np.mean([ep["wql"] for ep in all_episode_results])
+        )
+        results["overall_brier"] = float(
+            np.mean([ep["brier"] for ep in all_episode_results])
+        )
         results["quantile_levels"] = quantile_levels
         log_msg += f", {results['overall_wql']:.4f} WQL, {results['overall_brier']:.4f} Brier@{HYPO_THRESHOLD_MMOL}"
     log_msg += f" over {len(all_episode_results)} midnight episodes"

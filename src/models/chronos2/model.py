@@ -320,9 +320,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 continue
             ep_preds = ag_predictions.loc[episode_id]
             if multi:
-                result_arrays.append(
-                    np.stack([ep_preds[c].values for c in columns])
-                )
+                result_arrays.append(np.stack([ep_preds[c].values for c in columns]))
             else:
                 result_arrays.append(ep_preds[columns[0]].values)
 

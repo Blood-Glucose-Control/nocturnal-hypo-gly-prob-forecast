@@ -1,13 +1,15 @@
 """Tests for the predict_quantiles() base class dispatch logic."""
 
-from dataclasses import dataclass
-from typing import List, Optional
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from src.models.base.base_model import BaseTimeSeriesFoundationModel, ModelConfig, TrainingBackend
+from src.models.base.base_model import (
+    BaseTimeSeriesFoundationModel,
+    ModelConfig,
+    TrainingBackend,
+)
 
 
 # ---------------------------------------------------------------------------

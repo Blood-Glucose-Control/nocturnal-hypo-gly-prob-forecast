@@ -6,7 +6,6 @@ import pytest
 from src.evaluation.metrics.probabilistic import (
     compute_wql,
     compute_brier_score,
-    HYPO_THRESHOLD_MMOL,
 )
 
 
@@ -117,7 +116,9 @@ class TestComputeBrierScore:
         rng = np.random.default_rng(42)
         for _ in range(20):
             actuals = rng.uniform(2.0, 15.0, size=72)
-            q_vals = np.sort(rng.uniform(2.0, 15.0, size=(len(QUANTILE_LEVELS), 72)), axis=0)
+            q_vals = np.sort(
+                rng.uniform(2.0, 15.0, size=(len(QUANTILE_LEVELS), 72)), axis=0
+            )
             brier = compute_brier_score(q_vals, actuals, QUANTILE_LEVELS)
             assert 0.0 <= brier <= 1.0
 
@@ -128,5 +129,7 @@ class TestComputeBrierScore:
     def test_unsorted_quantile_levels_raises(self):
         with pytest.raises(ValueError, match="strictly increasing"):
             compute_brier_score(
-                np.ones((2, 3)), np.ones(3), [0.9, 0.1]  # descending
+                np.ones((2, 3)),
+                np.ones(3),
+                [0.9, 0.1],  # descending
             )
