@@ -51,24 +51,26 @@ def evaluate_nocturnal_forecasting(
     """Evaluate model on midnight-anchored nocturnal forecasting task.
 
     Builds midnight episodes per patient and calls model.predict_batch() to
-    forecast all episodes in a single call. When probabilistic=True, calls
-    model.predict_quantiles() per episode instead, extracts the median (0.5
-    quantile) as the point forecast for RMSE, and computes WQL and Brier@3.9
-    from the full quantile distribution.
+    forecast all episodes in a single call. When probabilistic=True, passes
+    quantile_levels to predict_batch(), extracts the median (0.5 quantile) as
+    the point forecast for RMSE, and computes WQL and Brier@3.9 from the full
+    quantile distribution.
 
     Also computes per-episode discontinuity (absolute jump between last context
     BG and first predicted BG).
 
     Args:
-        model: Model implementing predict_batch(panel_df, episode_col) -> Dict[str, np.ndarray].
-            Must also implement predict_quantiles() when probabilistic=True.
+        model: Model implementing predict_batch(panel_df, episode_col).
+            Must support probabilistic forecasting (supports_probabilistic_forecast)
+            when probabilistic=True.
         holdout_data: Flat DataFrame with all holdout patients.
         context_length: Context window size in steps.
         forecast_length: Forecast horizon in steps.
         target_col: BG column name.
         covariate_cols: Covariate column names (e.g., ["iob"]).
         interval_mins: Sampling interval in minutes.
-        probabilistic: If True, use predict_quantiles() and compute WQL/Brier.
+        probabilistic: If True, pass quantile_levels to predict_batch() and
+            compute WQL/Brier alongside RMSE.
 
     Returns:
         Dict with overall_rmse, mean_discontinuity, total_episodes, per_patient,
@@ -148,6 +150,8 @@ def evaluate_nocturnal_forecasting(
         n_unique_patients,
     )
 
+    panel_df = pd.concat(context_dfs, ignore_index=True)
+
     if probabilistic:
         quantile_levels = (
             getattr(model.config, "quantile_levels", None)
@@ -162,12 +166,10 @@ def evaluate_nocturnal_forecasting(
             HYPO_THRESHOLD_MMOL,
             quantile_levels,
         )
-        # Probabilistic path: per-episode predict_quantiles() calls
-        # (no predict_quantiles_batch() yet)
-        batch_results = None
+        batch_results = model.predict_batch(
+            panel_df, episode_col=episode_col, quantile_levels=quantile_levels
+        )
     else:
-        # Batch prediction path: single predict_batch() call
-        panel_df = pd.concat(context_dfs, ignore_index=True)
         batch_results = model.predict_batch(panel_df, episode_col=episode_col)
 
     # Build episode_id -> context-BG lookups for quick access
@@ -186,21 +188,19 @@ def evaluate_nocturnal_forecasting(
         target = np.asarray(meta["target_bg"])
         context_bg = ctx_bg_by_id.get(ep_id)
 
+        raw = batch_results.get(ep_id)
+        if raw is None:
+            logger.warning("Episode %s: no prediction returned, skipping", ep_id)
+            continue
+        raw = np.asarray(raw)
+
         if probabilistic:
-            q_forecast = model.predict_quantiles(
-                ctx_df, quantile_levels=quantile_levels
-            )
-            q_forecast = q_forecast[:, : len(target)]
+            q_forecast = raw[:, : len(target)]
             pred = q_forecast[median_idx]  # median as point forecast
             ep_wql = float(compute_wql(q_forecast, target, quantile_levels))
             ep_brier = float(compute_brier_score(q_forecast, target, quantile_levels))
         else:
-            pred = batch_results.get(ep_id)
-            if pred is None:
-                logger.warning("Episode %s: no prediction returned, skipping", ep_id)
-                continue
-            pred = np.asarray(pred)
-            pred = pred[: len(target)]
+            pred = raw[: len(target)]
 
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
 

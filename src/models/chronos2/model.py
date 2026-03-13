@@ -332,8 +332,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     # Inference
     # ------------------------------------------------------------------
 
-    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
-        """Generate point forecasts using Chronos-2.
+    def _predict(self, data: pd.DataFrame, quantile_levels=None, **kwargs) -> np.ndarray:
+        """Generate forecasts using Chronos-2.
 
         Two inference paths:
         - Zero-shot (self.predictor is None): Uses Chronos2Pipeline directly.
@@ -342,28 +342,24 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Args:
             data: Single-episode DataFrame with target_col (bg_mM).
                 For multi-episode panels, use predict_batch() instead.
+            quantile_levels: When None, returns point forecast as shape
+                (forecast_length,). When set, returns quantile forecasts as
+                shape (len(quantile_levels), forecast_length).
 
         Returns:
-            1D numpy array of predicted BG values for the forecast horizon.
+            np.ndarray — point forecast or quantile forecasts depending on
+            quantile_levels parameter.
         """
+        if quantile_levels is not None:
+            return self._predict_quantiles_impl(data, quantile_levels)
+
         if self.predictor is None:
             _, mean = self._zero_shot_forecast(data)
             return mean
         return self._autogluon_extract(data, columns=["mean"])
 
-    def _predict_quantiles(
-        self,
-        data: pd.DataFrame,
-        quantile_levels: list,
-        **kwargs,
-    ) -> np.ndarray:
-        """Generate quantile forecasts using Chronos-2.
-
-        Returns:
-            np.ndarray of shape (len(quantile_levels), forecast_length) for a
-            single episode. Multiple episodes are concatenated along the horizon
-            axis (matching _predict() behaviour).
-        """
+    def _predict_quantiles_impl(self, data: pd.DataFrame, quantile_levels: list) -> np.ndarray:
+        """Internal quantile forecast logic shared by _predict and _predict_batch."""
         if self.predictor is None:
             quantiles, _ = self._zero_shot_forecast(data, quantile_levels)
             return quantiles
@@ -386,6 +382,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         self,
         data: pd.DataFrame,
         episode_col: str,
+        quantile_levels=None,
     ) -> Dict[str, np.ndarray]:
         """Native batch prediction for multiple episodes.
 
@@ -398,9 +395,14 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             data: Panel DataFrame containing episode_col with episode IDs,
                 target_col (bg_mM), and optional covariate columns.
             episode_col: Column name identifying episodes.
+            quantile_levels: When None, extract "mean" column (point forecasts).
+                When set, extract quantile columns. For fine-tuned models,
+                levels must be a subset of those registered at training time.
 
         Returns:
-            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+            Dict mapping episode ID (as str) to numpy forecast array.
+            Point forecasts: shape (forecast_length,) per episode.
+            Quantile forecasts: shape (len(quantile_levels), forecast_length).
         """
         import torch
 
@@ -416,6 +418,21 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                     "Model is marked as fitted but predictor is None. "
                     "The checkpoint may not have loaded correctly."
                 )
+
+            if quantile_levels is not None:
+                # Validate requested levels against training-time registration.
+                available = set(
+                    round(q, 8)
+                    for q in (self.config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS)
+                )
+                missing = [q for q in quantile_levels if round(q, 8) not in available]
+                if missing:
+                    raise ValueError(
+                        f"Quantile levels {missing} were not registered at training time. "
+                        f"Available: {sorted(available)}. Re-train with these levels set in "
+                        f"config.quantile_levels, or request a subset of the available levels."
+                    )
+
             from autogluon.timeseries import TimeSeriesDataFrame
 
             context = data.copy()
@@ -433,10 +450,23 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
             ag_predictions = self.predictor.predict(ts_data)
 
+            # Choose which columns to extract
+            if quantile_levels is not None:
+                columns = [str(q) for q in quantile_levels]
+            else:
+                columns = ["mean"]
+            multi = len(columns) > 1
+
             results: Dict[str, np.ndarray] = {}
             for item_id in episode_ids:
                 if item_id in ag_predictions.index.get_level_values(0):
-                    results[item_id] = ag_predictions.loc[item_id]["mean"].values
+                    ep_preds = ag_predictions.loc[item_id]
+                    if multi:
+                        results[item_id] = np.stack(
+                            [ep_preds[c].values for c in columns]
+                        )
+                    else:
+                        results[item_id] = ep_preds[columns[0]].values
             return results
 
         # Zero-shot path: batch via Chronos2Pipeline
@@ -467,13 +497,20 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         )  # (N, L)
         context_tensor = padded.unsqueeze(1)  # (N, 1, L)
 
-        _, mean = self._zs_pipeline.predict_quantiles(
-            context_tensor, prediction_length=config.forecast_length
+        zs_kwargs = dict(prediction_length=config.forecast_length)
+        if quantile_levels is not None:
+            zs_kwargs["quantile_levels"] = quantile_levels
+
+        quantiles, mean = self._zs_pipeline.predict_quantiles(
+            context_tensor, **zs_kwargs
         )
 
         results = {}
         for i, ep_id in enumerate(episode_ids):
-            results[ep_id] = mean[i].squeeze().detach().cpu().numpy()
+            if quantile_levels is not None:
+                results[ep_id] = quantiles[i].detach().cpu().numpy()
+            else:
+                results[ep_id] = mean[i].squeeze().detach().cpu().numpy()
         return results
 
     # ------------------------------------------------------------------

@@ -1,4 +1,4 @@
-"""Tests for the predict_quantiles() base class dispatch logic."""
+"""Tests for the probabilistic forecasting API (quantile_levels parameter)."""
 
 import numpy as np
 import pandas as pd
@@ -31,7 +31,7 @@ class _PointOnlyModel(BaseTimeSeriesFoundationModel):
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.CUSTOM
 
-    def _predict(self, data, **kwargs):
+    def _predict(self, data, quantile_levels=None, **kwargs):
         return np.zeros(self.config.forecast_length)
 
     def _initialize_model(self):
@@ -57,9 +57,11 @@ class _ProbModel(_PointOnlyModel):
     def supports_probabilistic_forecast(self) -> bool:
         return True
 
-    def _predict_quantiles(self, data, quantile_levels, **kwargs):
-        n_q = len(quantile_levels)
-        return np.ones((n_q, self.config.forecast_length))
+    def _predict(self, data, quantile_levels=None, **kwargs):
+        if quantile_levels is not None:
+            n_q = len(quantile_levels)
+            return np.ones((n_q, self.config.forecast_length))
+        return np.zeros(self.config.forecast_length)
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +69,7 @@ class _ProbModel(_PointOnlyModel):
 # ---------------------------------------------------------------------------
 
 
-class TestPredictQuantilesDispatch:
+class TestPredictWithQuantileLevels:
     def _make_model(self, cls, **config_kwargs):
         defaults = dict(
             model_type="test",
@@ -82,33 +84,33 @@ class TestPredictQuantilesDispatch:
     def test_unsupported_model_raises(self):
         model = self._make_model(_PointOnlyModel)
         with pytest.raises(NotImplementedError, match="does not support"):
-            model.predict_quantiles(pd.DataFrame({"bg_mM": [1, 2, 3]}))
+            model.predict(
+                pd.DataFrame({"bg_mM": [1, 2, 3]}),
+                quantile_levels=[0.1, 0.5, 0.9],
+            )
 
     def test_supported_model_returns_array(self):
         model = self._make_model(_ProbModel)
-        result = model.predict_quantiles(pd.DataFrame({"bg_mM": range(10)}))
+        result = model.predict(
+            pd.DataFrame({"bg_mM": range(10)}),
+            quantile_levels=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9],
+        )
         assert isinstance(result, np.ndarray)
-        # Default levels: [0.1, 0.2, ..., 0.9] = 9 quantiles
         assert result.shape == (9, 5)
+
+    def test_point_forecast_without_quantile_levels(self):
+        model = self._make_model(_ProbModel)
+        result = model.predict(pd.DataFrame({"bg_mM": range(10)}))
+        assert isinstance(result, np.ndarray)
+        assert result.shape == (5,)
 
     def test_kwarg_levels_override_config(self):
         model = self._make_model(_ProbModel, quantile_levels=[0.1, 0.5, 0.9])
         custom = [0.25, 0.75]
-        result = model.predict_quantiles(
+        result = model.predict(
             pd.DataFrame({"bg_mM": range(10)}), quantile_levels=custom
         )
         assert result.shape[0] == 2  # kwarg wins over config
-
-    def test_config_levels_override_default(self):
-        model = self._make_model(_ProbModel, quantile_levels=[0.1, 0.5, 0.9])
-        result = model.predict_quantiles(pd.DataFrame({"bg_mM": range(10)}))
-        assert result.shape[0] == 3  # config wins over DEFAULT_QUANTILE_LEVELS
-
-    def test_default_levels_used_when_no_override(self):
-        model = self._make_model(_ProbModel)
-        assert model.config.quantile_levels is None  # no config override
-        result = model.predict_quantiles(pd.DataFrame({"bg_mM": range(10)}))
-        assert result.shape[0] == len(model.DEFAULT_QUANTILE_LEVELS)
 
     def test_supports_probabilistic_forecast_default_false(self):
         model = self._make_model(_PointOnlyModel)
@@ -117,3 +119,50 @@ class TestPredictQuantilesDispatch:
     def test_supports_probabilistic_forecast_override_true(self):
         model = self._make_model(_ProbModel)
         assert model.supports_probabilistic_forecast is True
+
+
+class TestPredictBatchWithQuantileLevels:
+    def _make_model(self, cls, **config_kwargs):
+        defaults = dict(
+            model_type="test",
+            model_path="test",
+            context_length=10,
+            forecast_length=5,
+        )
+        defaults.update(config_kwargs)
+        config = ModelConfig(**defaults)
+        return cls(config)
+
+    def _make_panel(self, n_episodes=3, n_rows=10):
+        dfs = []
+        for i in range(n_episodes):
+            df = pd.DataFrame({"bg_mM": np.random.rand(n_rows)})
+            df["episode_id"] = f"ep_{i}"
+            dfs.append(df)
+        return pd.concat(dfs, ignore_index=True)
+
+    def test_batch_point_forecast(self):
+        model = self._make_model(_PointOnlyModel)
+        panel = self._make_panel()
+        results = model.predict_batch(panel, episode_col="episode_id")
+        assert len(results) == 3
+        for v in results.values():
+            assert v.shape == (5,)
+
+    def test_batch_quantile_unsupported_raises(self):
+        model = self._make_model(_PointOnlyModel)
+        panel = self._make_panel()
+        with pytest.raises(NotImplementedError, match="does not support"):
+            model.predict_batch(
+                panel, episode_col="episode_id", quantile_levels=[0.1, 0.5, 0.9]
+            )
+
+    def test_batch_quantile_supported(self):
+        model = self._make_model(_ProbModel)
+        panel = self._make_panel()
+        results = model.predict_batch(
+            panel, episode_col="episode_id", quantile_levels=[0.1, 0.5, 0.9]
+        )
+        assert len(results) == 3
+        for v in results.values():
+            assert v.shape == (3, 5)
