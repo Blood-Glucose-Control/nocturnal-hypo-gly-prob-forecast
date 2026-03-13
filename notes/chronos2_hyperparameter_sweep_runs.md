@@ -51,7 +51,7 @@ CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="chronos2" MODEL_CONFIG="configs/models/chrono
 
 ### 04 — IOB + insulin_availability  |  lr=1e-5  |  ctx=288
 ```bash
-CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="chronos2" MODEL_CONFIG="configs/models/chronos2/04_bg_iob_short_ctx.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="aleppo_2017 brown_2019 lynch_2022" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
+CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="chronos2" MODEL_CONFIG="configs/models/chronos2/04_bg_iob_short_ctx.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="aleppo_2017 brown_2019 lynch_2022" SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
 ```
 
 ---
