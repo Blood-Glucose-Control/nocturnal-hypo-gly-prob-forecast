@@ -154,6 +154,8 @@ def save_experiment_config(
         cmd_parts.extend(["--checkpoint", args.checkpoint])
     if args.model_config:
         cmd_parts.extend(["--model-config", args.model_config])
+    if args.patients:
+        cmd_parts.extend(["--patients"] + args.patients)
 
     config = {
         "evaluation_type": "nocturnal_hypoglycemia",
@@ -167,6 +169,7 @@ def save_experiment_config(
             "cuda_device": args.cuda_device,
             "model_config": args.model_config,
             "output_dir": args.output_dir,
+            "patients": args.patients,
         },
         "model_config": model_config,
         "environment": {
@@ -251,6 +254,13 @@ def parse_arguments() -> argparse.Namespace:
         nargs="*",
         default=None,
         help="Covariate column names (e.g., iob cob)",
+    )
+    parser.add_argument(
+        "--patients",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Subset of patient IDs to evaluate (default: all holdout patients)",
     )
     parser.add_argument(
         "--cuda-device",
@@ -338,8 +348,11 @@ def main():
     holdout_data = registry.load_holdout_data_only(args.dataset)
 
     patient_col = get_patient_column(holdout_data)
+    if args.patients:
+        holdout_data = holdout_data[holdout_data[patient_col].isin(args.patients)]
+        logger.info(f"Filtered to {len(args.patients)} patients: {args.patients}")
     patients = holdout_data[patient_col].unique()
-    logger.info(f"Holdout patients: {list(patients)}")
+    logger.info(f"Evaluating patients: {list(patients)}")
     logger.info(f"Total samples: {len(holdout_data):,}")
 
     # Save experiment configuration
