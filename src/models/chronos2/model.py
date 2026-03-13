@@ -325,6 +325,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             context = context[ag_cols].set_index(["item_id", "timestamp"])
             ts_data = TimeSeriesDataFrame(context)
 
+            # Disable cross_learning so episodes are predicted independently.
+            # AutoGluon defaults to cross_learning=True, which makes joint
+            # predictions across items — wrong for unrelated patient-nights.
+            self.predictor._hyperparameters["cross_learning"] = False
             ag_predictions = self.predictor.predict(ts_data)
 
             results: Dict[str, np.ndarray] = {}
