@@ -70,7 +70,7 @@ class Chronos2Config(ModelConfig):
     interval_mins: int = 5  # CGM sampling interval (5 min for all datasets)
 
     # AutoGluon training settings
-    eval_metric: str = "RMSE"
+    eval_metric: str = "WQL"
     enable_ensemble: bool = False
     # min_past=1 is AutoGluon's default. It controls the minimum number of past
     # steps required when AutoGluon creates sliding windows from each segment.

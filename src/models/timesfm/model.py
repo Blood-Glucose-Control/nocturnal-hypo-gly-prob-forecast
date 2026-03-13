@@ -183,7 +183,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def supports_zero_shot(self) -> bool:
         return True
 
-    def predict(
+    def _predict(
         self, data: pd.DataFrame, prediction_length: Optional[int] = None
     ) -> np.ndarray:
         """Make predictions given context data.
@@ -252,12 +252,6 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             forecast = forecast[:prediction_length]
 
         return forecast
-
-    def predict_zero_shot(
-        self, data: pd.DataFrame, prediction_length: Optional[int] = None
-    ) -> np.ndarray:
-        """Zero-shot prediction (identical to predict for TimesFM)."""
-        return self.predict(data, prediction_length)
 
     def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
         """Extract ground truth bg_mM values from the end of the test data."""

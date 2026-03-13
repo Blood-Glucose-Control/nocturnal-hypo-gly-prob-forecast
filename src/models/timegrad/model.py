@@ -156,7 +156,7 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
             f"device={self.device})"
         )
 
-    def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
+    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
         """Make predictions given context data.
 
         Args:

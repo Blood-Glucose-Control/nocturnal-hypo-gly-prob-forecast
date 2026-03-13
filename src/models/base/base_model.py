@@ -114,6 +114,12 @@ class ModelConfig:
     # Loss function
     loss_function: str = "mse"  # "mse", "mae", "huber", "pinball"
 
+    # Probabilistic forecasting — quantile levels to produce at inference time.
+    # None means each model uses its own default (e.g. AutoGluon uses [0.1..0.9]).
+    # Set explicitly (e.g. [0.1, 0.2, ..., 0.9]) to control which quantiles are
+    # registered at training time and returned by predict_quantiles().
+    quantile_levels: Optional[List[float]] = None
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to a dictionary.
 
@@ -237,6 +243,10 @@ class BaseTimeSeriesFoundationModel(ABC):
     - Evaluation and metrics computation
     """
 
+    # Default quantile levels used by predict_quantiles() when neither the caller
+    # nor config.quantile_levels specifies a value. Matches AutoGluon's default.
+    DEFAULT_QUANTILE_LEVELS: List[float] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
     def __init__(
         self,
         config: ModelConfig,
@@ -307,29 +317,215 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
-    # Abstract methods that child classes must implement
-    ## Abstract public API methods
-    @abstractmethod
-    def predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
-        """
-        Make predictions on new data using configured forecast_length.
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        """Check if this model can produce calibrated quantile forecasts.
 
-        Each model must implement this method to handle its specific
-        prediction logic and output format. The forecast horizon is
-        determined by self.config.forecast_length (set at model creation),
-        following sklearn/PyTorch conventions.
+        Returns False by default. Models that handle quantile_levels in
+        _predict() should override this to return True.
+
+        Returns:
+            bool: True if the model supports quantile_levels parameter, False otherwise
+        """
+        return False
+
+    # Public API methods
+    def predict(
+        self,
+        data: pd.DataFrame,
+        quantile_levels: Optional[List[float]] = None,
+        **kwargs,
+    ) -> np.ndarray:
+        """Make predictions on new data using configured forecast_length.
+
+        Validates that the model is ready for inference, then delegates
+        to the model-specific _predict() implementation. Following the
+        sktime BaseForecaster pattern (predict -> _predict).
+
+        When quantile_levels is provided, returns probabilistic forecasts
+        as quantile trajectories instead of point forecasts. Quantile level
+        resolution priority (first non-None wins):
+          1. quantile_levels argument passed by the caller
+          2. self.config.quantile_levels (set in model config)
+          3. self.DEFAULT_QUANTILE_LEVELS ([0.1, 0.2, ..., 0.9])
 
         Args:
             data: DataFrame with 'bg_mM' column containing the context window.
                   May include additional columns for multivariate models.
-            **kwargs: Model-specific options (e.g., batch_size, num_samples,
-                     inverse_scale, return_dict).
+            quantile_levels: Quantile levels to return, e.g. [0.1, 0.5, 0.9].
+                When None (default), returns point forecasts. When set, returns
+                quantile forecasts. For AutoGluon-backed models (Chronos2, TiDE)
+                these must be a subset of the levels registered at training time.
+            **kwargs: Model-specific options (e.g., batch_size, inverse_scale).
 
         Returns:
-            Predictions as numpy array of shape (forecast_length,) for single
-            sample or (n_samples, forecast_length) for batch predictions.
+            When quantile_levels is None: np.ndarray of shape (forecast_length,).
+            When quantile_levels is set: np.ndarray of shape
+                (len(quantile_levels), forecast_length).
+
+        Raises:
+            RuntimeError: If the model has not been fitted and does not
+                support zero-shot prediction.
+            NotImplementedError: If quantile_levels is set but the model does
+                not support probabilistic forecasting.
+            ValueError: If data contains multiple episode IDs. Use
+                predict_batch() for multi-episode panels.
+        """
+        if not self.is_fitted and not self.supports_zero_shot:
+            raise RuntimeError(
+                f"{self.__class__.__name__} requires training before prediction. "
+                f"Call fit() or load() first."
+            )
+        if "episode_id" in data.columns and data["episode_id"].nunique() > 1:
+            raise ValueError(
+                "predict() handles a single episode. "
+                "Use predict_batch() for multi-episode panels."
+            )
+        if quantile_levels is not None:
+            if not self.supports_probabilistic_forecast:
+                raise NotImplementedError(
+                    f"{self.__class__.__name__} does not support probabilistic "
+                    f"forecasting. Use predict() without quantile_levels for "
+                    f"point forecasts."
+                )
+            resolved_levels = (
+                quantile_levels
+                or self.config.quantile_levels
+                or self.DEFAULT_QUANTILE_LEVELS
+            )
+            return self._predict(data, quantile_levels=resolved_levels, **kwargs)
+        return self._predict(data, **kwargs)
+
+    # Abstract methods that child classes must implement
+    ## Abstract public API methods
+    @abstractmethod
+    def _predict(
+        self,
+        data: pd.DataFrame,
+        quantile_levels: Optional[List[float]] = None,
+        **kwargs,
+    ) -> np.ndarray:
+        """Model-specific prediction logic.
+
+        Subclasses implement this instead of predict(). Inputs are
+        guaranteed to be valid (model is either fitted or supports
+        zero-shot inference).
+
+        Args:
+            data: DataFrame with 'bg_mM' column containing the context window.
+                  May include additional columns for multivariate models.
+            quantile_levels: When None, return point forecasts as shape
+                (forecast_length,). When set, return quantile forecasts as
+                shape (len(quantile_levels), forecast_length). Models that
+                don't support probabilistic forecasting can ignore this
+                parameter — the base class guards against it being set on
+                unsupported models.
+            **kwargs: Model-specific options (e.g., batch_size, inverse_scale).
+
+        Returns:
+            When quantile_levels is None: np.ndarray of shape (forecast_length,).
+            When quantile_levels is set: np.ndarray of shape
+                (len(quantile_levels), forecast_length).
         """
         pass
+
+    def predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str = "episode_id",
+        quantile_levels: Optional[List[float]] = None,
+    ) -> Dict[str, np.ndarray]:
+        """Make predictions for multiple episodes in a panel DataFrame.
+
+        Dispatches to _predict_batch(), which models can override for
+        GPU-efficient native batching. The default implementation loops
+        sequentially over episodes using predict().
+
+        When quantile_levels is provided, returns probabilistic forecasts.
+        Quantile level resolution follows the same priority as predict().
+
+        Args:
+            data: Flat DataFrame with an ``episode_col`` column identifying
+                episodes. Each episode's rows should match what predict()
+                accepts (same columns, same format).
+            episode_col: Column name identifying episodes. Defaults to
+                "episode_id" (the project's standard episode identifier).
+            quantile_levels: Quantile levels to return, e.g. [0.1, 0.5, 0.9].
+                When None (default), returns point forecasts. When set,
+                returns quantile forecasts per episode.
+
+        Returns:
+            Dict mapping episode ID (as str) to numpy forecast array.
+            When quantile_levels is None: each value has shape (forecast_length,).
+            When quantile_levels is set: each value has shape
+                (len(quantile_levels), forecast_length).
+        """
+        if not self.is_fitted and not self.supports_zero_shot:
+            raise RuntimeError(
+                f"{self.__class__.__name__} requires training before prediction. "
+                f"Call fit() or load() first."
+            )
+
+        if episode_col not in data.columns:
+            raise ValueError(
+                f"Column '{episode_col}' not found in data. "
+                f"Available columns: {list(data.columns)}"
+            )
+
+        if quantile_levels is not None:
+            if not self.supports_probabilistic_forecast:
+                raise NotImplementedError(
+                    f"{self.__class__.__name__} does not support probabilistic "
+                    f"forecasting. Use predict_batch() without quantile_levels "
+                    f"for point forecasts."
+                )
+            quantile_levels = (
+                quantile_levels
+                or self.config.quantile_levels
+                or self.DEFAULT_QUANTILE_LEVELS
+            )
+
+        input_ids = {str(eid) for eid in data[episode_col].unique()}
+        if not input_ids:
+            return {}
+
+        results = self._predict_batch(data, episode_col, quantile_levels)
+
+        missing = input_ids - set(results.keys())
+        if missing:
+            self.logger.warning(
+                "%d episode(s) produced no predictions: %s",
+                len(missing),
+                sorted(missing)[:10],
+            )
+
+        return results
+
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+        quantile_levels: Optional[List[float]] = None,
+    ) -> Dict[str, np.ndarray]:
+        """Default sequential loop for multi-episode prediction.
+
+        Iterates over grouped episodes and calls predict() for each one.
+        Models that support native GPU batching (e.g. Chronos2, TTM) should
+        override this method for more efficient inference.
+
+        Args:
+            data: Panel DataFrame with an episode_col column.
+            episode_col: Column name identifying episodes.
+            quantile_levels: When set, passed through to predict() for
+                quantile forecasts.
+
+        Returns:
+            Dict mapping episode ID (as str) to numpy forecast array.
+        """
+        results: Dict[str, np.ndarray] = {}
+        for ep_id, ep_data in data.groupby(episode_col):
+            results[str(ep_id)] = self.predict(ep_data, quantile_levels=quantile_levels)
+        return results
 
     ## Abstract Protected Methods
     @abstractmethod
@@ -469,13 +665,10 @@ class BaseTimeSeriesFoundationModel(ABC):
             save_config: Whether to save the model configuration to config.json.
             save_metadata: Whether to save training metadata to metadata.json.
 
-        Raises:
-            NotImplementedError: Always raised by base class. Child classes
-                must override to save model weights.
-
         Note:
             Child classes should call super().save() first to save
-            configuration and metadata, then save model-specific weights.
+            configuration and metadata, then save model-specific weights
+            via _save_checkpoint().
         """
         os.makedirs(model_path, exist_ok=True)
 
@@ -740,7 +933,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             return
 
         # Check if this model supports LoRA
-        if not self.supports_lora():
+        if not self.supports_lora:
             info_print(
                 f"LoRA is not supported for {self.__class__.__name__} architecture"
             )

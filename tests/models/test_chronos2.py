@@ -162,16 +162,6 @@ class TestChronos2:
             == []
         )
 
-    def test_predict_before_fit(self):
-        """predict/evaluate before fit → clear ValueError, not AttributeError."""
-        model = Chronos2Forecaster(Chronos2Config())
-        flat = _make_flat_df(n_patients=1, n_days=5)
-
-        with pytest.raises(ValueError, match="fitted or loaded"):
-            model.predict(flat)
-        with pytest.raises(ValueError, match="fitted or loaded"):
-            model.evaluate(flat)
-
     def test_data_pipeline(self):
         """Core pipeline: flat df → segments → TimeSeriesDataFrame with covariates."""
         from src.data.preprocessing.gap_handling import segment_all_patients
@@ -199,6 +189,53 @@ class TestChronos2:
         seg_nan.iloc[10:20, seg_nan.columns.get_loc("iob")] = np.nan
         ts2 = format_segments_for_autogluon({"seg": seg_nan}, "bg_mM", ["iob"])
         assert ts2["iob"].isna().sum() == 0
+
+    def test_zero_shot_predict_output_shape(self):
+        """Zero-shot path (predictor=None) returns array of shape (forecast_length,).
+
+        Mocks Chronos2Pipeline to avoid a model download. Tests the new
+        unified _predict() zero-shot branch introduced in this PR.
+        """
+        import unittest.mock as mock
+        import torch
+
+        config = Chronos2Config(forecast_length=12, context_length=24)
+        model = Chronos2Forecaster(config)
+        assert model.predictor is None  # confirm zero-shot state
+
+        # Build a dummy pipeline that returns (quantiles, mean) tensors
+        fake_mean = torch.zeros(1, 1, config.forecast_length)
+        fake_pipeline = mock.MagicMock()
+        fake_pipeline.predict_quantiles.return_value = (None, fake_mean)
+
+        # Inject the fake pipeline directly — avoids patching the lazy
+        # import inside _predict() which is never bound to this module's
+        # namespace and cannot be monkeypatched via module path.
+        model._zs_pipeline = fake_pipeline
+
+        data = pd.DataFrame(
+            {"bg_mM": np.random.rand(config.context_length)},
+            index=pd.date_range(
+                "2024-01-01", periods=config.context_length, freq="5min"
+            ),
+        )
+        result = model.predict(data)
+
+        assert isinstance(result, np.ndarray)
+        assert result.shape == (config.forecast_length,)
+
+    def test_zero_shot_predict_missing_column_raises(self):
+        """Zero-shot path raises ValueError when target column is absent."""
+        config = Chronos2Config(forecast_length=12, context_length=24)
+        model = Chronos2Forecaster(config)
+        import unittest.mock as mock
+
+        fake_pipeline = mock.MagicMock()
+        model._zs_pipeline = fake_pipeline
+
+        data = pd.DataFrame({"wrong_col": np.random.rand(24)})
+        with pytest.raises(ValueError, match="bg_mM"):
+            model._predict(data)
 
 
 # ---------------------------------------------------------------------------
