@@ -49,10 +49,14 @@ def make_fake_data(n_rows=CONTEXT_LEN, n_episodes=1):
     base = pd.Timestamp("2025-01-01")
     for i in range(n_episodes):
         t = pd.date_range(base, periods=n_rows, freq="5min")
-        df = pd.DataFrame({
-            "datetime": t,
-            "bg_mM": 5.0 + np.sin(np.linspace(0, 4 * np.pi, n_rows)) + np.random.randn(n_rows) * 0.2,
-        })
+        df = pd.DataFrame(
+            {
+                "datetime": t,
+                "bg_mM": 5.0
+                + np.sin(np.linspace(0, 4 * np.pi, n_rows))
+                + np.random.randn(n_rows) * 0.2,
+            }
+        )
         df["episode_id"] = f"ep_{i}"
         dfs.append(df)
     return pd.concat(dfs, ignore_index=True)
@@ -89,9 +93,17 @@ if ZS_AVAILABLE:
         result = zs_model.predict(single_ep)
         dt = time.time() - t0
         check("returns ndarray", isinstance(result, np.ndarray))
-        check("shape is (forecast_len,)", result.shape == (FORECAST_LEN,), f"got {result.shape}")
+        check(
+            "shape is (forecast_len,)",
+            result.shape == (FORECAST_LEN,),
+            f"got {result.shape}",
+        )
         check("no NaNs", not np.isnan(result).any())
-        check("reasonable BG range", result.min() > 0 and result.max() < 30, f"range [{result.min():.2f}, {result.max():.2f}]")
+        check(
+            "reasonable BG range",
+            result.min() > 0 and result.max() < 30,
+            f"range [{result.min():.2f}, {result.max():.2f}]",
+        )
         print(f"  Time: {dt:.2f}s")
     except Exception as e:
         failed += 1
@@ -105,9 +117,17 @@ if ZS_AVAILABLE:
         result = zs_model.predict(single_ep, quantile_levels=QUANTILE_LEVELS)
         dt = time.time() - t0
         check("returns ndarray", isinstance(result, np.ndarray))
-        check("shape is (n_q, forecast_len)", result.shape == (len(QUANTILE_LEVELS), FORECAST_LEN), f"got {result.shape}")
+        check(
+            "shape is (n_q, forecast_len)",
+            result.shape == (len(QUANTILE_LEVELS), FORECAST_LEN),
+            f"got {result.shape}",
+        )
         check("no NaNs", not np.isnan(result).any())
-        check("quantiles are ordered", np.all(np.diff(result, axis=0) >= -0.01), "quantile ordering violated")
+        check(
+            "quantiles are ordered",
+            np.all(np.diff(result, axis=0) >= -0.01),
+            "quantile ordering violated",
+        )
         print(f"  Time: {dt:.2f}s")
     except Exception as e:
         failed += 1
@@ -134,12 +154,18 @@ if ZS_AVAILABLE:
     print("\n[4] predict_batch(quantile_levels=...) — quantile forecast, 3 episodes")
     try:
         t0 = time.time()
-        results = zs_model.predict_batch(batch_data, episode_col="episode_id", quantile_levels=QUANTILE_LEVELS)
+        results = zs_model.predict_batch(
+            batch_data, episode_col="episode_id", quantile_levels=QUANTILE_LEVELS
+        )
         dt = time.time() - t0
         check("returns dict", isinstance(results, dict))
         check("3 episodes", len(results) == 3, f"got {len(results)}")
         for ep_id, arr in results.items():
-            check(f"  {ep_id} shape", arr.shape == (len(QUANTILE_LEVELS), FORECAST_LEN), f"got {arr.shape}")
+            check(
+                f"  {ep_id} shape",
+                arr.shape == (len(QUANTILE_LEVELS), FORECAST_LEN),
+                f"got {arr.shape}",
+            )
         print(f"  Time: {dt:.2f}s")
     except Exception as e:
         failed += 1
@@ -177,7 +203,9 @@ if ft_loaded:
         result = ft_model.predict(single_ep)
         dt = time.time() - t0
         check("returns ndarray", isinstance(result, np.ndarray))
-        check(f"shape is ({ft_flen},)", result.shape == (ft_flen,), f"got {result.shape}")
+        check(
+            f"shape is ({ft_flen},)", result.shape == (ft_flen,), f"got {result.shape}"
+        )
         check("no NaNs", not np.isnan(result).any())
         print(f"  Time: {dt:.2f}s")
     except Exception as e:
@@ -192,7 +220,11 @@ if ft_loaded:
         result = ft_model.predict(single_ep, quantile_levels=QUANTILE_LEVELS)
         dt = time.time() - t0
         check("returns ndarray", isinstance(result, np.ndarray))
-        check(f"shape is ({n_q}, {ft_flen})", result.shape == (n_q, ft_flen), f"got {result.shape}")
+        check(
+            f"shape is ({n_q}, {ft_flen})",
+            result.shape == (n_q, ft_flen),
+            f"got {result.shape}",
+        )
         check("no NaNs", not np.isnan(result).any())
         print(f"  Time: {dt:.2f}s")
     except Exception as e:
@@ -220,7 +252,9 @@ if ft_loaded:
     print("\n[8] predict_batch(quantile_levels=...) — quantile forecast, 3 episodes")
     try:
         t0 = time.time()
-        results = ft_model.predict_batch(batch_data, episode_col="episode_id", quantile_levels=QUANTILE_LEVELS)
+        results = ft_model.predict_batch(
+            batch_data, episode_col="episode_id", quantile_levels=QUANTILE_LEVELS
+        )
         dt = time.time() - t0
         check("returns dict", isinstance(results, dict))
         check("3 episodes", len(results) == 3, f"got {len(results)}")

@@ -332,7 +332,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     # Inference
     # ------------------------------------------------------------------
 
-    def _predict(self, data: pd.DataFrame, quantile_levels=None, **kwargs) -> np.ndarray:
+    def _predict(
+        self, data: pd.DataFrame, quantile_levels=None, **kwargs
+    ) -> np.ndarray:
         """Generate forecasts using Chronos-2.
 
         Two inference paths:
@@ -358,7 +360,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             return mean
         return self._autogluon_extract(data, columns=["mean"])
 
-    def _predict_quantiles_impl(self, data: pd.DataFrame, quantile_levels: list) -> np.ndarray:
+    def _predict_quantiles_impl(
+        self, data: pd.DataFrame, quantile_levels: list
+    ) -> np.ndarray:
         """Internal quantile forecast logic shared by _predict and _predict_batch."""
         if self.predictor is None:
             quantiles, _ = self._zero_shot_forecast(data, quantile_levels)
@@ -423,7 +427,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 # Validate requested levels against training-time registration.
                 available = set(
                     round(q, 8)
-                    for q in (self.config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS)
+                    for q in (
+                        self.config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS
+                    )
                 )
                 missing = [q for q in quantile_levels if round(q, 8) not in available]
                 if missing:

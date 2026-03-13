@@ -524,9 +524,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         results: Dict[str, np.ndarray] = {}
         for ep_id, ep_data in data.groupby(episode_col):
-            results[str(ep_id)] = self.predict(
-                ep_data, quantile_levels=quantile_levels
-            )
+            results[str(ep_id)] = self.predict(ep_data, quantile_levels=quantile_levels)
         return results
 
     ## Abstract Protected Methods
