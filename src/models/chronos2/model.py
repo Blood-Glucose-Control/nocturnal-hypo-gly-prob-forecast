@@ -454,26 +454,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             context = context[ag_cols].set_index(["item_id", "timestamp"])
             ts_data = TimeSeriesDataFrame(context)
 
-            # Ensure cross_learning=False so episodes are predicted
-            # independently.  New models get this from config (see
-            # Chronos2Config.get_autogluon_hyperparameters), but older
-            # checkpoints may not have it.  predictor.predict() cannot
-            # override hyperparameters at call time, and predictor._trainer
-            # is a property that deserializes a fresh trainer on every
-            # access, so in-memory overrides are lost.  We therefore load
-            # the inner Chronos2Model directly and call _predict().
-            try:
-                trainer = self.predictor._trainer
-                ag_model = trainer.load_model(self.predictor.model_best)
-                ag_model._hyperparameters["cross_learning"] = False
-                ag_predictions = ag_model._predict(ts_data, known_covariates=None)
-            except Exception as e:
-                self.logger.warning(
-                    "Direct model predict failed (%s), falling back to "
-                    "predictor.predict (cross_learning may be True).",
-                    e,
-                )
-                ag_predictions = self.predictor.predict(ts_data)
+            ag_predictions = self.predictor.predict(ts_data)
 
             # Choose which columns to extract
             if quantile_levels is not None:
