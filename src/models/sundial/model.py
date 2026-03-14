@@ -16,11 +16,13 @@ from transformers import (
 # Local imports
 from src.models.sundial.config import SundialConfig
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.utils.logging_helper import info_print, error_print
 
 logger = logging.getLogger(__name__)
 
 
+@ModelRegistry.register("sundial")
 class SundialForecaster(BaseTimeSeriesFoundationModel):
     """Sundial forecaster implementation."""
 
