@@ -457,24 +457,25 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             # Disable cross_learning so episodes are predicted independently.
             # AutoGluon defaults to cross_learning=True, which makes joint
             # predictions across items — wrong for unrelated patient-nights.
-            # The hyperparameter lives on the inner Chronos2Model, not the
-            # top-level TimeSeriesPredictor.  Navigate:
-            #   predictor._trainer → wrapper model → inner Chronos2Model
+            #
+            # We cannot use predictor.predict() because predictor._trainer is
+            # a property that creates a fresh trainer on every access, so any
+            # hyperparameter overrides are lost before predict() runs.
+            # Instead, load the inner Chronos2Model once, override
+            # cross_learning, and call model._predict() directly.
             try:
                 trainer = self.predictor._trainer
-                wrapper = trainer.load_model(self.predictor.model_best)
-                if hasattr(wrapper, "most_recent_model"):
-                    inner = trainer.load_model(wrapper.most_recent_model)
-                else:
-                    inner = wrapper
-                inner._hyperparameters["cross_learning"] = False
+                model_name = self.predictor.model_best
+                ag_model = trainer.load_model(model_name)
+                ag_model._hyperparameters["cross_learning"] = False
+                ag_predictions = ag_model._predict(ts_data, known_covariates=None)
             except Exception as e:
                 self.logger.warning(
-                    "Could not disable cross_learning: %s. "
-                    "Predictions may use joint cross-learning.",
+                    "Direct model predict failed (%s), falling back to "
+                    "predictor.predict (cross_learning may be True).",
                     e,
                 )
-            ag_predictions = self.predictor.predict(ts_data)
+                ag_predictions = self.predictor.predict(ts_data)
 
             # Choose which columns to extract
             if quantile_levels is not None:
