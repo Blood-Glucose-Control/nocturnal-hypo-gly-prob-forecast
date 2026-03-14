@@ -239,6 +239,71 @@ class TestChronos2:
 
 
 # ---------------------------------------------------------------------------
+# Multi-target (joint co-target forecasting)
+# ---------------------------------------------------------------------------
+
+
+class TestMultitarget:
+    """Joint co-target mode: target_cols=["bg_mM", "iob"] stacks each column
+    as a separate AutoGluon item, so Chronos-2 trains on both jointly."""
+
+    def test_is_multitarget_requires_two_or_more_targets(self):
+        assert not Chronos2Config().is_multitarget  # default: empty list
+        assert Chronos2Config(target_cols=["bg_mM", "iob"]).is_multitarget
+        # Single-entry target_cols is rejected (ambiguous — use target_col instead)
+        with pytest.raises(ValueError, match="target_cols has 1 entry"):
+            Chronos2Config(target_cols=["bg_mM"])
+
+    def test_segments_stacked_as_separate_items(self):
+        """2 segments x 2 targets → 4 items named seg_0__bg_mM, seg_0__iob, etc."""
+        rng = np.random.default_rng(42)
+        segments = {}
+        for i in range(2):
+            idx = pd.date_range("2024-01-01", periods=20, freq="5min")
+            segments[f"seg_{i}"] = pd.DataFrame(
+                {"bg_mM": rng.normal(7, 1, 20), "iob": rng.exponential(0.5, 20)},
+                index=idx + pd.Timedelta(days=i),
+            )
+
+        ts = format_segments_for_autogluon(segments, target_cols=["bg_mM", "iob"])
+
+        assert ts.num_items == 4
+        assert list(ts.columns) == ["target"]
+        assert sorted(ts.index.get_level_values(0).unique()) == [
+            "seg_0__bg_mM",
+            "seg_0__iob",
+            "seg_1__bg_mM",
+            "seg_1__iob",
+        ]
+        # Values match originals
+        np.testing.assert_array_almost_equal(
+            ts.loc["seg_0__bg_mM"]["target"].values, segments["seg_0"]["bg_mM"].values
+        )
+
+    def test_inference_extracts_primary_target_only(self):
+        """_prepare_autogluon_data stacks both targets, but _ag_item_id
+        maps episode IDs to the primary target (bg_mM) for extraction."""
+        config = Chronos2Config(target_cols=["bg_mM", "iob"])
+        model = Chronos2Forecaster(config)
+
+        data = pd.DataFrame(
+            {
+                "datetime": pd.date_range("2024-01-01", periods=30, freq="5min"),
+                "bg_mM": np.ones(30) * 7.0,
+                "iob": np.ones(30) * 0.5,
+                "episode_id": "ep_0",
+            }
+        )
+        ts = model._prepare_autogluon_data(data)
+
+        # Both targets present as items
+        assert "ep_0__bg_mM" in ts.index.get_level_values(0)
+        assert "ep_0__iob" in ts.index.get_level_values(0)
+        # Extraction targets primary only
+        assert model._ag_item_id("ep_0") == "ep_0__bg_mM"
+
+
+# ---------------------------------------------------------------------------
 # GPU-only end-to-end tests
 # ---------------------------------------------------------------------------
 
