@@ -256,27 +256,46 @@ def _find_nan_runs(series: pd.Series) -> list[tuple[int, int, int]]:
     """
     Find all runs of consecutive NaN values in a Series.
 
-    Uses vectorized numpy edge-detection: pad the boolean NaN mask with
-    False sentinels, then find indices where the value transitions from
-    non-NaN to NaN (rising edges = starts) and NaN to non-NaN (falling
-    edges = ends). Gap lengths are ``ends - starts`` — no Python loops
-    over individual rows.
-
     Args:
         series: Pandas Series to scan for NaN runs.
 
     Returns:
         List of (start_idx, end_idx_exclusive, run_length) tuples.
+
+    Example::
+
+        >>> _find_nan_runs(pd.Series([1.0, NaN, NaN, NaN, 5.0, NaN, 7.0]))
+        [(1, 4, 3), (5, 6, 1)]
     """
     is_nan = series.isna().values  # numpy bool array
 
     if not is_nan.any():
         return []
 
-    # Pad with False on both sides so edge detection works at boundaries.
-    # Given is_nan = [F T T T F], padded = [F F T T T F F].
-    # Rising edges (F→T):  padded[1:] & ~padded[:-1]  → positions where NaN blocks start
-    # Falling edges (T→F): ~padded[1:] & padded[:-1]  → positions where NaN blocks end
+    # Compare each position with the one before it to find where NaN
+    # blocks begin and end, without looping in Python.
+    #
+    # Example: values = [1, NaN, NaN, NaN, 5]
+    #          is_nan = [F,  T,   T,   T,  F]
+    #
+    # Problem: if a NaN block starts at index 0 or ends at the last
+    # index, there's no neighbor to compare against.  Padding with
+    # False on both sides guarantees every block has a boundary:
+    #          padded = [F, F, T, T, T, F, F]
+    #
+    # Now slide two adjacent windows across padded:
+    #   padded[:-1] = [F, F, T, T, T, F]   (left neighbor)
+    #   padded[1:]  = [F, T, T, T, F, F]   (current position)
+    #
+    # A NaN block STARTS where we go from F → T:
+    #   current=T AND left=F  →  padded[1:] & ~padded[:-1]
+    #   = [F, T, F, F, F, F]  →  start at index 1
+    #
+    # A NaN block ENDS where we go from T → F:
+    #   current=F AND left=T  →  ~padded[1:] & padded[:-1]
+    #   = [F, F, F, F, T, F]  →  end at index 4 (exclusive)
+    #
+    # Gap length = end - start = 4 - 1 = 3 ✓
     padded = np.concatenate(([False], is_nan, [False]))
     starts = np.where(padded[1:] & ~padded[:-1])[0]
     ends = np.where(~padded[1:] & padded[:-1])[0]
@@ -330,11 +349,12 @@ def interpolate_small_gaps(
     if not s.isna().any():
         return df
 
-    # Vectorized gap detection via numpy edge-detection (see _find_nan_runs).
+    # Find where each NaN block starts and ends (see _find_nan_runs
+    # for a step-by-step walkthrough of the edge-detection logic).
     is_nan = s.isna().values
     padded = np.concatenate(([False], is_nan, [False]))
-    starts = np.where(padded[1:] & ~padded[:-1])[0]
-    ends = np.where(~padded[1:] & padded[:-1])[0]
+    starts = np.where(padded[1:] & ~padded[:-1])[0]  # F→T transitions
+    ends = np.where(~padded[1:] & padded[:-1])[0]  # T→F transitions
     lengths = ends - starts
 
     # Build mask of large gaps (length > threshold) that must stay NaN.
