@@ -7,8 +7,9 @@ from src.models.base.registry import ModelRegistry
 
 @pytest.fixture(autouse=True)
 def _isolate_registry():
-    """Save and restore registry around each test."""
+    """Clear registry before each test, restore after."""
     saved = dict(ModelRegistry._registry)
+    ModelRegistry._registry.clear()
     yield
     ModelRegistry._registry.clear()
     ModelRegistry._registry.update(saved)
@@ -36,17 +37,15 @@ def test_conflict_raises():
         ModelRegistry.register("_dup")(type("_B", (), {}))
 
 
-def test_real_models_registered():
-    """At least some models register when src.models is imported."""
-    import src.models  # noqa: F401
-
-    registered = ModelRegistry.list_models()
-    if not registered:
+def test_lazy_import():
+    """get() lazily imports the model module on first access."""
+    available = ModelRegistry.available_models()
+    if not available:
         pytest.skip("No model deps installed.")
 
     from src.models.base import BaseTimeSeriesFoundationModel
 
-    # Verify each registered class is actually a model, not a stray class
-    for name in registered:
-        cls = ModelRegistry.get(name)
-        assert issubclass(cls, BaseTimeSeriesFoundationModel)
+    # Pick first available model — get() should lazily import it
+    name = available[0]
+    cls = ModelRegistry.get(name)
+    assert issubclass(cls, BaseTimeSeriesFoundationModel)
