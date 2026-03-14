@@ -244,15 +244,15 @@ class TestChronos2:
 
 
 class TestMultitarget:
-    """Joint co-target mode: target_cols=["bg_mM", "iob"] stacks each column
+    """Joint co-target mode: joint_target_cols=["bg_mM", "iob"] stacks each column
     as a separate AutoGluon item, so Chronos-2 trains on both jointly."""
 
     def test_is_multitarget_requires_two_or_more_targets(self):
         assert not Chronos2Config().is_multitarget  # default: empty list
-        assert Chronos2Config(target_cols=["bg_mM", "iob"]).is_multitarget
-        # Single-entry target_cols is rejected (ambiguous — use target_col instead)
-        with pytest.raises(ValueError, match="target_cols has 1 entry"):
-            Chronos2Config(target_cols=["bg_mM"])
+        assert Chronos2Config(joint_target_cols=["bg_mM", "iob"]).is_multitarget
+        # Single-entry joint_target_cols is rejected (ambiguous — use target_col instead)
+        with pytest.raises(ValueError, match="joint_target_cols has 1 entry"):
+            Chronos2Config(joint_target_cols=["bg_mM"])
 
     def test_segments_stacked_as_separate_items(self):
         """2 segments x 2 targets → 4 items named seg_0__bg_mM, seg_0__iob, etc."""
@@ -283,7 +283,7 @@ class TestMultitarget:
     def test_inference_extracts_primary_target_only(self):
         """_prepare_autogluon_data stacks both targets, but _ag_item_id
         maps episode IDs to the primary target (bg_mM) for extraction."""
-        config = Chronos2Config(target_cols=["bg_mM", "iob"])
+        config = Chronos2Config(joint_target_cols=["bg_mM", "iob"])
         model = Chronos2Forecaster(config)
 
         data = pd.DataFrame(

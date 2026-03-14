@@ -137,9 +137,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
         # Multi-target mode: stack each target col as a separate item
         if config.is_multitarget:
-            info_print(f"Multi-target mode: {config.target_cols}")
+            info_print(f"Multi-target mode: {config.joint_target_cols}")
             ts_train = format_segments_for_autogluon(
-                segments, target_cols=config.target_cols
+                segments, target_cols=config.joint_target_cols
             )
         else:
             ts_train = format_segments_for_autogluon(
@@ -278,7 +278,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             data_list = []
             for ep_id in context["episode_id"].unique():
                 ep_data = context[context["episode_id"] == ep_id]
-                for col in config.target_cols:
+                for col in config.joint_target_cols:
                     if col not in ep_data.columns:
                         logger.warning(
                             "Target column '%s' missing for episode %s", col, ep_id
@@ -298,7 +298,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             if not data_list:
                 raise ValueError(
                     f"No valid multi-target data found. Check that target_cols "
-                    f"{config.target_cols} exist in the input DataFrame."
+                    f"{config.joint_target_cols} exist in the input DataFrame."
                 )
             combined = pd.concat(data_list, ignore_index=True)
             combined = combined.set_index(["item_id", "timestamp"])
