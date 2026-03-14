@@ -1,12 +1,7 @@
 """ModelRegistry: maps short names to model classes via decorator."""
 
-from __future__ import annotations
-
 import importlib
-from typing import TYPE_CHECKING, Dict, List, Type
-
-if TYPE_CHECKING:
-    from src.models.base.base_model import BaseTimeSeriesFoundationModel
+from typing import Dict, List, Type
 
 # Module paths for lazy import — only loaded when get() is called.
 _MODEL_MODULES: Dict[str, str] = {
@@ -25,7 +20,7 @@ _MODEL_MODULES: Dict[str, str] = {
 class ModelRegistry:
     """Maps short names (e.g. "ttm", "chronos2") to model classes."""
 
-    _registry: Dict[str, Type["BaseTimeSeriesFoundationModel"]] = {}
+    _registry: Dict[str, Type] = {}
 
     @classmethod
     def register(cls, name: str):
@@ -43,7 +38,7 @@ class ModelRegistry:
         return decorator
 
     @classmethod
-    def get(cls, name: str) -> Type["BaseTimeSeriesFoundationModel"]:
+    def get(cls, name: str) -> Type:
         # Lazy import: if not yet registered, try importing the module.
         if name not in cls._registry:
             mod_path = _MODEL_MODULES.get(name)
