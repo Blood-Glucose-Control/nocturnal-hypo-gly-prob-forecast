@@ -31,6 +31,9 @@ class ColumnNames(str, Enum):
     CARB_AVAILABILITY = "carb_availability"
     IOB = "iob"
     INSULIN_AVAILABILITY = "insulin_availability"
+    # Time features
+    HOUR_SIN = "hour_sin"
+    HOUR_COS = "hour_cos"
     CALS = "cals"
     STEPS = "steps"
     HR_BPM = "hr_bpm"
