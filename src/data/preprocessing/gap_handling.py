@@ -316,19 +316,18 @@ def interpolate_small_gaps(
     (e.g., bolus, food, steps) are left untouched — linear interpolation
     would create fractional values that are physiologically meaningless.
 
-    **Why a custom function instead of ``pd.interpolate(limit=N)``?**
+    Why not pd.interpolate(limit=N)?
 
-    Pandas' ``limit`` parameter caps how many consecutive NaNs are filled
-    *per fill direction*, not per gap.  With ``limit_direction='both'``,
-    a 20-NaN gap and ``limit=11`` gets fully filled (11 from the left +
-    11 from the right overlap in the middle).  There is no native pandas
+    pandas' limit parameter caps how many consecutive NaNs are filled
+    per fill direction, not per gap. With limit_direction='both',
+    a 20-NaN gap and limit=11 gets fully filled (11 from the left +
+    11 from the right overlap in the middle). There is no native pandas
     option for "measure the total gap length first, then decide whether
-    to fill."  This function provides that all-or-nothing semantic:
-    gaps whose entire length exceeds ``max_gap_rows`` are left completely
-    untouched — no partial filling from either side.
+    to fill." This function provides that all-or-nothing semantic:
+    gaps longer than max_gap_rows are left completely untouched.
 
-    The implementation is vectorized: gap boundaries are detected via
-    numpy edge-detection in ``_find_nan_runs()``, not Python loops.
+    Gap boundaries are detected via numpy edge-detection (see
+    _find_nan_runs for a step-by-step walkthrough), not Python loops.
 
     Args:
         df: DataFrame (on regular grid) possibly containing NaN runs.
