@@ -18,7 +18,7 @@ from src.data.models import ColumnNames  # noqa: E402
 
 
 def verify_time_features():
-    registry = DatasetRegistry()
+    registry = DatasetRegistry(holdout_config_dir="configs/data/holdout_10pct")
     train_data, holdout_data = registry.load_dataset_with_split("brown_2019")
 
     print("=" * 60)

@@ -344,7 +344,7 @@ def main():
     print("LOADING DATA VIA DATASET REGISTRY")
     print("=" * 70)
 
-    registry = DatasetRegistry()
+    registry = DatasetRegistry(holdout_config_dir="configs/data/holdout_10pct")
     train_flat, holdout_flat = registry.load_dataset_with_split("brown_2019")
 
     print(f"Train: {len(train_flat):,} rows, {train_flat['p_num'].nunique()} patients")
