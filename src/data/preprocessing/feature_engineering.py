@@ -266,6 +266,12 @@ def create_physiological_features(
         df[ColumnNames.IOB.value] = np.nan
         df[ColumnNames.INSULIN_AVAILABILITY.value] = np.nan
 
+    # Compute cyclic time-of-day features (always available from DatetimeIndex)
+    logger.info("\tCreating time-of-day features (hour_sin, hour_cos)...")
+    minutes_of_day = df.index.hour * 60 + df.index.minute
+    df[ColumnNames.HOUR_SIN.value] = np.sin(2 * np.pi * minutes_of_day / 1440)
+    df[ColumnNames.HOUR_COS.value] = np.cos(2 * np.pi * minutes_of_day / 1440)
+
     logger.info("\tReducing floating point precision...")
     df = reduce_fp_precision(df)
 

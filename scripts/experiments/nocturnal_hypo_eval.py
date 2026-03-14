@@ -11,87 +11,29 @@ which measures general forecast accuracy across all times of day. These two eval
 modes produce DIFFERENT RMSE numbers and must never be compared on the same leaderboard.
 
 Usage:
-    python scripts/experiments/nocturnal_hypo_eval.py --model ttm --dataset brown_2019
-    # sundial zero-shot (no checkpoint):
+    # Zero-shot:
+    python scripts/experiments/nocturnal_hypo_eval.py --model chronos2 --dataset brown_2019
+
+    # Fine-tuned with checkpoint:
     python scripts/experiments/nocturnal_hypo_eval.py \
-        --model sundial \
-        --dataset tamborlane_2008 \
+        --model chronos2 --dataset tamborlane_2008 \
+        --checkpoint trained_models/artifacts/chronos2/.../model.pt
+
+    # Full options:
+    python scripts/experiments/nocturnal_hypo_eval.py \
+        --model chronos2 --dataset brown_2019 \
         --config-dir configs/data/holdout_10pct \
-        --context-length 512 \
-        --forecast-length 96 \
-        --cuda-device 0
+        --context-length 512 --forecast-length 96 \
+        --cuda-device 0 --covariate-cols iob
 
-    # timesfm ft-shot (no checkpoint):
-    python scripts/experiments/nocturnal_hypo_eval.py \
-        --model timesfm \
-        --dataset tamborlane_2008 \
-        --config-dir configs/data/holdout_10pct \
-        --context-length 512 \
-        --forecast-length 96 \
-        --cuda-device 1
-
-        --checkpoint trained_models/artifacts/timesfm/2026-02-27_05:37_RID20260227_053718_211403_holdout_workflow/resumed_training/model.pt \
-
-    # ttm zero-shot (no checkpoint):
-    python scripts/experiments/nocturnal_hypo_eval.py \
-        --model ttm \
-        --dataset tamborlane_2008 \
-        --config-dir configs/data/holdout_10pct \
-        --context-length 512 \
-        --forecast-length 96 \
-        --cuda-device 0
-
-        --checkpoint trained_models/artifacts/ttm/2026-02-27_03:53_RID20260227_035316_193673_holdout_workflow/model.pt \
-
-    python scripts/experiments/nocturnal_hypo_eval.py \
-        --model ttm \
-        --context-length 512 \
-        --forecast-length 96
-
-    # TimeGrad — after first 10-epoch training run (aleppo_2017):
-    python scripts/experiments/nocturnal_hypo_eval.py \
-        --model timegrad \
-        --dataset aleppo_2017 \
-        --config-dir configs/data/holdout_10pct \
-        --model-config configs/models/timegrad/cgm_only.yaml \
-        --context-length 512 \
-        --forecast-length 48 \
-        --cuda-device 1
-
-    # TimeGrad — after second 10-epoch resumed training run (lynch_2022, epochs 11–20):
-    python scripts/experiments/nocturnal_hypo_eval.py \
-        --model timegrad \
-        --dataset aleppo_2017 \
-        --config-dir configs/data/holdout_10pct \
-        --model-config configs/models/timegrad/cgm_only.yaml \
-        --context-length 512 \
-        --forecast-length 96 \
-        --checkpoint trained_models/artifacts/timegrad/2026-02-24_01:12_RID20260224_011201_2800320_holdout_workflow/resumed_training/model.pt
-
-    # Chronos-2 fine-tuned (checkpoint with model.pt/ directory):
-    python scripts/experiments/nocturnal_hypo_eval.py \
-        --model chronos2 \
-        --dataset tamborlane_2008 \
-        --config-dir configs/data/holdout_10pct \
-        --context-length 512 \
-        --forecast-length 96 \
-        --cuda-device 1 \
-        --checkpoint trained_models/artifacts/chronos2/2026-02-28_05:54_RID20260228_055400_391511_holdout_workflow/resumed_training/model.pt
-
-    # TiDE fine-tuned:
-    python scripts/experiments/nocturnal_hypo_eval.py \
-        --model tide \
-        --dataset tamborlane_2008 \
-        --config-dir configs/data/holdout_10pct \
-        --context-length 512 \
-        --forecast-length 96 \
-        --cuda-device 1 \
-        --checkpoint trained_models/artifacts/tide/2026-02-28_21:28_RID20260228_212852_496983_holdout_workflow/model.pt
-        """
+    # Exact commands for past experiments are saved in each run's
+    # experiment_config.json under "reproducibility_command".
+"""
 
 import argparse
 import json
 import logging
+import shlex
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -143,38 +85,16 @@ def save_experiment_config(
     output_path: Path,
 ) -> None:
     """Save experiment configuration for reproducibility."""
-    cmd_parts = ["python", "scripts/experiments/nocturnal_hypo_eval.py"]
-    cmd_parts.extend(["--model", args.model])
-    cmd_parts.extend(["--dataset", args.dataset])
-    cmd_parts.extend(["--config-dir", args.config_dir])
-    cmd_parts.extend(["--context-length", str(args.context_length)])
-    cmd_parts.extend(["--forecast-length", str(args.forecast_length)])
-    cmd_parts.extend(["--cuda-device", str(args.cuda_device)])
-    if args.checkpoint:
-        cmd_parts.extend(["--checkpoint", args.checkpoint])
-    if args.model_config:
-        cmd_parts.extend(["--model-config", args.model_config])
-
     config = {
         "evaluation_type": "nocturnal_hypoglycemia",
-        "cli_args": {
-            "model": args.model,
-            "dataset": args.dataset,
-            "config_dir": args.config_dir,
-            "checkpoint": args.checkpoint,
-            "context_length": args.context_length,
-            "forecast_length": args.forecast_length,
-            "cuda_device": args.cuda_device,
-            "model_config": args.model_config,
-            "output_dir": args.output_dir,
-        },
+        "cli_args": vars(args),
         "model_config": model_config,
         "environment": {
             "git_commit": get_git_commit_hash(),
             "python_version": sys.version.split()[0],
             "timestamp": datetime.now().isoformat(),
         },
-        "reproducibility_command": " ".join(cmd_parts),
+        "reproducibility_command": shlex.join(sys.argv),
     }
 
     config_file = output_path / "experiment_config.json"
@@ -267,6 +187,13 @@ def parse_arguments() -> argparse.Namespace:
         default=1,
         help="CUDA device ID to use (default: 1)",
     )
+    parser.add_argument(
+        "--probabilistic",
+        action="store_true",
+        default=False,
+        help="Use predict_quantiles() and compute WQL + Brier@3.9 "
+        "(model must support probabilistic forecasting)",
+    )
     return parser.parse_args()
 
 
@@ -282,19 +209,13 @@ def main():
     config_dict = load_yaml_config(args.model_config) if args.model_config else {}
 
     # Prepare model kwargs
-    model_kwargs = {**config_dict}
-    if args.context_length is not None:
-        model_kwargs["context_length"] = args.context_length
-    if args.forecast_length is not None:
-        model_kwargs["forecast_length"] = args.forecast_length
+    model_kwargs = {
+        **config_dict,
+        "context_length": args.context_length,
+        "forecast_length": args.forecast_length,
+    }
 
     # Initialize model
-    logger.info("=" * 60)
-    logger.info("NOCTURNAL HYPOGLYCEMIA EVALUATION")
-    logger.info("=" * 60)
-    logger.info(f"Model: {args.model}")
-    logger.info(f"Mode: {'Fine-tuned' if args.checkpoint else 'Zero-shot'}")
-
     logger.info(f"\n--- Initializing {args.model.upper()} ---")
     model, config = create_model_and_config(
         args.model, checkpoint=args.checkpoint, **model_kwargs
@@ -302,16 +223,10 @@ def main():
 
     context_length = config.context_length
     forecast_length = config.forecast_length
+    mode = "Fine-tuned" if args.checkpoint else "Zero-shot"
 
-    logger.info(f"Dataset: {args.dataset}")
-    logger.info(
-        f"Context: {context_length} steps ({context_length / STEPS_PER_HOUR:.1f} hours)"
-    )
-    logger.info(
-        f"Forecast: {forecast_length} steps ({forecast_length / STEPS_PER_HOUR:.1f} hours)"
-    )
-
-    # Setup output directory
+    # Setup output directory and file logging BEFORE logging config,
+    # so everything goes to both console and file in one pass.
     output_path = setup_output_directory(
         args.model,
         args.dataset,
@@ -320,18 +235,13 @@ def main():
         args.checkpoint,
         args.output_dir,
     )
-
     log_file = setup_file_logging(output_path, "nocturnal_evaluation.log")
-    logger.info(f"Output: {output_path}")
-    logger.info(f"Log file: {log_file}")
 
-    # Re-log configuration to file
+    # Log configuration (captured by both console and file handlers)
     logger.info("=" * 60)
-    logger.info("EVALUATION CONFIGURATION")
+    logger.info("NOCTURNAL HYPOGLYCEMIA EVALUATION")
     logger.info("=" * 60)
-    logger.info("Evaluation type: Nocturnal Hypoglycemia (midnight-anchored)")
-    logger.info(f"Model: {args.model}")
-    logger.info(f"Mode: {'Fine-tuned' if args.checkpoint else 'Zero-shot'}")
+    logger.info(f"Model: {args.model} ({mode})")
     logger.info(f"Dataset: {args.dataset}")
     logger.info(f"Checkpoint: {args.checkpoint}")
     logger.info(
@@ -340,6 +250,8 @@ def main():
     logger.info(
         f"Forecast: {forecast_length} steps ({forecast_length / STEPS_PER_HOUR:.1f} hours)"
     )
+    logger.info(f"Output: {output_path}")
+    logger.info(f"Log file: {log_file}")
 
     # Load holdout data
     logger.info("\n--- Loading Holdout Data ---")
@@ -351,16 +263,27 @@ def main():
     logger.info(f"Holdout patients: {list(patients)}")
     logger.info(f"Total samples: {len(holdout_data):,}")
 
+    # Build resolved config dict once (used in experiment_config.json and results)
+    resolved_config = {
+        "context_length": context_length,
+        "forecast_length": forecast_length,
+        **config_dict,
+    }
+
     # Save experiment configuration
-    save_experiment_config(
-        args,
-        {
-            "context_length": context_length,
-            "forecast_length": forecast_length,
-            **config_dict,
-        },
-        output_path,
-    )
+    save_experiment_config(args, resolved_config, output_path)
+
+    # Auto-detect covariates from model config if not explicitly specified.
+    # Fine-tuned models (e.g., Chronos-2 with IOB) need the same columns at
+    # predict time as were present during training.
+    covariate_cols = args.covariate_cols
+    if (
+        covariate_cols is None
+        and hasattr(config, "covariate_cols")
+        and config.covariate_cols
+    ):
+        covariate_cols = config.covariate_cols
+        logger.info("Using covariates from model config: %s", covariate_cols)
 
     # Run nocturnal evaluation
     logger.info("\n--- Running Nocturnal Evaluation ---")
@@ -370,6 +293,7 @@ def main():
         context_length=context_length,
         forecast_length=forecast_length,
         covariate_cols=args.covariate_cols,
+        probabilistic=args.probabilistic,
     )
 
     # Log overall results
@@ -378,21 +302,20 @@ def main():
     logger.info("OVERALL RESULTS")
     logger.info("=" * 60)
     logger.info(f"Overall RMSE: {results['overall_rmse']:.4f}")
+    if "overall_wql" in results:
+        logger.info(f"Overall WQL:  {results['overall_wql']:.4f}")
+        logger.info(f"Overall Brier@3.9: {results['overall_brier']:.4f}")
     logger.info(f"Total midnight episodes: {results['total_episodes']}")
 
     # Prepare full results
     full_results = {
         "evaluation_type": "nocturnal_hypoglycemia",
         "model": args.model,
-        "mode": "fine-tuned" if args.checkpoint else "zero-shot",
+        "mode": mode.lower(),
         "checkpoint": args.checkpoint,
         "dataset": args.dataset,
         "timestamp": datetime.now().isoformat(),
-        "config": {
-            "context_length": context_length,
-            "forecast_length": forecast_length,
-            **config_dict,
-        },
+        "config": resolved_config,
         **results,
     }
 
