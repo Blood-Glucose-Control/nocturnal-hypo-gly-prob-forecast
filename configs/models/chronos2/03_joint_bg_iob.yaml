@@ -1,0 +1,35 @@
+# =============================================================================
+# Chronos-2 — Joint BG + IOB co-target forecasting
+# =============================================================================
+# Multi-target mode: BG and IOB are stacked as separate items in the
+# AutoGluon panel (long-format). The model trains jointly on both via
+# shared Chronos-2 weights. At inference, only BG predictions are returned.
+#
+# Compare against 01_bg_iob_insulin_availability.yaml (covariate mode) to
+# measure the effect of joint training vs past-only covariate context.
+#
+# Usage:
+#   sbatch scripts/training/slurm/chronos2_finetune.sh \
+#     MODEL_CONFIG=configs/models/chronos2/03_joint_bg_iob.yaml
+# =============================================================================
+
+model_path: "autogluon/chronos-2"
+context_length: 512
+forecast_length: 96  # 6 hours at 5-min intervals
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+fine_tune_steps: 15000
+fine_tune_lr: 1.0e-5
+
+# Joint co-target mode: both columns become separate panel items.
+# covariate_cols is ignored when target_cols has >1 entry.
+target_cols: ["bg_mM", "iob"]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "RMSE"
+enable_ensemble: false
