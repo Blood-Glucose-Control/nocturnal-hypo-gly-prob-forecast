@@ -264,6 +264,18 @@ def main():
     # Save experiment configuration
     save_experiment_config(args, resolved_config, output_path)
 
+    # Auto-detect covariates from model config if not explicitly specified.
+    # Fine-tuned models (e.g., Chronos-2 with IOB) need the same columns at
+    # predict time as were present during training.
+    covariate_cols = args.covariate_cols
+    if (
+        covariate_cols is None
+        and hasattr(config, "covariate_cols")
+        and config.covariate_cols
+    ):
+        covariate_cols = config.covariate_cols
+        logger.info("Using covariates from model config: %s", covariate_cols)
+
     # Run nocturnal evaluation
     logger.info("\n--- Running Nocturnal Evaluation ---")
     results = evaluate_nocturnal_forecasting(
