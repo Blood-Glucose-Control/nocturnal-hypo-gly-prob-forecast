@@ -49,6 +49,8 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     - Uses TiDE-specific hyperparameters (encoder/decoder dims, MeanScaler)
     """
 
+    config_class = TiDEConfig
+
     def __init__(
         self,
         config: TiDEConfig,
@@ -288,28 +290,6 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
-
-    @classmethod
-    def load(cls, model_path: str, config=None) -> "TiDEForecaster":
-        """Load a saved TiDE model.
-
-        Overrides base class to deserialize config as TiDEConfig
-        (not ModelConfig), preserving TiDE-specific fields like
-        encoder_hidden_dim, scaling, covariate_cols, etc.
-        """
-        if config is None:
-            config_path = os.path.join(model_path, "config.json")
-            if os.path.exists(config_path):
-                with open(config_path) as f:
-                    config_dict = json.load(f)
-                if "training_backend" in config_dict:
-                    config_dict["training_backend"] = TrainingBackend(
-                        config_dict["training_backend"]
-                    )
-                config = TiDEConfig(**config_dict)
-            else:
-                raise ValueError(f"No config found at {config_path}")
-        return super().load(model_path, config=config)
 
     def _save_checkpoint(self, output_dir: str) -> None:
         """Save predictor path reference.
