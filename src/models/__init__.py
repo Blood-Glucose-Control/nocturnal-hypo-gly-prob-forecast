@@ -17,7 +17,7 @@ for _mod in [
 ]:
     try:
         __import__(_mod)
-    except ImportError:
+    except ModuleNotFoundError:
         pass
 
 __all__ = ["create_model_and_config"]
