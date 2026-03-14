@@ -457,7 +457,23 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             # Disable cross_learning so episodes are predicted independently.
             # AutoGluon defaults to cross_learning=True, which makes joint
             # predictions across items — wrong for unrelated patient-nights.
-            self.predictor._hyperparameters["cross_learning"] = False
+            # The hyperparameter lives on the inner Chronos2Model, not the
+            # top-level TimeSeriesPredictor.  Navigate:
+            #   predictor._trainer → wrapper model → inner Chronos2Model
+            try:
+                trainer = self.predictor._trainer
+                wrapper = trainer.load_model(self.predictor.model_best)
+                if hasattr(wrapper, "most_recent_model"):
+                    inner = trainer.load_model(wrapper.most_recent_model)
+                else:
+                    inner = wrapper
+                inner._hyperparameters["cross_learning"] = False
+            except Exception as e:
+                self.logger.warning(
+                    "Could not disable cross_learning: %s. "
+                    "Predictions may use joint cross-learning.",
+                    e,
+                )
             ag_predictions = self.predictor.predict(ts_data)
 
             # Choose which columns to extract
