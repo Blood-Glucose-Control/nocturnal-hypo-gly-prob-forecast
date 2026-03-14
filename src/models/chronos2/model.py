@@ -454,19 +454,17 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             context = context[ag_cols].set_index(["item_id", "timestamp"])
             ts_data = TimeSeriesDataFrame(context)
 
-            # Disable cross_learning so episodes are predicted independently.
-            # AutoGluon defaults to cross_learning=True, which makes joint
-            # predictions across items — wrong for unrelated patient-nights.
-            #
-            # We cannot use predictor.predict() because predictor._trainer is
-            # a property that creates a fresh trainer on every access, so any
-            # hyperparameter overrides are lost before predict() runs.
-            # Instead, load the inner Chronos2Model once, override
-            # cross_learning, and call model._predict() directly.
+            # Ensure cross_learning=False so episodes are predicted
+            # independently.  New models get this from config (see
+            # Chronos2Config.get_autogluon_hyperparameters), but older
+            # checkpoints may not have it.  predictor.predict() cannot
+            # override hyperparameters at call time, and predictor._trainer
+            # is a property that deserializes a fresh trainer on every
+            # access, so in-memory overrides are lost.  We therefore load
+            # the inner Chronos2Model directly and call _predict().
             try:
                 trainer = self.predictor._trainer
-                model_name = self.predictor.model_best
-                ag_model = trainer.load_model(model_name)
+                ag_model = trainer.load_model(self.predictor.model_best)
                 ag_model._hyperparameters["cross_learning"] = False
                 ag_predictions = ag_model._predict(ts_data, known_covariates=None)
             except Exception as e:
