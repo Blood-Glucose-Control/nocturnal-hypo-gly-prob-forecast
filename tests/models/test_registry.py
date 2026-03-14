@@ -44,6 +44,9 @@ def test_real_models_registered():
     if not registered:
         pytest.skip("No model deps installed.")
 
+    from src.models.base import BaseTimeSeriesFoundationModel
+
+    # Verify each registered class is actually a model, not a stray class
     for name in registered:
         cls = ModelRegistry.get(name)
-        assert hasattr(cls, "load")
+        assert issubclass(cls, BaseTimeSeriesFoundationModel)
