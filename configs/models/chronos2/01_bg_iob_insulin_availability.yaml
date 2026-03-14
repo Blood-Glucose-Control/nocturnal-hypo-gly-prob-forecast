@@ -30,6 +30,7 @@ freeze_backbone: false
 # 100 steps = fast smoke test. Use ~15000 for a real training run.
 fine_tune_steps: 50000
 fine_tune_lr: 1.0e-5
+fine_tune_batch_size: 256  # default=32; GPU has ~96GB VRAM, 32→~4GB so 256→~32GB
 
 # BG only — no covariates
 covariate_cols: [iob, insulin_availability]

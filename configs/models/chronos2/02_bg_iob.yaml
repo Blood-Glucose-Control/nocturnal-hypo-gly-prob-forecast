@@ -1,0 +1,43 @@
+# =============================================================================
+# Chronos-2 - CGM + IOB (raw IOB only, no insulin_availability)
+# =============================================================================
+# Isolates the contribution of raw IOB as a covariate, filling the gap between
+# the BG-only baseline (00) and the full iob+insulin_availability config (01).
+# Baseline LR and context length — only covariate set changes.
+#
+# Datasets: aleppo_2017, brown_2019, lynch_2022
+# (All three have dose_units → iob via Hovorka model. Exclude tamborlane_2008:
+#  CGM-only, no insulin data.)
+#
+# Comparison target:
+#   00_bg_only.yaml          → no covariates
+#   01_bg_iob_insulin_avail  → [iob, insulin_availability]
+#   THIS config              → [iob] only  (isolates iob from insulin_availability)
+#
+# Usage:
+#   MODEL_TYPE="chronos2" \
+#   MODEL_CONFIG="configs/models/chronos2/02_bg_iob.yaml" \
+#   DATASETS="aleppo_2017 brown_2019 lynch_2022" \
+#   SKIP_TRAINING="false" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+model_path: "autogluon/chronos-2"
+context_length: 512
+forecast_length: 96  # 8 hours at 5-min intervals
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+fine_tune_steps: 50000
+fine_tune_lr: 1.0e-5
+fine_tune_batch_size: 256  # default=32; GPU has ~96GB VRAM, 32→~4GB so 256→~32GB
+
+covariate_cols: [iob]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "RMSE"
+enable_ensemble: false

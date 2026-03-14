@@ -1,0 +1,41 @@
+# =============================================================================
+# Chronos-2 - CGM + IOB + COB  |  LR = 5e-5  (high LR)
+# =============================================================================
+# Same covariate set as 05_bg_iob_cob.yaml but with 5× higher learning rate.
+# Mirrors the LR sweep from the CGM+Insulin group (03 vs 01) applied to the
+# CGM+Insulin+Carbs group — tests whether higher LR improves covariate uptake
+# for carb features as well.
+#
+# Datasets: aleppo_2017, lynch_2022
+#
+# Comparison target:
+#   05_bg_iob_cob.yaml  → same covariates, lr=1e-5
+#   THIS config         → same covariates, lr=5e-5
+#
+# Usage:
+#   MODEL_TYPE="chronos2" \
+#   MODEL_CONFIG="configs/models/chronos2/07_bg_iob_cob_high_lr.yaml" \
+#   DATASETS="aleppo_2017 lynch_2022" \
+#   SKIP_TRAINING="false" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+model_path: "autogluon/chronos-2"
+context_length: 512
+forecast_length: 96  # 8 hours at 5-min intervals
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+fine_tune_steps: 50000
+fine_tune_lr: 5.0e-5  # 5× higher than 05_bg_iob_cob baseline
+fine_tune_batch_size: 256  # default=32; GPU has ~96GB VRAM, 32→~4GB so 256→~32GB
+
+covariate_cols: [iob, cob]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "RMSE"
+enable_ensemble: false
