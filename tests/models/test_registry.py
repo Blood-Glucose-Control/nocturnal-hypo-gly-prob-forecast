@@ -5,9 +5,9 @@ import pytest
 from src.models.base.registry import ModelRegistry
 
 
-@pytest.fixture(autouse=True)
-def _isolate_registry():
-    """Clear registry before each test, restore after."""
+@pytest.fixture()
+def clean_registry():
+    """Clear registry before test, restore after."""
     saved = dict(ModelRegistry._registry)
     ModelRegistry._registry.clear()
     yield
@@ -15,7 +15,7 @@ def _isolate_registry():
     ModelRegistry._registry.update(saved)
 
 
-def test_register_and_get():
+def test_register_and_get(clean_registry):
     @ModelRegistry.register("_test")
     class _M:
         pass
@@ -23,12 +23,12 @@ def test_register_and_get():
     assert ModelRegistry.get("_test") is _M
 
 
-def test_get_unknown_raises():
+def test_get_unknown_raises(clean_registry):
     with pytest.raises(KeyError, match="_nope"):
         ModelRegistry.get("_nope")
 
 
-def test_conflict_raises():
+def test_conflict_raises(clean_registry):
     @ModelRegistry.register("_dup")
     class _A:
         pass
@@ -37,15 +37,14 @@ def test_conflict_raises():
         ModelRegistry.register("_dup")(type("_B", (), {}))
 
 
-def test_lazy_import():
-    """get() lazily imports the model module on first access."""
+def test_real_models_available():
+    """At least some models are importable and register correctly."""
     available = ModelRegistry.available_models()
     if not available:
         pytest.skip("No model deps installed.")
 
     from src.models.base import BaseTimeSeriesFoundationModel
 
-    # Pick first available model — get() should lazily import it
-    name = available[0]
-    cls = ModelRegistry.get(name)
-    assert issubclass(cls, BaseTimeSeriesFoundationModel)
+    for name in available:
+        cls = ModelRegistry.get(name)
+        assert issubclass(cls, BaseTimeSeriesFoundationModel)

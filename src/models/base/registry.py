@@ -51,8 +51,7 @@ class ModelRegistry:
                 importlib.import_module(mod_path)
         if name not in cls._registry:
             raise KeyError(
-                f"Model '{name}' not registered. "
-                f"Available: {sorted(cls._registry.keys())}"
+                f"Model '{name}' not registered. " f"Known: {cls.list_models()}"
             )
         return cls._registry[name]
 
