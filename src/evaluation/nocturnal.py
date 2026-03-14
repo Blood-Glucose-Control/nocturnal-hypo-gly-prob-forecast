@@ -102,12 +102,19 @@ def evaluate_nocturnal_forecasting(
                 )
                 continue
 
+        # In multi-target mode, target_cols (e.g. ["bg_mM", "iob"]) must be
+        # included as covariates so they appear in context_df for stacking.
+        effective_covs = list(covariate_cols) if covariate_cols else []
+        if hasattr(model, "config") and getattr(model.config, "is_multitarget", False):
+            for col in model.config.target_cols:
+                if col != target_col and col not in effective_covs:
+                    effective_covs.append(col)
         episodes, _ = build_midnight_episodes(
             patient_df,
             context_length=context_length,
             forecast_length=forecast_length,
             target_col=target_col,
-            covariate_cols=covariate_cols,
+            covariate_cols=effective_covs or None,
             interval_mins=interval_mins,
         )
 
