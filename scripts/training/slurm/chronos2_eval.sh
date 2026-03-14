@@ -65,8 +65,7 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --checkpoint "$CHECKPOINT" \
     --context-length 512 \
     --forecast-length 72 \
-    --covariate-cols $COV \
-    --holdout-patients-only
+    --covariate-cols $COV
 
 exit_code=$?
 

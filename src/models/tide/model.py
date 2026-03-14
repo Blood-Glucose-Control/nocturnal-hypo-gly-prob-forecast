@@ -231,6 +231,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         self,
         data: pd.DataFrame,
         episode_col: str,
+        quantile_levels=None,
     ) -> Dict[str, np.ndarray]:
         """Native batch prediction using a single AutoGluon predictor call.
 

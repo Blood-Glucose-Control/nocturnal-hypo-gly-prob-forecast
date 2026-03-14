@@ -750,6 +750,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         self,
         data: pd.DataFrame,
         episode_col: str,
+        quantile_levels=None,
     ) -> Dict[str, np.ndarray]:
         """Batch prediction using TimeSeriesForecastingPipeline.
 
