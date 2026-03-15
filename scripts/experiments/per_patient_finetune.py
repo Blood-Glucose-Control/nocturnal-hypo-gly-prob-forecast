@@ -357,11 +357,13 @@ def run_single_patient(
 
     save_experiment_config(args, output_path)
 
-    # ── Verify LOPO ─────────────────────────────────────────────────────────
+    # ── Verify LOPO ──────────────────────────────────────────────────────────
     verify_lopo(patient_id, holdout_data, patient_col)
 
     # ── Filter to target patient ────────────────────────────────────────────
     patient_df = holdout_data[holdout_data[patient_col] == patient_id].copy()
+    if len(patient_df) == 0:
+        raise ValueError(f"Patient '{patient_id}' not found in data")
 
     time_col = "datetime" if "datetime" in patient_df.columns else patient_df.columns[0]
     total_days = (
@@ -389,20 +391,13 @@ def run_single_patient(
         patient_df, val_days=args.val_days, test_days=args.test_days
     )
 
-    training_input = pd.concat([finetune_df, val_df], ignore_index=True)
-    val_frac = len(val_df) / len(training_input)
-    train_frac = 1.0 - val_frac
-    stage2_split_config = {
-        "train": round(train_frac, 4),
-        "val": round(val_frac, 4),
-        "test": 0.0,
-    }
     logger.info(
-        "Stage 2 split config: train=%.3f (%.0f rows), val=%.3f (%.0f rows), test excluded",
-        train_frac,
+        "Stage 2 data: train=%d rows, val=%d rows (%d days), test=%d rows (%d days)",
         len(finetune_df),
-        val_frac,
         len(val_df),
+        args.val_days,
+        len(test_df),
+        args.test_days,
     )
 
     # ── Load Stage 1 checkpoint (fresh copy per patient) ────────────────────
@@ -509,21 +504,14 @@ def run_single_patient(
         logger.info("Stage 2 LR:     %g", args.learning_rate)
         logger.info("Stage 2 epochs: %d (with early stopping)", args.num_epochs)
 
-    if hasattr(model.config, "split_config"):
-        model.config.split_config = stage2_split_config
-        logger.info("Updated split_config: %s", stage2_split_config)
-    else:
-        logger.info(
-            "Model does not use split_config; backend handles validation internally"
-        )
-
     # ── Stage 2 fine-tuning ────────────────────────────────────────────────
     logger.info("\n--- Stage 2 Fine-Tuning ---")
     finetune_checkpoint_dir = str(output_path / "stage2_checkpoint")
 
     finetune_metrics = model.fit(
-        train_data=training_input,
+        train_data=finetune_df,
         output_dir=finetune_checkpoint_dir,
+        val_data=val_df,
     )
     logger.info(
         "Fine-tuning complete. Train metrics: %s",
@@ -608,7 +596,6 @@ def run_single_patient(
             "num_epochs": args.num_epochs,
             "val_days": args.val_days,
             "test_days": args.test_days,
-            "split_config": stage2_split_config,
         },
         "data_split": {
             "finetune_rows": len(finetune_df),
@@ -778,11 +765,10 @@ def parse_arguments() -> argparse.Namespace:
 def main() -> None:
     args = parse_arguments()
 
-    # ── Load holdout data (shared across all patients) ──────────────────────
-    logger.info("\n--- Loading Holdout Data ---")
+    # ── Load data ────────────────────────────────────────────────────────────
     registry = DatasetRegistry(holdout_config_dir=args.config_dir)
+    logger.info("\n--- Loading Holdout Data ---")
     holdout_data = registry.load_holdout_data_only(args.dataset)
-
     patient_col = get_patient_column(holdout_data)
 
     # Determine patient list
@@ -794,7 +780,7 @@ def main() -> None:
             patient_ids = sorted(holdout_config.patient_config.holdout_patients)
         else:
             patient_ids = sorted(holdout_data[patient_col].unique().astype(str))
-        logger.info("Batch mode: %d holdout patients", len(patient_ids))
+        logger.info("Batch mode: %d patients", len(patient_ids))
     else:
         patient_ids = [args.patient_id]
 
