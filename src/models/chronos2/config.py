@@ -104,7 +104,12 @@ class Chronos2Config(ModelConfig):
                 "fine_tune": self.training_mode == "fine_tune",
                 "fine_tune_steps": self.fine_tune_steps,
                 "fine_tune_lr": self.fine_tune_lr,
+                "fine_tune_batch_size": self.fine_tune_batch_size,
                 "context_length": self.context_length,
+                # Disable cross_learning so each time series is predicted
+                # independently.  Our episodes are unrelated patient-nights;
+                # joint prediction across items is wrong.
+                "cross_learning": False,
             }
         }
         if self.fine_tune_batch_size is not None:
