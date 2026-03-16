@@ -264,7 +264,7 @@ def _find_nan_runs(series: pd.Series) -> list[tuple[int, int, int]]:
 
     Example::
 
-        >>> _find_nan_runs(pd.Series([1.0, NaN, NaN, NaN, 5.0, NaN, 7.0]))
+        >>> _find_nan_runs(pd.Series([1.0, np.nan, np.nan, np.nan, 5.0, np.nan, 7.0]))
         [(1, 4, 3), (5, 6, 1)]
     """
     is_nan = series.isna().values  # numpy bool array
@@ -326,8 +326,9 @@ def interpolate_small_gaps(
     to fill." This function provides that all-or-nothing semantic:
     gaps longer than max_gap_rows are left completely untouched.
 
-    Gap boundaries are detected via numpy edge-detection (see
-    _find_nan_runs for a step-by-step walkthrough), not Python loops.
+    Gap boundaries are detected via numpy edge-detection in
+    _find_nan_runs (see its docstring for a step-by-step walkthrough);
+    we only loop over detected runs to build the large-gap mask.
 
     Args:
         df: DataFrame (on regular grid) possibly containing NaN runs.
@@ -342,24 +343,22 @@ def interpolate_small_gaps(
     if max_gap_rows <= 0 or bg_col not in df.columns:
         return df
 
-    df = df.copy()
     s = df[bg_col]
 
     if not s.isna().any():
         return df
 
-    # Find where each NaN block starts and ends (see _find_nan_runs
-    # for a step-by-step walkthrough of the edge-detection logic).
-    is_nan = s.isna().values
-    padded = np.concatenate(([False], is_nan, [False]))
-    starts = np.where(padded[1:] & ~padded[:-1])[0]  # F→T transitions
-    ends = np.where(~padded[1:] & padded[:-1])[0]  # T→F transitions
-    lengths = ends - starts
+    df = df.copy()
+    s = df[bg_col]
+
+    # Reuse _find_nan_runs for NaN block detection (single source of truth).
+    nan_runs = _find_nan_runs(s)
 
     # Build mask of large gaps (length > threshold) that must stay NaN.
     large_gap_mask = np.zeros(len(df), dtype=bool)
-    for i in np.where(lengths > max_gap_rows)[0]:
-        large_gap_mask[starts[i] : ends[i]] = True
+    for start, end, length in nan_runs:
+        if length > max_gap_rows:
+            large_gap_mask[start:end] = True
 
     # Interpolate all internal NaN, then restore large gaps.
     # limit_area="inside" = only fill NaN between two valid values;

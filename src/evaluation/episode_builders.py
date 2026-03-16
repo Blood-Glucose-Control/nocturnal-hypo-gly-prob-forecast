@@ -162,12 +162,10 @@ def build_midnight_episodes(
         # length fits within max_bg_gap_steps. This avoids V-shaped artifacts
         # from partial filling at large gap boundaries.
         if max_bg_gap_steps > 0 and window_df[target_col].isna().any():
-            before_nan = window_df[target_col].isna().sum()
             window_df = interpolate_small_gaps(
                 window_df, max_gap_rows=max_bg_gap_steps, bg_col=target_col
             )
-            after_nan = window_df[target_col].isna().sum()
-            if after_nan < before_nan and after_nan == 0:
+            if not window_df[target_col].isna().any():
                 skip_stats["interpolated_episodes"] += 1
 
         # Skip if BG gaps remain after interpolation (gap too long)
