@@ -512,7 +512,7 @@ def run_single_patient(
         logger.info("Stage 2 epochs: %d (with early stopping)", args.num_epochs)
 
     # ── Stage 2 fine-tuning ────────────────────────────────────────────────
-    # Models handle validation differently (see GitHub issue #XXX):
+    # Models handle validation differently (see GitHub issue #396):
     # - TTM: expects all data in one blob, splits internally via split_config
     #   (coupled with scaler fitting + context overlap in TSFM's get_datasets)
     # - Chronos2: no internal split; val_data must be passed separately
