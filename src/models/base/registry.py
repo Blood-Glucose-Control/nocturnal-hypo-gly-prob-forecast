@@ -47,7 +47,7 @@ class ModelRegistry:
                     importlib.import_module(mod_path)
                 except (ModuleNotFoundError, ImportError) as exc:
                     raise KeyError(
-                        f"Model '{name}' found in registry but failed to import "
+                        f"Model '{name}' is known but its module failed to import "
                         f"({mod_path}): {exc}"
                     ) from exc
         if name not in cls._registry:
@@ -72,6 +72,6 @@ class ModelRegistry:
                 importlib.import_module(mod_path)
                 if name in cls._registry:
                     result.append(name)
-            except ModuleNotFoundError:
+            except (ModuleNotFoundError, ImportError):
                 pass
         return sorted(result)
