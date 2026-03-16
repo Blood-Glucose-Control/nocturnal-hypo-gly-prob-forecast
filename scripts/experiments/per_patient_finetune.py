@@ -511,23 +511,27 @@ def run_single_patient(
         logger.info("Stage 2 LR:     %g", args.learning_rate)
         logger.info("Stage 2 epochs: %d (with early stopping)", args.num_epochs)
 
-    if hasattr(model.config, "split_config"):
-        model.config.split_config = stage2_split_config
-        logger.info("Updated split_config: %s", stage2_split_config)
-    else:
-        logger.info(
-            "Model does not use split_config; backend handles validation internally"
-        )
-
     # ── Stage 2 fine-tuning ────────────────────────────────────────────────
+    # Models handle validation differently (see GitHub issue #XXX):
+    # - TTM: expects all data in one blob, splits internally via split_config
+    #   (coupled with scaler fitting + context overlap in TSFM's get_datasets)
+    # - Chronos2: no internal split; val_data must be passed separately
     logger.info("\n--- Stage 2 Fine-Tuning ---")
     finetune_checkpoint_dir = str(output_path / "stage2_checkpoint")
 
-    finetune_metrics = model.fit(
-        train_data=training_input,
-        output_dir=finetune_checkpoint_dir,
-        val_data=val_df,
-    )
+    if hasattr(model.config, "split_config"):
+        model.config.split_config = stage2_split_config
+        logger.info("Updated split_config: %s", stage2_split_config)
+        finetune_metrics = model.fit(
+            train_data=training_input,
+            output_dir=finetune_checkpoint_dir,
+        )
+    else:
+        finetune_metrics = model.fit(
+            train_data=finetune_df,
+            output_dir=finetune_checkpoint_dir,
+            val_data=val_df,
+        )
     logger.info(
         "Fine-tuning complete. Train metrics: %s",
         finetune_metrics.get("train_metrics", {}),
