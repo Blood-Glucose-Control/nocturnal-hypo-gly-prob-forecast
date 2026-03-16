@@ -43,7 +43,13 @@ class ModelRegistry:
         if name not in cls._registry:
             mod_path = _MODEL_MODULES.get(name)
             if mod_path is not None:
-                importlib.import_module(mod_path)
+                try:
+                    importlib.import_module(mod_path)
+                except (ModuleNotFoundError, ImportError) as exc:
+                    raise KeyError(
+                        f"Model '{name}' found in registry but failed to import "
+                        f"({mod_path}): {exc}"
+                    ) from exc
         if name not in cls._registry:
             raise KeyError(
                 f"Model '{name}' not registered. " f"Known: {cls.list_models()}"

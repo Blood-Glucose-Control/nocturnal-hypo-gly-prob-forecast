@@ -37,6 +37,17 @@ def test_conflict_raises(clean_registry):
         ModelRegistry.register("_dup")(type("_B", (), {}))
 
 
+def test_get_missing_dep_raises_key_error(clean_registry, monkeypatch):
+    """get() wraps ModuleNotFoundError into a helpful KeyError."""
+    from src.models.base import registry as reg_mod
+
+    # Inject a fake model module that will fail to import
+    monkeypatch.setitem(reg_mod._MODEL_MODULES, "_fake", "no.such.module")
+
+    with pytest.raises(KeyError, match="failed to import"):
+        ModelRegistry.get("_fake")
+
+
 def test_real_models_available():
     """At least some models are importable and register correctly."""
     available = ModelRegistry.available_models()
