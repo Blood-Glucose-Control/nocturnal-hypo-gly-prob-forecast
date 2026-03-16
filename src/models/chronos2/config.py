@@ -51,6 +51,7 @@ class Chronos2Config(ModelConfig):
     # Chronos-2 / AutoGluon specific training
     fine_tune_steps: int = 15000
     fine_tune_lr: float = 1e-5
+    fine_tune_batch_size: int = 32
     time_limit: Optional[int] = None
 
     # Gap handling (used in _prepare_training_data)
@@ -94,7 +95,12 @@ class Chronos2Config(ModelConfig):
                 "fine_tune": self.training_mode == "fine_tune",
                 "fine_tune_steps": self.fine_tune_steps,
                 "fine_tune_lr": self.fine_tune_lr,
+                "fine_tune_batch_size": self.fine_tune_batch_size,
                 "context_length": self.context_length,
+                # Disable cross_learning so each time series is predicted
+                # independently.  Our episodes are unrelated patient-nights;
+                # joint prediction across items is wrong.
+                "cross_learning": False,
             }
         }
         if self.min_past != 1:
