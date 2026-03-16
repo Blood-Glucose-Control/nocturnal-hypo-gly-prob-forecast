@@ -13,17 +13,14 @@ graph LR
     PrepareData --> CreateColSpec[_create_column_specifiers]
 
     Start --> Predict[predict]
-    Predict --> PrepareData2[_prepare_data]
+    Predict --> _Predict[_predict]
+    _Predict --> PrepareData2[_prepare_data]
     PrepareData2 --> CreateColSpec2[_create_column_specifiers]
 
     Start --> Evaluate[evaluate]
     Evaluate --> PrepareData3[_prepare_data]
     Evaluate --> ComputeMetrics2[_compute_trainer_metrics]
     PrepareData3 --> CreateColSpec3[_create_column_specifiers]
-
-    Start --> PredictZeroShot[predict_zero_shot]
-    PredictZeroShot --> Predict2[predict]
-    Predict2 --> PrepareData4[_prepare_data]
 
     Start --> SaveModel[save_model - inherited from base]
     SaveModel --> SaveCheckpoint[_save_checkpoint]
@@ -48,9 +45,8 @@ graph LR
     %% TTM Abstract Public: TTM-specific public methods and properties
     style Init fill:#F0E442,color:#000
     style Predict fill:#F0E442,color:#000
-    style Predict2 fill:#F0E442,color:#000
+    style _Predict fill:#CC79A7,color:#000
     style Evaluate fill:#F0E442,color:#000
-    style PredictZeroShot fill:#F0E442,color:#000
     style GetInfo fill:#F0E442,color:#000
     style GetTrainingBackend fill:#F0E442,color:#000
     style SupportsLora fill:#F0E442,color:#000
@@ -61,7 +57,6 @@ graph LR
     style PrepareData fill:#CC79A7,color:#000
     style PrepareData2 fill:#CC79A7,color:#000
     style PrepareData3 fill:#CC79A7,color:#000
-    style PrepareData4 fill:#CC79A7,color:#000
     style SaveCheckpoint fill:#CC79A7,color:#000
     style LoadCheckpoint fill:#CC79A7,color:#000
     style CreateColSpec fill:#CC79A7,color:#000
