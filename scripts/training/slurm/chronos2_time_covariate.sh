@@ -1,24 +1,22 @@
 #!/bin/bash
-#SBATCH --job-name=chronos2_cov_cd
-#SBATCH --output=logs/chronos2_cov_cd_%j.out
-#SBATCH --error=logs/chronos2_cov_cd_%j.err
+#SBATCH --job-name=chronos2_time_cov
+#SBATCH --output=logs/chronos2_time_cov_%j.out
+#SBATCH --error=logs/chronos2_time_cov_%j.err
 #SBATCH --time=12:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:1
-#SBATCH --partition=ALL
+#SBATCH --partition=HI
 
 # ============================================================================
-# Chronos-2 Covariate A/B/C/D Experiment
+# Chronos-2 Time Covariate A/B Experiment
 #
 # Arm A: BG-only fine-tune (no covariates)
-# Arm B: BG + time-of-day features (hour_sin, hour_cos as known future)
-# Arm C: BG + IOB (past-only context, NOT known future)
-# Arm D: BG + IOB (past-only) + time-of-day (known future)
+# Arm B: BG + time-of-day features (hour_sin, hour_cos)
 #
 # Override defaults:
 #   sbatch --export=STEPS=10000 scripts/training/slurm/chronos2_time_covariate.sh
-#   sbatch --export=ARM=CD scripts/training/slurm/chronos2_time_covariate.sh
+#   sbatch --export=ARM=B scripts/training/slurm/chronos2_time_covariate.sh
 # ============================================================================
 
 # Configurable parameters (override via --export)
@@ -26,7 +24,7 @@ STEPS=${STEPS:-5000}
 LR=${LR:-1e-5}
 TIME_LIMIT=${TIME_LIMIT:-7200}
 MAX_EVAL_EPISODES=${MAX_EVAL_EPISODES:-500}
-ARM=${ARM:-CD}
+ARM=${ARM:-both}
 
 # Project setup
 PROJECT_ROOT=/u201/s6jindal/nocturnal-hypo-gly-prob-forecast
@@ -60,19 +58,18 @@ echo "GPU info:"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 echo ""
 
-# Verify time features and IOB exist in cache
-echo "Verifying features in data..."
+# Verify time features exist in cache
+echo "Verifying time features in data..."
 python -c "
 from src.data.diabetes_datasets.data_loader import get_loader
 loader = get_loader('brown_2019', use_cached=True)
 sample = list(loader.processed_data.values())[0]
 assert 'hour_sin' in sample.columns, 'hour_sin missing! Regenerate cache.'
 assert 'hour_cos' in sample.columns, 'hour_cos missing! Regenerate cache.'
-assert 'iob' in sample.columns, 'iob missing from data!'
-print('All features verified in cache (hour_sin, hour_cos, iob).')
+print('Time features verified in cache.')
 "
 if [ $? -ne 0 ]; then
-    echo "ERROR: Features not in cache. Regenerating..."
+    echo "ERROR: Time features not in cache. Regenerating..."
     rm -rf cache/data/brown_2019/processed/
     python -c "
 from src.data.diabetes_datasets.data_loader import get_loader
