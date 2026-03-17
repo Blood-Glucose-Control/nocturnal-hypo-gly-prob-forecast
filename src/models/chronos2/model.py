@@ -33,6 +33,7 @@ import pandas as pd
 
 from src.data.preprocessing.gap_handling import segment_all_patients
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.utils.logging_helper import info_print
 
 from .config import Chronos2Config
@@ -44,6 +45,7 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
+@ModelRegistry.register("chronos2")
 class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     """Chronos-2 time series forecaster using AutoGluon backend.
 
@@ -135,11 +137,17 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         )
         info_print(f"Gap handling: {len(segments)} segments")
 
-        # format for AutoGluon with past + known covariates
-        all_covariate_cols = config.covariate_cols + config.known_covariate_cols
-        ts_train = format_segments_for_autogluon(
-            segments, config.target_col, all_covariate_cols
-        )
+        # Multi-target mode: stack each target col as a separate item
+        if config.is_multitarget:
+            info_print(f"Multi-target mode: {config.joint_target_cols}")
+            ts_train = format_segments_for_autogluon(
+                segments, target_cols=config.joint_target_cols
+            )
+        else:
+            all_covariate_cols = config.covariate_cols + config.known_covariate_cols
+            ts_train = format_segments_for_autogluon(
+                segments, config.target_col, all_covariate_cols
+            )
         info_print(f"Training data: {ts_train.shape}")
 
         return (ts_train, None, None)
@@ -250,6 +258,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         renaming, and covariate column selection — the shared boilerplate
         required before calling ``self.predictor.predict()``.
 
+        In multi-target mode, each episode is stacked into N items (one per
+        target column), e.g. ``ep_0__bg_mM``, ``ep_0__iob``.
+
         Returns:
             TimeSeriesDataFrame ready for AutoGluon prediction.
         """
@@ -261,11 +272,44 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         if "episode_id" not in context.columns:
             context["episode_id"] = "ep_0"
 
-        context["item_id"] = context["episode_id"]
         if config.time_col in context.columns:
             context["timestamp"] = pd.to_datetime(context[config.time_col])
         else:
             context["timestamp"] = context.index
+
+        # Multi-target mode: stack each target column as a separate item
+        if config.is_multitarget:
+            data_list = []
+            for ep_id in context["episode_id"].unique():
+                ep_data = context[context["episode_id"] == ep_id]
+                for col in config.joint_target_cols:
+                    if col not in ep_data.columns:
+                        logger.warning(
+                            "Target column '%s' missing for episode %s", col, ep_id
+                        )
+                        continue
+                    # ffill short gaps; fillna(0) for leading NaNs
+                    # (0 is semantically correct for IOB; BG leading NaNs are rare)
+                    vals = ep_data[col].ffill().fillna(0)
+                    df = pd.DataFrame(
+                        {
+                            "item_id": f"{str(ep_id)}__{col}",
+                            "timestamp": ep_data["timestamp"].values,
+                            "target": vals.values,
+                        }
+                    )
+                    data_list.append(df)
+            if not data_list:
+                raise ValueError(
+                    f"No valid multi-target data found. Check that joint_target_cols "
+                    f"{config.joint_target_cols} exist in the input DataFrame."
+                )
+            combined = pd.concat(data_list, ignore_index=True)
+            combined = combined.set_index(["item_id", "timestamp"])
+            return TimeSeriesDataFrame(combined)
+
+        # Single-target mode
+        context["item_id"] = context["episode_id"].astype(str)
         context = context.rename(columns={config.target_col: "target"})
 
         ag_cols = (
@@ -331,6 +375,17 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         combined = pd.concat(frames).set_index(["item_id", "timestamp"])
         return TimeSeriesDataFrame(combined)
 
+    def _ag_item_id(self, episode_id: str) -> str:
+        """Map an episode ID to the AutoGluon item_id used for extraction.
+
+        In multi-target mode, items are named ``{ep_id}__{col}`` and we
+        extract only the primary target column.  In single-target mode the
+        item_id equals the episode_id directly.
+        """
+        if self.config.is_multitarget:
+            return f"{str(episode_id)}__{self.config.target_col}"
+        return str(episode_id)
+
     def _zero_shot_forecast(self, data: pd.DataFrame, quantile_levels=None):
         """Run zero-shot inference via Chronos2Pipeline.
 
@@ -359,6 +414,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     def _autogluon_extract(self, data: pd.DataFrame, columns: list) -> np.ndarray:
         """Run fine-tuned AutoGluon inference and extract specified columns.
 
+        In multi-target mode, all target columns are fed to the predictor but
+        only the primary target (``config.target_col``) predictions are
+        extracted via ``_ag_item_id()``.
+
         Args:
             data: Input DataFrame (same format as _predict).
             columns: Column names to extract from AutoGluon predictions,
@@ -378,9 +437,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
         result_arrays = []
         for episode_id in self._episode_ids_from(data):
-            if episode_id not in ag_predictions.index.get_level_values(0):
+            item_id = self._ag_item_id(episode_id)
+            if item_id not in ag_predictions.index.get_level_values(0):
                 continue
-            ep_preds = ag_predictions.loc[episode_id]
+            ep_preds = ag_predictions.loc[item_id]
             if multi:
                 result_arrays.append(np.stack([ep_preds[c].values for c in columns]))
             else:
@@ -501,28 +561,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                         f"config.quantile_levels, or request a subset of the available levels."
                     )
 
-            from autogluon.timeseries import TimeSeriesDataFrame
-
-            context = data.copy()
-            context["item_id"] = context[episode_col].astype(str)
-            if config.time_col in context.columns:
-                context["timestamp"] = pd.to_datetime(context[config.time_col])
-            else:
-                context["timestamp"] = context.index
-            context = context.rename(columns={config.target_col: "target"})
-
-            ag_cols = (
-                ["item_id", "timestamp", "target"]
-                + config.covariate_cols
-                + [
-                    c
-                    for c in config.known_covariate_cols
-                    if c not in config.covariate_cols
-                ]
-            )
-            ag_cols = [c for c in ag_cols if c in context.columns]
-            context = context[ag_cols].set_index(["item_id", "timestamp"])
-            ts_data = TimeSeriesDataFrame(context)
+            # Reuse _prepare_autogluon_data (handles both single- and multi-target)
+            batch_data = data.rename(columns={episode_col: "episode_id"})
+            ts_data = self._prepare_autogluon_data(batch_data)
 
             predict_kwargs = {}
             if config.known_covariate_cols:
@@ -539,15 +580,14 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             multi = len(columns) > 1
 
             results: Dict[str, np.ndarray] = {}
-            for item_id in episode_ids:
-                if item_id in ag_predictions.index.get_level_values(0):
-                    ep_preds = ag_predictions.loc[item_id]
+            for ep_id in episode_ids:
+                ag_id = self._ag_item_id(ep_id)
+                if ag_id in ag_predictions.index.get_level_values(0):
+                    ep_preds = ag_predictions.loc[ag_id]
                     if multi:
-                        results[item_id] = np.stack(
-                            [ep_preds[c].values for c in columns]
-                        )
+                        results[ep_id] = np.stack([ep_preds[c].values for c in columns])
                     else:
-                        results[item_id] = ep_preds[columns[0]].values
+                        results[ep_id] = ep_preds[columns[0]].values
             return results
 
         # Zero-shot path: batch via Chronos2Pipeline

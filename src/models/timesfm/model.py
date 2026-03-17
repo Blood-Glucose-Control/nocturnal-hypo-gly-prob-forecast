@@ -16,6 +16,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.models.timesfm.config import TimesFMConfig
 from src.utils.logging_helper import info_print, error_print
 
@@ -158,6 +159,7 @@ class TimesFMForTrainer(nn.Module):
         return {"loss": loss, "logits": mean_predictions}
 
 
+@ModelRegistry.register("timesfm")
 class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     """TimesFM forecaster using HuggingFace Transformers.
 
