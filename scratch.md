@@ -36,7 +36,7 @@ python scripts/experiments/nocturnal_hypo_eval.py \
 # 03 — IOB + insulin_availability (ctx=512, lr=5e-5)
 python scripts/experiments/nocturnal_hypo_eval.py \
     --model chronos2 \
-    --dataset aleppo_2017 \
+    --dataset brown_2019 \
     --config-dir configs/data/holdout_10pct \
     --model-config configs/models/chronos2/03_bg_iob_ia_high_lr.yaml \
     --context-length 512 \
@@ -44,7 +44,7 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --covariate-cols iob insulin_availability \
     --cuda-device 0 \
     --checkpoint trained_models/artifacts/chronos2/2026-03-12_23:07_RID20260312_230758_1217900_holdout_workflow/model.pt \
-    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-15_2303_recheck_03_modelpt_aleppo_2017_finetuned
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-15_2303_recheck_03_modelpt_brown_2019_finetuned
 
 python scripts/experiments/nocturnal_hypo_eval.py \
     --model chronos2 \
@@ -233,7 +233,7 @@ python scripts/examples/example_holdout_generic_workflow.py \
     --output-dir trained_models/artifacts/chronos2/sweep_03_steps20000_holdout_workflow \
     --skip-steps 7
 
-python scripts/example/example_holdouts_generic_workflow.py \
+python scripts/examples/example_holdout_generic_workflow.py \
     --model-type chronos2 \
     --datasets aleppo_2017 brown_2019 lynch_2022 \
     --config-dir configs/data/holdout_10pct \
@@ -247,7 +247,7 @@ python scripts/example/example_holdouts_generic_workflow.py \
 # 15k
 python scripts/experiments/nocturnal_hypo_eval.py \
     --model chronos2 \
-    --dataset aleppo_2017 \
+    --dataset brown_2019 \
     --config-dir configs/data/holdout_10pct \
     --model-config configs/models/chronos2/_tmp_03_steps_15000.yaml \
     --context-length 512 \
@@ -255,12 +255,12 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --covariate-cols iob insulin_availability \
     --cuda-device 0 \
     --checkpoint trained_models/artifacts/chronos2/sweep_03_steps15000_holdout_workflow/model.pt \
-    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1000_sweep03_15k_modelpt_aleppo_2017_finetuned
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1000_sweep03_15k_modelpt_brown_2019_finetuned
 
 # 20k
 python scripts/experiments/nocturnal_hypo_eval.py \
     --model chronos2 \
-    --dataset aleppo_2017 \
+    --dataset brown_2019 \
     --config-dir configs/data/holdout_10pct \
     --model-config configs/models/chronos2/_tmp_03_steps_20000.yaml \
     --context-length 512 \
@@ -268,12 +268,12 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --covariate-cols iob insulin_availability \
     --cuda-device 0 \
     --checkpoint trained_models/artifacts/chronos2/sweep_03_steps20000_holdout_workflow/model.pt \
-    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1001_sweep03_20k_modelpt_aleppo_2017_finetuned
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1001_sweep03_20k_modelpt_brown_2019_finetuned
 
 # 30k
 python scripts/experiments/nocturnal_hypo_eval.py \
     --model chronos2 \
-    --dataset aleppo_2017 \
+    --dataset brown_2019 \
     --config-dir configs/data/holdout_10pct \
     --model-config configs/models/chronos2/_tmp_03_steps_30000.yaml \
     --context-length 512 \
@@ -281,4 +281,4 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --covariate-cols iob insulin_availability \
     --cuda-device 0 \
     --checkpoint trained_models/artifacts/chronos2/sweep_03_steps30000_holdout_workflow/model.pt \
-    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1002_sweep03_30k_modelpt_aleppo_2017_finetuned
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1002_sweep03_30k_modelpt_brown_2019_finetuned
