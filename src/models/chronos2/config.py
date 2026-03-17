@@ -73,6 +73,13 @@ class Chronos2Config(ModelConfig):
     # post-midnight reactive events). Defaults to ["iob"].
     covariate_cols: List[str] = field(default_factory=lambda: ["iob"])
     target_col: str = "bg_mM"
+    # Joint co-target mode: when joint_target_cols has >1 entry, each column becomes
+    # a separate item in the AutoGluon panel (long-format stacking). The model
+    # trains jointly on all targets via shared weights. At inference, only
+    # target_col (primary target) predictions are returned.
+    # Empty list = single-target mode (backward compatible, uses covariates).
+    # covariate_cols are ignored in multi-target mode.
+    joint_target_cols: List[str] = field(default_factory=list)
     patient_col: str = "p_num"
     time_col: str = "datetime"
 
@@ -88,9 +95,26 @@ class Chronos2Config(ModelConfig):
     # most windows naturally get full context regardless of this setting.
     min_past: int = 1
 
+    @property
+    def is_multitarget(self) -> bool:
+        """True when multiple target columns are configured (joint forecasting)."""
+        return len(self.joint_target_cols) > 1
+
     def __post_init__(self):
         if self.min_segment_length is None:
             self.min_segment_length = self.context_length + self.forecast_length
+
+        # Validate multi-target config
+        if self.is_multitarget and self.target_col not in self.joint_target_cols:
+            raise ValueError(
+                f"target_col '{self.target_col}' must be in joint_target_cols "
+                f"{self.joint_target_cols} (it is the primary prediction target)"
+            )
+        if len(self.joint_target_cols) == 1:
+            raise ValueError(
+                f"joint_target_cols has 1 entry {self.joint_target_cols}; use target_col "
+                f"for single-target mode, or add more columns for joint mode"
+            )
 
     def get_autogluon_hyperparameters(self) -> Dict:
         """Build hyperparameters dict for TimeSeriesPredictor.fit().
