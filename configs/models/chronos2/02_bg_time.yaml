@@ -1,0 +1,13 @@
+# Chronos-2 with time-of-day as known future covariates.
+# No past-only covariates — just BG target + hour_sin/hour_cos.
+model_type: chronos2
+model_path: autogluon/chronos-2
+context_length: 512
+forecast_length: 72
+training_mode: fine_tune
+fine_tune_steps: 5000
+fine_tune_lr: 1e-5
+covariate_cols: []
+known_covariate_cols:
+  - hour_sin
+  - hour_cos
