@@ -135,9 +135,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         )
         info_print(f"Gap handling: {len(segments)} segments")
 
-        # format for AutoGluon with covariates
+        # format for AutoGluon with past + known covariates
+        all_covariate_cols = config.covariate_cols + config.known_covariate_cols
         ts_train = format_segments_for_autogluon(
-            segments, config.target_col, config.covariate_cols
+            segments, config.target_col, all_covariate_cols
         )
         info_print(f"Training data: {ts_train.shape}")
 
@@ -173,15 +174,16 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             # "target" is the column name after format_segments_for_autogluon
             # renames config.target_col (e.g. "bg_mM") -> "target"
             target="target",
-            # known_covariates_names intentionally NOT set — covariates (IOB,
-            # COB) are included as past-only context columns. Setting them as
-            # "known" would require providing future values at inference time,
-            # which constitutes data leakage (post-midnight IOB/COB are
-            # reactive to future BG and unknowable at the prediction origin).
+            # Past-only covariates (IOB, COB) are NOT listed here — they
+            # appear in training data columns but aren't provided for the
+            # forecast horizon (avoiding data leakage). Only deterministic
+            # known future covariates (e.g., hour_sin, hour_cos) are declared.
             freq=f"{config.interval_mins}min",
             eval_metric=config.eval_metric,
             path=output_dir,
         )
+        if config.known_covariate_cols:
+            predictor_kwargs["known_covariates_names"] = config.known_covariate_cols
         if config.quantile_levels is not None:
             predictor_kwargs["quantile_levels"] = config.quantile_levels
         predictor = TimeSeriesPredictor(**predictor_kwargs)
