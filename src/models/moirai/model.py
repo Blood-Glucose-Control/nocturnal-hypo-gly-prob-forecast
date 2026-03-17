@@ -17,10 +17,12 @@ from transformers import (
 
 # Local imports
 from src.models.base import BaseTimeSeriesFoundationModel
+from src.models.base.registry import ModelRegistry
 from src.models.moirai.config import MoiraiConfig
 from src.utils.logging_helper import info_print, error_print
 
 
+@ModelRegistry.register("moirai")
 class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     """Moirai forecaster implementation using the base TSFM framework.
 

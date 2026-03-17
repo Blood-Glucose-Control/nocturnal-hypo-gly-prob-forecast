@@ -14,6 +14,8 @@ from .base_model import (
     create_model_from_config,
 )
 
+from .registry import ModelRegistry
+
 from .distributed import (
     DistributedManager,
     setup_deepspeed_config,
@@ -45,6 +47,8 @@ __all__ = [
     "TrainingBackend",
     # Factory functions
     "create_model_from_config",
+    # Registry
+    "ModelRegistry",
     # Distributed training
     "DistributedManager",
     "setup_deepspeed_config",

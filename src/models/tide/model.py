@@ -27,6 +27,7 @@ import pandas as pd
 
 from src.data.preprocessing.gap_handling import segment_all_patients
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.utils.logging_helper import info_print
 
 from .config import TiDEConfig
@@ -39,6 +40,7 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
+@ModelRegistry.register("tide")
 class TiDEForecaster(BaseTimeSeriesFoundationModel):
     """TiDE time series forecaster using AutoGluon backend.
 

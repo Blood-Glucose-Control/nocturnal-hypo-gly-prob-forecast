@@ -205,7 +205,7 @@ def _segment_single_patient(
     # Step 1: Interpolate small gaps
     max_gap_rows = imputation_threshold_mins // interval_mins
     nan_runs_before = _find_nan_runs(df[bg_col])
-    df = _interpolate_small_gaps(df, max_gap_rows, bg_col)
+    df = interpolate_small_gaps(df, max_gap_rows, bg_col)
 
     # Count NaN after interpolation and compute gap stats
     stats.total_nan_after_interp = int(df[bg_col].isna().sum())
@@ -261,29 +261,50 @@ def _find_nan_runs(series: pd.Series) -> list[tuple[int, int, int]]:
 
     Returns:
         List of (start_idx, end_idx_exclusive, run_length) tuples.
+
+    Example::
+
+        >>> _find_nan_runs(pd.Series([1.0, np.nan, np.nan, np.nan, 5.0, np.nan, 7.0]))
+        [(1, 4, 3), (5, 6, 1)]
     """
-    is_nan = series.isna()
+    is_nan = series.isna().values  # numpy bool array
+
     if not is_nan.any():
         return []
 
-    # Detect transitions: where NaN status changes
-    diff = is_nan.ne(is_nan.shift())
-    # Assign group IDs
-    groups = diff.cumsum()
+    # Compare each position with the one before it to find where NaN
+    # blocks begin and end, without looping in Python.
+    #
+    # Example: values = [1, NaN, NaN, NaN, 5]
+    #          is_nan = [F,  T,   T,   T,  F]
+    #
+    # Problem: if a NaN block starts at index 0 or ends at the last
+    # index, there's no neighbor to compare against.  Padding with
+    # False on both sides guarantees every block has a boundary:
+    #          padded = [F, F, T, T, T, F, F]
+    #
+    # Now slide two adjacent windows across padded:
+    #   padded[:-1] = [F, F, T, T, T, F]   (left neighbor)
+    #   padded[1:]  = [F, T, T, T, F, F]   (current position)
+    #
+    # A NaN block STARTS where we go from F → T:
+    #   current=T AND left=F  →  padded[1:] & ~padded[:-1]
+    #   = [F, T, F, F, F, F]  →  start at index 1
+    #
+    # A NaN block ENDS where we go from T → F:
+    #   current=F AND left=T  →  ~padded[1:] & padded[:-1]
+    #   = [F, F, F, F, T, F]  →  end at index 4 (exclusive)
+    #
+    # Gap length = end - start = 4 - 1 = 3 ✓
+    padded = np.concatenate(([False], is_nan, [False]))
+    starts = np.where(padded[1:] & ~padded[:-1])[0]
+    ends = np.where(~padded[1:] & padded[:-1])[0]
+    lengths = ends - starts
 
-    runs = []
-    for group_id, group in is_nan.groupby(groups):
-        if group.iloc[0]:  # This group is NaN
-            start = group.index[0]
-            # Convert to positional index
-            start_pos = series.index.get_loc(start)
-            length = len(group)
-            runs.append((start_pos, start_pos + length, length))
-
-    return runs
+    return [(int(s), int(e), int(n)) for s, e, n in zip(starts, ends, lengths)]
 
 
-def _interpolate_small_gaps(
+def interpolate_small_gaps(
     df: pd.DataFrame,
     max_gap_rows: int,
     bg_col: str = DEFAULT_BG_COL,
@@ -295,9 +316,19 @@ def _interpolate_small_gaps(
     (e.g., bolus, food, steps) are left untouched — linear interpolation
     would create fractional values that are physiologically meaningless.
 
-    Only gaps whose entire length fits within the threshold are interpolated.
-    Gaps exceeding the threshold are left completely untouched — no partial
-    filling from either side.
+    Why not pd.interpolate(limit=N)?
+
+    pandas' limit parameter caps how many consecutive NaNs are filled
+    per fill direction, not per gap. With limit_direction='both',
+    a 20-NaN gap and limit=11 gets fully filled (11 from the left +
+    11 from the right overlap in the middle). There is no native pandas
+    option for "measure the total gap length first, then decide whether
+    to fill." This function provides that all-or-nothing semantic:
+    gaps longer than max_gap_rows are left completely untouched.
+
+    Gap boundaries are detected via numpy edge-detection in
+    _find_nan_runs (see its docstring for a step-by-step walkthrough);
+    we only loop over detected runs to build the large-gap mask.
 
     Args:
         df: DataFrame (on regular grid) possibly containing NaN runs.
@@ -312,25 +343,27 @@ def _interpolate_small_gaps(
     if max_gap_rows <= 0 or bg_col not in df.columns:
         return df
 
-    df = df.copy()
+    s = df[bg_col]
 
-    nan_runs = _find_nan_runs(df[bg_col])
-    if not nan_runs:
+    if not s.isna().any():
         return df
 
-    # Mark positions belonging to large gaps — these must stay NaN
+    df = df.copy()
+    s = df[bg_col]
+
+    # Reuse _find_nan_runs for NaN block detection (single source of truth).
+    nan_runs = _find_nan_runs(s)
+
+    # Build mask of large gaps (length > threshold) that must stay NaN.
     large_gap_mask = np.zeros(len(df), dtype=bool)
     for start, end, length in nan_runs:
         if length > max_gap_rows:
             large_gap_mask[start:end] = True
 
-    # Interpolate all internal NaN (small gaps get filled correctly
-    # using their immediate non-NaN neighbors as anchors).
-    # limit_area="inside" = only fill NaN that sit between two real values;
-    # leading/trailing NaN with no anchor on one side are left untouched.
-    interpolated = df[bg_col].interpolate(method="linear", limit_area="inside")
-
-    # Restore NaN at large gap positions
+    # Interpolate all internal NaN, then restore large gaps.
+    # limit_area="inside" = only fill NaN between two valid values;
+    # leading/trailing NaN with no anchor on one side stay untouched.
+    interpolated = s.interpolate(method="linear", limit_area="inside")
     interpolated.values[large_gap_mask] = np.nan
 
     df[bg_col] = interpolated
