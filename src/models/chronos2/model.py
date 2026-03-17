@@ -299,7 +299,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                     data_list.append(df)
             if not data_list:
                 raise ValueError(
-                    f"No valid multi-target data found. Check that target_cols "
+                    f"No valid multi-target data found. Check that joint_target_cols "
                     f"{config.joint_target_cols} exist in the input DataFrame."
                 )
             combined = pd.concat(data_list, ignore_index=True)
@@ -330,8 +330,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         item_id equals the episode_id directly.
         """
         if self.config.is_multitarget:
-            return f"{episode_id}__{self.config.target_col}"
-        return episode_id
+            return f"{str(episode_id)}__{self.config.target_col}"
+        return str(episode_id)
 
     def _zero_shot_forecast(self, data: pd.DataFrame, quantile_levels=None):
         """Run zero-shot inference via Chronos2Pipeline.

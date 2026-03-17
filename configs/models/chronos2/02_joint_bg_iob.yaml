@@ -24,8 +24,8 @@ fine_tune_steps: 15000
 fine_tune_lr: 1.0e-5
 
 # Joint co-target mode: both columns become separate panel items.
-# covariate_cols is ignored when target_cols has >1 entry.
-target_cols: ["bg_mM", "iob"]
+# covariate_cols is ignored when joint_target_cols has >1 entry.
+joint_target_cols: ["bg_mM", "iob"]
 target_col: "bg_mM"
 patient_col: "p_num"
 time_col: "datetime"
