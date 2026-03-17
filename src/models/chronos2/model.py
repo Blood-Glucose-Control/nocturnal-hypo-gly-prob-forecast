@@ -144,7 +144,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 segments, target_cols=config.joint_target_cols
             )
         else:
-            all_covariate_cols = config.covariate_cols + config.known_covariate_cols
+            all_covariate_cols = list(
+                dict.fromkeys(config.covariate_cols + config.known_covariate_cols)
+            )
             ts_train = format_segments_for_autogluon(
                 segments, config.target_col, all_covariate_cols
             )
@@ -352,7 +354,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         )
 
         config = self.config
-        episode_ids = self._episode_ids_from(data)
+        if episode_col in data.columns:
+            episode_ids = data[episode_col].unique()
+        else:
+            episode_ids = np.array(["ep_0"])
         frames = []
 
         for ep_id in episode_ids:
@@ -360,7 +365,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 ep_data = data[data[episode_col] == ep_id]
             else:
                 ep_data = data
-            last_ts = pd.to_datetime(ep_data[config.time_col].iloc[-1])
+            if config.time_col in ep_data.columns:
+                last_ts = pd.to_datetime(ep_data[config.time_col]).max()
+            else:
+                last_ts = pd.to_datetime(ep_data.index).max()
 
             future_df = generate_future_known_covariates(
                 last_timestamp=last_ts,
