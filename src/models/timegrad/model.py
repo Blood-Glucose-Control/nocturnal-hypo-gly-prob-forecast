@@ -22,6 +22,7 @@ from pts.feature import (
 
 from src.models.timegrad.config import TimeGradConfig
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.utils.logging_helper import info_print
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,7 @@ def _compute_input_size(freq: str, target_dim: int = 1) -> int:
 _apply_univariate_patch()
 
 
+@ModelRegistry.register("timegrad")
 class TimeGradForecaster(BaseTimeSeriesFoundationModel):
     """TimeGrad forecaster: GRU encoder + denoising diffusion head.
 
