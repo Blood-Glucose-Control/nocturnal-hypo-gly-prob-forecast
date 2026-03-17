@@ -33,6 +33,7 @@ import pandas as pd
 
 from src.data.preprocessing.gap_handling import segment_all_patients
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.utils.logging_helper import info_print
 
 from .config import Chronos2Config
@@ -44,6 +45,7 @@ from .utils import (
 logger = logging.getLogger(__name__)
 
 
+@ModelRegistry.register("chronos2")
 class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     """Chronos-2 time series forecaster using AutoGluon backend.
 

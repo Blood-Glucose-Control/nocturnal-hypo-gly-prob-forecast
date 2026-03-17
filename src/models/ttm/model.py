@@ -28,6 +28,7 @@ from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 # Local imports
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.models.ttm.config import TTMConfig
 from src.data.models import ColumnNames
 from src.data.preprocessing.split_or_combine_patients import (
@@ -63,6 +64,7 @@ class ColumnSpecifiers(TypedDict, total=False):
     static_categorical_columns: List[str]
 
 
+@ModelRegistry.register("ttm")
 class TTMForecaster(BaseTimeSeriesFoundationModel):
     """TTM (TinyTimeMixer) forecaster implementation.
 
