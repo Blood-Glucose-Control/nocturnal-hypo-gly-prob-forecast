@@ -714,7 +714,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         required=True,
-        choices=["ttm", "sundial", "chronos2"],
+        choices=["ttm", "sundial", "chronos2", "timesfm"],
         help="Model type (must match checkpoint)",
     )
     parser.add_argument(
