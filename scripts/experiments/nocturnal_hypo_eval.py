@@ -276,6 +276,15 @@ def main():
         covariate_cols = config.covariate_cols
         logger.info("Using covariates from model config: %s", covariate_cols)
 
+    # Auto-detect known (future) covariates from model config.
+    # Known covariates (e.g., hour_sin, hour_cos) are handled internally by
+    # the model class — they don't need to be passed to the eval function.
+    # We just log them here for visibility.
+    if hasattr(config, "known_covariate_cols") and config.known_covariate_cols:
+        logger.info(
+            "Model uses known future covariates: %s", config.known_covariate_cols
+        )
+
     # Run nocturnal evaluation
     logger.info("\n--- Running Nocturnal Evaluation ---")
     results = evaluate_nocturnal_forecasting(
@@ -283,7 +292,7 @@ def main():
         holdout_data=holdout_data,
         context_length=context_length,
         forecast_length=forecast_length,
-        covariate_cols=args.covariate_cols,
+        covariate_cols=covariate_cols,
         probabilistic=args.probabilistic,
     )
 

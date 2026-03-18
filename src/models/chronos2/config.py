@@ -63,6 +63,11 @@ class Chronos2Config(ModelConfig):
     # are NOT provided for the forecast horizon (avoiding data leakage from
     # post-midnight reactive events). Defaults to ["iob"].
     covariate_cols: List[str] = field(default_factory=lambda: ["iob"])
+    # Known future covariates — deterministic features provided for both
+    # context and forecast horizon (e.g., hour_sin, hour_cos). AutoGluon
+    # receives these as known_covariates_names. Past-only covariates (IOB,
+    # COB) stay in covariate_cols above.
+    known_covariate_cols: List[str] = field(default_factory=list)
     target_col: str = "bg_mM"
     # Joint co-target mode: when joint_target_cols has >1 entry, each column becomes
     # a separate item in the AutoGluon panel (long-format stacking). The model
