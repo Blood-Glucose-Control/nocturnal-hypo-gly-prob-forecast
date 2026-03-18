@@ -13,8 +13,6 @@ so training parameters map to AutoGluon's API rather than transformers.Trainer.
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-import pandas as pd
-
 from src.models.base import ModelConfig, TrainingBackend
 
 
@@ -112,28 +110,6 @@ class Chronos2Config(ModelConfig):
             raise ValueError(
                 f"joint_target_cols has 1 entry {self.joint_target_cols}; use target_col "
                 f"for single-target mode, or add more columns for joint mode"
-            )
-
-        # Known covariates are incompatible with multi-target mode (multi-target
-        # stacks each target as a separate item, bypassing covariate columns).
-        if self.is_multitarget and self.known_covariate_cols:
-            raise ValueError(
-                f"known_covariate_cols={self.known_covariate_cols} cannot be used with "
-                f"multi-target mode (joint_target_cols={self.joint_target_cols}). "
-                f"Use single-target mode for known future covariates."
-            )
-
-        # Validate known covariate names are supported
-        from src.data.preprocessing.feature_engineering import (
-            generate_future_known_covariates,
-        )
-
-        if self.known_covariate_cols:
-            # Dry-run validation — will raise ValueError for unsupported names
-            generate_future_known_covariates(
-                last_timestamp=pd.Timestamp("2020-01-01"),
-                forecast_length=1,
-                known_covariate_cols=self.known_covariate_cols,
             )
 
     def get_autogluon_hyperparameters(self) -> Dict:
