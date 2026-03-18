@@ -599,6 +599,12 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             return results
 
         # Zero-shot path: batch via Chronos2Pipeline
+        if config.known_covariate_cols:
+            logger.warning(
+                "known_covariate_cols=%s set but zero-shot Chronos2Pipeline "
+                "does not support known covariates. Proceeding without them.",
+                config.known_covariate_cols,
+            )
         self._ensure_zs_pipeline()
 
         if config.target_col not in data.columns:
