@@ -47,7 +47,7 @@ Notes:
 """
 
 import logging
-from typing import Literal
+from typing import List, Literal
 
 import pandas as pd
 import numpy as np
@@ -282,7 +282,7 @@ def create_physiological_features(
 def generate_future_known_covariates(
     last_timestamp: pd.Timestamp,
     forecast_length: int,
-    known_covariate_cols: list[str],
+    known_covariate_cols: List[str],
     interval_mins: int = 5,
 ) -> pd.DataFrame:
     """Generate deterministic future covariate values for the forecast horizon.
