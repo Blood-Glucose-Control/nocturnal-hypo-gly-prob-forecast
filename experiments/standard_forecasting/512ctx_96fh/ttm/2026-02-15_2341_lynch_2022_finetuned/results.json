@@ -1,0 +1,44 @@
+{
+  "model": "ttm",
+  "mode": "fine-tuned",
+  "checkpoint": "trained_models/artifacts/_tsfm_testing/2026-02-15_05:06_RID20260215_050614_1879726_holdout_workflow/resumed_training",
+  "dataset": "lynch_2022",
+  "timestamp": "2026-02-15T23:42:40.121826",
+  "config": {
+    "config_file": null,
+    "context_length": 512,
+    "forecast_length": 96
+  },
+  "overall": {
+    "rmse": 3.764725331686313,
+    "mae": 2.9272641072273253,
+    "mape": 36.355069038858254,
+    "mse": 14.17315682304062
+  },
+  "per_patient": [
+    {
+      "patient": "lyn_261",
+      "episodes": 8,
+      "mse": 8.639388152875284,
+      "rmse": 2.939283612187719,
+      "mae": 2.471985578437646,
+      "mape": 31.84976068846556
+    },
+    {
+      "patient": "lyn_47",
+      "episodes": 1,
+      "mse": 10.239117841332478,
+      "rmse": 3.1998621597394594,
+      "mae": 2.7227916153271994,
+      "mape": 30.12571758780907
+    },
+    {
+      "patient": "lyn_280",
+      "episodes": 1,
+      "mse": 62.37734516607145,
+      "rmse": 7.897932967939868,
+      "mae": 6.7739648294448855,
+      "mape": 78.626887293049
+    }
+  ]
+}

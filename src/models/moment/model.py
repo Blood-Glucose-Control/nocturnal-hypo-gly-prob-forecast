@@ -6,7 +6,7 @@ the base TSFM framework, demonstrating how to integrate foundation models.
 """
 
 import os
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Optional, Tuple
 
 import numpy as np
 import torch
@@ -17,10 +17,12 @@ from transformers import (
 
 # Local imports
 from src.models.base import BaseTimeSeriesFoundationModel
+from src.models.base.registry import ModelRegistry
 from src.models.moment.config import MomentConfig
 from src.utils.logging_helper import info_print, error_print
 
 
+@ModelRegistry.register("moment")
 class MomentForecaster(BaseTimeSeriesFoundationModel):
     """Moment forecaster implementation using the base TSFM framework.
 
@@ -79,22 +81,19 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         self.column_specifiers = None
 
     # Abstract method implementations
-    def predict(
-        self, data: Any, batch_size: Optional[int] = None, return_dict: bool = False
-    ) -> Union[np.ndarray, Dict[str, Any]]:
+    def _predict(self, data: Any, batch_size: Optional[int] = None) -> np.ndarray:
         """
         Make predictions on new data.
 
         Args:
             data: Input data for prediction
             batch_size: Batch size for prediction (defaults to config.batch_size)
-            return_dict: Whether to return additional information
 
         Returns:
-            Predictions as numpy array or dictionary with additional info
+            Predictions as numpy array
         """
-        if not self.is_fitted or self.model is None:
-            raise ValueError("Model must be fitted before making predictions")
+        if self.model is None:
+            raise ValueError("Model must be initialized before making predictions")
 
         # Prepare data for prediction
         data_loader, _, _ = self._prepare_training_data(data)
@@ -129,21 +128,19 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         # Concatenate all predictions
         predictions = np.concatenate(predictions, axis=0)
 
-        if return_dict:
-            return {
-                "predictions": predictions,
-                "model_type": "moment",
-                "config": self.config.to_dict(),
-            }
-
         return predictions
 
+    @property
     def supports_lora(self) -> bool:
         """Check if Moment supports LoRA fine-tuning.
 
         Returns:
             True, as Moment is transformer-based and supports LoRA.
         """
+        return True
+
+    @property
+    def supports_zero_shot(self) -> bool:
         return True
 
     def _initialize_model(self) -> Any:

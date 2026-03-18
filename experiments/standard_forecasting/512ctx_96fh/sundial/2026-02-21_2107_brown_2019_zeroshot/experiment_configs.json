@@ -1,0 +1,22 @@
+{
+  "cli_args": {
+    "model": "sundial",
+    "dataset": "brown_2019",
+    "config_dir": "configs/data/holdout_5pct",
+    "checkpoint": null,
+    "context_length": null,
+    "forecast_length": null,
+    "model_config": null,
+    "output_dir": null
+  },
+  "model_config": {
+    "context_length": 512,
+    "forecast_length": 96
+  },
+  "environment": {
+    "git_commit": "4185daf",
+    "python_version": "3.12.3",
+    "timestamp": "2026-02-21T21:07:35.908908"
+  },
+  "reproducibility_command": "python scripts/experiments/sliding_window_eval.py --model sundial --dataset brown_2019 --config-dir configs/data/holdout_5pct --context-length None --forecast-length None"
+}

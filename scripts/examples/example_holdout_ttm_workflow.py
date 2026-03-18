@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-End-to-end example: Holdout system with TTM training and evaluation.
+End-to-end example: Holdout system with TTM training.
 
-This script demonstrates the complete TTMForecaster workflow including:
+This script demonstrates the complete TTMForecaster training workflow including:
 1. Generate holdout configurations
 2. Validate configurations
 3. Load and combine training data from multiple datasets
@@ -10,7 +10,9 @@ This script demonstrates the complete TTMForecaster workflow including:
 5. Fine-tune model for one epoch and evaluate
 6. Load checkpointed model and evaluate (verify save/load works)
 7. Resume training on loaded model and evaluate
-8. Full holdout evaluation on all datasets
+
+For evaluation after training, use the dedicated holdout_eval.py script which
+provides model-agnostic evaluation with standardized benchmarking.
 
 Usage:
     # Run with default settings (combine all 4 datasets, 5% holdout, 1 epoch)
@@ -26,10 +28,11 @@ Usage:
     sbatch --export=DATASETS="aleppo brown_2019",EPOCHS=2 scripts/examples/run_holdout_ttm_workflow.sh
 
     # Direct python call (for testing)
-    python scripts/examples/example_holdout_ttm_workflow.py --datasets lynch_2022 brown_2019 --config-dir configs/data/holdout_5pct --epochs 1
+    python scripts/examples/example_holdout_ttm_workflow.py --datasets lynch_2022 brown_2019 tamborlane_2008 --config-dir configs/data/holdout_10pct --epochs 1
 """
 
 import argparse
+import json
 import logging
 import shutil
 from pathlib import Path
@@ -64,7 +67,7 @@ logging.getLogger("src.utils").setLevel(logging.WARNING)
 
 
 def _generate_forecasts(
-    model: TTMForecaster,
+    model: TTMForecaster,  # TODO: Type hint should be child class of BaseTimeSeriesForecaster
     training_columns: list,
     dataset_names: list,
     config_dir: str,
@@ -81,7 +84,7 @@ def _generate_forecasts(
         config_dir: Directory containing holdout configurations
         output_dir: Directory where prediction files will be saved
         phase_name: Identifier for this phase (e.g., "zero_shot", "after_training")
-        zero_shot: If True, use predict_zero_shot() instead of predict()
+        zero_shot: Unused, kept for backwards compatibility
 
     Returns:
         Dict[str, Dict]: Dictionary mapping dataset names to forecast results
@@ -107,9 +110,16 @@ def _generate_forecasts(
             # Load holdout data
             holdout_data = registry.load_holdout_data_only(dataset_name)
 
-            # Get first patient
+            # Get first patient (skip NaN p_num rows from gap-fill)
             patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
-            first_patient = holdout_data[patient_col].iloc[0]
+            valid_patients = holdout_data[patient_col].dropna()
+            if valid_patients.empty:
+                logger.warning(
+                    f"  No valid patient IDs found in holdout data for {dataset_name}. "
+                    f"All {len(holdout_data)} rows have NaN {patient_col}. Skipping."
+                )
+                continue
+            first_patient = valid_patients.iloc[0]
             patient_data = holdout_data[holdout_data[patient_col] == first_patient]
 
             logger.info(f"  First holdout patient: {first_patient}")
@@ -133,10 +143,7 @@ def _generate_forecasts(
             forecast_data_for_model = forecast_data[forecast_cols_for_model].copy()
 
             # Generate predictions
-            if zero_shot:
-                predictions_raw = model.predict_zero_shot(forecast_data_for_model)
-            else:
-                predictions_raw = model.predict(forecast_data_for_model)
+            predictions_raw = model.predict(forecast_data_for_model)
 
             # TTM returns predictions in shape (samples, forecast_length, num_channels)
             # For univariate glucose prediction, we need channel 0
@@ -437,7 +444,7 @@ def _plot_forecasts(
 
 
 def _evaluate_and_plot(
-    model: TTMForecaster,
+    model: TTMForecaster,  # TODO: Generic child of BaseTimeSeriesForecaster
     training_columns: list,
     dataset_names: list,
     config_dir: str,
@@ -457,7 +464,7 @@ def _evaluate_and_plot(
         config_dir: Holdout config directory
         output_dir: Output directory for artifacts
         phase_name: Identifier for this phase
-        zero_shot: If True, use predict_zero_shot() for inference
+        zero_shot: Unused, kept for backwards compatibility
 
     Returns:
         dict: Forecast results, or None if failed
@@ -614,7 +621,9 @@ def step2_validate_holdout_configs(datasets: list, config_dir: str):
     return True
 
 
-def step3_load_training_data(dataset_names: list, config_dir: str):
+def step3_load_training_data(
+    dataset_names: list, config_dir: str, output_dir: str = None
+):
     """Step 3: Load and combine training data from multiple datasets."""
     logger.info(" ")
     logger.info("=" * 80)
@@ -627,6 +636,26 @@ def step3_load_training_data(dataset_names: list, config_dir: str):
     combined_data, column_info = combine_datasets_for_training(
         dataset_names=dataset_names, registry=registry, config_dir=config_dir
     )
+
+    # Save split metadata (skipped/adjusted patients) to output dir
+    split_metadata = registry.get_split_metadata()
+    if split_metadata and output_dir:
+        metadata_dir = Path(output_dir)
+        metadata_dir.mkdir(parents=True, exist_ok=True)
+        metadata_path = metadata_dir / "split_metadata.json"
+        with open(metadata_path, "w") as f:
+            json.dump(split_metadata, f, indent=2)
+        logger.info(f"✓ Split metadata saved to: {metadata_path}")
+
+        # Log summary
+        for ds_name, meta in split_metadata.items():
+            n_skipped = len(meta.get("skipped_patients", {}))
+            n_adjusted = len(meta.get("adjusted_patients", {}))
+            n_filled = meta.get("nan_p_num_filled", 0)
+            if n_skipped or n_adjusted or n_filled:
+                logger.info(
+                    f"  {ds_name}: {n_skipped} skipped, {n_adjusted} adjusted, {n_filled:,} NaN p_num filled"
+                )
     # Print detailed column comparison table
     print_dataset_column_table(column_info, list(combined_data.columns))
 
@@ -913,7 +942,7 @@ def step5_train_model(
 
 def step6_load_checkpoint(
     model_path: Path,
-    config: TTMConfig,
+    config: TTMConfig,  # TODO: Generic child of BaseTimeSeriesForecaster
     training_columns: list,
     dataset_names: list,
     config_dir: str,
@@ -974,7 +1003,7 @@ def step6_load_checkpoint(
 
 
 def step7_resume_training(
-    model: TTMForecaster,
+    model: TTMForecaster,  # TODO: change to generic child of BaseTimeSeriesForecaster
     combined_data,
     dataset_names: list,
     training_columns: list,
@@ -1061,95 +1090,6 @@ def step7_resume_training(
         raise
 
 
-def step8_full_holdout_evaluation(
-    model: TTMForecaster, dataset_names: list, config_dir: str
-):
-    """Step 8: Full evaluation on holdout sets for all datasets.
-
-    This performs the comprehensive evaluation using Trainer.evaluate()
-    on the complete holdout data for each dataset.
-
-    Args:
-        model: Trained TTM model
-        dataset_names: List of dataset names
-        config_dir: Holdout config directory
-
-    Returns:
-        dict: Mapping of dataset names to evaluation results
-    """
-    logger.info(" ")
-    logger.info("=" * 80)
-    logger.info("STEP 8: Full Holdout Evaluation")
-    logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info("=" * 80)
-
-    registry = DatasetRegistry(holdout_config_dir=config_dir)
-    all_results = {}
-
-    for dataset_name in dataset_names:
-        logger.info(f"\n--- Evaluating holdout for: {dataset_name} ---")
-
-        # Load holdout data
-        holdout_data = registry.load_holdout_data_only(dataset_name)
-        logger.info(f"✓ Holdout data loaded: {len(holdout_data):,} samples")
-
-        # Log dataset info
-        if "p_num" in holdout_data.columns or "id" in holdout_data.columns:
-            patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
-            holdout_patients = holdout_data[patient_col].unique()
-            logger.info(f"  Holdout patients: {len(holdout_patients)}")
-
-        # Prepare data for evaluation (remove non-numeric columns)
-        exclude_cols = ["datetime", "p_num", "id", "source_dataset"]
-        numeric_cols = [col for col in holdout_data.columns if col not in exclude_cols]
-        holdout_data_numeric = holdout_data[numeric_cols].copy()
-
-        logger.info(f"  Numeric columns for evaluation: {len(numeric_cols)}")
-        logger.info(f"  Holdout data shape: {holdout_data_numeric.shape}")
-
-        # Evaluate using the evaluate() method
-        try:
-            logger.info("  Running evaluation on holdout set...")
-
-            eval_results = model.evaluate(test_data=holdout_data_numeric)
-
-            logger.info(f"  ✓ Evaluation completed for {dataset_name}")
-            logger.info("  Metrics:")
-
-            # Log all metrics from evaluation
-            for key, value in eval_results.items():
-                if isinstance(value, (int, float)):
-                    logger.info(f"    - {key}: {value:.6f}")
-                else:
-                    logger.info(f"    - {key}: {value}")
-
-            all_results[dataset_name] = eval_results
-
-        except Exception as e:
-            logger.error(f"  ✗ Evaluation failed for {dataset_name}: {e}")
-            import traceback
-
-            traceback.print_exc()
-            all_results[dataset_name] = None
-
-    # Summary
-    logger.info("\n" + "=" * 80)
-    logger.info("Full Holdout Evaluation Summary")
-    logger.info("=" * 80)
-    for dataset_name, results in all_results.items():
-        if results is not None:
-            # Find primary metric (usually MSE or loss)
-            primary_metric = results.get("eval_loss", results.get("mse", "N/A"))
-            if isinstance(primary_metric, float):
-                logger.info(f"  {dataset_name}: eval_loss = {primary_metric:.6f}")
-            else:
-                logger.info(f"  {dataset_name}: {primary_metric}")
-        else:
-            logger.info(f"  {dataset_name}: FAILED")
-
-    return all_results
-
-
 # =============================================================================
 # MAIN WORKFLOW
 # =============================================================================
@@ -1159,9 +1099,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Workflow Steps:
-  1. Check holdout configs exist
-  2. Validate holdout configs
-  3. Load and combine training data
+  1. Check holdout configs exist : GENERIC
+  2. Validate holdout configs : GENERIC
+  3. Load and combine training data : GENERIC
   4. Zero-shot evaluation (pretrained model, no fine-tuning)
   5. Fine-tune model for specified epochs
   6. Load model from checkpoint (verify save/load works)
@@ -1240,7 +1180,9 @@ stored in separate subdirectories for comparison.
         # =====================================================================
         # STEP 3: Load and combine training data
         # =====================================================================
-        combined_train_data = step3_load_training_data(args.datasets, args.config_dir)
+        combined_train_data = step3_load_training_data(
+            args.datasets, args.config_dir, args.output_dir
+        )
         training_columns = list(combined_train_data.columns)
 
         # =====================================================================
@@ -1324,15 +1266,6 @@ stored in separate subdirectories for comparison.
                 output_dir=args.output_dir,
                 num_epochs=args.epochs,
             )
-
-        # =====================================================================
-        # STEP 8: Full holdout evaluation on all datasets
-        # =====================================================================
-        step8_full_holdout_evaluation(
-            model=model,
-            dataset_names=args.datasets,
-            config_dir=args.config_dir,
-        )
 
         # =====================================================================
         # WORKFLOW COMPLETE

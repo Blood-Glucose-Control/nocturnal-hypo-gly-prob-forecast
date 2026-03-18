@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from transformers import TrainingArguments
 
 from src.models.base import BaseTimeSeriesFoundationModel, ModelConfig, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.utils.logging_helper import info_print, error_print
 
 
@@ -43,6 +44,7 @@ class TSMixerConfig(ModelConfig):
         self.mixing_hidden_dim = kwargs.get("mixing_hidden_dim", 256)
 
 
+@ModelRegistry.register("tsmixer")
 class TSMixerForecaster(BaseTimeSeriesFoundationModel):
     """
     TSMixer forecaster implementation.
@@ -69,6 +71,10 @@ class TSMixerForecaster(BaseTimeSeriesFoundationModel):
 
     def supports_lora(self) -> bool:
         """TSMixer is MLP-based and does NOT support LoRA fine-tuning."""
+        return False
+
+    @property
+    def supports_zero_shot(self) -> bool:
         return False
 
     def training_backend(self) -> TrainingBackend:

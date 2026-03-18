@@ -11,7 +11,7 @@ class DatasetSourceType(str, Enum):
     LOCAL = "local"
     GLUROO_2026 = "gluroo"
     HUGGING_FACE = "hugging_face"
-    ALEPPO = "aleppo_2017"
+    ALEPPO_2017 = "aleppo_2017"
     LYNCH_2022 = "lynch_2022"
     BROWN_2019 = "brown_2019"
     SIMGLUCOSE = "simglucose"
@@ -31,6 +31,9 @@ class ColumnNames(str, Enum):
     CARB_AVAILABILITY = "carb_availability"
     IOB = "iob"
     INSULIN_AVAILABILITY = "insulin_availability"
+    # Time features
+    HOUR_SIN = "hour_sin"
+    HOUR_COS = "hour_cos"
     CALS = "cals"
     STEPS = "steps"
     HR_BPM = "hr_bpm"

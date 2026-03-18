@@ -1,0 +1,23 @@
+{
+  "cli_args": {
+    "model": "sundial",
+    "dataset": "brown_2019",
+    "config_dir": "configs/data/holdout_10pct",
+    "checkpoint": null,
+    "context_length": 512,
+    "forecast_length": 96,
+    "model_config": "configs/models/sundial/base.yaml",
+    "output_dir": null
+  },
+  "model_config": {
+    "num_samples": 100,
+    "context_length": 512,
+    "forecast_length": 96
+  },
+  "environment": {
+    "git_commit": "8ec485c",
+    "python_version": "3.12.3",
+    "timestamp": "2026-02-13T00:56:42.487995"
+  },
+  "reproducibility_command": "python scripts/examples/holdout_eval.py --model sundial --dataset brown_2019 --config-dir configs/data/holdout_10pct --context-length 512 --forecast-length 96 --model-config configs/models/sundial/base.yaml"
+}

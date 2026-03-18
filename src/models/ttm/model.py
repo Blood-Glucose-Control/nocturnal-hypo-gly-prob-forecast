@@ -7,7 +7,7 @@ the base TSFM framework, demonstrating how to integrate existing models.
 
 import os
 import logging
-from typing import Any, Dict, List, Optional, Tuple, TypedDict, Union
+from typing import Any, Dict, List, Optional, Tuple, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -20,6 +20,7 @@ from transformers import (
 # Import your existing TTM-related modules
 from tsfm_public import (
     TimeSeriesPreprocessor,
+    TimeSeriesForecastingPipeline,
     get_datasets,
 )
 from tsfm_public.toolkit.get_model import get_model
@@ -27,6 +28,7 @@ from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 # Local imports
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.models.ttm.config import TTMConfig
 from src.data.models import ColumnNames
 from src.data.preprocessing.split_or_combine_patients import (
@@ -62,6 +64,7 @@ class ColumnSpecifiers(TypedDict, total=False):
     static_categorical_columns: List[str]
 
 
+@ModelRegistry.register("ttm")
 class TTMForecaster(BaseTimeSeriesFoundationModel):
     """TTM (TinyTimeMixer) forecaster implementation.
 
@@ -129,81 +132,82 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         """
         return False
 
+    @property
+    def supports_zero_shot(self) -> bool:
+        return True
+
     # Abstract method implementations
     ## Abstract implemented public methods
-    def predict(
+    def _predict(
         self,
         data: Any,
         batch_size: Optional[int] = None,
         inverse_scale: bool = True,
-        return_dict: bool = False,
-    ) -> Union[np.ndarray, Dict[str, Any]]:
-        """Make predictions on new data.
+    ) -> np.ndarray:
+        """Make predictions on new data using TTM pipeline.
+
+        Branches on is_fitted to select the inference path:
+        - Fitted: uses TimeSeriesForecastingPipeline with the preprocessor
+          (external scaling fitted during training).
+        - Not fitted (zero-shot): uses pipeline without preprocessor;
+          TTM's internal RevIN handles per-window standardization.
 
         Args:
             data: Input data for prediction
             batch_size: Batch size for prediction
             inverse_scale: If True, inverse transform predictions to original scale.
                           Requires preprocessor to have been fitted during training.
-            return_dict: If True, return a dictionary with predictions and metadata.
 
         Returns:
-            Predictions as numpy array (in original scale if inverse_scale=True)
-            or a dictionary with predictions and metadata if return_dict=True.
-
-        Raises:
-            ValueError: If model has not been fitted
+            Predictions as numpy array (in original scale if inverse_scale=True).
         """
-        if not self.is_fitted or self.model is None:
-            raise ValueError("Model must be fitted before making predictions")
-
-        # Prepare data for inference using the fitted preprocessor
-        # Falls back to training data prep if preprocessor not available (e.g., loaded model)
-        try:
-            data_loader = self._prepare_inference_data(data)
-        except ValueError as e:
-            info_print(f"Falling back to _prepare_training_data: {e}")
-            data_loader, _, _ = self._prepare_training_data(data)
-
-        # Create trainer for inference
-        trainer = self._create_inference_trainer(batch_size)
-
-        # Generate predictions using Trainer
-        info_print("Generating predictions using Trainer.predict()...")
-        predictions_output = trainer.predict(data_loader.dataset)
-
-        # Extract predictions from PredictionOutput
-        # predictions_output.predictions is a tuple: (forecasts, embeddings)
-        predictions = predictions_output.predictions[0]  # Get forecasts
-
-        # Convert to numpy if needed
-        if hasattr(predictions, "cpu"):
-            predictions = predictions.cpu().numpy()  # type: ignore
-        elif not isinstance(predictions, np.ndarray):
-            predictions = np.array(predictions)
-
-        info_print(f"Predictions shape (scaled): {predictions.shape}")
-
-        # Inverse scale predictions back to original units
-        if inverse_scale and self.preprocessor is not None:
-            predictions = self._inverse_scale_predictions(predictions, data)
-            info_print("Predictions inverse-scaled to original units")
-
-        info_print(f"Predictions shape: {predictions.shape}")
-
-        if return_dict:
-            result = {
-                "predictions": predictions,
-                "model_config": self.config.to_dict(),
-                "n_samples": len(predictions),
-            }
-            # Include backbone embeddings if available
-            if len(predictions_output.predictions) > 1:
-                result["backbone_embeddings"] = predictions_output.predictions[1]
-                info_print(
-                    f"Backbone embeddings shape: {predictions_output.predictions[1].shape}"
+        if self.is_fitted:
+            # Fine-tuned path: preprocessor handles scaling + inverse scaling
+            if self.preprocessor is None:
+                raise RuntimeError(
+                    "Model is marked as fitted but preprocessor is None. "
+                    "The checkpoint was likely saved without a preprocessor. "
+                    "Re-train the model or use zero-shot inference instead."
                 )
-            return result
+            pipeline = TimeSeriesForecastingPipeline(
+                model=self.model,
+                feature_extractor=self.preprocessor,
+                explode_forecasts=True,
+                inverse_scale_outputs=inverse_scale,
+                batch_size=batch_size or self.config.batch_size,
+            )
+            forecast_df = pipeline(data)
+            target_col = self.preprocessor.target_columns[0]
+            predictions = forecast_df[target_col].values
+        else:
+            # Zero-shot path: no preprocessor, TTM's internal RevIN
+            # handles per-window standardization automatically
+            if self.column_specifiers is None:
+                self.column_specifiers = self._create_column_specifiers(data)
+
+            target_columns = self.column_specifiers.get("target_columns", [])
+            if not target_columns:
+                expected = self.config.target_features
+                raise ValueError(
+                    f"target_columns is empty after filtering: none of the configured "
+                    f"target features {expected} were found (or had non-NaN values) in "
+                    f"the input data. Available columns: {list(data.columns)}"
+                )
+
+            pipeline = TimeSeriesForecastingPipeline(
+                model=self.model,
+                timestamp_column=self.column_specifiers.get(
+                    "timestamp_column", ColumnNames.DATETIME.value
+                ),
+                id_columns=self.column_specifiers.get("id_columns", []),
+                target_columns=self.column_specifiers.get("target_columns", ["bg_mM"]),
+                observable_columns=self.column_specifiers.get("observable_columns", []),
+                explode_forecasts=True,
+                freq=f"{self.config.resolution_min}min",
+            )
+            forecast_df = pipeline(data)
+            target_col = target_columns[0]
+            predictions = forecast_df[target_col].values
 
         return predictions
 
@@ -224,7 +228,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             Predictions inverse-scaled to original units
         """
         if self.preprocessor is None:
-            info_print("No preprocessor available, returning predictions as-is")
+            logger.warning(
+                "No preprocessor available - predictions will be returned in SCALED units (z-scores). "
+                "This will cause incorrect metrics if comparing to unscaled ground truth."
+            )
             return predictions
 
         if not self.preprocessor.scaling:
@@ -232,7 +239,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             return predictions
 
         if len(self.preprocessor.target_scaler_dict) == 0:
-            info_print("No scalers trained, returning predictions as-is")
+            logger.warning(
+                "No scalers trained in preprocessor - predictions will be returned in SCALED units. "
+                "The preprocessor may not have been fitted correctly during training."
+            )
             return predictions
 
         # Get the target scaler
@@ -246,6 +256,19 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             info_print(f"Using scaler key: {scaler_key}")
 
         scaler = self.preprocessor.target_scaler_dict[scaler_key]
+
+        # Log scaler parameters for debugging
+        if hasattr(scaler, "mean_"):
+            scaler_mean = (
+                scaler.mean_[0] if hasattr(scaler.mean_, "__len__") else scaler.mean_
+            )
+            scaler_scale = (
+                scaler.scale_[0] if hasattr(scaler.scale_, "__len__") else scaler.scale_
+            )
+            debug_print(
+                f"Using scaler with mean={scaler_mean:.4f}, scale={scaler_scale:.4f} "
+                f"(key: {scaler_key})"
+            )
 
         # Handle different prediction shapes
         original_shape = predictions.shape
@@ -350,74 +373,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         except Exception as e:
             error_print(f"Failed to initialize TTM model: {str(e)}")
             raise
-
-    def _prepare_inference_data(self, data: Any) -> DataLoader:
-        """Prepare data for inference (prediction) using the existing preprocessor.
-
-        Uses the fitted preprocessor from training to scale the data and creates
-        a ForecastDFDataset for inference. Does NOT retrain scalers.
-
-        Args:
-            data: Input data for prediction (DataFrame or dict of DataFrames)
-
-        Returns:
-            DataLoader for inference
-
-        Raises:
-            ValueError: If preprocessor hasn't been trained
-        """
-        from tsfm_public.toolkit.dataset import ForecastDFDataset
-
-        if self.preprocessor is None:
-            raise ValueError(
-                "Preprocessor not available. Model must be trained before prediction, "
-                "or preprocessor must be loaded with the model."
-            )
-
-        # Convert dict format to DataFrame if needed
-        if isinstance(data, dict):
-            from src.data.data_loading import multi_patient_dict_to_df
-
-            data = multi_patient_dict_to_df(
-                patients_dict=data,
-                resolution_min=self.config.resolution_min,
-                x_features=self.config.input_features,
-                y_feature=self.config.target_features,
-            )
-            data = data.reset_index()
-
-        info_print(f"Preprocessing inference data with shape: {data.shape}")
-
-        # Use the existing preprocessor to scale the data (without retraining)
-        # preprocess() applies the fitted scalers
-        scaled_data = self.preprocessor.preprocess(data)
-
-        # Create ForecastDFDataset for inference using the preprocessor's column specs
-        inference_dataset = ForecastDFDataset(
-            data=scaled_data,
-            id_columns=self.preprocessor.id_columns,
-            timestamp_column=self.preprocessor.timestamp_column,
-            target_columns=self.preprocessor.target_columns,
-            observable_columns=self.preprocessor.observable_columns,
-            control_columns=self.preprocessor.control_columns,
-            conditional_columns=self.preprocessor.conditional_columns,
-            static_categorical_columns=self.preprocessor.static_categorical_columns,
-            context_length=self.config.context_length,
-            prediction_length=self.config.forecast_length,
-        )
-
-        # Create DataLoader for inference
-        inference_loader = DataLoader(
-            inference_dataset,
-            batch_size=self.config.batch_size,
-            shuffle=False,
-            num_workers=self.config.dataloader_num_workers,
-        )
-
-        info_print(
-            f"Created inference DataLoader with {len(inference_dataset)} samples"
-        )
-        return inference_loader
 
     def _prepare_training_data(
         self,
@@ -545,11 +500,28 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Save the preprocessor for inference (critical for new/holdout patients)
         # Using pickle because tsfm_public's save_pretrained uses json.dumps(sort_keys=True)
         # which fails when preprocessor has mixed key types (float patient IDs + string keys)
+        # Save to BOTH root and model.pt to handle different load scenarios
         if self.preprocessor is not None:
+            # Save to root directory (primary location for _load_checkpoint)
             preprocessor_path = os.path.join(output_dir, "preprocessor.pkl")
             with open(preprocessor_path, "wb") as f:
                 pickle.dump(self.preprocessor, f)
             info_print(f"Preprocessor saved to {preprocessor_path}")
+
+            # Also save to model.pt if it exists (for consistency with HF Trainer structure)
+            model_pt_dir = os.path.join(output_dir, "model.pt")
+            if os.path.exists(model_pt_dir):
+                preprocessor_path_model_pt = os.path.join(
+                    model_pt_dir, "preprocessor.pkl"
+                )
+                with open(preprocessor_path_model_pt, "wb") as f:
+                    pickle.dump(self.preprocessor, f)
+                info_print(f"Preprocessor also saved to {preprocessor_path_model_pt}")
+        else:
+            logger.warning(
+                "Preprocessor is None - not saved. "
+                "This will cause inference to return scaled predictions instead of original units."
+            )
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load model checkpoint.
@@ -594,14 +566,25 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             info_print(f"TTM model checkpoint loaded from {model_dir}")
 
             # Load the preprocessor if saved (critical for inference on holdout patients)
-            # Try pickle format first (new), then fall back to pretrained format (legacy)
+            # Try multiple locations as save structure can vary:
+            # 1. Direct in model_dir (new format)
+            # 2. In model.pt subdirectory (HuggingFace Trainer creates this)
+            # 3. preprocessor/ subdirectory (legacy TSFM format)
             preprocessor_pkl_path = os.path.join(model_dir, "preprocessor.pkl")
+            preprocessor_pkl_model_pt = os.path.join(
+                model_dir, "model.pt", "preprocessor.pkl"
+            )
             preprocessor_dir = os.path.join(model_dir, "preprocessor")
 
             if os.path.exists(preprocessor_pkl_path):
                 with open(preprocessor_pkl_path, "rb") as f:
                     self.preprocessor = pickle.load(f)
                 info_print(f"Preprocessor loaded from {preprocessor_pkl_path}")
+            elif os.path.exists(preprocessor_pkl_model_pt):
+                # HuggingFace Trainer sometimes saves to model.pt subdirectory
+                with open(preprocessor_pkl_model_pt, "rb") as f:
+                    self.preprocessor = pickle.load(f)
+                info_print(f"Preprocessor loaded from {preprocessor_pkl_model_pt}")
             elif os.path.exists(preprocessor_dir):
                 # Legacy format - try from_pretrained
                 self.preprocessor = TimeSeriesPreprocessor.from_pretrained(
@@ -611,8 +594,25 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                     f"Preprocessor loaded from {preprocessor_dir} (legacy format)"
                 )
             else:
-                info_print(
-                    f"No preprocessor found at {model_dir}, inference may require refitting"
+                logger.warning(
+                    f"No preprocessor found at {model_dir}. "
+                    "Predictions will return SCALED values (z-scores) instead of original units. "
+                    "This will cause incorrect metrics if comparing to unscaled ground truth. "
+                    "Ensure preprocessor.pkl was saved during training."
+                )
+
+            # Only mark as fitted if the preprocessor was also successfully loaded.
+            # The fitted inference path in _predict() unconditionally dereferences
+            # self.preprocessor, so setting is_fitted=True without a preprocessor
+            # would cause an AttributeError at inference time.
+            if self.preprocessor is not None:
+                self.is_fitted = True
+                info_print("Model marked as fitted (preprocessor loaded successfully).")
+            else:
+                self.is_fitted = False
+                logger.warning(
+                    "Model checkpoint loaded but is_fitted=False: preprocessor is missing. "
+                    "Falling back to zero-shot inference path (TTM internal RevIN only)."
                 )
 
         except Exception as e:
@@ -642,6 +642,32 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         import os
 
         os.environ["TQDM_MININTERVAL"] = "30"  # Update progress bar every 30 seconds
+
+        # Prevent GPU memory fragmentation. PyTorch's default CUDA allocator uses
+        # fixed-size blocks that can't be merged when freed, causing "reserved but
+        # unallocated" memory to grow over time (especially when switching between
+        # training and evaluation, which produce different tensor sizes).
+        # expandable_segments:True allows memory segments to grow/shrink dynamically,
+        # making freed memory actually reclaimable. This is safe and stable since
+        # PyTorch 2.1 with no performance downside.
+        #
+        # NOTE: This is a fallback for users running the training module directly.
+        # For reliable configuration, set PYTORCH_ALLOC_CONF in your shell/runner
+        # script BEFORE invoking Python (e.g., in run_holdout_generic_workflow.sh).
+        # Setting it here may not take effect if CUDA was already initialized.
+        if "PYTORCH_ALLOC_CONF" not in os.environ:
+            os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
+            # Check if CUDA allocator was already initialized (setting won't take effect)
+            import torch
+
+            if torch.cuda.is_initialized():
+                logger.warning(
+                    "PYTORCH_ALLOC_CONF was set after CUDA initialization. "
+                    "The 'expandable_segments:True' setting may not take effect. "
+                    "For reliable memory fragmentation prevention, set "
+                    "PYTORCH_ALLOC_CONF in your shell before running Python."
+                )
+
         info_print("Starting TTM training using HuggingFace Trainer...")
         # Prepare data loaders (splits based on config)
         train_loader, val_loader, test_loader = self._prepare_training_data(train_data)
@@ -670,6 +696,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Save the model
         trainer.save_model(output_dir=output_dir)
 
+        # Save the preprocessor (critical for inference on holdout patients)
+        self._save_checkpoint(output_dir)
+
         # Get training history directly from trainer.state (in memory)
         # This is more reliable than reading from file since trainer_state.json
         # is only saved in checkpoint directories, not at output_dir root
@@ -688,10 +717,26 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             info_print("Warning: Could not access trainer.state")
 
         # Evaluate on test set if provided
+        # Note: This evaluation can be memory-intensive for large test sets
+        # because HF Trainer accumulates all prediction tensors on GPU.
+        # Free training state first to maximize available memory.
         test_metrics = {}
         if test_loader is not None:
-            test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
-            info_print(f"Test metrics: {test_metrics}")
+            import torch
+
+            # Clear training-related GPU cache before evaluation
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            try:
+                test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
+                info_print(f"Test metrics: {test_metrics}")
+            except torch.cuda.OutOfMemoryError:
+                info_print(
+                    "Warning: Test evaluation skipped due to GPU OOM. "
+                    "This is non-fatal — full holdout evaluation runs separately in step 8."
+                )
+                # Clear the failed allocation
+                torch.cuda.empty_cache()
 
         return {
             "train_metrics": train_result.metrics,
@@ -703,181 +748,73 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
     # NOTE: evaluate() is inherited from BaseTimeSeriesFoundationModel
     # It calls predict() and computes metrics using _compute_metrics()
 
-    def predict_zero_shot(
+    def _predict_batch(
         self,
-        data: Any,
-        batch_size: Optional[int] = None,
-    ) -> np.ndarray:
-        """Make zero-shot predictions without fine-tuning.
+        data: pd.DataFrame,
+        episode_col: str,
+        quantile_levels=None,
+    ) -> Dict[str, np.ndarray]:
+        """Batch prediction using TimeSeriesForecastingPipeline.
 
-        Uses the tsfm_public pattern: create a TimeSeriesPreprocessor,
-        use get_datasets() to prepare the data, then use Trainer.predict()
-        directly on the dataset.
+        For zero-shot mode, passes all episodes to the pipeline in a single
+        call with ``episode_col`` included as an id column so that TTM's
+        internal DataLoader can process them together.
+
+        For fitted mode the preprocessor was fitted without ``episode_col``
+        as an id column, so falls back to the default sequential loop.
 
         Args:
-            data: Input data for prediction (DataFrame)
-            batch_size: Batch size for prediction
+            data: Panel DataFrame containing episode_col and the columns
+                required by the model (timestamp, target, covariates).
+            episode_col: Column name that identifies individual episodes.
 
         Returns:
-            Model predictions as numpy array
+            Dict mapping episode ID (as str) to 1-D numpy forecast array.
         """
-        import tempfile
+        episode_ids = data[episode_col].unique()
 
-        info_print("Making zero-shot predictions with TTM")
+        # Zero-shot path: include episode_col in id_columns so the pipeline
+        # groups episodes correctly in a single batched forward pass.
+        if self.preprocessor is None and self.config.training_mode == "zero_shot":
+            if self.column_specifiers is None:
+                self.column_specifiers = self._create_column_specifiers(data)
 
-        # Convert dict format to DataFrame if needed
-        if isinstance(data, dict):
-            data = pd.concat(data.values(), ignore_index=True)
+            id_cols: List[str] = list(self.column_specifiers.get("id_columns", []))
+            if episode_col not in id_cols:
+                id_cols = [episode_col] + id_cols
 
-        # Create column specifiers if needed
-        if self.column_specifiers is None:
-            self.column_specifiers = self._create_column_specifiers(data)
-
-        # Create preprocessor for zero-shot inference
-        tsp = TimeSeriesPreprocessor(
-            **self.column_specifiers,
-            context_length=self.config.context_length,
-            prediction_length=self.config.forecast_length,
-            scaling=True,
-            encode_categorical=False,
-            scaler_type=ScalerType.STANDARD.value,  # type: ignore[arg-type]
-        )
-
-        # Use get_datasets to prepare data (handles preprocessor fitting internally)
-        # Use a split that puts all data in test for inference
-        split_config = {"train": 0.33, "test": 0.33, "val": 0.34}
-
-        # Check for resolution_prefix_tuning on model config
-        use_freq_token = False
-        if self.model is not None and hasattr(self.model, "config"):
-            model_config = getattr(self.model, "config", None)
-            if model_config is not None and hasattr(
-                model_config, "resolution_prefix_tuning"
-            ):
-                use_freq_token = bool(
-                    getattr(model_config, "resolution_prefix_tuning", False)
+            target_columns = self.column_specifiers.get("target_columns", [])
+            if not target_columns:
+                expected = self.config.target_features
+                raise ValueError(
+                    f"target_columns is empty after filtering: none of the configured "
+                    f"target features {expected} were found (or had non-NaN values) in "
+                    f"the input data. Available columns: {list(data.columns)}"
                 )
-        info_print(f"Passing the following dataset to get_dataset: \n {data}")
-        dset_train, dset_val, dset_test = get_datasets(  # type: ignore[misc]
-            tsp,
-            data,
-            split_config,  # type: ignore[arg-type]
-            use_frequency_token=use_freq_token,
-        )
-        info_print("Data prepared for zero-shot inference")
-        # Create temporary directory for trainer output
-        temp_dir = tempfile.mkdtemp()
 
-        # Create trainer for zero-shot inference
-        zeroshot_trainer = Trainer(
-            model=self.model,
-            args=TrainingArguments(
-                output_dir=temp_dir,
-                per_device_eval_batch_size=batch_size or self.config.batch_size,
-                seed=42,
-                report_to="none",
-            ),
-        )
-
-        # Get predictions using trainer.predict()
-        info_print("Generating zero-shot predictions...")
-        predictions_output = zeroshot_trainer.predict(dset_test)
-
-        # Extract predictions from output
-        # predictions_output.predictions is a tuple: (forecasts, embeddings)
-        predictions = predictions_output.predictions[0]
-
-        # Convert to numpy if needed
-        if hasattr(predictions, "cpu"):
-            predictions = predictions.cpu().numpy()  # type: ignore[union-attr]
-        elif not isinstance(predictions, np.ndarray):
-            predictions = np.array(predictions)
-
-        info_print(f"Zero-shot predictions shape (scaled): {predictions.shape}")
-
-        # Inverse scale predictions back to original units
-        # The preprocessor (tsp) was used to scale the data, so we use it to inverse scale
-        predictions = self._inverse_scale_zero_shot_predictions(predictions, tsp)
-
-        info_print(f"Zero-shot predictions shape (unscaled): {predictions.shape}")
-
-        return predictions
-
-    def _inverse_scale_zero_shot_predictions(
-        self, predictions: np.ndarray, preprocessor: TimeSeriesPreprocessor
-    ) -> np.ndarray:
-        """Inverse scale zero-shot predictions back to original units.
-
-        Args:
-            predictions: Scaled predictions array
-            preprocessor: The TimeSeriesPreprocessor used for scaling
-
-        Returns:
-            Predictions in original scale
-        """
-        from tsfm_public.toolkit.time_series_preprocessor import INTERNAL_ID_COLUMN
-
-        if not preprocessor.scaling:
-            info_print("Preprocessor scaling is disabled, returning predictions as-is")
-            return predictions
-
-        if len(preprocessor.target_scaler_dict) == 0:
-            info_print("No scalers in preprocessor, returning predictions as-is")
-            return predictions
-
-        # Get the target scaler - for global scaling, key is '__id'
-        scaler_key = INTERNAL_ID_COLUMN
-        if scaler_key not in preprocessor.target_scaler_dict:
-            # Try first available key
-            scaler_key = next(iter(preprocessor.target_scaler_dict.keys()))
-
-        scaler = preprocessor.target_scaler_dict[scaler_key]
-
-        # Handle different prediction shapes
-        original_shape = predictions.shape
-        info_print(
-            f"Inverse scaling zero-shot predictions with shape: {original_shape}"
-        )
-
-        # Reshape to 2D for sklearn scaler (samples, features)
-        if len(original_shape) == 1:
-            predictions_2d = predictions.reshape(-1, 1)
-            needs_squeeze = True
-        elif len(original_shape) == 2:
-            predictions_2d = predictions
-            needs_squeeze = False
-        elif len(original_shape) == 3:
-            # Shape: (samples, forecast_length, channels)
-            n_samples, forecast_len, n_channels = original_shape
-            predictions_2d = predictions.reshape(-1, n_channels)
-            needs_squeeze = False
-        else:
-            info_print(
-                f"Unexpected predictions shape: {original_shape}, returning as-is"
+            pipeline = TimeSeriesForecastingPipeline(
+                model=self.model,
+                timestamp_column=self.column_specifiers.get(
+                    "timestamp_column", ColumnNames.DATETIME.value
+                ),
+                id_columns=id_cols,
+                target_columns=target_columns,
+                observable_columns=self.column_specifiers.get("observable_columns", []),
+                explode_forecasts=True,
+                freq=f"{self.config.resolution_min}min",
             )
-            return predictions
+            forecast_df = pipeline(data)
+            target_col = target_columns[0]
 
-        # Inverse transform
-        try:
-            # Only inverse scale the target column(s)
-            n_target_cols = len(preprocessor.target_columns)
-            predictions_unscaled = predictions_2d.copy()
-            predictions_unscaled[:, :n_target_cols] = scaler.inverse_transform(
-                predictions_2d[:, :n_target_cols]
-            )
+            results: Dict[str, np.ndarray] = {}
+            for ep_id in episode_ids:
+                mask = forecast_df[episode_col] == ep_id
+                if mask.any():
+                    results[str(ep_id)] = forecast_df.loc[mask, target_col].values
+            return results
 
-            # Reshape back to original shape
-            if len(original_shape) == 3:
-                predictions_unscaled = predictions_unscaled.reshape(original_shape)
-            elif needs_squeeze:
-                predictions_unscaled = predictions_unscaled.squeeze()
-
-            info_print("Successfully inverse-scaled zero-shot predictions")
-            return predictions_unscaled
-
-        except Exception as e:
-            info_print(f"Warning: Failed to inverse scale predictions: {e}")
-            return predictions
+        # Fitted path: delegate to base class sequential loop.
+        return super()._predict_batch(data, episode_col)
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.
@@ -913,31 +850,33 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Default mappings - adapt these to your data structure
         # NOTE: target_columns are the ONLY columns that will be forecasted by the model
         # control_columns, observable_columns, and conditional_columns are used as INPUT features only
+
+        # Use input_features from config instead of hardcoded list
+        observable_cols = (
+            self.config.input_features if self.config.input_features else []
+        )
+
         column_specifiers: ColumnSpecifiers = {
             "id_columns": [ColumnNames.P_NUM.value],
             "timestamp_column": ColumnNames.DATETIME.value,
-            "target_columns": [ColumnNames.BG.value],  # Only forecast blood glucose
-            "observable_columns": [
-                # Observable columns: known in the past, unknown in the future
-                # These are used as inputs but NOT forecasted
-                ColumnNames.STEPS.value,
-                ColumnNames.COB.value,
-                ColumnNames.CARB_AVAILABILITY.value,
-                ColumnNames.INSULIN_AVAILABILITY.value,
-                ColumnNames.IOB.value,
-            ],
+            "target_columns": self.config.target_features,  # Use config target features
+            "observable_columns": observable_cols,  # Use config input features
             "control_columns": [],  # Control columns: known in past AND future (we don't have any)
             "conditional_columns": [],
             "static_categorical_columns": [],
         }
 
-        # Filter to only include columns that exist in the data
+        # Filter to only include columns that exist in the data AND have
+        # at least some non-NaN values (e.g. Brown 2019 has cob/carb_availability
+        # columns as all-NaN placeholders because no meal data exists)
         available_columns = set(data.columns)
 
         for key, columns in column_specifiers.items():
             if isinstance(columns, list):
                 column_specifiers[key] = [
-                    col for col in columns if col in available_columns
+                    col
+                    for col in columns
+                    if col in available_columns and not data[col].isna().all()
                 ]
 
         return column_specifiers
@@ -1117,33 +1056,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         return callbacks
 
-    def _create_inference_trainer(self, batch_size: Optional[int] = None) -> Trainer:
-        """Create a Trainer instance configured for inference (predict/evaluate).
-
-        Args:
-            batch_size: Batch size for inference (defaults to config.batch_size)
-
-        Returns:
-            Configured Trainer instance for inference
-        """
-        import tempfile
-
-        batch_size_to_use = (
-            batch_size if batch_size is not None else self.config.batch_size
-        )
-        output_dir = getattr(self.config, "output_dir", tempfile.mkdtemp())
-
-        return Trainer(
-            model=self.model,
-            args=TrainingArguments(
-                output_dir=output_dir,
-                per_device_eval_batch_size=batch_size_to_use,
-                dataloader_num_workers=self.config.dataloader_num_workers,
-                report_to="none",
-                seed=42,  # For reproducibility
-            ),
-        )
-
     def _create_training_arguments(self, output_dir: str) -> TrainingArguments:
         """Create TrainingArguments for model training.
 
@@ -1153,9 +1065,13 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Configured TrainingArguments instance
         """
+        # Store checkpoints in a dedicated subdirectory to keep the output dir clean
+        checkpoint_dir = os.path.join(output_dir, "checkpoints")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+
         # Base training arguments
         base_args = {
-            "output_dir": output_dir,
+            "output_dir": checkpoint_dir,
             "learning_rate": self.config.learning_rate,
             "num_train_epochs": self.config.num_epochs,
             "per_device_train_batch_size": self.config.batch_size,

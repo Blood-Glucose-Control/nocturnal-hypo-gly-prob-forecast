@@ -26,8 +26,6 @@ class MomentTrainingConfig:
             "huber", or "custom".
         scaler_type: Data normalization method. Options: "standard", "minmax",
             or "robust".
-        imputation_strategy: Strategy for handling missing values. Options:
-            "mean", "median", or "forward_fill".
     """
 
     # Moment specific training parameters
@@ -40,7 +38,6 @@ class MomentTrainingConfig:
 
     # Moment preprocessing
     scaler_type: str = "standard"  # "standard", "minmax", "robust"
-    imputation_strategy: str = "mean"  # "mean", "median", "forward_fill"
 
 
 @dataclass

@@ -18,6 +18,7 @@ import os
 import pandas as pd
 
 from src.data.cache_manager import get_cache_manager
+from src.data.utils.patient_id import format_patient_id
 from src.data.physiological.carb_model.carb_model import (
     create_cob_and_carb_availability_cols,
 )
@@ -51,6 +52,9 @@ def clean_brist1d_test_data(df: pd.DataFrame) -> dict[str, dict[str, pd.DataFram
         where each dataframe contains the processed measurements for a specific
         patient and time point.
     """
+    # Apply standardized patient ID format: bri_###
+    df = df.copy()
+    df["p_num"] = df["p_num"].apply(lambda x: format_patient_id("kaggle_brisT1D", x))
     patient_ids = df["p_num"].unique().tolist()
     all_value_var_lists = create_time_variable_lists()
     patient_dfs = defaultdict(dict)
@@ -151,6 +155,11 @@ def clean_brist1d_train_data(df: pd.DataFrame) -> pd.DataFrame:
 
     # Create a copy to avoid modifying the original
     data = df.copy()
+
+    # Apply standardized patient ID format: bri_###
+    data["p_num"] = data["p_num"].apply(
+        lambda x: format_patient_id("kaggle_brisT1D", x)
+    )
 
     # Create the list of columns to drop
     # Only keep the current measurements (those with -0:00 suffix)

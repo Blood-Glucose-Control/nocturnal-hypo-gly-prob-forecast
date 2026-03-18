@@ -30,6 +30,7 @@ import logging
 from pathlib import Path
 
 from src.data.versioning import holdout_utils
+from src.data.versioning.data_config_registry import DataConfigRegistry
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -38,7 +39,7 @@ logger = logging.getLogger(__name__)
 
 
 # Default configuration parameters
-DEFAULT_DATASETS = ["lynch_2022", "tamborlane_2008", "brown_2019", "colas_2019"]
+DEFAULT_DATASETS = ["lynch_2022", "tamborlane_2008", "brown_2019", "aleppo_2017"]
 DEFAULT_SPLIT_TYPE = "hybrid"
 DEFAULT_TEMPORAL_HOLDOUT_PERCENTAGE = 0.1
 DEFAULT_PATIENT_HOLDOUT_PERCENTAGE = 0.1
@@ -108,6 +109,34 @@ Examples:
         help=f"Output directory for configuration files (default: {DEFAULT_OUTPUT_DIR})",
     )
 
+    parser.add_argument(
+        "--min-train-samples",
+        type=int,
+        default=608,
+        help="Minimum number of training samples (default: 608)",
+    )
+
+    parser.add_argument(
+        "--min-holdout-samples",
+        type=int,
+        default=608,
+        help="Minimum number of holdout samples (default: 608)",
+    )
+
+    parser.add_argument(
+        "--min-train-patients",
+        type=int,
+        default=10,
+        help="Minimum number of training patients (default: 10)",
+    )
+
+    parser.add_argument(
+        "--min-holdout-patients",
+        type=int,
+        default=20,
+        help="Minimum number of holdout patients (default: 20)",
+    )
+
     return parser.parse_args()
 
 
@@ -131,12 +160,43 @@ if __name__ == "__main__":
     logger.info("=" * 60)
 
     # Call library function to generate configs
-    holdout_utils.generate_holdout_configs_for_datasets(
+    result = holdout_utils.generate_holdout_configs_for_datasets(
         datasets=datasets,
         output_dir=output_dir,
         temporal_pct=args.temporal_pct,
         patient_pct=args.patient_pct,
         seed=args.seed,
-        min_train_samples=608,
-        min_holdout_samples=608,
+        min_train_samples=args.min_train_samples,
+        min_holdout_samples=args.min_holdout_samples,
+        min_train_patients=args.min_train_patients,
+        min_holdout_patients=args.min_holdout_patients,
     )
+
+    # Initialize registry and record this generation event
+    registry = DataConfigRegistry()
+    entry_id = registry.register_config_generation(
+        datasets=datasets,
+        split_type=args.split_type,
+        temporal_pct=args.temporal_pct,
+        patient_pct=args.patient_pct,
+        seed=args.seed,
+        output_dir=output_dir,
+        min_train_samples=args.min_train_samples,
+        min_holdout_samples=args.min_holdout_samples,
+        min_train_patients=args.min_train_patients,
+        min_holdout_patients=args.min_holdout_patients,
+        generated_files=result.get("generated_files", []),
+        additional_metadata={
+            "success_status": result.get("success", {}),
+            "num_datasets_processed": len(datasets),
+            "num_successful": sum(result.get("success", {}).values()),
+        },
+    )
+
+    # Log registry information
+    logger.info("=" * 60)
+    logger.info("REGISTRY")
+    logger.info("=" * 60)
+    logger.info(f"Registered config generation with ID: {entry_id}")
+    logger.info(f"Registry file: {registry.registry_path}")
+    logger.info("=" * 60)

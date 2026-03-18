@@ -1,4 +1,10 @@
-"""Imputation functions for handling missing data in time series datasets."""
+"""Imputation functions for handling missing data in time series datasets.
+
+TODO: Add per-column imputation configuration to the data config layer
+(e.g. in HoldoutConfig or a dedicated preprocessing config YAML) so that
+imputation strategies can be specified per dataset/column rather than
+relying on column-name heuristics. See configs/data/ for data configs.
+"""
 
 import pandas as pd
 from sktime.transformations.series.impute import Imputer

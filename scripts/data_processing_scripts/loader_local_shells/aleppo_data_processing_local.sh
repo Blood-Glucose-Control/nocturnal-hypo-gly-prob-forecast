@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Local (non-SLURM) version of aleppo data processing
-# Run with: bash scripts/data_processing_scripts/aleppo_data_processing_local.sh
+# Run with: bash scripts/data_processing_scripts/loader_local_shells/aleppo_data_processing_local.sh
 
 set -e  # Exit on error
 

@@ -1,0 +1,76 @@
+# =============================================================================
+# TTM (TinyTimeMixer) Model Configuration - Default
+# =============================================================================
+# This is the default configuration for TTM fine-tuning runs.
+# Copy this file and modify it for your experiment, then pass it via:
+#
+#   MODEL_CONFIG="configs/models/ttm/my_experiment.yaml" ./scripts/examples/run_holdout_generic_workflow.sh
+#
+# Any parameter not specified here will use the TTMConfig defaults.
+# CLI arguments (--epochs, --batch-size) override values in this file.
+# =============================================================================
+
+# --- Model Architecture ---
+model_path: "ibm-granite/granite-timeseries-ttm-r2"
+context_length: 512
+forecast_length: 96
+
+# --- Training Configuration ---
+training_mode: "fine_tune"       # "zero_shot", "fine_tune", "from_scratch"
+freeze_backbone: false
+learning_rate: 1.0e-4
+batch_size: 4096
+num_epochs: 200
+warmup_steps: 1000
+weight_decay: 0.01
+gradient_clip_val: 1.0
+
+# --- Data Features ---
+# Input features (observable columns) fed to the model alongside the target
+input_features:
+  - insulin_availability
+  - iob
+
+# Target feature(s) the model predicts
+target_features:
+  - bg_mM
+
+# --- Data Preprocessing ---
+scaler_type: "standard"          # "standard", "minmax", "robust"
+resolution_min: 5                # Data resolution in minutes (5 for CGM)
+
+# --- Data Splitting ---
+# How the combined training data is split for the Trainer
+split_config:
+  train: 0.9
+  val: 0.05
+  test: 0.05
+fewshot_percent: 5               # % of training data for few-shot learning
+
+# --- Model Channels ---
+# Must match the number of input_features and target_features
+num_input_channels: 3
+num_output_channels: 1
+# prediction_filter_length: null  # Optional: filter length for predictions
+
+# --- Evaluation & Checkpointing ---
+eval_strategy: "steps"
+eval_steps: 2000
+save_steps: 4000
+logging_steps: 500
+early_stopping_patience: 10
+metric_for_best_model: "eval_loss"
+greater_is_better: false
+
+# --- Hardware / Performance ---
+fp16: true
+dataloader_num_workers: 2
+use_cpu: false
+
+# --- Loss Function ---
+loss_function: "mse"             # "mse", "mae", "huber", "pinball"
+
+# --- TTM-Specific ---
+# use_tracking_callback: true
+# find_optimal_lr: false
+# logging_dir: null              # Defaults to <output_dir>/logs

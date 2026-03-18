@@ -37,7 +37,16 @@ RUN_DIR="$HOME/nocturnal/results/runs/ttm_finetune/run_${RUN_TIMESTAMP}_job${SLU
 mkdir -p "$RUN_DIR"
 
 # Activate the virtual environment
-source $HOME/nocturnal/.noctprob-venv/bin/activate
+# Prefer model-specific environment for training (see CONTRIBUTING.md)
+if [ -f "$HOME/nocturnal/.venvs/ttm/bin/activate" ]; then
+    source "$HOME/nocturnal/.venvs/ttm/bin/activate"
+    echo "✓ Activated model-specific environment: .venvs/ttm"
+elif [ -f "$HOME/nocturnal/.noctprob-venv/bin/activate" ]; then
+    echo "⚠️  Model-specific env .venvs/ttm not found, using general dev environment"
+    source "$HOME/nocturnal/.noctprob-venv/bin/activate"
+else
+    echo "⚠️  WARNING: No virtual environment found"
+fi
 
 # Record precise start time
 RUN_START_TIME=$(date '+%s')

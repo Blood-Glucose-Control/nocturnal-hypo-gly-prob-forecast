@@ -1,0 +1,23 @@
+{
+  "evaluation_type": "nocturnal_hypoglycemia",
+  "cli_args": {
+    "model": "ttm",
+    "dataset": "brown_2019",
+    "config_dir": "configs/data/holdout_5pct",
+    "checkpoint": null,
+    "context_length": 512,
+    "forecast_length": 72,
+    "model_config": null,
+    "output_dir": null
+  },
+  "model_config": {
+    "context_length": 512,
+    "forecast_length": 72
+  },
+  "environment": {
+    "git_commit": "9ee5b38",
+    "python_version": "3.12.3",
+    "timestamp": "2026-02-21T22:48:12.370413"
+  },
+  "reproducibility_command": "python scripts/experiments/nocturnal_hypo_eval.py --model ttm --dataset brown_2019 --config-dir configs/data/holdout_5pct --context-length 512 --forecast-length 72"
+}

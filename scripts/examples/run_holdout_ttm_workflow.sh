@@ -72,8 +72,14 @@ cd "$PROJECT_ROOT" || { echo "❌ Failed to cd to $PROJECT_ROOT"; exit 1; }
 echo "Current directory: $(pwd)"
 
 # Activate virtual environment
+# Prefer model-specific environment for training (see CONTRIBUTING.md)
 echo "Activating environment..."
-if [ -f ".noctprob-venv/bin/activate" ]; then
+if [ -f ".venvs/ttm/bin/activate" ]; then
+    source ".venvs/ttm/bin/activate"
+    echo "✓ Activated model-specific environment: .venvs/ttm"
+elif [ -f ".noctprob-venv/bin/activate" ]; then
+    echo "⚠️  Model-specific env .venvs/ttm not found, using general dev environment"
+    echo "   Consider running: source scripts/setup_model_env.sh ttm"
     source .noctprob-venv/bin/activate
     echo "✓ Activated .noctprob-venv"
 elif [ -f "venv/bin/activate" ]; then
@@ -124,7 +130,7 @@ echo "==================================================================="
 echo ""
 
 # Build command - pass all datasets together
-CMD="python scripts/examples/example_holdout_ttm_workflow.py"
+CMD="python scripts/examples/example_holdout_ttm_workflow.py" # your own workflow script.
 CMD="$CMD --datasets $DATASETS"
 CMD="$CMD --config-dir $CONFIG_DIR"
 CMD="$CMD --output-dir $OUTPUT_BASE_DIR"
