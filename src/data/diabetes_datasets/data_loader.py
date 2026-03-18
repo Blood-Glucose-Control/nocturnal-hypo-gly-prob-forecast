@@ -94,7 +94,7 @@ def get_loader(
     max_workers: int = 10,
     patients_per_batch: int = 100,
     patients_per_file: int = 400,
-    number_of_patients_to_process: int = 100,
+    max_batches_per_run: int | None = None,
     min_date_span_days: int = 30,
     load_all: bool = False,
 ) -> Gluroo2026DataLoader: ...
@@ -140,7 +140,7 @@ def get_loader(
     max_workers: int = 3,
     patients_per_batch: int = 100,
     patients_per_file: int = 400,
-    number_of_patients_to_process: int = 100,
+    max_batches_per_run: int | None = None,
     min_date_span_days: int = 30,
     load_all: bool = False,
 ) -> Union[
@@ -194,7 +194,7 @@ def get_loader(
             max_workers=max_workers,
             patients_per_batch=patients_per_batch,
             patients_per_file=patients_per_file,
-            number_of_patients_to_process=number_of_patients_to_process,
+            max_batches_per_run=max_batches_per_run,
             min_date_span_days=min_date_span_days,
             load_all=load_all,
         )

@@ -183,6 +183,7 @@ class Gluroo2026DataLoader(DatasetBase):
                 logger.warning(
                     "WARNING: Loading all data into processed_data for testing."
                 )
+                # TODO: This is bugged. We need to fix it.
                 self._load_all_into_processed_data()
 
     def merge_staging_to_merged(self) -> None:
@@ -537,9 +538,10 @@ class Gluroo2026DataLoader(DatasetBase):
             batch_start = batch_idx * batch_size
             batch = remaining_gids_p_nums[batch_start : batch_start + batch_size]
             batch_num = batch_idx + 1
+            p_nums_in_batch = [p_num for _, p_num in batch]
             logger.info(
                 f"Producer: fetching batch {batch_num}/{total_batches} "
-                f"({len(batch)} patients from DB)..."
+                f"({len(batch)} patients from DB): {p_nums_in_batch}"
             )
 
             raw_data = self.load_raw(batch, processed_path)
@@ -612,8 +614,9 @@ class Gluroo2026DataLoader(DatasetBase):
         """
         Query TimescaleDB for the given patients and apply validity filters.
 
-        Patients are skipped (and appended to skipped_patient_ids.csv) if they
-        have no BGL readings or fewer than min_date_span_days of data.
+        Patients are skipped (and appended to skipped_patient_ids.csv with a
+        reason column) if they have no rows, no BGL readings, or fewer than
+        min_date_span_days of data.
 
         Args:
             gids_p_nums: List of (gid, p_num) pairs to load.
@@ -639,10 +642,11 @@ class Gluroo2026DataLoader(DatasetBase):
             logger.warning(f"load_raw: DB error: {e}")
             return raw_data
 
-        skipped: list[str] = []
+        # (patient_id, skip_reason) for skipped_patient_ids.csv
+        skipped: list[tuple[str, str]] = []
 
         if all_df.empty:
-            skipped.extend(p_num for _, p_num in gids_p_nums)
+            skipped.extend((p_num, "empty_db_batch") for _, p_num in gids_p_nums)
             if processed_path:
                 self._append_skipped_patient_ids_to_file(processed_path, skipped)
             logger.info("load_raw: no data returned from DB for any patient.")
@@ -652,20 +656,27 @@ class Gluroo2026DataLoader(DatasetBase):
             df = all_df.loc[all_df["gid"] == gid].copy()
 
             if df.empty:
-                skipped.append(p_num)
+                skipped.append((p_num, "no_rows_for_gid"))
                 continue
 
             # No readings
             if "bgl" not in df.columns or df["bgl"].notna().sum() == 0:
-                skipped.append(p_num)
+                skipped.append((p_num, "no_bgl_readings"))
                 continue
 
             if not pd.api.types.is_datetime64_any_dtype(df["date"]):
                 df["date"] = pd.to_datetime(df["date"], errors="coerce")
             date_span = df["date"].max() - df["date"].min()
-            # No data or too short
-            if pd.isnull(date_span) or date_span.days < self.min_date_span_days:
-                skipped.append(p_num)
+            if pd.isnull(date_span):
+                skipped.append((p_num, "invalid_date_span"))
+                continue
+            if date_span.days < self.min_date_span_days:
+                skipped.append(
+                    (
+                        p_num,
+                        f"date_span_below_minimum_{date_span.days}d_lt_{self.min_date_span_days}d",
+                    )
+                )
                 continue
 
             df = df.drop(columns=["gid"])
@@ -785,13 +796,22 @@ class Gluroo2026DataLoader(DatasetBase):
     def _load_processed_set(self, processed_path: Path) -> set[str]:
         """
         Read processed_patients.csv and return the set of completed p_nums.
+        File must have a header row "p_num". If the file exists without a header
+        (legacy), it is rewritten once with a header.
         Returns an empty set if the file does not exist.
         """
         log_path = processed_path / PROCESSED_PATIENTS_LOG_FILENAME
         if not log_path.exists():
             return set()
         try:
-            return set(pd.read_csv(log_path, dtype=str)["p_num"].dropna())
+            df = pd.read_csv(log_path, dtype=str)
+            if "p_num" in df.columns:
+                return set(df["p_num"].dropna())
+            # Legacy headless format: migrate to header format and return
+            df = pd.read_csv(log_path, dtype=str, header=None, names=["p_num"])
+            df = df[df["p_num"].notna() & (df["p_num"] != "p_num")].drop_duplicates()
+            df.to_csv(log_path, index=False)
+            return set(df["p_num"])
         except Exception as e:
             logger.warning(f"Could not read {log_path}: {e}; treating as empty.")
             return set()
@@ -854,15 +874,30 @@ class Gluroo2026DataLoader(DatasetBase):
             logger.warning(f"Could not save run metadata to {path}: {e}")
 
     def _append_skipped_patient_ids_to_file(
-        self, processed_path: Path, patient_ids: list[str]
+        self,
+        processed_path: Path,
+        entries: list[tuple[str, str]],
     ) -> None:
-        """Append skipped p_nums to skipped_patient_ids.csv (one per row)."""
-        if not patient_ids:
+        """
+        Append skipped p_nums to skipped_patient_ids.csv with a reason column.
+
+        Columns: patient_id, reason. If an existing file has only patient_id
+        (legacy), it is rewritten once with reason ``legacy_unknown`` for old
+        rows, then new rows are appended.
+        """
+        if not entries:
             return
         path = processed_path / SKIPPED_PATIENT_IDS_FILENAME
-        df = pd.DataFrame({"patient_id": patient_ids})
+        new_df = pd.DataFrame(entries, columns=["patient_id", "reason"])
         try:
-            df.to_csv(path, mode="a", header=not path.exists(), index=False)
+            if not path.exists() or path.stat().st_size == 0:
+                new_df.to_csv(path, index=False)
+                return
+            existing = pd.read_csv(path, dtype=str)
+            if "reason" not in existing.columns:
+                existing["reason"] = "legacy_unknown"
+                existing.to_csv(path, index=False)
+            new_df.to_csv(path, mode="a", header=False, index=False)
         except OSError as e:
             logger.warning(f"Could not append skipped patient IDs to {path}: {e}")
 

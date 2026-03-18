@@ -2,10 +2,19 @@
 
 # Local (non-SLURM) version of gluroo data processing
 # Go to project root
+### WARNING: BEFORE STARTING, MAKE SURE THE PREVIOUS RUN ARE TERMINATED (ALL THE PROCESS ARE KILLED).
+# To terminate the previous run, run:
+# bash scripts/data_processing_scripts/loader_local_shells/gluroo_data_processing_local_stop.sh (not tested yet)
+
+## To start the processing using this script, run:
 # conda activate noctprob
-# bash scripts/data_processing_scripts/loader_local_shells/gluroo_data_processing_local.sh
-# or run in background with nohup
-# nohup bash scripts/data_processing_scripts/loader_local_shells/gluroo_data_processing_local.sh > gluroo_nohup_2026_02_24_0827.out 2>&1 &
+# nohup bash scripts/data_processing_scripts/loader_local_shells/gluroo_data_processing_local.sh > gluroo_nohup_2026_03_17_0909.out 2>&1 &
+
+# To stop the process, run:
+# bash scripts/data_processing_scripts/loader_local_shells/gluroo_data_processing_local_stop.sh (not tested yet)
+
+# To view the process spawned by this script, run this in the terminal:
+# ps -u t3chan -o pid,ppid,pcpu,pmem,stat,cmd --sort=ppid | grep python
 
 set -e  # Exit on error
 
@@ -24,11 +33,10 @@ echo "Started at: $(date)"
 
 
 # conda activate noctprob
-
-PATIENTS_PER_BATCH=100
-NUMBER_OF_PATIENTS=$((PATIENTS_PER_BATCH * 10))
-export PATIENTS_PER_BATCH NUMBER_OF_PATIENTS
-echo "Starting Gluroo data processing (NUMBER_OF_PATIENTS=$NUMBER_OF_PATIENTS)"
+PATIENTS_PER_BATCH=30
+MAX_BATCHES_PER_RUN=10
+export PATIENTS_PER_BATCH MAX_BATCHES_PER_RUN
+echo "Starting Gluroo data processing (MAX_BATCHES_PER_RUN=$MAX_BATCHES_PER_RUN, patients_per_batch=$PATIENTS_PER_BATCH)"
 python << 'PYEOF'
 import os
 from src.data.diabetes_datasets.data_loader import get_loader
@@ -37,11 +45,11 @@ loader = get_loader(
     keep_columns=None,
     use_cached=False,
     patients_per_batch=int(os.environ['PATIENTS_PER_BATCH']),
-    patients_per_file=400,
-    number_of_patients_to_process=int(os.environ['NUMBER_OF_PATIENTS']),
+    patients_per_file=400, # Not important during processing, only when merging
+    max_batches_per_run=int(os.environ['MAX_BATCHES_PER_RUN']),
     min_date_span_days=30,
-    max_workers=10,
-    load_all=True,
+    max_workers=20,
+    load_all=False,
 )
 PYEOF
 echo "Gluroo data processing completed"

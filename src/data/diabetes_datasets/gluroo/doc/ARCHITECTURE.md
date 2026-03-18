@@ -47,7 +47,7 @@ cache/data/gluroo_2026/
 ├── raw/                              # Empty (raw data lives in TimescaleDB)
 └── processed/
     ├── processed_patients.log        # Append-only checkpoint: one p_num per line
-    ├── skipped_patient_ids.csv       # Patients with no usable data (append-only)
+    ├── skipped_patient_ids.csv       # patient_id + reason (append-only)
     ├── processing_checkpoint.json    # Run metadata (run count, dates, patients_per_file)
     ├── batch_timings.csv             # Per-batch elapsed time for monitoring
     └── parquet/
@@ -181,7 +181,7 @@ Training always reads from `merged/`, never from `staging/`.
 | File | Format | Written by | Content |
 |------|--------|------------|---------|
 | `processed_patients.log` | plain text, one `p_num` per line | Consumer workers (atomic append) | Primary resume state |
-| `skipped_patient_ids.csv` | CSV, append-only | Producer thread after `load_raw` | Patients with no usable data |
+| `skipped_patient_ids.csv` | CSV, append-only | Producer thread after `load_raw` | `patient_id`, `reason` (e.g. `no_bgl_readings`, `date_span_below_minimum_*`) |
 | `processing_checkpoint.json` | JSON | Orchestrator | `run_number`, `first_run_date`, `last_run_date`, `patients_per_file` (must be constant across runs) |
 | `batch_timings.csv` | CSV, append-only | Orchestrator | Per-batch elapsed seconds for monitoring |
 
