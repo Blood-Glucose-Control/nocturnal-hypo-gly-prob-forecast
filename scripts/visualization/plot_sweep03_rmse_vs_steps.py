@@ -3,7 +3,6 @@ Plot RMSE vs fine_tune_steps for sweep-03 across aleppo_2017, brown_2019, lynch_
 Reads overall_rmse from nocturnal_results.json in each experiment output dir.
 """
 import json
-import re
 from pathlib import Path
 
 import matplotlib
