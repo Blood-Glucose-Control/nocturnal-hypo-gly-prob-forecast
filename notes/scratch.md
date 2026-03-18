@@ -141,6 +141,18 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --checkpoint trained_models/artifacts/chronos2/sweep_03_steps5000_holdout_workflow/resumed_training/model.pt \
     --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-15_2312_sweep03_5k_resumed_aleppo_2017_finetuned
 
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_5000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps5000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-15_2311_sweep03_5k_modelpt_lynch_2022_finetuned
+
 # 10k
 python scripts/experiments/nocturnal_hypo_eval.py \
     --model chronos2 \
@@ -166,6 +178,18 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --checkpoint trained_models/artifacts/chronos2/sweep_03_steps10000_holdout_workflow/resumed_training/model.pt \
     --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-15_2314_sweep03_10k_resumed_aleppo_2017_finetuned
 
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_10000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps10000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-15_2313_sweep03_10k_modelpt_lynch_2022_finetuned
+
 # 25k
 python scripts/experiments/nocturnal_hypo_eval.py \
     --model chronos2 \
@@ -190,6 +214,18 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --cuda-device 0 \
     --checkpoint trained_models/artifacts/chronos2/sweep_03_steps25000_holdout_workflow/resumed_training/model.pt \
     --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-15_2316_sweep03_25k_resumed_aleppo_2017_finetuned
+
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_25000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps25000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-15_2315_sweep03_25k_modelpt_lynch_2022_finetuned
 
 
 # ============================================================
@@ -257,6 +293,18 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --checkpoint trained_models/artifacts/chronos2/sweep_03_steps15000_holdout_workflow/model.pt \
     --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1000_sweep03_15k_modelpt_brown_2019_finetuned
 
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_15000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps15000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1000_sweep03_15k_modelpt_lynch_2022_finetuned
+
 # 20k
 python scripts/experiments/nocturnal_hypo_eval.py \
     --model chronos2 \
@@ -270,6 +318,18 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --checkpoint trained_models/artifacts/chronos2/sweep_03_steps20000_holdout_workflow/model.pt \
     --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1001_sweep03_20k_modelpt_brown_2019_finetuned
 
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_20000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps20000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1001_sweep03_20k_modelpt_lynch_2022_finetuned
+
 # 30k
 python scripts/experiments/nocturnal_hypo_eval.py \
     --model chronos2 \
@@ -282,3 +342,177 @@ python scripts/experiments/nocturnal_hypo_eval.py \
     --cuda-device 0 \
     --checkpoint trained_models/artifacts/chronos2/sweep_03_steps30000_holdout_workflow/model.pt \
     --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1002_sweep03_30k_modelpt_brown_2019_finetuned
+
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_30000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps30000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-16_1002_sweep03_30k_modelpt_lynch_2022_finetuned
+
+
+# ============================================================
+# 03 step sweep extended 2 (35k / 40k / 45k) — no step 7
+# ============================================================
+
+# 1) Create temp configs for 35k / 40k / 45k
+python - <<'PY'
+from pathlib import Path
+import yaml
+
+base_path = Path("configs/models/chronos2/03_bg_iob_ia_high_lr.yaml")
+base = yaml.safe_load(base_path.read_text())
+
+for steps in [35000, 40000, 45000]:
+    cfg = dict(base)
+    cfg["fine_tune_steps"] = steps
+    out = Path(f"configs/models/chronos2/_tmp_03_steps_{steps}.yaml")
+    out.write_text(yaml.safe_dump(cfg, sort_keys=False))
+    print(f"wrote {out}")
+PY
+
+
+# 2) Train
+
+CUDA_VISIBLE_DEVICES=0 python scripts/examples/example_holdout_generic_workflow.py \
+    --model-type chronos2 \
+    --datasets aleppo_2017 brown_2019 lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_35000.yaml \
+    --output-dir trained_models/artifacts/chronos2/sweep_03_steps35000_holdout_workflow \
+    --skip-steps 7
+
+CUDA_VISIBLE_DEVICES=0 python scripts/examples/example_holdout_generic_workflow.py \
+    --model-type chronos2 \
+    --datasets aleppo_2017 brown_2019 lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_40000.yaml \
+    --output-dir trained_models/artifacts/chronos2/sweep_03_steps40000_holdout_workflow \
+    --skip-steps 7
+
+CUDA_VISIBLE_DEVICES=0 python scripts/examples/example_holdout_generic_workflow.py \
+    --model-type chronos2 \
+    --datasets aleppo_2017 brown_2019 lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_45000.yaml \
+    --output-dir trained_models/artifacts/chronos2/sweep_03_steps45000_holdout_workflow \
+    --skip-steps 7
+
+
+# 3) Eval — aleppo_2017 + brown_2019
+
+# 35k
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset aleppo_2017 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_35000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps35000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-17_1000_sweep03_35k_modelpt_aleppo_2017_finetuned
+
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset brown_2019 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_35000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps35000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-17_1001_sweep03_35k_modelpt_brown_2019_finetuned
+
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_35000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps35000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-17_1002_sweep03_35k_modelpt_lynch_2022_finetuned
+
+# 40k
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset aleppo_2017 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_40000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps40000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-17_1002_sweep03_40k_modelpt_aleppo_2017_finetuned
+
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset brown_2019 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_40000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps40000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-17_1003_sweep03_40k_modelpt_brown_2019_finetuned
+
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_40000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps40000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-17_1003_sweep03_40k_modelpt_lynch_2022_finetuned
+
+# 45k
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset aleppo_2017 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_45000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps45000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-17_1004_sweep03_45k_modelpt_aleppo_2017_finetuned
+
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset brown_2019 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_45000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps45000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-17_1005_sweep03_45k_modelpt_brown_2019_finetuned
+
+python scripts/experiments/nocturnal_hypo_eval.py \
+    --model chronos2 \
+    --dataset lynch_2022 \
+    --config-dir configs/data/holdout_10pct \
+    --model-config configs/models/chronos2/_tmp_03_steps_45000.yaml \
+    --context-length 512 \
+    --forecast-length 96 \
+    --covariate-cols iob insulin_availability \
+    --cuda-device 0 \
+    --checkpoint trained_models/artifacts/chronos2/sweep_03_steps45000_holdout_workflow/model.pt \
+    --output-dir experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-03-17_1005_sweep03_45k_modelpt_lynch_2022_finetuned
