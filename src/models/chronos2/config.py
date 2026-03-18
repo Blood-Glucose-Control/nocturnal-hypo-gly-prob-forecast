@@ -95,6 +95,13 @@ class Chronos2Config(ModelConfig):
     # most windows naturally get full context regardless of this setting.
     min_past: int = 1
 
+    # Periodic checkpointing during fine-tuning.
+    # When set, the HuggingFace Trainer saves a checkpoint every N steps via
+    # fine_tune_trainer_kwargs. After training, _train_model materialises each
+    # checkpoint-N/ dir into a standalone eval-ready snapshot alongside the
+    # main output_dir so it can be passed directly to --checkpoint.
+    checkpoint_save_steps: Optional[int] = None
+
     @property
     def is_multitarget(self) -> bool:
         """True when multiple target columns are configured (joint forecasting)."""
@@ -142,4 +149,14 @@ class Chronos2Config(ModelConfig):
             hp["Chronos2"]["batch_size"] = self.batch_size
         if self.min_past != 1:
             hp["Chronos2"]["min_past"] = self.min_past
+        if self.checkpoint_save_steps is not None:
+            hp["Chronos2"]["fine_tune_trainer_kwargs"] = {
+                "save_strategy": "steps",
+                "save_steps": self.checkpoint_save_steps,
+                # Don't save optimizer/scheduler state — we only need weights.
+                "save_only_model": True,
+                # Override Chronos2 pipeline's hardcoded save_total_limit=1
+                # so intermediate checkpoints are not deleted.
+                "save_total_limit": None,
+            }
         return hp

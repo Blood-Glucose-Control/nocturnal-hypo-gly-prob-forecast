@@ -2,10 +2,12 @@
 Plot RMSE vs fine_tune_steps for sweep-03 across aleppo_2017, brown_2019, lynch_2022.
 Reads overall_rmse from nocturnal_results.json in each experiment output dir.
 """
+
 import json
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -15,12 +17,16 @@ OUTPUT_PATH = Path("results/sweep_03_rmse_vs_steps_all_datasets.png")
 
 DATASETS = ["aleppo_2017", "brown_2019", "lynch_2022"]
 COLORS = {"aleppo_2017": "#1f77b4", "brown_2019": "#ff7f0e", "lynch_2022": "#2ca02c"}
-LABELS = {"aleppo_2017": "Aleppo 2017", "brown_2019": "Brown 2019", "lynch_2022": "Lynch 2022"}
+LABELS = {
+    "aleppo_2017": "Aleppo 2017",
+    "brown_2019": "Brown 2019",
+    "lynch_2022": "Lynch 2022",
+}
 
 # Map step count → glob pattern for the main (non-resumed) model.pt runs
 # Pattern: *sweep03_{N}k_modelpt_{dataset}_finetuned  or  *recheck_03_modelpt_{dataset}_finetuned (50k)
 STEP_PATTERNS = {
-    5_000:  ("*sweep03_5k_modelpt_{dataset}_finetuned",),
+    5_000: ("*sweep03_5k_modelpt_{dataset}_finetuned",),
     10_000: ("*sweep03_10k_modelpt_{dataset}_finetuned",),
     15_000: ("*sweep03_15k_modelpt_{dataset}_finetuned",),
     20_000: ("*sweep03_20k_modelpt_{dataset}_finetuned",),

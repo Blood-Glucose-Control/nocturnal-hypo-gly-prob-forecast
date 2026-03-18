@@ -26,6 +26,7 @@ and notebook 4.17-ss-chronos2-pipeline-validation.ipynb.
 import json
 import logging
 import os
+import shutil
 from typing import Any, Dict, Tuple
 
 import numpy as np
@@ -210,9 +211,150 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         self.predictor = predictor
 
         info_print(f"Training complete. Predictor saved to {predictor.path}")
+
+        if config.checkpoint_save_steps is not None:
+            self._materialize_intermediate_checkpoints(output_dir)
+
         return {
             "train_metrics": {"status": "completed", "predictor_path": predictor.path}
         }
+
+    # ------------------------------------------------------------------
+    # Periodic-checkpoint materialisation
+    # ------------------------------------------------------------------
+
+    def _materialize_intermediate_checkpoints(self, output_dir: str) -> None:
+        """Create standalone eval-ready snapshots from HF Trainer checkpoint-N dirs.
+
+        When checkpoint_save_steps is set, the HuggingFace Trainer saves
+        checkpoint-N/ directories inside {predictor.path}/models/Chronos2/W0/.
+        Each contains just the LoRA adapter weights.  This method creates a
+        lightweight "shadow" predictor directory for each checkpoint where only
+        the adapter weights differ from the main run — everything else is a
+        symbolic link back to the original predictor.
+
+        Output layout (relative to output_dir)::
+
+            snapshots/
+              step_5000/
+                model.pt/           <- pass this as --checkpoint to eval script
+                  chronos2_predictor.json
+                  config.json
+                  metadata.json
+                predictor/          <- shadow predictor (symlinks + swapped adapter)
+                  ...
+              step_10000/
+                ...
+        """
+        w0_dir = os.path.join(output_dir, "models", "Chronos2", "W0")
+        if not os.path.isdir(w0_dir):
+            info_print("No W0 dir found, skipping checkpoint materialisation")
+            return
+
+        checkpoints = sorted(
+            [
+                d
+                for d in os.listdir(w0_dir)
+                if d.startswith("checkpoint-")
+                and os.path.isdir(os.path.join(w0_dir, d))
+            ],
+            key=lambda x: int(x.split("-")[1]),
+        )
+
+        if not checkpoints:
+            info_print("No intermediate checkpoints found to materialise")
+            return
+
+        info_print(f"Materialising {len(checkpoints)} intermediate checkpoints...")
+        snapshots_base = os.path.join(output_dir, "snapshots")
+        orig_ft_ckpt = os.path.join(w0_dir, "fine-tuned-ckpt")
+        main_model_pt = os.path.join(output_dir, "model.pt")
+
+        for ckpt_name in checkpoints:
+            step_num = int(ckpt_name.split("-")[1])
+            ckpt_dir = os.path.join(w0_dir, ckpt_name)
+            adapter_src = os.path.join(ckpt_dir, "adapter_model.safetensors")
+            if not os.path.exists(adapter_src):
+                info_print(f"  {ckpt_name}: no adapter_model.safetensors, skipping")
+                continue
+
+            snapshot_dir = os.path.join(snapshots_base, f"step_{step_num}")
+            if os.path.exists(snapshot_dir):
+                info_print(f"  step_{step_num}: already exists, skipping")
+                continue
+
+            # ---- build shadow predictor dir ----
+            shadow_predictor = os.path.join(snapshot_dir, "predictor")
+            os.makedirs(shadow_predictor, exist_ok=True)
+
+            # Symlink every top-level entry in output_dir EXCEPT 'models'/'snapshots'
+            for entry in os.listdir(output_dir):
+                if entry in ("models", "snapshots"):
+                    continue
+                os.symlink(
+                    os.path.abspath(os.path.join(output_dir, entry)),
+                    os.path.join(shadow_predictor, entry),
+                )
+
+            # Reconstruct models/ hierarchy with symlinks, swapping the adapter
+            models_orig = os.path.join(output_dir, "models")
+            shadow_models = os.path.join(shadow_predictor, "models")
+            os.makedirs(shadow_models, exist_ok=True)
+            for entry in os.listdir(models_orig):
+                if entry == "Chronos2":
+                    continue
+                os.symlink(
+                    os.path.abspath(os.path.join(models_orig, entry)),
+                    os.path.join(shadow_models, entry),
+                )
+
+            shadow_c2 = os.path.join(shadow_models, "Chronos2")
+            os.makedirs(shadow_c2, exist_ok=True)
+            c2_orig = os.path.join(models_orig, "Chronos2")
+            for entry in os.listdir(c2_orig):
+                if entry == "W0":
+                    continue
+                os.symlink(
+                    os.path.abspath(os.path.join(c2_orig, entry)),
+                    os.path.join(shadow_c2, entry),
+                )
+
+            shadow_w0 = os.path.join(shadow_c2, "W0")
+            os.makedirs(shadow_w0, exist_ok=True)
+            for entry in os.listdir(w0_dir):
+                # Skip fine-tuned-ckpt (replaced below) and checkpoint-N dirs
+                if entry == "fine-tuned-ckpt" or entry.startswith("checkpoint-"):
+                    continue
+                os.symlink(
+                    os.path.abspath(os.path.join(w0_dir, entry)),
+                    os.path.join(shadow_w0, entry),
+                )
+
+            # Copy final fine-tuned-ckpt structure then swap the adapter weights
+            shadow_ft_ckpt = os.path.join(shadow_w0, "fine-tuned-ckpt")
+            shutil.copytree(orig_ft_ckpt, shadow_ft_ckpt)
+            shutil.copy2(
+                adapter_src,
+                os.path.join(shadow_ft_ckpt, "adapter_model.safetensors"),
+            )
+
+            # ---- build model.pt dir ----
+            snapshot_model_pt = os.path.join(snapshot_dir, "model.pt")
+            os.makedirs(snapshot_model_pt, exist_ok=True)
+
+            with open(os.path.join(snapshot_model_pt, "chronos2_predictor.json"), "w") as f:
+                json.dump(
+                    {"predictor_path": os.path.abspath(shadow_predictor)}, f, indent=2
+                )
+
+            for fname in ("config.json", "metadata.json"):
+                src = os.path.join(main_model_pt, fname)
+                if os.path.exists(src):
+                    shutil.copy2(src, os.path.join(snapshot_model_pt, fname))
+
+            info_print(f"  Snapshot step_{step_num} → {snapshot_model_pt}")
+
+        info_print(f"Intermediate checkpoints materialised at {snapshots_base}")
 
     # ------------------------------------------------------------------
     # Inference helpers

@@ -1,0 +1,27 @@
+# =============================================================================
+# Chronos-2 config 03 — 250k steps with periodic checkpoint saving every 5k
+# Produces snapshots/step_5000/ … step_245000/ alongside the final model.pt,
+# giving the full RMSE-vs-steps curve from a single training run.
+# =============================================================================
+
+model_path: "autogluon/chronos-2"
+context_length: 512
+forecast_length: 96
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+fine_tune_steps: 250000
+fine_tune_lr: 5.0e-5
+fine_tune_batch_size: 128
+
+checkpoint_save_steps: 5000
+
+covariate_cols: [iob, insulin_availability]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "RMSE"
+enable_ensemble: false
