@@ -1,0 +1,36 @@
+# =============================================================================
+# Toto — BG + IOB + COB  |  lr=5e-4  |  ctx=512
+# =============================================================================
+# Same covariates as 05, but 5× higher learning rate.
+# Compare against 05 to check LR sensitivity with carb covariates.
+#
+# Usage:
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="toto" \
+#   MODEL_CONFIG="configs/models/toto/07_bg_iob_cob_high_lr.yaml" \
+#   CONFIG_DIR="configs/data/holdout_10pct" \
+#   DATASETS="aleppo_2017 lynch_2022" \
+#   SKIP_TRAINING="false" SKIP_STEPS="7" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+context_length: 512
+forecast_length: 96
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+max_steps: 3000
+lr: 5.0e-4
+min_lr: 1.0e-5
+warmup_steps: 200
+stable_steps: 1000
+decay_steps: 1000
+
+train_batch_size: 4
+val_batch_size: 1
+
+covariate_cols: [iob, cob]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5

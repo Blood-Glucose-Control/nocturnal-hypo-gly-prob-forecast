@@ -1,0 +1,36 @@
+# =============================================================================
+# Toto — Smoke Test Configuration (BG + IOB + COB, 100 steps)
+# =============================================================================
+# Fast end-to-end validation of the carbs covariate path.
+# Exercises the COB + IOB exogenous-variable pipeline.
+#
+# Usage:
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="toto" \
+#   MODEL_CONFIG="configs/models/toto/bg_iob_cob_smoke_test.yaml" \
+#   CONFIG_DIR="configs/data/holdout_10pct" \
+#   DATASETS="aleppo_2017" \
+#   SKIP_TRAINING="false" SKIP_STEPS="7" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+context_length: 512
+forecast_length: 96
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+max_steps: 100
+lr: 1.0e-4
+min_lr: 1.0e-5
+warmup_steps: 20
+stable_steps: 40
+decay_steps: 40
+
+train_batch_size: 4
+val_batch_size: 1
+
+covariate_cols: [iob, cob]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5

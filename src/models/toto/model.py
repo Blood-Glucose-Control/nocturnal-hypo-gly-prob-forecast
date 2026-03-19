@@ -157,6 +157,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         self,
         data: pd.DataFrame,
         episode_col: str,
+        quantile_levels: Optional[List[float]] = None,
     ) -> Dict[str, np.ndarray]:
         """Batched prediction: stack episodes into one forward pass.
 
@@ -164,6 +165,12 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         recent timesteps are right-aligned. The padding_mask tells the model
         which timesteps are real data.
         """
+        if quantile_levels is not None:
+            logger.warning(
+                "TotoForecaster does not support quantile forecasting yet; "
+                "quantile_levels will be ignored and point forecasts returned."
+            )
+
         covariate_cols = self.config.covariate_cols or []
         num_covariates = len(covariate_cols)
         num_variates = 1 + num_covariates
@@ -262,6 +269,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             record = {
                 "timestamp": ts_strings,
                 "target": target.tolist(),
+                "freq": f"{INTERVAL_MINS}min",
             }
 
             # Add covariates as separate fields (each becomes an ev_field)

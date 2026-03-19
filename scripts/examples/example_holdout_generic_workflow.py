@@ -422,15 +422,21 @@ class ModelFactory:
         try:
             from src.models.toto import TotoForecaster, TotoConfig
 
-            toto_config = TotoConfig(
-                context_length=config.context_length,
-                forecast_length=config.forecast_length,
-                batch_size=config.batch_size,
-                num_epochs=config.num_epochs,
-                lr=config.learning_rate,
-                use_cpu=config.use_cpu,
-                **config.extra_config,
-            )
+            # Build kwargs from extra_config, letting YAML values take
+            # precedence for Toto-specific params (lr, max_steps, etc.)
+            toto_kwargs = dict(config.extra_config) if config.extra_config else {}
+
+            # Set explicit args only if not already provided by YAML
+            toto_kwargs.setdefault("context_length", config.context_length)
+            toto_kwargs.setdefault("forecast_length", config.forecast_length)
+            toto_kwargs.setdefault("batch_size", config.batch_size)
+            if config.num_epochs is not None:
+                toto_kwargs.setdefault("num_epochs", config.num_epochs)
+            if config.learning_rate is not None and "lr" not in toto_kwargs:
+                toto_kwargs["lr"] = config.learning_rate
+            toto_kwargs.setdefault("use_cpu", config.use_cpu)
+
+            toto_config = TotoConfig(**toto_kwargs)
 
             return TotoForecaster(toto_config, distributed_config=distributed_config)
         except ImportError as e:
