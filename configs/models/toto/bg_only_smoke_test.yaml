@@ -33,7 +33,3 @@ val_batch_size: 1
 
 # BG only — no covariates
 covariate_cols: []
-target_col: "bg_mM"
-patient_col: "p_num"
-time_col: "datetime"
-interval_mins: 5

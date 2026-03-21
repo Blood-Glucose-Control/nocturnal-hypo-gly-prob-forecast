@@ -30,7 +30,3 @@ train_batch_size: 4
 val_batch_size: 1
 
 covariate_cols: [iob, insulin_availability]
-target_col: "bg_mM"
-patient_col: "p_num"
-time_col: "datetime"
-interval_mins: 5

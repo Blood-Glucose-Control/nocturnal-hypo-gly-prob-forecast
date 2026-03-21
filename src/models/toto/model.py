@@ -165,12 +165,6 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         recent timesteps are right-aligned. The padding_mask tells the model
         which timesteps are real data.
         """
-        if quantile_levels is not None:
-            logger.warning(
-                "TotoForecaster does not support quantile forecasting yet; "
-                "quantile_levels will be ignored and point forecasts returned."
-            )
-
         covariate_cols = self.config.covariate_cols or []
         num_covariates = len(covariate_cols)
         num_variates = 1 + num_covariates

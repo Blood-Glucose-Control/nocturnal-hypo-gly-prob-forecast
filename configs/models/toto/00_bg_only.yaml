@@ -17,7 +17,7 @@
 # =============================================================================
 
 context_length: 512
-forecast_length: 96  # 6 hours at 5-min intervals
+forecast_length: 96  # 8 hours at 5-min intervals
 
 training_mode: "fine_tune"
 freeze_backbone: false
@@ -36,7 +36,3 @@ val_batch_size: 1
 
 # BG only — no covariates
 covariate_cols: []
-target_col: "bg_mM"
-patient_col: "p_num"
-time_col: "datetime"
-interval_mins: 5

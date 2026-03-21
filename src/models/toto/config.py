@@ -37,11 +37,6 @@ class TotoConfig(ModelConfig):
             "val_batch_size",
             "val_prediction_len",
             "covariate_cols",
-            # YAML metadata fields used by the workflow but not by ModelConfig
-            "target_col",
-            "patient_col",
-            "time_col",
-            "interval_mins",
         }
 
         # Filter out Toto-specific params from kwargs for parent class
