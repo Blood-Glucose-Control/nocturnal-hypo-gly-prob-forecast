@@ -2,262 +2,608 @@
 Moirai model implementation using the base TSFM framework.
 
 This module provides a concrete implementation of Moirai that inherits from
-the base TSFM framework, demonstrating how to integrate foundation models.
+the base TSFM framework, integrating Salesforce's uni2ts library.
 """
 
 import os
-from typing import Any, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+import pandas as pd
 import torch
+from gluonts.dataset.common import ListDataset
 from torch.utils.data import DataLoader
-from transformers import (
-    TrainingArguments,
-)
 
 # Local imports
-from src.models.base import BaseTimeSeriesFoundationModel
+from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
 from src.models.moirai.config import MoiraiConfig
-from src.utils.logging_helper import info_print, error_print
+from src.utils.logging_helper import error_print, info_print
+from uni2ts.model.moirai import MoiraiForecast, MoiraiFinetune, MoiraiModule
 
 
 class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     """Moirai forecaster implementation using the base TSFM framework.
 
-    Moirai is a time series foundation model developed by Salesforce that uses
-    transformer-based architecture with patching mechanisms. This class integrates
-    Moirai with the unified base framework.
+    Moirai is a universal time series foundation model from Salesforce that uses
+    a transformer-based architecture with patching and optional past-covariate
+    support. This class wraps the uni2ts ``MoiraiForecast`` / ``MoiraiFinetune``
+    APIs inside the project's unified ``BaseTimeSeriesFoundationModel`` interface.
+
+    Two usage modes are supported:
+
+    1. **Zero-shot inference** — pass a ``MoiraiConfig`` with just ``model_path``
+       and optionally ``past_covariate_dim``.  The pretrained HuggingFace weights
+       are loaded automatically.
+
+    2. **Fine-tuned checkpoint** — set ``config.checkpoint_path`` to a ``.ckpt``
+       file produced by the ``uni2ts`` CLI (``python -m cli.train …``).  The
+       fine-tuned module weights are extracted and used for inference.
+
+    In-class fine-tuning is intentionally **not** implemented here; the
+    ``uni2ts`` CLI handles that workflow externally (see the notebook for the
+    full data-prep → CLI-train → checkpoint-load pipeline).
 
     Attributes:
-        config: Moirai-specific configuration (MoiraiConfig instance).
-        preprocessor: Optional preprocessor for data normalization.
-        column_specifiers: Dictionary mapping data columns to their roles.
-
-    Note:
-        Moirai DOES support LoRA fine-tuning as it is transformer-based.
+        config: Moirai-specific configuration (``MoiraiConfig`` instance).
+        predictor: Lazily created GluonTS predictor; ``None`` until the first
+            ``predict()`` / ``predict_episodes()`` call.
 
     Example:
-        >>> config = MoiraiConfig(model_path="Salesforce/moirai-1.0-R-small")
+        >>> # Zero-shot, BG only
+        >>> config = MoiraiConfig(model_path="Salesforce/moirai-1.0-R-base")
         >>> model = MoiraiForecaster(config)
-        >>> model.fit(train_data="kaggle_brist1d")
-        >>> predictions = model.predict(test_data)
+        >>> preds = model.predict_episodes(val_episodes, target_col="bg_mM")
+
+        >>> # Fine-tuned, with IOB/COB covariates
+        >>> config = MoiraiConfig(
+        ...     model_path="Salesforce/moirai-1.0-R-small",
+        ...     checkpoint_path="models/moirai_finetuned/v3.ckpt",
+        ...     past_covariate_dim=2,
+        ...     covariate_cols=["iob", "cob"],
+        ... )
+        >>> model = MoiraiForecaster(config)
     """
 
     def __init__(self, config: MoiraiConfig, lora_config=None, distributed_config=None):
         """Initialize the Moirai forecaster.
 
         Args:
-            config: Moirai configuration object. If a non-MoiraiConfig is passed,
-                it will be converted using essential parameters.
-            lora_config: LoRA configuration for parameter-efficient fine-tuning.
-            distributed_config: Configuration for distributed training
-                (DDP, DeepSpeed, or FSDP).
-
-        Note:
-            The model is initialized during construction via _initialize_model().
+            config: Moirai configuration object. If a non-``MoiraiConfig`` is
+                passed the essential parameters are extracted and a fresh
+                ``MoiraiConfig`` is constructed.
+            lora_config: LoRA configuration (reserved for future use).
+            distributed_config: Distributed training configuration (reserved).
         """
-        # Use the config as-is if it's already a MoiraiConfig
         if not isinstance(config, MoiraiConfig):
-            # Create a basic MoiraiConfig from the essential parameters
-            essential_params = {
-                "model_path": getattr(
-                    config, "model_path", "Salesforce/moirai-1.0-R-small"
-                ),
-                "context_length": getattr(config, "context_length", 512),
-                "forecast_length": getattr(config, "forecast_length", 96),
-                "learning_rate": getattr(config, "learning_rate", 1e-4),
-                "batch_size": getattr(config, "batch_size", 32),
-                "num_epochs": getattr(config, "num_epochs", 10),
-            }
-            config = MoiraiConfig(**essential_params)
+            config = MoiraiConfig(
+                model_path=getattr(config, "model_path", "Salesforce/moirai-1.0-R-small"),
+                context_length=getattr(config, "context_length", 512),
+                forecast_length=getattr(config, "forecast_length", 96),
+                learning_rate=getattr(config, "learning_rate", 1e-4),
+                batch_size=getattr(config, "batch_size", 32),
+                num_epochs=getattr(config, "num_epochs", 10),
+            )
 
         super().__init__(config, lora_config, distributed_config)
-
-        # Type annotation to help linter understand config type
         self.config: MoiraiConfig = self.config
 
-        # Moirai-specific attributes
-        self.preprocessor = None
-        self.column_specifiers = None
+        # Lazily initialised GluonTS predictor
+        self.predictor: Optional[Any] = None
 
-    # Abstract method implementations
-    def _predict(self, data: Any, batch_size: Optional[int] = None) -> np.ndarray:
-        """
-        Make predictions on new data.
-
-        Args:
-            data: Input data for prediction
-            batch_size: Batch size for prediction (defaults to config.batch_size)
-
-        Returns:
-            Predictions as numpy array
-        """
-        if self.model is None:
-            raise ValueError("Model must be initialized before making predictions")
-
-        # Prepare data for prediction
-        data_loader, _, _ = self._prepare_training_data(data)
-
-        # Set model to evaluation mode
-        self.model.eval()
-
-        predictions = []
-        with torch.no_grad():
-            for batch in data_loader:
-                # Move batch to appropriate device
-                if torch.cuda.is_available() and not self.config.use_cpu:
-                    batch = {
-                        k: v.cuda()
-                        for k, v in batch.items()
-                        if isinstance(v, torch.Tensor)
-                    }
-
-                # Forward pass
-                outputs = self.model(**batch)
-
-                # Extract predictions
-                if hasattr(outputs, "prediction_logits"):
-                    batch_predictions = outputs.prediction_logits
-                elif hasattr(outputs, "logits"):
-                    batch_predictions = outputs.logits
-                else:
-                    batch_predictions = outputs
-
-                predictions.append(batch_predictions.cpu().numpy())
-
-        # Concatenate all predictions
-        predictions = np.concatenate(predictions, axis=0)
-
-        return predictions
+    @property
+    def training_backend(self) -> TrainingBackend:
+        """Moirai inference runs through GluonTS / uni2ts, not a HF Trainer."""
+        return TrainingBackend.CUSTOM
 
     @property
     def supports_lora(self) -> bool:
-        """Check if Moirai supports LoRA fine-tuning.
-
-        Returns:
-            True, as Moirai is transformer-based and supports LoRA.
-        """
+        """Moirai is transformer-based and supports LoRA."""
         return True
 
     @property
     def supports_zero_shot(self) -> bool:
+        """Moirai ships pretrained weights and forecasts out of the box."""
         return True
 
-    def _initialize_model(self) -> Any:
-        """Initialize the Moirai model.
+    def _initialize_model(self) -> MoiraiForecast:
+        """Load the MoiraiForecast wrapper.
+
+        Loads a fine-tuned ``.ckpt`` checkpoint when ``config.checkpoint_path``
+        is set; otherwise downloads / loads pretrained weights from HuggingFace
+        via ``MoiraiModule.from_pretrained()``.
 
         Returns:
-            Initialized Moirai model instance.
+            ``MoiraiForecast`` instance ready for ``create_predictor()``.
 
         Raises:
-            ValueError: If model_path is not specified or model fails to load.
+            ValueError: If ``config.model_path`` is empty.
+            FileNotFoundError: If ``config.checkpoint_path`` is set but the
+                file does not exist.
         """
         if not self.config.model_path:
-            raise ValueError("model_path must be specified in config")
+            raise ValueError("MoiraiConfig.model_path must be set")
 
-        info_print(f"Initializing Moirai model from {self.config.model_path}")
+        checkpoint_path = self.config.checkpoint_path
 
-        try:
-            # TODO: Implement actual Moirai model loading
-            # This will depend on how Moirai models are distributed
-            # For now, this is a placeholder
+        if checkpoint_path:
+            if not os.path.exists(checkpoint_path):
+                raise FileNotFoundError(
+                    f"Moirai checkpoint not found: {checkpoint_path}"
+                )
+            info_print(f"Loading fine-tuned Moirai checkpoint: {checkpoint_path}")
+            module = MoiraiFinetune.load_from_checkpoint(
+                checkpoint_path, map_location="cpu"
+            ).module
+        else:
+            info_print(f"Loading pretrained Moirai: {self.config.model_path}")
+            module = MoiraiModule.from_pretrained(self.config.model_path)
 
-            # Example structure (to be implemented):
-            # from moirai import MoiraiModel
-            # model = MoiraiModel.from_pretrained(
-            #     self.config.model_path,
-            #     context_length=self.config.context_length,
-            #     forecast_length=self.config.forecast_length,
-            # )
+        info_print(f"  past_feat_dynamic_real_dim = {self.config.past_covariate_dim}")
 
-            raise NotImplementedError(
-                "Moirai model loading not yet implemented. "
-                "Please implement model initialization in _initialize_model()."
-            )
+        model = MoiraiForecast(
+            module=module,
+            prediction_length=self.config.forecast_length,
+            context_length=self.config.context_length,
+            patch_size=self.config.patch_size,
+            num_samples=self.config.num_samples,
+            target_dim=1,
+            feat_dynamic_real_dim=0,
+            past_feat_dynamic_real_dim=self.config.past_covariate_dim,
+        )
 
-        except Exception as e:
-            error_print(f"Failed to initialize Moirai model: {str(e)}")
-            raise
+        info_print("  Moirai loaded successfully")
+        return model
+
+    def _predict(
+        self,
+        data: Any,
+        quantile_levels: Optional[List[float]] = None,
+        batch_size: Optional[int] = None,
+        **kwargs,
+    ) -> np.ndarray:
+        """Run inference and return mean forecasts.
+
+        Accepts either a pre-built GluonTS ``ListDataset`` (for full control) or
+        a list of episode dicts (for convenience — uses ``config.target_col`` and
+        ``config.covariate_cols`` to build the dataset automatically).
+
+        The ``predict()`` entry-point in the base class handles the single-episode
+        DataFrame path; this method handles the batch/dataset path.
+
+        Args:
+            data: One of:
+
+                * ``ListDataset`` — already formatted for GluonTS / Moirai.
+                * ``list[dict]`` — episode dicts with ``context_df`` and
+                  ``target_bg`` keys (midnight-anchored format).
+                * ``pd.DataFrame`` — single-episode DataFrame with a
+                  ``config.target_col`` column (called via the base ``predict()``).
+
+            quantile_levels: Ignored for now (Moirai produces sample-based
+                probabilistic forecasts; quantile extraction is a future TODO).
+            batch_size: Overrides ``config.batch_size`` for the GluonTS predictor.
+            **kwargs: Unused; accepted for forward-compatibility.
+
+        Returns:
+            Array of shape ``(N, forecast_length)`` with mean predictions, or
+            shape ``(forecast_length,)`` when a single DataFrame is passed.
+        """
+        if self.model is None:
+            self.model = self._initialize_model()
+
+        bs = batch_size or self.config.batch_size
+
+        # # (Re)build the predictor if needed
+        # if self.predictor is None:
+        #     self.predictor = self.model.create_predictor(batch_size=bs)
+
+        if isinstance(data, pd.DataFrame):
+            # Single-episode DataFrame path (called from base class predict())
+            dataset = self._dataframe_to_gluonts(data)
+            single = True
+        elif isinstance(data, list) and data and isinstance(data[0], dict):
+            # Convenience episode-list path
+            dataset = self._episodes_to_gluonts(data)
+            single = False
+        else:
+            # Already a ListDataset (or compatible iterable)
+            dataset = data
+            single = False
+
+        forecasts = list(self.predictor.predict(dataset))
+        means = np.stack([f.mean for f in forecasts], axis=0)  # (N, horizon)
+
+        return means[0] if single else means
 
     def _prepare_training_data(
         self, data: Any, split: Optional[str] = None
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
-        """Prepare data for training or inference.
+        """Not used — Moirai fine-tuning is performed via the uni2ts CLI.
 
-        Args:
-            data: Input data (can be dataset name, DataFrame, or DataLoader)
-            split: Optional split to use ('train', 'val', 'test')
-
-        Returns:
-            Tuple of (train_loader, val_loader, test_loader)
+        Raises:
+            NotImplementedError: Always.  See the notebook for the CLI workflow.
         """
-        # TODO: Implement data preparation logic
-        # This should handle various input formats and create appropriate DataLoaders
-
         raise NotImplementedError(
-            "Data preparation for Moirai not yet implemented. "
-            "Please implement data preprocessing in _prepare_training_data()."
+            "Moirai fine-tuning uses the uni2ts CLI externally. "
+            "Load the resulting checkpoint via MoiraiConfig.checkpoint_path."
         )
 
-    def _get_training_args(self) -> TrainingArguments:
-        """Get HuggingFace TrainingArguments for Moirai.
+    def _train_model(
+        self, train_data: Any, output_dir: str, **kwargs
+    ) -> Dict[str, Any]:
+        """Not used — see ``_prepare_training_data``."""
+        raise NotImplementedError(
+            "Call the uni2ts CLI for Moirai fine-tuning; "
+            "then load the checkpoint via MoiraiConfig.checkpoint_path."
+        )
+
+    def _save_checkpoint(self, output_dir: str) -> None:
+        """Save the current model config; raw weights live in the HF / ckpt file.
+
+        The pretrained weights are managed by HuggingFace / uni2ts; we only
+        record the config so the model can be reconstructed via ``load()``.
+        """
+        info_print(
+            "Moirai checkpoint weights are managed by HuggingFace / uni2ts. "
+            "Saving MoiraiConfig only."
+        )
+        # config.json is already written by the base class save() call
+
+    def _load_checkpoint(self, model_dir: str) -> None:
+        """Reload the model from the config stored in ``model_dir``.
+
+        Reads ``config.json`` and re-runs ``_initialize_model()`` so that the
+        correct pretrained or fine-tuned weights are loaded.
+
+        Args:
+            model_dir: Directory containing ``config.json`` (written by
+                ``save()``).
+        """
+        import json
+
+        config_path = os.path.join(model_dir, "config.json")
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"No config.json found in {model_dir}")
+
+        with open(config_path) as f:
+            config_dict = json.load(f)
+
+        # Rebuild config with all Moirai fields
+        self.config = MoiraiConfig(**config_dict)
+
+        # Re-initialise (loads weights from HF or checkpoint)
+        self.model = self._initialize_model()
+        self.predictor = None  # Force predictor rebuild on next predict call
+        self.is_fitted = True
+
+    def build_gluonts_dataset(
+        self,
+        episodes: list,
+        target_col: str,
+        covariate_cols: Optional[List[str]] = None,
+    ) -> ListDataset:
+        """Build a GluonTS ``ListDataset`` from a list of episode dicts.
+
+        This is the primary bridge between the project's midnight-anchored
+        episode format and the GluonTS API that Moirai consumes.
+
+        Args:
+            episodes: List of dicts, each containing:
+
+                * ``context_df`` — DataFrame indexed by timestamp.
+                * ``target_bg`` — np.ndarray of ground-truth BG (horizon).
+
+            target_col: Name of the BG column in ``context_df``.
+            covariate_cols: Optional list of past-covariate column names
+                (e.g. ``["iob", "cob"]``).  Length must equal
+                ``config.past_covariate_dim`` when provided.
 
         Returns:
-            TrainingArguments instance configured for Moirai training.
+            GluonTS ``ListDataset`` ready for ``predictor.predict()``.
+
+        Example:
+            >>> ds = model.build_gluonts_dataset(
+            ...     episodes=all_val_episodes,
+            ...     target_col="bg_mM",
+            ...     covariate_cols=["iob", "cob"],
+            ... )
+            >>> preds = model._predict(ds)
         """
-        return TrainingArguments(
-            output_dir=self.config.output_dir or "./moirai_output",
-            per_device_train_batch_size=self.config.batch_size,
-            per_device_eval_batch_size=self.config.batch_size,
-            num_train_epochs=self.config.num_epochs,
-            learning_rate=self.config.learning_rate,
-            save_strategy="epoch",
-            evaluation_strategy="epoch",
-            load_best_model_at_end=True,
-            metric_for_best_model="eval_loss",
-            greater_is_better=False,
-            logging_dir=os.path.join(
-                self.config.output_dir or "./moirai_output", "logs"
-            ),
-            logging_steps=10,
-            save_total_limit=3,
-            fp16=torch.cuda.is_available() and not self.config.use_cpu,
+        freq = f"{self.config.interval_mins}min"
+        entries = []
+
+        for ep in episodes:
+            ctx = ep["context_df"]
+            entry: Dict[str, Any] = {
+                "start": ctx.index[0],
+                "target": ctx[target_col].to_numpy(dtype=np.float32),
+            }
+            if covariate_cols:
+                # shape: (n_covariates, context_length)
+                entry["past_feat_dynamic_real"] = (
+                    ctx[covariate_cols].to_numpy(dtype=np.float32).T
+                )
+            entries.append(entry)
+
+        return ListDataset(entries, freq=freq)
+
+    def predict_episodes(
+        self,
+        episodes: list,
+        target_col: Optional[str] = None,
+        covariate_cols: Optional[List[str]] = None,
+        batch_size: Optional[int] = None,
+    ) -> pd.DataFrame:
+        """Evaluate Moirai on a list of episodes and return per-episode metrics.
+
+        Convenience wrapper that builds the GluonTS dataset, runs inference,
+        and computes RMSE and MAE for each episode — mirroring the evaluation
+        pattern from the notebook.
+
+        Args:
+            episodes: List of episode dicts (``context_df`` + ``target_bg``).
+            target_col: BG column name; falls back to ``config.target_col``.
+            covariate_cols: Past-covariate columns; falls back to
+                ``config.covariate_cols`` (empty list = BG-only).
+            batch_size: Overrides ``config.batch_size``.
+
+        Returns:
+            DataFrame with one row per episode and columns:
+            ``rmse``, ``mae``, ``y_pred`` (np.ndarray), ``y_true`` (np.ndarray).
+
+        Example:
+            >>> results = model.predict_episodes(all_val_episodes)
+            >>> print(f"RMSE: {results['rmse'].mean():.3f} +/- {results['rmse'].std():.3f}")
+        """
+        from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+        t_col = target_col or self.config.target_col
+        cov_cols = (
+            covariate_cols
+            if covariate_cols is not None
+            else self.config.covariate_cols
+        )
+
+        dataset = self.build_gluonts_dataset(episodes, t_col, cov_cols or None)
+        mean_preds = self._predict(dataset, batch_size=batch_size)  # (N, horizon)
+
+        records = []
+        for ep, y_pred in zip(episodes, mean_preds):
+            y_true = ep["target_bg"]
+            records.append(
+                {
+                    "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
+                    "mae": float(mean_absolute_error(y_true, y_pred)),
+                    "y_pred": y_pred,
+                    "y_true": y_true,
+                }
+            )
+
+        return pd.DataFrame(records)
+
+    # -------------------------------------------------------------------------
+    # Private helpers
+    # -------------------------------------------------------------------------
+
+    def evaluate_probabilistic(
+        self,
+        episodes: list,
+        target_col: Optional[str] = None,
+        covariate_cols: Optional[List[str]] = None,
+        batch_size: Optional[int] = None,
+        hypo_threshold: float = 3.9,
+    ) -> pd.DataFrame:
+        """Evaluate Moirai with full probabilistic outputs.
+
+        Runs inference using all ``config.num_samples`` Monte Carlo samples and
+        computes point metrics, prediction-interval calibration, and per-timestep
+        hypoglycemia probability for each episode.
+
+        Args:
+            episodes: List of episode dicts (``context_df`` + ``target_bg``).
+            target_col: BG column name; falls back to ``config.target_col``.
+            covariate_cols: Past-covariate columns; falls back to
+                ``config.covariate_cols``.
+            batch_size: Overrides ``config.batch_size``.
+            hypo_threshold: BG threshold (mmol/L) for hypoglycemia.
+                Default 3.9 mmol/L (clinical standard).
+
+        Returns:
+            DataFrame with one row per episode and columns:
+
+            * ``rmse``, ``mae`` — point forecast metrics
+            * ``y_true``, ``y_pred`` — ground truth and mean forecast arrays
+            * ``samples`` — raw sample array of shape ``(num_samples, horizon)``
+            * ``q10``, ``q25``, ``q75``, ``q90`` — quantile arrays (horizon,)
+            * ``p_hypo`` — per-timestep P(BG < threshold) array (horizon,)
+            * ``max_p_hypo`` — scalar max P(hypo) across the forecast window
+            * ``actual_hypo`` — bool, whether hypo actually occurred
+            * ``calibration_90``, ``calibration_50`` — fraction of true values
+              within the 90% / 50% prediction intervals
+
+        Example:
+            >>> prob = model.evaluate_probabilistic(all_val_episodes)
+            >>> print(f"RMSE: {prob['rmse'].mean():.3f}")
+            >>> print(f"Calibration 90%: {prob['calibration_90'].mean()*100:.1f}%")
+            >>> print(f"Hypo episodes: {prob['actual_hypo'].sum()}/{len(prob)}")
+            >>> print(f"ROC AUC input: prob['max_p_hypo'], prob['actual_hypo']")
+        """
+        from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+        if self.model is None:
+            raise ValueError("Model must be initialized before making predictions")
+
+        t_col = target_col or self.config.target_col
+        cov_cols = (
+            covariate_cols
+            if covariate_cols is not None
+            else self.config.covariate_cols
+        )
+
+        dataset = self.build_gluonts_dataset(episodes, t_col, cov_cols or None)
+
+        bs = batch_size or self.config.batch_size
+        if self.predictor is None:
+            self.predictor = self.model.create_predictor(batch_size=bs)
+
+        forecasts = list(self.predictor.predict(dataset))
+
+        records = []
+        for ep, fc in zip(episodes, forecasts):
+            y_true = ep["target_bg"]
+
+            # samples shape: (num_samples, horizon)
+            samples = fc.samples
+            y_pred_mean = fc.mean
+
+            # Quantiles for prediction intervals
+            q10 = np.percentile(samples, 10, axis=0)
+            q25 = np.percentile(samples, 25, axis=0)
+            q75 = np.percentile(samples, 75, axis=0)
+            q90 = np.percentile(samples, 90, axis=0)
+
+            # Per-timestep P(hypo)
+            p_hypo = (samples < hypo_threshold).mean(axis=0)
+
+            records.append(
+                {
+                    "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred_mean))),
+                    "mae": float(mean_absolute_error(y_true, y_pred_mean)),
+                    "y_true": y_true,
+                    "y_pred": y_pred_mean,
+                    "samples": samples,
+                    "q10": q10,
+                    "q25": q25,
+                    "q75": q75,
+                    "q90": q90,
+                    "p_hypo": p_hypo,
+                    "max_p_hypo": float(p_hypo.max()),
+                    "actual_hypo": bool((y_true < hypo_threshold).any()),
+                    "calibration_90": float(
+                        ((y_true >= q10) & (y_true <= q90)).mean()
+                    ),
+                    "calibration_50": float(
+                        ((y_true >= q25) & (y_true <= q75)).mean()
+                    ),
+                }
+            )
+
+        df = pd.DataFrame(records)
+
+        info_print(f"RMSE: {df['rmse'].mean():.3f} +/- {df['rmse'].std():.3f}")
+        info_print(
+            f"Calibration 90% PI: {df['calibration_90'].mean()*100:.1f}% (target: 90%)"
+        )
+        info_print(
+            f"Calibration 50% PI: {df['calibration_50'].mean()*100:.1f}% (target: 50%)"
+        )
+        info_print(
+            f"Episodes with actual hypo: {df['actual_hypo'].sum()}/{len(df)}"
+        )
+
+        return df
+
+    def _dataframe_to_gluonts(self, df: pd.DataFrame) -> ListDataset:
+        """Convert a single-episode DataFrame to a one-entry GluonTS dataset.
+
+        Called by ``_predict()`` when the base class ``predict()`` method
+        passes a DataFrame.  The DataFrame is assumed to be indexed by timestamp
+        and contain at least ``config.target_col`` and optionally
+        ``config.covariate_cols``.
+
+        Args:
+            df: Single-episode context DataFrame.
+
+        Returns:
+            One-entry ``ListDataset``.
+        """
+        freq = f"{self.config.interval_mins}min"
+        entry: Dict[str, Any] = {
+            "start": df.index[0],
+            "target": df[self.config.target_col].to_numpy(dtype=np.float32),
+        }
+        if self.config.covariate_cols:
+            entry["past_feat_dynamic_real"] = (
+                df[self.config.covariate_cols].to_numpy(dtype=np.float32).T
+            )
+        return ListDataset([entry], freq=freq)
+
+    def _episodes_to_gluonts(self, episodes: list) -> ListDataset:
+        """Convenience wrapper that uses config defaults."""
+        return self.build_gluonts_dataset(
+            episodes,
+            self.config.target_col,
+            self.config.covariate_cols or None,
         )
 
 
 def create_moirai_model(
-    model_path: str = "Salesforce/moirai-1.0-R-small",
+    model_path: str = "Salesforce/moirai-1.0-R-base",
     context_length: int = 512,
-    forecast_length: int = 96,
-    use_lora: bool = False,
+    forecast_length: int = 72,
+    past_covariate_dim: int = 0,
+    covariate_cols: Optional[List[str]] = None,
+    checkpoint_path: Optional[str] = None,
+    num_samples: int = 100,
+    patch_size: str = "auto",
+    interval_mins: int = 5,
+    target_col: str = "bg_mM",
     **kwargs,
 ) -> MoiraiForecaster:
-    """Factory function to create a Moirai model with sensible defaults.
+    """Factory function to create a ``MoiraiForecaster`` with sensible defaults.
 
     Args:
-        model_path: HuggingFace model identifier or local path.
-        context_length: Input sequence length.
-        forecast_length: Output prediction horizon.
-        use_lora: Whether to use LoRA for parameter-efficient fine-tuning.
-        **kwargs: Additional configuration parameters.
+        model_path: HuggingFace model ID. Common options:
+
+            * ``"Salesforce/moirai-1.0-R-small"`` — 14 M params, fastest
+            * ``"Salesforce/moirai-1.0-R-base"`` — 91 M params, recommended
+            * ``"Salesforce/moirai-1.0-R-large"`` — 311 M params
+            * ``"Salesforce/moirai-1.1-R-base"`` — improved version
+            * ``"Salesforce/moirai-moe-1.0-R-base"`` — MoE variant (avoid
+              for zero-shot; it had RMSE ~365 in the notebook)
+
+        context_length: Historical steps (~42 hrs at 5-min intervals = 512).
+        forecast_length: Horizon steps (6 hrs at 5-min intervals = 72).
+        past_covariate_dim: Number of past covariates (0 = BG-only, 2 = IOB+COB).
+        covariate_cols: Column names matching ``past_covariate_dim``.
+        checkpoint_path: Path to a ``.ckpt`` fine-tuned checkpoint, or ``None``
+            for zero-shot inference.
+        num_samples: Monte Carlo samples for probabilistic output (default 100).
+        patch_size: Patch size for Moirai; ``"auto"`` is recommended.
+        interval_mins: CGM sampling interval in minutes.
+        target_col: Name of the target BG column.
+        **kwargs: Extra parameters forwarded to ``MoiraiConfig``.
 
     Returns:
-        Initialized MoiraiForecaster instance.
+        Initialised ``MoiraiForecaster``.
 
     Example:
+        >>> # Zero-shot, BG only
+        >>> model = create_moirai_model()
+
+        >>> # Zero-shot with IOB/COB covariates
+        >>> model = create_moirai_model(
+        ...     past_covariate_dim=2,
+        ...     covariate_cols=["iob", "cob"],
+        ... )
+
+        >>> # Fine-tuned small model
         >>> model = create_moirai_model(
         ...     model_path="Salesforce/moirai-1.0-R-small",
-        ...     context_length=512,
-        ...     forecast_length=96,
-        ...     use_lora=True
+        ...     checkpoint_path="models/moirai_finetuned/v3.ckpt",
         ... )
     """
     config = MoiraiConfig(
         model_path=model_path,
         context_length=context_length,
         forecast_length=forecast_length,
-        use_lora=use_lora,
+        past_covariate_dim=past_covariate_dim,
+        covariate_cols=covariate_cols or [],
+        checkpoint_path=checkpoint_path,
+        num_samples=num_samples,
+        patch_size=patch_size,
+        interval_mins=interval_mins,
+        target_col=target_col,
         **kwargs,
     )
-
     return MoiraiForecaster(config)
