@@ -344,7 +344,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             snapshot_model_pt = os.path.join(snapshot_dir, "model.pt")
             os.makedirs(snapshot_model_pt, exist_ok=True)
 
-            with open(os.path.join(snapshot_model_pt, "chronos2_predictor.json"), "w") as f:
+            with open(
+                os.path.join(snapshot_model_pt, "chronos2_predictor.json"), "w"
+            ) as f:
                 json.dump(
                     {"predictor_path": os.path.abspath(shadow_predictor)}, f, indent=2
                 )
