@@ -66,7 +66,7 @@ def setup_output_directory(
 ) -> Path:
     """Create and return output directory path."""
     if output_dir is None:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         mode = "finetuned" if checkpoint else "zeroshot"
         output_dir = (
             f"./experiments/nocturnal_forecasting/"
@@ -75,8 +75,40 @@ def setup_output_directory(
         )
 
     output_path = Path(output_dir)
+    output_path = _resolve_output_dir_collision(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
     return output_path
+
+
+def _resolve_output_dir_collision(output_path: Path) -> Path:
+    """Avoid overwriting previous eval artifacts.
+
+    If *output_path* already contains nocturnal evaluation outputs, append a
+    deterministic ``_rerunNN`` suffix and return the first available path.
+    """
+    marker_files = (
+        "nocturnal_results.json",
+        "experiment_config.json",
+        "nocturnal_evaluation.log",
+    )
+
+    if not output_path.exists():
+        return output_path
+
+    if not any((output_path / marker).exists() for marker in marker_files):
+        return output_path
+
+    idx = 1
+    while True:
+        candidate = Path(f"{output_path}_rerun{idx:02d}")
+        if not candidate.exists():
+            logger.warning(
+                "Output directory %s already contains results; writing to %s",
+                output_path,
+                candidate,
+            )
+            return candidate
+        idx += 1
 
 
 def save_experiment_config(
@@ -263,11 +295,24 @@ def main():
     logger.info(f"Holdout patients: {list(patients)}")
     logger.info(f"Total samples: {len(holdout_data):,}")
 
+    # Auto-detect covariates from model config if not explicitly specified.
+    # Fine-tuned models (e.g., Chronos-2 with IOB) need the same columns at
+    # predict time as were present during training.
+    covariate_cols = args.covariate_cols
+    if (
+        covariate_cols is None
+        and hasattr(config, "covariate_cols")
+        and config.covariate_cols
+    ):
+        covariate_cols = config.covariate_cols
+        logger.info("Using covariates from model config: %s", covariate_cols)
+
     # Build resolved config dict once (used in experiment_config.json and results)
     resolved_config = {
+        **config_dict,
         "context_length": context_length,
         "forecast_length": forecast_length,
-        **config_dict,
+        "covariate_cols": covariate_cols,
     }
 
     # Save experiment configuration
@@ -292,7 +337,7 @@ def main():
         holdout_data=holdout_data,
         context_length=context_length,
         forecast_length=forecast_length,
-        covariate_cols=args.covariate_cols,
+        covariate_cols=covariate_cols,
         probabilistic=args.probabilistic,
     )
 

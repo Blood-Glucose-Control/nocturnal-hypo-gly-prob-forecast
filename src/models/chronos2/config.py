@@ -26,6 +26,13 @@ class Chronos2Config(ModelConfig):
     Attributes:
         fine_tune_steps: Number of fine-tuning gradient steps.
         fine_tune_lr: Learning rate for fine-tuning.
+        fine_tune_batch_size: Per-device training batch size passed to the
+            HuggingFace Trainer via AutoGluon. Defaults to AutoGluon's
+            default of 32 when None. Reducing this helps with GPU OOM;
+            increasing it may improve gradient stability.
+        batch_size: Inference batch size for AutoGluon predict(). Defaults
+            to AutoGluon's default of 256 when None. AutoGluon will
+            automatically halve this on OOM during prediction.
         time_limit: AutoGluon time limit in seconds (None = unlimited).
         imputation_threshold_mins: Gaps up to this duration are interpolated.
         min_segment_length: Minimum rows for a gap-handled segment to be kept.
@@ -51,7 +58,9 @@ class Chronos2Config(ModelConfig):
     # Chronos-2 / AutoGluon specific training
     fine_tune_steps: int = 15000
     fine_tune_lr: float = 1e-5
-    fine_tune_batch_size: int = 32
+    # None = use AutoGluon defaults (fine_tune_batch_size=32, batch_size=256)
+    fine_tune_batch_size: Optional[int] = None
+    batch_size: Optional[int] = None
     time_limit: Optional[int] = None
 
     # Gap handling (used in _prepare_training_data)
@@ -85,6 +94,13 @@ class Chronos2Config(ModelConfig):
     # With gap-handled segments (each >= context_length + forecast_length rows),
     # most windows naturally get full context regardless of this setting.
     min_past: int = 1
+
+    # Periodic checkpointing during fine-tuning.
+    # When set, the HuggingFace Trainer saves a checkpoint every N steps via
+    # fine_tune_trainer_kwargs. After training, _train_model materialises each
+    # checkpoint-N/ dir into a standalone eval-ready snapshot alongside the
+    # main output_dir so it can be passed directly to --checkpoint.
+    checkpoint_save_steps: Optional[int] = None
 
     @property
     def is_multitarget(self) -> bool:
@@ -127,6 +143,20 @@ class Chronos2Config(ModelConfig):
                 "cross_learning": False,
             }
         }
+        if self.fine_tune_batch_size is not None:
+            hp["Chronos2"]["fine_tune_batch_size"] = self.fine_tune_batch_size
+        if self.batch_size is not None:
+            hp["Chronos2"]["batch_size"] = self.batch_size
         if self.min_past != 1:
             hp["Chronos2"]["min_past"] = self.min_past
+        if self.checkpoint_save_steps is not None:
+            hp["Chronos2"]["fine_tune_trainer_kwargs"] = {
+                "save_strategy": "steps",
+                "save_steps": self.checkpoint_save_steps,
+                # Don't save optimizer/scheduler state — we only need weights.
+                "save_only_model": True,
+                # Override Chronos2 pipeline's hardcoded save_total_limit=1
+                # so intermediate checkpoints are not deleted.
+                "save_total_limit": None,
+            }
         return hp
