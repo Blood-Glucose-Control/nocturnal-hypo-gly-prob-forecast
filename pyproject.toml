@@ -79,6 +79,9 @@ timesfm = [
 tide = [
     "autogluon.timeseries==1.5.0",
 ]
+toto = [
+    "toto-ts",
+]
 
 [tool.setuptools.packages.find]
 include = ["src*"]
