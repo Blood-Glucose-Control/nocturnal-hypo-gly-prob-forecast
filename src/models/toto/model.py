@@ -18,12 +18,14 @@ from toto.inference.forecaster import TotoForecaster as _TotoForecaster
 from src.models.toto.config import TotoConfig
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
 from src.utils.logging_helper import info_print
+from utils.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
 INTERVAL_MINS = 5
 
 
+@ModelRegistry.register("toto")
 class TotoForecaster(BaseTimeSeriesFoundationModel):
     """Toto forecaster implementation."""
 
