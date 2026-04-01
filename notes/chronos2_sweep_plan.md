@@ -149,14 +149,14 @@ python scripts/experiments/nocturnal_hypo_eval.py \
 
 ## Comparison Matrix
 
-| Config | Covariates | LR | Context | Datasets | Key comparison |
-|--------|------------|----|---------|----------|----------------|
-| 00 | none | 1e-5 | 512 | ale, bro, lyn | BG-only baseline |
-| 01 | iob, insulin_avail | 1e-5 | 512 | ale, bro, lyn | existing baseline |
-| **02** | iob | 1e-5 | 512 | ale, bro, lyn | isolates iob vs 00 and 01 |
-| **03** | iob, insulin_avail | 5e-5 | 512 | ale, bro, lyn | higher LR vs 01 |
-| **04** | iob, insulin_avail | 1e-5 | 288 | ale, bro, lyn | shorter ctx vs 01 |
-| **05** | iob, cob | 1e-5 | 512 | ale, lyn | baseline carb addition vs 02 |
-| **06** | iob, cob, insulin_avail, carb_avail | 1e-5 | 512 | ale, lyn | kitchen-sink vs 05 |
-| **07** | iob, cob | 5e-5 | 512 | ale, lyn | higher LR vs 05 |
-| **08** | iob, cob | 1e-5 | 288 | ale, lyn | shorter ctx vs 05 |
+| Config | Covariates                          | LR   | Context | Datasets      | Key comparison               |
+| ------ | ----------------------------------- | ---- | ------- | ------------- | ---------------------------- |
+| 00     | none                                | 1e-5 | 512     | ale, bro, lyn | BG-only baseline             |
+| 01     | iob, insulin_avail                  | 1e-5 | 512     | ale, bro, lyn | existing baseline            |
+| **02** | iob                                 | 1e-5 | 512     | ale, bro, lyn | isolates iob vs 00 and 01    |
+| **03** | iob, insulin_avail                  | 5e-5 | 512     | ale, bro, lyn | higher LR vs 01              |
+| **04** | iob, insulin_avail                  | 1e-5 | 288     | ale, bro, lyn | shorter ctx vs 01            |
+| **05** | iob, cob                            | 1e-5 | 512     | ale, lyn      | baseline carb addition vs 02 |
+| **06** | iob, cob, insulin_avail, carb_avail | 1e-5 | 512     | ale, lyn      | kitchen-sink vs 05           |
+| **07** | iob, cob                            | 5e-5 | 512     | ale, lyn      | higher LR vs 05              |
+| **08** | iob, cob                            | 1e-5 | 288     | ale, lyn      | shorter ctx vs 05            |
