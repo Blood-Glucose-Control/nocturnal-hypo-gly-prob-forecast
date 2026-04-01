@@ -157,6 +157,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         self,
         data: pd.DataFrame,
         episode_col: str,
+        quantile_levels: Optional[List[float]] = None,
     ) -> Dict[str, np.ndarray]:
         """Batched prediction: stack episodes into one forward pass.
 
@@ -262,6 +263,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             record = {
                 "timestamp": ts_strings,
                 "target": target.tolist(),
+                "freq": f"{INTERVAL_MINS}min",
             }
 
             # Add covariates as separate fields (each becomes an ev_field)

@@ -58,6 +58,7 @@ RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 : ${CONFIG_DIR:="configs/data/holdout_10pct"}
 : ${OUTPUT_BASE_DIR:="trained_models/artifacts/${MODEL_TYPE}/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_holdout_workflow"}
 : ${SKIP_TRAINING:="true"}
+: ${SKIP_STEPS:=""}      # Space-separated step numbers to skip (e.g., SKIP_STEPS="7" or SKIP_STEPS="4 7")
 : ${EPOCHS:=""}          # Leave empty to use YAML config value; set to override (e.g., EPOCHS=10)
 : ${BATCH_SIZE:=""}      # Leave empty to use YAML config value; set to override (e.g., BATCH_SIZE=4096)
 : ${MODEL_TYPE:="ttm"}  # Model type: ttm, chronos, moment, etc.
@@ -80,6 +81,7 @@ echo "  Datasets: $DATASETS"
 echo "  Config dir: $CONFIG_DIR"
 echo "  Output base dir: $OUTPUT_BASE_DIR"
 echo "  Skip training: $SKIP_TRAINING"
+echo "  Skip steps: ${SKIP_STEPS:-none}"
 echo "  Epochs: ${EPOCHS:-from YAML or default}"
 echo "  Batch size: ${BATCH_SIZE:-from YAML or default}"
 echo "  Model config: ${MODEL_CONFIG:-None (using defaults)}"
@@ -199,6 +201,9 @@ fi
 if [ "$SKIP_TRAINING" = "true" ]; then
     CMD="$CMD --skip-training"
 fi
+if [ -n "$SKIP_STEPS" ]; then
+    CMD="$CMD --skip-steps $SKIP_STEPS"
+fi
 
 echo "Running combined workflow..."
 # Pretty print for logs (display only)
@@ -218,10 +223,12 @@ if [ -n "$MODEL_CONFIG" ]; then
     echo "    --model-config $MODEL_CONFIG \\"
 fi
 if [ "$SKIP_TRAINING" = "true" ]; then
-    echo "    --skip-training"
-else
-    echo ""
+    echo "    --skip-training \\"
 fi
+if [ -n "$SKIP_STEPS" ]; then
+    echo "    --skip-steps $SKIP_STEPS \\"
+fi
+echo ""
 echo ""
 
 # Create log filename with run ID (matches SLURM pattern with job ID)
