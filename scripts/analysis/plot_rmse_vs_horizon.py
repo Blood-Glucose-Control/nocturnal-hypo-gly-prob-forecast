@@ -11,11 +11,12 @@ Usage:
 import argparse
 import json
 import matplotlib
-matplotlib.use("svg")
-matplotlib.rcParams["svg.fonttype"] = "none"
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+
+matplotlib.use("svg")
+matplotlib.rcParams["svg.fonttype"] = "none"
 
 COLORS = ["#E07B54", "#3A7FD5", "#5BAD6F", "#9B59B6"]
 
@@ -28,21 +29,27 @@ def load_horizon(path: str) -> list[dict]:
     forecast_length = len(episodes[0]["pred"])
     sampling_interval = 5  # CGM sampling interval (minutes)
 
-    pred_matrix = np.array([ep["pred"] for ep in episodes if len(ep["pred"]) == forecast_length])
-    tgt_matrix  = np.array([ep["target_bg"] for ep in episodes if len(ep["target_bg"]) == forecast_length])
+    pred_matrix = np.array(
+        [ep["pred"] for ep in episodes if len(ep["pred"]) == forecast_length]
+    )
+    tgt_matrix = np.array(
+        [ep["target_bg"] for ep in episodes if len(ep["target_bg"]) == forecast_length]
+    )
 
     horizon_data = []
     for idx in range(forecast_length):
         ep_rmse = (pred_matrix[:, idx] - tgt_matrix[:, idx]) ** 2
-        horizon_data.append({
-            "horizon_minutes": (idx + 1) * sampling_interval,
-            "rmse": float(np.sqrt(np.mean(ep_rmse))),
-            "q10": float(np.sqrt(np.percentile(ep_rmse, 10))),
-            "q25": float(np.sqrt(np.percentile(ep_rmse, 25))),
-            "q50": float(np.sqrt(np.percentile(ep_rmse, 50))),
-            "q75": float(np.sqrt(np.percentile(ep_rmse, 75))),
-            "q90": float(np.sqrt(np.percentile(ep_rmse, 90))),
-        })
+        horizon_data.append(
+            {
+                "horizon_minutes": (idx + 1) * sampling_interval,
+                "rmse": float(np.sqrt(np.mean(ep_rmse))),
+                "q10": float(np.sqrt(np.percentile(ep_rmse, 10))),
+                "q25": float(np.sqrt(np.percentile(ep_rmse, 25))),
+                "q50": float(np.sqrt(np.percentile(ep_rmse, 50))),
+                "q75": float(np.sqrt(np.percentile(ep_rmse, 75))),
+                "q90": float(np.sqrt(np.percentile(ep_rmse, 90))),
+            }
+        )
     return horizon_data
 
 
@@ -50,8 +57,8 @@ def make_plot(results: list[list[dict]], labels: list[str], output_path: str):
     fig, ax = plt.subplots(figsize=(9, 5))
 
     n_series = len(results)
-    box_width = 0.06          # hours
-    gap = box_width * 1.3     # space between series at the same horizon
+    box_width = 0.06  # hours
+    gap = box_width * 1.3  # space between series at the same horizon
     total_span = gap * (n_series - 1)
 
     for i, (data, label, color) in enumerate(zip(results, labels, COLORS)):
@@ -62,9 +69,9 @@ def make_plot(results: list[list[dict]], labels: list[str], output_path: str):
         has_whiskers = "q10" in data[0]
         stats = [
             {
-                "med":    d["q50"],
-                "q1":     d["q25"],
-                "q3":     d["q75"],
+                "med": d["q50"],
+                "q1": d["q25"],
+                "q3": d["q75"],
                 "whislo": d["q10"] if has_whiskers else d["q25"],
                 "whishi": d["q90"] if has_whiskers else d["q75"],
                 "fliers": [],
@@ -96,8 +103,15 @@ def make_plot(results: list[list[dict]], labels: list[str], output_path: str):
             element.set_gid(f"whisker-{label}")
 
         # Invisible line for legend
-        ax.plot([], [], color=color, linewidth=6, alpha=0.6,
-                solid_capstyle="round", label=label)
+        ax.plot(
+            [],
+            [],
+            color=color,
+            linewidth=6,
+            alpha=0.6,
+            solid_capstyle="round",
+            label=label,
+        )
 
     ax.set_xlabel("Forecast horizon (hours)", fontsize=11)
     ax.set_ylabel("RMSE (mmol/L)", fontsize=11)
@@ -113,7 +127,9 @@ def make_plot(results: list[list[dict]], labels: list[str], output_path: str):
     legend.set_gid("legend")
 
     fig.tight_layout()
-    fig.savefig(output_path, format="svg", bbox_inches="tight", metadata={"Creator": ""})
+    fig.savefig(
+        output_path, format="svg", bbox_inches="tight", metadata={"Creator": ""}
+    )
     print(f"Saved: {output_path}")
 
 
