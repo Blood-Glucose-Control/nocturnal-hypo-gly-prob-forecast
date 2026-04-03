@@ -1,5 +1,11 @@
 reference: https://www.tigerdata.com/docs/self-hosted/latest/install/installation-docker
 
+## To symlink the cache directory to the shared cache directory
+At the root of the project:
+```bash
+ln -s /data/shared/cache cache
+```
+
 ## To remove the container
 ```bash
 docker stop timescaledb

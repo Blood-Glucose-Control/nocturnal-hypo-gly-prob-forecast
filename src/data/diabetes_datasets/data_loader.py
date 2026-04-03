@@ -33,7 +33,7 @@ The implementation signature must be a superset of all overload signatures
 from typing import overload, Literal, Union
 from src.data.diabetes_datasets import Brown2019DataLoader
 from src.data.diabetes_datasets import BrisT1DDataLoader
-from src.data.diabetes_datasets import GlurooDataLoader
+from src.data.diabetes_datasets import Gluroo2026DataLoader
 from src.data.diabetes_datasets import Lynch2022DataLoader
 from src.data.diabetes_datasets import Aleppo2017DataLoader
 from src.data.diabetes_datasets import Tamborlane2008DataLoader
@@ -80,16 +80,20 @@ def get_loader(
 
 @overload
 def get_loader(
-    data_source_name: Literal["gluroo"],
+    data_source_name: Literal["gluroo_2026"],
     dataset_type: str = "train",
     keep_columns: list[str] | None = None,
-    use_cached: bool = False,
+    use_cached: bool = True,
     num_validation_days: int = 20,
     train_percentage: float = ...,
     parallel: bool = True,
-    max_workers: int = 14,
+    max_workers: int = 10,
+    patients_per_batch: int = 100,
+    patients_per_file: int = 400,
+    max_batches_per_run: int | None = None,
+    min_date_span_days: int = 30,
     load_all: bool = False,
-) -> GlurooDataLoader: ...
+) -> Gluroo2026DataLoader: ...
 
 
 @overload
@@ -127,10 +131,14 @@ def get_loader(
     train_percentage: float = 0.9,
     parallel: bool = True,
     max_workers: int = 14,
+    patients_per_batch: int = 100,
+    patients_per_file: int = 400,
+    max_batches_per_run: int | None = None,
+    min_date_span_days: int = 30,
     load_all: bool = False,
 ) -> Union[
     BrisT1DDataLoader,
-    GlurooDataLoader,
+    Gluroo2026DataLoader,
     Aleppo2017DataLoader,
     Lynch2022DataLoader,
     Brown2019DataLoader,
@@ -170,12 +178,15 @@ def get_loader(
             parallel=parallel,
             max_workers=max_workers,
         )
-    elif data_source_name == "gluroo":
-        return GlurooDataLoader(
+    elif data_source_name == "gluroo_2026":
+        return Gluroo2026DataLoader(
             keep_columns=keep_columns,
-            # num_validation_days=num_validation_days,
-            # parallel=parallel,
+            use_cached=use_cached,
             max_workers=max_workers,
+            patients_per_batch=patients_per_batch,
+            patients_per_file=patients_per_file,
+            max_batches_per_run=max_batches_per_run,
+            min_date_span_days=min_date_span_days,
             load_all=load_all,
         )
     elif data_source_name == "aleppo_2017":
