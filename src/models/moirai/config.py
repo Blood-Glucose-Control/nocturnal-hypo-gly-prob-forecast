@@ -178,6 +178,29 @@ class MoiraiConfig(ModelConfig):
     def to_dict(self) -> Dict:
         """Convert configuration to dictionary."""
         base_dict = super().to_dict()
+        
+        # Convert nested dataclass configs to dicts
+        training_config_dict = {}
+        if hasattr(self, 'training_config') and self.training_config:
+            training_config_dict = {
+                'freeze_backbone': self.training_config.freeze_backbone,
+                'use_tracking_callback': self.training_config.use_tracking_callback,
+                'find_optimal_lr': self.training_config.find_optimal_lr,
+                'loss_function': self.training_config.loss_function,
+                'scaler_type': self.training_config.scaler_type,
+            }
+        
+        data_config_dict = {}
+        if hasattr(self, 'data_config') and self.data_config:
+            data_config_dict = {
+                'input_features': self.data_config.input_features,
+                'target_features': self.data_config.target_features,
+                'split_config': self.data_config.split_config,
+                'num_input_channels': self.data_config.num_input_channels,
+                'num_output_channels': self.data_config.num_output_channels,
+                'prediction_filter_length': self.data_config.prediction_filter_length,
+            }
+        
         base_dict.update(
             {
                 "patch_size": self.patch_size,
@@ -191,6 +214,82 @@ class MoiraiConfig(ModelConfig):
                 "n_heads": self.n_heads,
                 "n_layers": self.n_layers,
                 "dropout": self.dropout,
+                "training_config": training_config_dict,
+                "data_config": data_config_dict,
             }
         )
         return base_dict
+
+
+def create_default_moirai_config(**kwargs) -> MoiraiConfig:
+    """Create a default Moirai configuration.
+    
+    Args:
+        **kwargs: Override any default parameters.
+        
+    Returns:
+        MoiraiConfig with sensible defaults for standard forecasting.
+    """
+    defaults = {
+        "model_path": "Salesforce/moirai-1.0-R-small",
+        "context_length": 512,
+        "forecast_length": 72,
+        "batch_size": 8,
+        "learning_rate": 1e-4,
+        "num_epochs": 1,
+        "past_covariate_dim": 0,
+        "patch_size": "auto",
+        "num_samples": 100,
+    }
+    defaults.update(kwargs)
+    return MoiraiConfig(**defaults)
+
+
+def create_moirai_fine_tuning_config(**kwargs) -> MoiraiConfig:
+    """Create a Moirai configuration optimized for fine-tuning.
+    
+    Args:
+        **kwargs: Override any default parameters.
+        
+    Returns:
+        MoiraiConfig with settings suitable for fine-tuning.
+    """
+    defaults = {
+        "model_path": "Salesforce/moirai-1.0-R-base",
+        "context_length": 512,
+        "forecast_length": 72,
+        "batch_size": 32,
+        "learning_rate": 5e-5,
+        "num_epochs": 10,
+        "past_covariate_dim": 2,
+        "patch_size": "auto",
+        "num_samples": 100,
+        "training_config": MoiraiTrainingConfig(
+            freeze_backbone=False,
+            use_tracking_callback=True,
+            find_optimal_lr=True,
+        ),
+    }
+    defaults.update(kwargs)
+    return MoiraiConfig(**defaults)
+
+
+def create_moirai_zero_shot_config(**kwargs) -> MoiraiConfig:
+    """Create a Moirai configuration for zero-shot inference (no training).
+    
+    Args:
+        **kwargs: Override any default parameters.
+        
+    Returns:
+        MoiraiConfig with settings suitable for zero-shot prediction.
+    """
+    defaults = {
+        "model_path": "Salesforce/moirai-1.0-R-small",
+        "context_length": 512,
+        "forecast_length": 72,
+        "past_covariate_dim": 0,
+        "patch_size": "auto",
+        "num_samples": 100,
+    }
+    defaults.update(kwargs)
+    return MoiraiConfig(**defaults)
