@@ -6,6 +6,8 @@ the base TSFM framework, integrating Salesforce's uni2ts library.
 """
 
 import os
+import subprocess
+import json
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -218,24 +220,278 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     def _prepare_training_data(
         self, data: Any, split: Optional[str] = None
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
-        """Not used — Moirai fine-tuning is performed via the uni2ts CLI.
+        """Prepare training data for Moirai (episodes → DataLoader format, not used for CLI).
+
+        Args:
+            data: Dict of episodes {patient_id: [episode_list]} or DataFrame
+            split: Optional, not used (data splitting handled by uni2ts)
+
+        Returns:
+            Tuple of (DataLoader, None, None). Only train_loader is populated;
+            the CLI handles all data splitting internally.
+
+        Note:
+            This method is for compatibility with the base class interface but is
+            NOT used for actual CLI training. The _train_model method calls
+            _export_training_data separately to prepare CSV for the CLI.
+        """
+        # This is a compatibility stub. Actual CLI training uses _export_training_data.
+        # We return a dummy DataLoader here.
+        dataset = ListDataset(
+            [{"target": np.array([0.0])} for _ in range(10)],
+            freq=f"{self.config.interval_mins}min"
+        )
+        loader = DataLoader(dataset, batch_size=self.config.batch_size)
+        return loader, None, None
+
+    def _export_training_data(
+        self,
+        train_data: Any,
+        output_dir: str,
+        target_col: str = "bg_mM",
+        context_len: int = 512,
+        horizon: int = 72,
+    ) -> str:
+        """Export episodes to wide-format CSV for uni2ts CLI training.
+
+        Args:
+            train_data: Dict {patient_id: [episode_list]} where each episode contains:
+                - "context_df": DataFrame with time-indexed context window
+                - "target_bg": np.ndarray of ground truth BG values (horizon)
+            output_dir: Directory to save training CSV
+            target_col: Name of the BG column in context_df
+            context_len: Number of context steps (should match config.context_length)
+            horizon: Number of forecast steps (should match config.forecast_length)
+
+        Returns:
+            Path to the exported wide-format CSV file
 
         Raises:
-            NotImplementedError: Always.  See the notebook for the CLI workflow.
+            ValueError: If train_data format is invalid
+            FileNotFoundError: If output_dir cannot be created
         """
-        raise NotImplementedError(
-            "Moirai fine-tuning uses the uni2ts CLI externally. "
-            "Load the resulting checkpoint via MoiraiConfig.checkpoint_path."
+        if not isinstance(train_data, dict):
+            raise ValueError(
+                f"train_data must be a dict of episodes {{patient_id: [episodes]}}, "
+                f"got {type(train_data)}"
+            )
+
+        os.makedirs(output_dir, exist_ok=True)
+        total_len = context_len + horizon
+        episode_data = {}
+
+        # Flatten all episodes and assign column names
+        for patient_id, episodes in train_data.items():
+            if not isinstance(episodes, list):
+                raise ValueError(
+                    f"train_data[{patient_id}] must be a list of episodes, "
+                    f"got {type(episodes)}"
+                )
+
+            for ep_idx, ep in enumerate(episodes):
+                col_name = f"{patient_id}_{ep_idx:03d}"
+
+                # Extract context and target BG
+                if not isinstance(ep, dict) or "context_df" not in ep or "target_bg" not in ep:
+                    raise ValueError(
+                        f"Each episode must be a dict with 'context_df' and 'target_bg' keys. "
+                        f"Got episode at {col_name}: {list(ep.keys()) if isinstance(ep, dict) else type(ep)}"
+                    )
+
+                context_df = ep["context_df"]
+                target_bg = ep["target_bg"]
+
+                # Extract context BG values
+                if target_col not in context_df.columns:
+                    raise ValueError(
+                        f"Column '{target_col}' not found in context_df for {col_name}. "
+                        f"Available columns: {list(context_df.columns)}"
+                    )
+
+                context_bg = context_df[target_col].values
+                full_series = np.concatenate([context_bg, target_bg])
+
+                if len(full_series) != total_len:
+                    info_print(
+                        f"Warning: {col_name} has {len(full_series)} steps "
+                        f"(expected {total_len}), skipping"
+                    )
+                    continue
+
+                episode_data[col_name] = full_series
+
+        if not episode_data:
+            raise ValueError("No valid episodes found in train_data")
+
+        # Create DataFrame with synthetic aligned timestamps
+        synthetic_index = pd.date_range(
+            "2024-01-01 00:00:00",
+            periods=total_len,
+            freq=f"{self.config.interval_mins}min"
         )
+
+        df = pd.DataFrame(episode_data, index=synthetic_index)
+        df.index.name = "datetime"
+
+        # Save to CSV
+        csv_path = os.path.join(output_dir, "train_wide.csv")
+        df.to_csv(csv_path)
+        info_print(f"Exported {len(df.columns)} episodes to {csv_path}")
+
+        return csv_path
 
     def _train_model(
         self, train_data: Any, output_dir: str, **kwargs
     ) -> Dict[str, Any]:
-        """Not used — see ``_prepare_training_data``."""
-        raise NotImplementedError(
-            "Call the uni2ts CLI for Moirai fine-tuning; "
-            "then load the checkpoint via MoiraiConfig.checkpoint_path."
+        """Run Moirai fine-tuning via uni2ts CLI.
+
+        This method orchestrates the complete fine-tuning workflow:
+        1. Export training data to wide-format CSV
+        2. Call uni2ts data builder to convert CSV to JSONL format
+        3. Run uni2ts CLI training
+        4. Load the resulting checkpoint
+        5. Return training metadata
+
+        Args:
+            train_data: Dict {patient_id: [episode_list]} with episodes containing
+                "context_df" (timestamped DataFrame) and "target_bg" (numpy array)
+            output_dir: Directory for training outputs and checkpoints
+            **kwargs: Passed to CLI (e.g., num_epochs=5, learning_rate=5e-5)
+
+        Returns:
+            Dict with training metrics (empty dict for now; can be extended
+            to parse training logs from uni2ts)
+
+        Raises:
+            FileNotFoundError: If uni2ts CLI is not available
+            RuntimeError: If training or data conversion fails
+        """
+        import tempfile
+        import shutil
+
+        info_print(f"👉 Starting Moirai fine-tuning via uni2ts CLI")
+        info_print(f"   Output directory: {output_dir}")
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Step 1: Export data to wide-format CSV
+        info_print("Step 1: Exporting training data to CSV...")
+        csv_path = self._export_training_data(
+            train_data,
+            output_dir,
+            target_col=self.config.target_col,
+            context_len=self.config.context_length,
+            horizon=self.config.forecast_length,
         )
+
+        # Step 2: Convert CSV to uni2ts format using the data builder
+        info_print("Step 2: Building uni2ts dataset from CSV...")
+        dataset_name = "moirai_train_data"
+
+        try:
+            # Call uni2ts data builder
+            cmd = [
+                "python", "-m", "uni2ts.data.builder.simple",
+                dataset_name,
+                csv_path,
+                "--dataset_type", "wide",
+                "--freq", f"{self.config.interval_mins}min",
+            ]
+
+            info_print(f"   Running: {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            info_print(f"   ✅ Data builder completed")
+
+        except subprocess.CalledProcessError as e:
+            error_msg = (
+                f"uni2ts data builder failed:\n"
+                f"STDOUT:\n{e.stdout}\n"
+                f"STDERR:\n{e.stderr}"
+            )
+            error_print(error_msg)
+            raise RuntimeError(error_msg) from e
+        except FileNotFoundError as e:
+            error_print(
+                "uni2ts CLI not found. Install via: "
+                "pip install -e git+https://github.com/SalesforceAIResearch/uni2ts.git#egg=uni2ts"
+            )
+            raise
+
+        # Step 3: Run uni2ts training
+        info_print("Step 3: Running uni2ts fine-tuning...")
+
+        # Build training arguments from config
+        training_args = {
+            "num_epochs": kwargs.get("num_epochs", self.config.num_epochs),
+            "learning_rate": kwargs.get("learning_rate", self.config.learning_rate),
+            "batch_size": kwargs.get("batch_size", self.config.batch_size),
+        }
+
+        try:
+            # Construct the uni2ts train command
+            cmd = [
+                "python", "-m", "uni2ts.train",
+                f"--dataset_name={dataset_name}",
+                f"--output_dir={output_dir}",
+                f"--model_name=moirai",
+                f"--num_epochs={training_args['num_epochs']}",
+                f"--learning_rate={training_args['learning_rate']}",
+                f"--per_device_train_batch_size={training_args['batch_size']}",
+            ]
+
+            info_print(f"   Running: {' '.join(cmd[:3])}...")
+            info_print(f"      model: moirai")
+            info_print(f"      epochs: {training_args['num_epochs']}")
+            info_print(f"      learning_rate: {training_args['learning_rate']}")
+
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            info_print(f"   ✅ Training completed")
+
+        except subprocess.CalledProcessError as e:
+            error_msg = (
+                f"uni2ts training failed:\n"
+                f"STDOUT:\n{e.stdout}\n"
+                f"STDERR:\n{e.stderr}"
+            )
+            error_print(error_msg)
+            raise RuntimeError(error_msg) from e
+
+        # Step 4: Load the trained checkpoint
+        info_print("Step 4: Loading fine-tuned checkpoint...")
+
+        # Find the latest checkpoint in output_dir
+        checkpoint_path = os.path.join(output_dir, "model.ckpt")
+        if not os.path.exists(checkpoint_path):
+            # Try looking for it with a different pattern
+            import glob
+            ckpt_files = glob.glob(os.path.join(output_dir, "**/*.ckpt"), recursive=True)
+            if ckpt_files:
+                checkpoint_path = ckpt_files[0]
+                info_print(f"   Found checkpoint: {checkpoint_path}")
+            else:
+                raise FileNotFoundError(
+                    f"No checkpoint found in {output_dir}. "
+                    f"Training may have failed; check logs above."
+                )
+
+        # Update config with checkpoint path and reload model
+        self.config.checkpoint_path = checkpoint_path
+        self.model = self._initialize_model()
+        self.predictor = None  # Force rebuild on next predict
+        self.is_fitted = True
+
+        info_print(f"   ✅ Checkpoint loaded from {checkpoint_path}")
+        info_print("🎉 Training complete!")
+
+        # Return training metadata
+        return {
+            "train_metrics": {
+                "num_epochs": training_args["num_epochs"],
+                "learning_rate": training_args["learning_rate"],
+                "batch_size": training_args["batch_size"],
+                "checkpoint_path": checkpoint_path,
+            }
+        }
 
     def _save_checkpoint(self, output_dir: str) -> None:
         """Save the current model config; raw weights live in the HF / ckpt file.
