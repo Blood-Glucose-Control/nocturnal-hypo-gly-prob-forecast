@@ -31,6 +31,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from src.data.preprocessing.gap_handling import interpolate_small_gaps
+
 # Default holdout config directory (can be overridden by callers)
 DEFAULT_HOLDOUT_CONFIG_DIR = "configs/data/holdout_10pct"
 
@@ -158,14 +160,15 @@ def build_midnight_episodes(
 
         window_df = df.reindex(window_index)[cols_to_get]
 
-        # Interpolate short BG gaps before deciding to skip
+        # Interpolate short BG gaps using the shared gap handling module.
+        # Uses all-or-nothing semantics: a gap is only filled if its entire
+        # length fits within max_bg_gap_steps. This avoids V-shaped artifacts
+        # from partial filling at large gap boundaries.
         if max_bg_gap_steps > 0 and window_df[target_col].isna().any():
-            interpolated = window_df[target_col].interpolate(
-                method="time", limit=max_bg_gap_steps, limit_area="inside"
+            window_df = interpolate_small_gaps(
+                window_df, max_gap_rows=max_bg_gap_steps, bg_col=target_col
             )
-            if not interpolated.isna().any():
-                window_df = window_df.copy()
-                window_df[target_col] = interpolated
+            if not window_df[target_col].isna().any():
                 skip_stats["interpolated_episodes"] += 1
 
         # Skip if BG gaps remain after interpolation (gap too long)

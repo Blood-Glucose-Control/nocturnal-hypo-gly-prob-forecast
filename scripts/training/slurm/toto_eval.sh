@@ -1,31 +1,23 @@
 #!/bin/bash
-#SBATCH --job-name=chronos2_eval
-#SBATCH --output=logs/chronos2_eval_%j.out
-#SBATCH --error=logs/chronos2_eval_%j.err
+#SBATCH --job-name=toto_eval
+#SBATCH --output=logs/toto_eval_%j.out
+#SBATCH --error=logs/toto_eval_%j.err
 #SBATCH --time=2:00:00
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=32GB
 #SBATCH --gres=gpu:1
 #SBATCH --partition=HI
 
-# Evaluate fine-tuned Chronos-2 on nocturnal forecasting task.
+# Evaluate Toto zero-shot on nocturnal forecasting task.
 #
 # Usage:
-#   CHECKPOINT=models/chronos2_brown_2019/<timestamp> sbatch scripts/training/slurm/chronos2_eval.sh
+#   sbatch scripts/training/slurm/toto_eval.sh
 #
 # Override defaults:
-#   DATASET=aleppo_2017 CHECKPOINT=path/to/model sbatch scripts/training/slurm/chronos2_eval.sh
+#   DATASET=tamborlane_2008 sbatch scripts/training/slurm/toto_eval.sh
 
 : ${DATASET:="brown_2019"}
 : ${CONFIG_DIR:="configs/data/holdout_10pct"}
-: ${CHECKPOINT:=""}
-: ${COV:="iob"}
-
-if [ -z "$CHECKPOINT" ]; then
-    echo "ERROR: CHECKPOINT must be set. Usage:"
-    echo "  CHECKPOINT=models/chronos2_brown_2019/<timestamp> sbatch $0"
-    exit 1
-fi
 
 if [ -n "$SLURM_SUBMIT_DIR" ]; then
     PROJECT_ROOT="$SLURM_SUBMIT_DIR"
@@ -37,17 +29,16 @@ cd "$PROJECT_ROOT" || exit 1
 mkdir -p logs
 
 echo "========================================="
-echo "Chronos-2 Nocturnal Evaluation (SLURM)"
+echo "Toto Nocturnal Evaluation (SLURM)"
 echo "========================================="
 echo "Job ID:      $SLURM_JOB_ID"
 echo "Node:        $SLURM_NODELIST"
 echo "Dataset:     $DATASET"
-echo "Checkpoint:  $CHECKPOINT"
 echo "Config Dir:  $CONFIG_DIR"
 echo "Started:     $(date)"
 echo "========================================="
 
-source ".venvs/chronos2/bin/activate"
+source ".venvs/toto/bin/activate"
 echo "Python: $(which python)"
 
 nvidia-smi --query-gpu=index,name,memory.total --format=csv
@@ -59,13 +50,12 @@ echo "Running nocturnal_hypo_eval.py..."
 echo ""
 
 python scripts/experiments/nocturnal_hypo_eval.py \
-    --model chronos2 \
+    --model toto \
     --dataset "$DATASET" \
     --config-dir "$CONFIG_DIR" \
-    --checkpoint "$CHECKPOINT" \
     --context-length 512 \
     --forecast-length 72 \
-    --covariate-cols $COV
+    --cuda-device 0
 
 exit_code=$?
 

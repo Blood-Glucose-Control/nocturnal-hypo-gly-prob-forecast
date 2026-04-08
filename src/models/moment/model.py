@@ -17,10 +17,12 @@ from transformers import (
 
 # Local imports
 from src.models.base import BaseTimeSeriesFoundationModel
+from src.models.base.registry import ModelRegistry
 from src.models.moment.config import MomentConfig
 from src.utils.logging_helper import info_print, error_print
 
 
+@ModelRegistry.register("moment")
 class MomentForecaster(BaseTimeSeriesFoundationModel):
     """Moment forecaster implementation using the base TSFM framework.
 
