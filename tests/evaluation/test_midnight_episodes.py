@@ -383,7 +383,5 @@ class TestSelectEpisodesStratified:
             holdout, ["pat_A"], context_length=144, forecast_length=72
         )
         n_available = len(by_patient["pat_A"])
-        selected = select_episodes_stratified(
-            by_patient, per_patient=9999, seed=42
-        )
+        selected = select_episodes_stratified(by_patient, per_patient=9999, seed=42)
         assert len(selected) == n_available

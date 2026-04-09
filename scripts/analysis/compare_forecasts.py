@@ -215,7 +215,10 @@ def run_inference(
     """
     print(f"Loading {label} ({model_type}{', zero-shot' if not checkpoint else ''})...")
     model, _ = create_model_and_config(
-        model_type, checkpoint, context_length=context_length, forecast_length=forecast_length
+        model_type,
+        checkpoint,
+        context_length=context_length,
+        forecast_length=forecast_length,
     )
 
     results = []
@@ -698,7 +701,12 @@ def main() -> None:
 
         for model_type, checkpoint, label, out_path in to_run:
             episodes = run_inference(
-                model_type, checkpoint, label, args.context_length, args.forecast_length, all_episodes
+                model_type,
+                checkpoint,
+                label,
+                args.context_length,
+                args.forecast_length,
+                all_episodes,
             )
             print(f"  {len(episodes)}/{len(all_episodes)} episodes succeeded")
             if episodes:
