@@ -182,6 +182,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Covariate column names (e.g., iob cob)",
     )
     parser.add_argument(
+        "--patients",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Subset of patient IDs to evaluate (default: all holdout patients)",
+    )
+    parser.add_argument(
         "--cuda-device",
         type=int,
         default=1,
@@ -259,8 +266,21 @@ def main():
     holdout_data = registry.load_holdout_data_only(args.dataset)
 
     patient_col = get_patient_column(holdout_data)
+    if args.patients:
+        requested = set(args.patients)
+        available = set(holdout_data[patient_col].unique())
+        missing = requested - available
+        if missing:
+            logger.warning(
+                f"Requested patients not found in holdout data: {sorted(missing)}"
+            )
+        holdout_data = holdout_data[holdout_data[patient_col].isin(args.patients)]
     patients = holdout_data[patient_col].unique()
-    logger.info(f"Holdout patients: {list(patients)}")
+    if args.patients:
+        logger.info(
+            f"Filtered to {len(patients)} of {len(args.patients)} requested patients: {list(patients)}"
+        )
+    logger.info(f"Evaluating patients: {list(patients)}")
     logger.info(f"Total samples: {len(holdout_data):,}")
 
     # Build resolved config dict once (used in experiment_config.json and results)
