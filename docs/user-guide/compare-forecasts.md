@@ -5,7 +5,7 @@ comparing nocturnal BG forecasts across any combination of models (zero-shot or
 fine-tuned) on midnight-anchored holdout episodes.
 
 **Output grid:** one row per patient, one column per RMSE percentile (default:
-P90 / P60 / P30 / P10 — hardest to easiest within each patient, ranked by the
+P90 / P70 / P30 / P10 — hardest to easiest within each patient, ranked by the
 first listed model). Default 5 patients × 4 columns = 20 subplots.
 
 ---
@@ -137,10 +137,10 @@ for f in sorted(pathlib.Path('results/forecast_comparisons').glob('*.json')):
 | `--n-patients` | `5` | Number of patients to randomly sample. Ignored if `--patients` given. |
 | `--patients` | all holdout | Explicit patient IDs (overrides `--n-patients`). |
 | `--seed` | `42` | Controls patient sampling and reproducibility. |
-| `--forecast-length` | `72` | Forecast horizon in steps (72 = 6 h at 5-min). |
+| `--forecast-length` | `96` | Forecast horizon in steps (96 = 8 h at 5-min). |
 | `--context-length` | `512` | Context window in steps (~42.7 h at 5-min). |
 | `--covariate-cols` | auto-detected | Extra covariate columns (e.g. `iob`). Fine-tuned checkpoints also auto-detected. |
-| `--percentiles` | `90 60 30 10` | RMSE percentile columns in the grid (plot mode). |
+| `--percentiles` | `90 70 30 10` | RMSE percentile columns in the grid (plot mode). |
 | `--no-plot` | false | Cache inference results without plotting. |
 | `--results-dir` | `results/forecast_comparisons` | Directory for cached inference JSONs. |
 | `--output-dir` | `images/figures/forecast_comparisons` | Directory for figure and sidecar output. |
@@ -167,7 +167,7 @@ type:checkpoint:label
     "label": "Chronos2",
     "dataset": "brown_2019",
     "seed": 42,
-    "forecast_length": 72,
+    "forecast_length": 96,
     "patients": ["bro_22", "bro_65", "bro_75", "bro_93", "bro_121"],
     ...
   },

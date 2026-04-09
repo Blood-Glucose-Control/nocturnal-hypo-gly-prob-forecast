@@ -132,7 +132,11 @@ def select_patients(
     randomly sample n_patients from all_patients using seed.
     """
     if explicit_patients:
-        return sorted(explicit_patients)
+        available = set(all_patients)
+        missing = [p for p in explicit_patients if p not in available]
+        if missing:
+            print(f"WARNING: Requested patients not found in holdout data: {missing}")
+        return sorted(p for p in explicit_patients if p in available)
     rng = np.random.RandomState(seed)
     n = min(n_patients or DEFAULT_N_PATIENTS, len(all_patients))
     return sorted(rng.choice(sorted(all_patients), n, replace=False).tolist())
@@ -141,7 +145,6 @@ def select_patients(
 def compute_run_hash(
     model_type: str,
     checkpoint: Optional[str],
-    label: str,
     dataset: str,
     config_dir: str,
     seed: int,
@@ -154,7 +157,8 @@ def compute_run_hash(
 
     The hash covers all parameters that affect which episodes are selected and
     what predictions are made, so the same set of arguments always maps to the
-    same cache file and different arguments never collide.
+    same cache file and different arguments never collide.  Display-only fields
+    like ``label`` are excluded so that relabelling a run hits the cache.
 
     Note: patients must be the fully resolved sorted list (not None) so that
     runs with the same patients always hit the same cache entry regardless of
@@ -163,7 +167,6 @@ def compute_run_hash(
     params = {
         "model_type": model_type,
         "checkpoint": checkpoint,
-        "label": label,
         "dataset": dataset,
         "config_dir": str(config_dir),
         "seed": seed,
@@ -201,6 +204,7 @@ def run_inference(
     model_type: str,
     checkpoint: Optional[str],
     label: str,
+    context_length: int,
     forecast_length: int,
     selected_episodes: List[Dict],
 ) -> List[Dict]:
@@ -211,7 +215,7 @@ def run_inference(
     """
     print(f"Loading {label} ({model_type}{', zero-shot' if not checkpoint else ''})...")
     model, _ = create_model_and_config(
-        model_type, checkpoint, forecast_length=forecast_length
+        model_type, checkpoint, context_length=context_length, forecast_length=forecast_length
     )
 
     results = []
@@ -571,7 +575,7 @@ def main() -> None:
         "--forecast-length",
         type=int,
         default=DEFAULT_FORECAST_LENGTH,
-        help="Forecast horizon in steps (default: 72 = 6 hours at 5-min intervals)",
+        help="Forecast horizon in steps (default: 96 = 8 hours at 5-min intervals)",
     )
     parser.add_argument(
         "--n-patients",
@@ -658,7 +662,6 @@ def main() -> None:
         run_hash = compute_run_hash(
             model_type,
             checkpoint,
-            label,
             args.dataset,
             args.config_dir,
             args.seed,
@@ -695,7 +698,7 @@ def main() -> None:
 
         for model_type, checkpoint, label, out_path in to_run:
             episodes = run_inference(
-                model_type, checkpoint, label, args.forecast_length, all_episodes
+                model_type, checkpoint, label, args.context_length, args.forecast_length, all_episodes
             )
             print(f"  {len(episodes)}/{len(all_episodes)} episodes succeeded")
             if episodes:

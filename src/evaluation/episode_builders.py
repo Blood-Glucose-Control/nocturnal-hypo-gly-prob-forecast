@@ -32,6 +32,7 @@ import numpy as np
 import pandas as pd
 
 from src.data.preprocessing.gap_handling import interpolate_small_gaps
+from src.data.utils import get_patient_column
 
 # Default holdout config directory (can be overridden by callers)
 DEFAULT_HOLDOUT_CONFIG_DIR = "configs/data/holdout_10pct"
@@ -244,7 +245,7 @@ def build_patient_episodes(
     Returns:
         Dict mapping patient_id -> list of episode dicts (each with 'patient_id' added).
     """
-    patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
+    patient_col = get_patient_column(holdout_data)
     episodes_by_patient: Dict[str, List[Dict[str, Any]]] = {}
 
     for pid in patients:
@@ -260,7 +261,7 @@ def build_patient_episodes(
             covariate_cols=covariate_cols,
         )
         valid = [
-            ep | {"patient_id": pid}
+            {**ep, "patient_id": pid}
             for ep in episodes
             if len(ep["target_bg"]) >= forecast_length
         ]

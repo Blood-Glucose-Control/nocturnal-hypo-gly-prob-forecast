@@ -267,9 +267,15 @@ def main():
 
     patient_col = get_patient_column(holdout_data)
     if args.patients:
+        requested = set(args.patients)
+        available = set(holdout_data[patient_col].unique())
+        missing = requested - available
+        if missing:
+            logger.warning(f"Requested patients not found in holdout data: {sorted(missing)}")
         holdout_data = holdout_data[holdout_data[patient_col].isin(args.patients)]
-        logger.info(f"Filtered to {len(args.patients)} patients: {args.patients}")
     patients = holdout_data[patient_col].unique()
+    if args.patients:
+        logger.info(f"Filtered to {len(patients)} of {len(args.patients)} requested patients: {list(patients)}")
     logger.info(f"Evaluating patients: {list(patients)}")
     logger.info(f"Total samples: {len(holdout_data):,}")
 
