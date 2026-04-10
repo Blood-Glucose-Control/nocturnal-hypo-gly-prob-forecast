@@ -85,6 +85,9 @@ moirai = [
     "lightning>=2.0",
     "transformers>=4.56.0",
 ]
+toto = [
+    "toto-ts",
+]
 
 [tool.setuptools.packages.find]
 include = ["src*"]

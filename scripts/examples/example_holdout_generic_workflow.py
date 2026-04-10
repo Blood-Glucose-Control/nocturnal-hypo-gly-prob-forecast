@@ -171,6 +171,7 @@ class ModelFactory:
             "timesfm": "google/timesfm-2.0-500m-pytorch",
             "timegrad": "",  # Trains from scratch, no pretrained path
             "tide": "",  # Trains from scratch, no pretrained path
+            "toto": "Datadog/Toto-Open-Base-1.0",
         }
         return defaults.get(model_type, "")
 
@@ -207,10 +208,12 @@ class ModelFactory:
             return ModelFactory._create_timegrad_model(config, distributed_config)
         elif model_type == "tide":
             return ModelFactory._create_tide_model(config, distributed_config)
+        elif model_type == "toto":
+            return ModelFactory._create_toto_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto"
             )
 
     @staticmethod
@@ -408,6 +411,38 @@ class ModelFactory:
             raise ImportError(
                 f"TiDE model not available. Install with: "
                 f"pip install 'nocturnal-hypo-gly-prob-forecast[tide]': {e}"
+            )
+
+    @staticmethod
+    def _create_toto_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a Toto model instance."""
+        try:
+            from src.models.toto import TotoForecaster, TotoConfig
+
+            # Build kwargs from extra_config, letting YAML values take
+            # precedence for Toto-specific params (lr, max_steps, etc.)
+            toto_kwargs = dict(config.extra_config) if config.extra_config else {}
+
+            # Set explicit args only if not already provided by YAML
+            toto_kwargs.setdefault("context_length", config.context_length)
+            toto_kwargs.setdefault("forecast_length", config.forecast_length)
+            toto_kwargs.setdefault("batch_size", config.batch_size)
+            if config.num_epochs is not None:
+                toto_kwargs.setdefault("num_epochs", config.num_epochs)
+            if config.learning_rate is not None and "lr" not in toto_kwargs:
+                toto_kwargs["lr"] = config.learning_rate
+            toto_kwargs.setdefault("use_cpu", config.use_cpu)
+
+            toto_config = TotoConfig(**toto_kwargs)
+
+            return TotoForecaster(toto_config, distributed_config=distributed_config)
+        except ImportError as e:
+            raise ImportError(
+                f"Toto model not available. Install with: "
+                f"source scripts/setup_model_env.sh toto\n{e}"
             )
 
     @staticmethod
@@ -674,10 +709,14 @@ class ModelFactory:
             from src.models.tide import TiDEForecaster
 
             return TiDEForecaster.load(model_path)
+        elif model_type_lower == "toto":
+            from src.models.toto import TotoForecaster
+
+            return TotoForecaster.load(model_path)
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto"
             )
 
 
@@ -1892,7 +1931,16 @@ stored in separate subdirectories for comparison.
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "chronos2", "moment", "timesfm", "timegrad", "tide"],
+        choices=[
+            "ttm",
+            "chronos",
+            "chronos2",
+            "moment",
+            "timesfm",
+            "timegrad",
+            "tide",
+            "toto",
+        ],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(

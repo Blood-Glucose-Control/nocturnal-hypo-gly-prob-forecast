@@ -67,12 +67,14 @@ def format_segments_for_autogluon(
     segments: Dict[str, pd.DataFrame],
     target_col: str = "bg_mM",
     covariate_cols: Optional[List[str]] = None,
+    target_cols: Optional[List[str]] = None,
 ) -> Any:
     """Convert gap-handled segments to AutoGluon TimeSeriesDataFrame.
 
-    Each segment becomes one item_id with variable length. AutoGluon
-    creates sliding windows internally during training, seeing both
-    past and future covariate values within each segment.
+    Single-target mode (default): each segment becomes one item_id.
+    Multi-target mode (target_cols has >1 entry): each segment is stacked
+    into N items (one per target column), with item_id = "{seg_id}__{col}".
+    covariate_cols are ignored in multi-target mode.
 
     Args:
         segments: Dict mapping segment_id -> DataFrame with DatetimeIndex.
@@ -80,12 +82,18 @@ def format_segments_for_autogluon(
         target_col: Column name for the target variable (e.g., "bg_mM").
         covariate_cols: Column names for covariates (e.g., ["iob"] or
             ["iob", "cob"]). Missing columns are filled with 0.
+        target_cols: Column names for multi-target mode (e.g., ["bg_mM", "iob"]).
+            When provided with >1 entry, enables long-format stacking.
 
     Returns:
         TimeSeriesDataFrame with columns ["target", <covariates>],
         indexed by (item_id, timestamp).
     """
     from autogluon.timeseries import TimeSeriesDataFrame
+
+    # Multi-target mode: stack each target column as a separate item
+    if target_cols and len(target_cols) > 1:
+        return _format_segments_multitarget(segments, target_cols)
 
     if covariate_cols is None:
         covariate_cols = ["iob"]
@@ -119,6 +127,65 @@ def format_segments_for_autogluon(
 
     logger.debug(
         "Formatted %d segments for AutoGluon: %s", len(segments), combined.shape
+    )
+    return TimeSeriesDataFrame(combined)
+
+
+def _format_segments_multitarget(
+    segments: Dict[str, pd.DataFrame],
+    target_cols: List[str],
+) -> Any:
+    """Stack multiple target columns as separate items for joint training.
+
+    Each segment contributes len(target_cols) items to the panel. For example,
+    with target_cols=["bg_mM", "iob"], segment "seg_001" produces items
+    "seg_001__bg_mM" and "seg_001__iob". The model trains on all items jointly
+    via shared weights.
+
+    Args:
+        segments: Dict mapping segment_id -> DataFrame with DatetimeIndex.
+        target_cols: Column names to use as targets (e.g., ["bg_mM", "iob"]).
+
+    Returns:
+        TimeSeriesDataFrame with single "target" column, indexed by
+        (item_id, timestamp).
+    """
+    from autogluon.timeseries import TimeSeriesDataFrame
+
+    data_list = []
+
+    for seg_id, seg_df in segments.items():
+        for col in target_cols:
+            if col not in seg_df.columns:
+                logger.warning(
+                    "Target column '%s' not in segment %s, skipping", col, seg_id
+                )
+                continue
+            vals = seg_df[col].ffill().fillna(0)
+            df = pd.DataFrame(
+                {
+                    "item_id": f"{seg_id}__{col}",
+                    "timestamp": seg_df.index,
+                    "target": vals.values,
+                }
+            )
+            data_list.append(df)
+
+    if not data_list:
+        raise ValueError(
+            "No valid multi-target segments found. "
+            "Check that target_cols columns exist in the data."
+        )
+
+    combined = pd.concat(data_list, ignore_index=True)
+    combined = combined.set_index(["item_id", "timestamp"])
+
+    logger.debug(
+        "Formatted %d multi-target items (%d segments x %d targets): %s",
+        len(data_list),
+        len(segments),
+        len(target_cols),
+        combined.shape,
     )
     return TimeSeriesDataFrame(combined)
 

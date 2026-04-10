@@ -18,11 +18,13 @@ from torch.utils.data import DataLoader
 
 # Local imports
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.models.moirai.config import MoiraiConfig
 from src.utils.logging_helper import error_print, info_print
 from uni2ts.model.moirai import MoiraiForecast, MoiraiFinetune, MoiraiModule
 
 
+@ModelRegistry.register("moirai")
 class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     """Moirai forecaster implementation using the base TSFM framework.
 
