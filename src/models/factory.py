@@ -237,7 +237,25 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "moirai":
-        raise NotImplementedError("Moirai model not yet implemented")
+        from src.models.moirai import MoiraiForecaster, MoiraiConfig
+
+        config = MoiraiConfig(
+            model_path=kwargs.get("model_path", "Salesforce/moirai-1.0-R-small"),
+            context_length=kwargs.get("context_length", 512),
+            forecast_length=kwargs.get("forecast_length", 72),
+            batch_size=kwargs.get("batch_size", 32),
+            learning_rate=kwargs.get("learning_rate", 1e-4),
+            num_epochs=kwargs.get("num_epochs", 1),
+            patch_size=kwargs.get("patch_size", "auto"),
+            num_samples=kwargs.get("num_samples", 100),
+            past_covariate_dim=kwargs.get("past_covariate_dim", 0),
+            checkpoint_path=checkpoint,
+            interval_mins=kwargs.get("interval_mins", 5),
+            target_col=kwargs.get("target_col", "bg_mM"),
+            covariate_cols=kwargs.get("covariate_cols", []),
+        )
+        model = MoiraiForecaster(config)
+        return model, config
 
     elif model_type == "timegrad":
         from src.models.timegrad import TimeGradForecaster, TimeGradConfig

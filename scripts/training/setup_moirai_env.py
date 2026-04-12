@@ -20,7 +20,7 @@ def run_cmd(cmd, description):
     print(f"  {description}")
     print(f"{'='*70}")
     print(f"  Command: {' '.join(cmd)}\n")
-    
+
     result = subprocess.run(cmd, capture_output=False, text=True)
     if result.returncode != 0:
         print(f"\n❌ Failed: {description}")
@@ -47,8 +47,7 @@ def main():
     if not venv_path.exists():
         print("\n  Creating virtual environment...")
         run_cmd(
-            [sys.executable, "-m", "venv", str(venv_path)],
-            "Create virtual environment"
+            [sys.executable, "-m", "venv", str(venv_path)], "Create virtual environment"
         )
     else:
         print(f"\n  Virtual environment already exists at {venv_path}")
@@ -61,15 +60,14 @@ def main():
 
     # Upgrade pip using python -m (works better on Windows)
     run_cmd(
-        [str(python_exe), "-m", "pip", "install", "--upgrade", "pip"],
-        "Upgrade pip"
+        [str(python_exe), "-m", "pip", "install", "--upgrade", "pip"], "Upgrade pip"
     )
 
     # Install project with moirai dependencies
     print("\n  Installing project with [moirai] dependencies...")
     run_cmd(
         [str(python_exe), "-m", "pip", "install", "-e", f"{repo_root}[moirai]"],
-        "Install project with moirai dependencies"
+        "Install project with moirai dependencies",
     )
 
     # Check installation
@@ -78,8 +76,12 @@ def main():
     print(f"{'='*70}")
 
     run_cmd(
-        [str(python_exe), "-c", "from uni2ts.model.moirai import MoiraiModule; print('✅ uni2ts/Moirai imported successfully')"],
-        "Verify uni2ts import"
+        [
+            str(python_exe),
+            "-c",
+            "from uni2ts.model.moirai import MoiraiModule; print('✅ uni2ts/Moirai imported successfully')",
+        ],
+        "Verify uni2ts import",
     )
 
     # Print activation instructions
@@ -88,25 +90,25 @@ def main():
         print(f"\n{'='*70}")
         print("  SETUP COMPLETE!")
         print(f"{'='*70}")
-        print(f"\n  To activate the environment on Windows PowerShell:")
-        print(f"    .venvs\\moirai\\Scripts\\Activate.ps1")
-        print(f"\n  Or on Windows CMD:")
-        print(f"    .venvs\\moirai\\Scripts\\activate.bat")
+        print("\n  To activate the environment on Windows PowerShell:")
+        print("    .venvs\\moirai\\Scripts\\Activate.ps1")
+        print("\n  Or on Windows CMD:")
+        print("    .venvs\\moirai\\Scripts\\activate.bat")
     else:
         activate_cmd = f"source {venv_path}/bin/activate"
         print(f"\n{'='*70}")
         print("  SETUP COMPLETE!")
         print(f"{'='*70}")
-        print(f"\n  To activate the environment:")
+        print("\n  To activate the environment:")
         print(f"    {activate_cmd}")
 
     print(f"\n  Python: {python_exe}")
-    print(f"  To verify setup, run:")
+    print("  To verify setup, run:")
     print(f"    {activate_cmd}")
-    print(f"    python -c 'from uni2ts.model.moirai import MoiraiModule'")
-    print(f"\n  To test Moirai training:")
+    print("    python -c 'from uni2ts.model.moirai import MoiraiModule'")
+    print("\n  To test Moirai training:")
     print(f"    {activate_cmd}")
-    print(f"    python scripts/examples/train_moirai_quick_test.py")
+    print("    python scripts/examples/train_moirai_quick_test.py")
     print(f"\n{'='*70}\n")
 
 
