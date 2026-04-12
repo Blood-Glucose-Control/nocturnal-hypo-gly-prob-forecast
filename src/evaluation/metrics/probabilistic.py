@@ -171,3 +171,122 @@ def compute_brier_score(
 
     indicator = (actuals < threshold).astype(np.float64)
     return float(np.mean((p_hat - indicator) ** 2))
+
+
+def _find_symmetric_quantile_pair(quantile_levels: List[float], level: float) -> tuple:
+    """Find the quantile indices bracketing a symmetric prediction interval.
+
+    For a given coverage level (e.g., 0.8), the symmetric interval uses
+    quantiles at (1-level)/2 and (1+level)/2 — i.e., 0.10 and 0.90.
+    Returns the indices of the closest available quantiles.
+
+    Args:
+        quantile_levels: Sorted list of quantile levels.
+        level: Nominal coverage level (e.g., 0.5 or 0.8).
+
+    Returns:
+        Tuple (lower_idx, upper_idx) into quantile_levels.
+
+    Raises:
+        ValueError: If no suitable pair can be found.
+    """
+    q_arr = np.array(quantile_levels, dtype=np.float64)
+    target_lower = (1.0 - level) / 2.0
+    target_upper = (1.0 + level) / 2.0
+    lower_idx = int(np.argmin(np.abs(q_arr - target_lower)))
+    upper_idx = int(np.argmin(np.abs(q_arr - target_upper)))
+    if lower_idx == upper_idx:
+        raise ValueError(
+            f"Cannot find distinct quantile pair for level={level} "
+            f"in quantile_levels={quantile_levels}"
+        )
+    return lower_idx, upper_idx
+
+
+def compute_coverage(
+    quantile_forecasts: np.ndarray,
+    actuals: np.ndarray,
+    quantile_levels: List[float],
+    level: float = 0.5,
+) -> float:
+    """Compute prediction interval coverage at a given nominal level.
+
+    For level=0.8, checks what fraction of actual values fall within the
+    [q_0.10, q_0.90] prediction interval. Perfect calibration → coverage ≈ level.
+
+    Args:
+        quantile_forecasts: Shape (n_quantiles, forecast_length).
+        actuals: Shape (forecast_length,).
+        quantile_levels: List of quantile levels in ascending order.
+        level: Nominal coverage level (e.g., 0.5 or 0.8).
+
+    Returns:
+        float: Empirical coverage fraction in [0, 1].
+    """
+    quantile_forecasts = np.asarray(quantile_forecasts, dtype=np.float64)
+    actuals = np.asarray(actuals, dtype=np.float64)
+
+    lower_idx, upper_idx = _find_symmetric_quantile_pair(quantile_levels, level)
+    lower = quantile_forecasts[lower_idx]
+    upper = quantile_forecasts[upper_idx]
+
+    covered = (actuals >= lower) & (actuals <= upper)
+    return float(np.mean(covered))
+
+
+def compute_sharpness(
+    quantile_forecasts: np.ndarray,
+    quantile_levels: List[float],
+    level: float = 0.5,
+) -> float:
+    """Compute mean prediction interval width (sharpness) at a given level.
+
+    Sharpness measures the average width of the prediction interval. Lower is
+    better (tighter intervals), conditional on adequate coverage.
+
+    Args:
+        quantile_forecasts: Shape (n_quantiles, forecast_length).
+        quantile_levels: List of quantile levels in ascending order.
+        level: Nominal coverage level (e.g., 0.5 or 0.8).
+
+    Returns:
+        float: Mean interval width in the same units as the forecasts (mmol/L).
+    """
+    quantile_forecasts = np.asarray(quantile_forecasts, dtype=np.float64)
+
+    lower_idx, upper_idx = _find_symmetric_quantile_pair(quantile_levels, level)
+    lower = quantile_forecasts[lower_idx]
+    upper = quantile_forecasts[upper_idx]
+
+    return float(np.mean(upper - lower))
+
+
+def compute_mace(
+    quantile_forecasts: np.ndarray,
+    actuals: np.ndarray,
+    quantile_levels: List[float],
+) -> float:
+    """Compute Mean Absolute Calibration Error (MACE).
+
+    For each quantile level q, computes the empirical coverage
+    c_q = mean(actual <= forecast_q), then returns mean(|c_q - q|) over all
+    quantile levels. A perfectly calibrated model has MACE = 0.
+
+    Args:
+        quantile_forecasts: Shape (n_quantiles, forecast_length).
+        actuals: Shape (forecast_length,).
+        quantile_levels: List of quantile levels in ascending order.
+
+    Returns:
+        float: MACE in [0, 1]. Lower is better.
+    """
+    quantile_forecasts = np.asarray(quantile_forecasts, dtype=np.float64)
+    actuals = np.asarray(actuals, dtype=np.float64)
+    q_arr = np.array(quantile_levels, dtype=np.float64)
+
+    # Empirical coverage for each quantile: fraction of timesteps where
+    # actual <= predicted quantile value.
+    # Shape: (n_quantiles,)
+    empirical = np.mean(actuals[np.newaxis, :] <= quantile_forecasts, axis=1)
+
+    return float(np.mean(np.abs(empirical - q_arr)))
