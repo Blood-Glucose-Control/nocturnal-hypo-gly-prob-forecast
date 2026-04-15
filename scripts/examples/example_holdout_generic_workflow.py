@@ -172,6 +172,7 @@ class ModelFactory:
             "timegrad": "",  # Trains from scratch, no pretrained path
             "tide": "",  # Trains from scratch, no pretrained path
             "toto": "Datadog/Toto-Open-Base-1.0",
+            "moirai": "Salesforce/moirai-1.0-R-small",
         }
         return defaults.get(model_type, "")
 
@@ -210,10 +211,12 @@ class ModelFactory:
             return ModelFactory._create_tide_model(config, distributed_config)
         elif model_type == "toto":
             return ModelFactory._create_toto_model(config, distributed_config)
+        elif model_type == "moirai":
+            return ModelFactory._create_moirai_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai"
             )
 
     @staticmethod
@@ -443,6 +446,36 @@ class ModelFactory:
             raise ImportError(
                 f"Toto model not available. Install with: "
                 f"source scripts/setup_model_env.sh toto\n{e}"
+            )
+
+    @staticmethod
+    def _create_moirai_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a Moirai model instance."""
+        try:
+            from src.models.moirai import MoiraiForecaster, MoiraiConfig
+
+            moirai_kwargs = dict(config.extra_config) if config.extra_config else {}
+
+            moirai_config = MoiraiConfig(
+                model_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                learning_rate=config.learning_rate,
+                **moirai_kwargs,
+            )
+
+            return MoiraiForecaster(
+                moirai_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"Moirai model not available. Install with: "
+                f"pip install 'nocturnal-hypo-gly-prob-forecast[moirai]'\n{e}"
             )
 
     @staticmethod
@@ -713,10 +746,24 @@ class ModelFactory:
             from src.models.toto import TotoForecaster
 
             return TotoForecaster.load(model_path)
+        elif model_type_lower == "moirai":
+            from src.models.moirai import MoiraiForecaster, MoiraiConfig
+
+            moirai_kwargs = dict(config.extra_config) if config.extra_config else {}
+            moirai_config = MoiraiConfig(
+                model_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                learning_rate=config.learning_rate,
+                **moirai_kwargs,
+            )
+            return MoiraiForecaster.load(model_path, moirai_config)
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai"
             )
 
 
@@ -1940,6 +1987,7 @@ stored in separate subdirectories for comparison.
             "timegrad",
             "tide",
             "toto",
+            "moirai",
         ],
         help="Type of model to use (default: ttm)",
     )

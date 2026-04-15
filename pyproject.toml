@@ -79,6 +79,12 @@ timesfm = [
 tide = [
     "autogluon.timeseries==1.5.0",
 ]
+moirai = [
+    "uni2ts @ git+https://github.com/SalesforceAIResearch/uni2ts.git",
+    "gluonts>=0.14.0",
+    "lightning>=2.0",
+    "transformers>=4.56.0",
+]
 toto = [
     "toto-ts",
 ]
