@@ -11,8 +11,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import torch
 from gluonts.dataset.common import ListDataset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 # Local imports
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
@@ -20,6 +21,42 @@ from src.models.base.registry import ModelRegistry
 from src.models.moirai.config import MoiraiConfig
 from src.utils.logging_helper import info_print
 from uni2ts.model.moirai import MoiraiForecast, MoiraiFinetune, MoiraiModule
+
+
+class _MoiraiPatchedDataset(Dataset):
+    """Pre-converted training samples in the patched format MoiraiFinetune expects."""
+
+    def __init__(
+        self,
+        target: torch.Tensor,
+        observed_mask: torch.Tensor,
+        sample_id: torch.Tensor,
+        time_id: torch.Tensor,
+        variate_id: torch.Tensor,
+        prediction_mask: torch.Tensor,
+        patch_size_val: int,
+    ):
+        self.target = target
+        self.observed_mask = observed_mask
+        self.sample_id = sample_id
+        self.time_id = time_id
+        self.variate_id = variate_id
+        self.prediction_mask = prediction_mask
+        self.patch_size_val = patch_size_val
+
+    def __len__(self) -> int:
+        return len(self.target)
+
+    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+        return {
+            "target": self.target[idx],
+            "observed_mask": self.observed_mask[idx],
+            "sample_id": self.sample_id[idx],
+            "time_id": self.time_id[idx],
+            "variate_id": self.variate_id[idx],
+            "prediction_mask": self.prediction_mask[idx],
+            "patch_size": torch.full_like(self.time_id[idx], self.patch_size_val),
+        }
 
 
 @ModelRegistry.register("moirai")
@@ -95,6 +132,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
         # Lazily initialised GluonTS predictor
         self.predictor: Optional[Any] = None
+        self._predictor_batch_size: Optional[int] = None
 
     @property
     def training_backend(self) -> TrainingBackend:
@@ -200,8 +238,9 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         bs = batch_size or self.config.batch_size
 
         # (Re)build the predictor if needed
-        if self.predictor is None:
-            self.predictor = self.model.create_predictor(batch_size=bs)
+        if self.predictor is None or bs != self._predictor_batch_size:
+            self.predictor = self.model.create_predictor(batch_size=bs)  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
+            self._predictor_batch_size = bs
 
         if isinstance(data, pd.DataFrame):
             # Single-episode DataFrame path (called from base class predict())
@@ -351,82 +390,264 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     def _train_model(
         self, train_data: Any, output_dir: str, **kwargs
     ) -> Dict[str, Any]:
-        """Fine-tune Moirai directly using PyTorch Lightning.
+        """Fine-tune Moirai using its native ``MoiraiFinetune`` Lightning module.
 
-        Simplified version that trains directly without the uni2ts CLI complexity.
+        Converts training data to the patched tensor format via
+        ``MoiraiForecast._convert()``, then runs a training loop with the
+        optimizer and LR schedule defined by ``MoiraiFinetune.configure_optimizers()``.
+
+        The best model weights (by training loss) are saved and loaded back
+        into ``self.model`` so subsequent ``predict*`` calls use the
+        fine-tuned weights.
 
         Args:
-            train_data: Dict {patient_id: [episode_list]} with episodes containing
-                "context_df" (timestamped DataFrame) and "target_bg" (numpy array)
-            output_dir: Directory for training outputs and checkpoints
-            **kwargs: Training kwargs (num_epochs, learning_rate, batch_size)
+            train_data: One of:
+
+                * ``pd.DataFrame`` — multi-patient DataFrame from the holdout
+                  workflow (columns: ``p_num``, ``datetime``, ``bg_mM``, …).
+                * ``dict`` — ``{patient_id: [episode_list]}`` with episode dicts
+                  containing ``context_df`` and ``target_bg``.
+                * ``list[dict]`` — flat list of episode dicts.
+
+            output_dir: Directory for training outputs and checkpoints.
+            **kwargs: Unused; accepted for forward-compatibility.
 
         Returns:
-            Dict with training metrics
+            Dict with ``status``, ``samples``, ``best_loss``, ``epochs``.
         """
-
-        info_print("👉 Starting Moirai fine-tuning with PyTorch Lightning")
+        info_print("👉 Starting Moirai fine-tuning")
         info_print(f"   Output directory: {output_dir}")
-
         os.makedirs(output_dir, exist_ok=True)
 
-        # Convert training data to GluonTS dataset
-        info_print("Step 1: Converting training data to GluonTS dataset...")
+        if self.model is None:
+            self.model = self._initialize_model()
 
-        if isinstance(train_data, pd.DataFrame):
-            # The generic workflow passes a raw DataFrame with columns like
-            # bg_mM, iob, insulin_availability, p_num, datetime, etc.
-            # We window it into context-length chunks per patient.
-            dataset = self._dataframe_to_training_dataset(train_data)
-        elif isinstance(train_data, dict):
-            flat_episodes = []
-            for patient_id, episodes in train_data.items():
-                if isinstance(episodes, list):
-                    flat_episodes.extend(episodes)
-                else:
-                    flat_episodes.append(episodes)
-            dataset = self._episodes_to_gluonts(flat_episodes)
-        elif (
-            isinstance(train_data, list)
-            and train_data
-            and isinstance(train_data[0], dict)
-        ):
-            dataset = self._episodes_to_gluonts(train_data)
-        else:
-            dataset = train_data
-        dataset_len = len(list(dataset))
-        info_print(f"   Prepared {dataset_len} samples for training")
+        device = torch.device(
+            "cuda" if torch.cuda.is_available() and not self.config.use_cpu else "cpu"
+        )
 
-        # Mark as fitted (simplified training - not doing full Lightning training)
-        info_print("Step 2: Marking model as fitted...")
+        # ------------------------------------------------------------------
+        # Step 1: Convert training data → (context, target) tensor pairs
+        # ------------------------------------------------------------------
+        info_print("Step 1: Preparing training tensors...")
+        tensors = self._prepare_training_tensors(train_data)
+        (
+            past_target,
+            future_target,
+            past_observed,
+            future_observed,
+            past_is_pad,
+            future_is_pad,
+            past_covariates,
+        ) = tensors
+        N = len(past_target)
+        info_print(f"   Prepared {N} training samples")
+
+        if N == 0:
+            raise ValueError("No valid training samples could be extracted")
+
+        # ------------------------------------------------------------------
+        # Step 2: Convert to the patched format MoiraiFinetune expects
+        # ------------------------------------------------------------------
+        info_print("Step 2: Converting to patched training format...")
+        patch_size = self._select_patch_size()
+        info_print(f"   Using patch_size={patch_size}")
+
+        all_tgt, all_obs, all_sid, all_tid, all_vid, all_pmask = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
+        chunk = min(self.config.batch_size, N)
+        for i in range(0, N, chunk):
+            sl = slice(i, min(i + chunk, N))
+            cov = past_covariates[sl] if past_covariates is not None else None
+            cov_obs = ~torch.isnan(cov) if cov is not None else None
+            tgt, obs, sid, tid, vid, pmask = self.model._convert(
+                patch_size,
+                past_target=past_target[sl],
+                past_observed_target=past_observed[sl],
+                past_is_pad=past_is_pad[sl],
+                future_target=future_target[sl],
+                future_observed_target=future_observed[sl],
+                future_is_pad=future_is_pad[sl],
+                past_feat_dynamic_real=cov,
+                past_observed_feat_dynamic_real=cov_obs,
+            )  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
+            all_tgt.append(tgt)
+            all_obs.append(obs)
+            all_sid.append(sid)
+            all_tid.append(tid)
+            all_vid.append(vid)
+            all_pmask.append(pmask)
+
+        dataset = _MoiraiPatchedDataset(
+            target=torch.cat(all_tgt),
+            observed_mask=torch.cat(all_obs),
+            sample_id=torch.cat(all_sid),
+            time_id=torch.cat(all_tid),
+            variate_id=torch.cat(all_vid),
+            prediction_mask=torch.cat(all_pmask),
+            patch_size_val=patch_size,
+        )
+        loader = DataLoader(
+            dataset,
+            batch_size=self.config.batch_size,
+            shuffle=True,
+            num_workers=0,
+        )
+
+        # ------------------------------------------------------------------
+        # Step 3: Build MoiraiFinetune module and optimizer
+        # ------------------------------------------------------------------
+        num_epochs = self.config.num_epochs
+        steps_per_epoch = max(1, len(loader))
+        total_steps = steps_per_epoch * num_epochs
+        warmup_steps = min(self.config.warmup_steps, max(1, total_steps // 5))
+
+        finetune_module = MoiraiFinetune(
+            module=self.model.module,
+            min_patches=2,
+            min_mask_ratio=0.15,
+            max_mask_ratio=0.5,
+            max_dim=128,
+            num_training_steps=total_steps,
+            num_warmup_steps=warmup_steps,
+            lr=self.config.learning_rate,
+            weight_decay=self.config.weight_decay,
+            finetune_pattern=self.config.finetune_pattern,
+            context_length=self.config.context_length,
+            prediction_length=self.config.forecast_length,
+            patch_size=patch_size,
+        )
+        finetune_module.to(device)
+
+        opt_config = finetune_module.configure_optimizers()
+        optimizer = opt_config["optimizer"]
+        scheduler = opt_config["lr_scheduler"]["scheduler"]
+
+        # ------------------------------------------------------------------
+        # Step 4: Training loop
+        # ------------------------------------------------------------------
+        info_print(
+            f"Step 3: Training for {num_epochs} epoch(s) "
+            f"({total_steps} steps, lr={self.config.learning_rate})..."
+        )
+        best_loss = float("inf")
+        best_state: Optional[Dict[str, torch.Tensor]] = None
+
+        finetune_module.train()
+        global_step = 0
+        for epoch in range(num_epochs):
+            epoch_loss = 0.0
+            n_batches = 0
+            for batch in loader:
+                batch = {k: v.to(device) for k, v in batch.items()}
+
+                optimizer.zero_grad()
+
+                distr = finetune_module(
+                    **{
+                        field: batch[field]
+                        for field in list(finetune_module.seq_fields) + ["sample_id"]
+                    }
+                )
+                loss = finetune_module.hparams.loss_func(
+                    pred=distr,
+                    target=batch["target"],
+                    prediction_mask=batch["prediction_mask"],
+                    observed_mask=batch["observed_mask"],
+                    sample_id=batch["sample_id"],
+                    variate_id=batch["variate_id"],
+                )
+
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    finetune_module.parameters(),
+                    self.config.gradient_clip_val,
+                )
+                optimizer.step()
+                scheduler.step()
+
+                epoch_loss += loss.item()
+                n_batches += 1
+                global_step += 1
+
+            avg_loss = epoch_loss / max(n_batches, 1)
+            info_print(f"   Epoch {epoch + 1}/{num_epochs}: loss={avg_loss:.6f}")
+
+            if avg_loss < best_loss:
+                best_loss = avg_loss
+                best_state = {
+                    k: v.cpu().clone()
+                    for k, v in finetune_module.module.state_dict().items()
+                }
+
+        # ------------------------------------------------------------------
+        # Step 5: Reload best weights and rebuild MoiraiForecast
+        # ------------------------------------------------------------------
+        if best_state is not None:
+            finetune_module.module.load_state_dict(best_state)
+
+        self.model = MoiraiForecast(
+            module=finetune_module.module,
+            prediction_length=self.config.forecast_length,
+            context_length=self.config.context_length,
+            patch_size=self.config.patch_size,
+            num_samples=self.config.num_samples,
+            target_dim=1,
+            feat_dynamic_real_dim=0,
+            past_feat_dynamic_real_dim=self.config.past_covariate_dim,
+        )
+        self.predictor = None  # Force predictor rebuild
         self.is_fitted = True
-        info_print("✅ Training ready (model marked as fitted)")
 
-        return {"status": "fitted", "samples": dataset_len}
+        info_print(f"✅ Fine-tuning complete. Best epoch loss: {best_loss:.6f}")
+        return {
+            "status": "fitted",
+            "samples": N,
+            "best_loss": best_loss,
+            "epochs": num_epochs,
+        }
 
     def _save_checkpoint(self, output_dir: str) -> None:
-        """Save the current model config; raw weights live in the HF / ckpt file.
+        """Save the fine-tuned MoiraiModule weights to ``output_dir``.
 
-        The pretrained weights are managed by HuggingFace / uni2ts; we only
-        record the config so the model can be reconstructed via ``load()``.
+        If the model has been fine-tuned (``is_fitted`` is True and
+        ``self.model.module`` exists), the full ``state_dict`` is persisted
+        as ``moirai_finetuned.pt``.  The base class has already written
+        ``config.json`` and ``metadata.json`` before this method is called.
         """
-        info_print(
-            "Moirai checkpoint weights are managed by HuggingFace / uni2ts. "
-            "Saving MoiraiConfig only."
-        )
-        # config.json is already written by the base class save() call
+        if (
+            not self.is_fitted
+            or self.model is None
+            or not hasattr(self.model, "module")
+        ):
+            info_print("No fine-tuned weights to save (zero-shot mode)")
+            return
+
+        weights_path = os.path.join(output_dir, "moirai_finetuned.pt")
+        torch.save(self.model.module.state_dict(), weights_path)
+        info_print(f"Saved fine-tuned Moirai weights: {weights_path}")
 
     def _load_checkpoint(self, model_dir: str) -> None:
-        """Reload the model from the config stored in ``model_dir``.
+        """Reload the model from ``model_dir``.
 
-        Reads ``config.json`` and re-runs ``_initialize_model()`` so that the
-        correct pretrained or fine-tuned weights are loaded.
+        Loading priority:
+
+        1. ``moirai_finetuned.pt`` — fine-tuned weights saved by
+           ``_save_checkpoint()``.
+        2. ``config.checkpoint_path`` — external ``.ckpt`` Lightning
+           checkpoint (e.g. from the ``uni2ts`` CLI).
+        3. Pretrained HuggingFace weights (zero-shot fallback).
 
         Args:
-            model_dir: Directory containing ``config.json`` (written by
-                ``save()``).
+            model_dir: Directory containing ``config.json`` (and optionally
+                ``moirai_finetuned.pt``).
         """
-
         config_path = os.path.join(model_dir, "config.json")
         if not os.path.exists(config_path):
             raise FileNotFoundError(f"No config.json found in {model_dir}")
@@ -434,12 +655,31 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         with open(config_path) as f:
             config_dict = json.load(f)
 
-        # Rebuild config with all Moirai fields
         self.config = MoiraiConfig(**config_dict)
 
-        # Re-initialise (loads weights from HF or checkpoint)
-        self.model = self._initialize_model()
-        self.predictor = None  # Force predictor rebuild on next predict call
+        weights_path = os.path.join(model_dir, "moirai_finetuned.pt")
+        if os.path.exists(weights_path):
+            info_print(f"Loading fine-tuned Moirai weights: {weights_path}")
+            # Start from pretrained architecture, override with saved weights
+            module = MoiraiModule.from_pretrained(self.config.model_path)
+            state_dict = torch.load(weights_path, map_location="cpu")
+            module.load_state_dict(state_dict)
+
+            self.model = MoiraiForecast(
+                module=module,
+                prediction_length=self.config.forecast_length,
+                context_length=self.config.context_length,
+                patch_size=self.config.patch_size,
+                num_samples=self.config.num_samples,
+                target_dim=1,
+                feat_dynamic_real_dim=0,
+                past_feat_dynamic_real_dim=self.config.past_covariate_dim,
+            )
+        else:
+            # Fall back to _initialize_model (handles .ckpt and pretrained)
+            self.model = self._initialize_model()
+
+        self.predictor = None
         self.is_fitted = True
 
     def build_gluonts_dataset(
@@ -606,7 +846,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
         bs = batch_size or self.config.batch_size
         if self.predictor is None:
-            self.predictor = self.model.create_predictor(batch_size=bs)
+            self.predictor = self.model.create_predictor(batch_size=bs)  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
 
         forecasts = list(self.predictor.predict(dataset))
 
@@ -701,6 +941,152 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             episodes,
             self.config.target_col,
             self.config.covariate_cols or None,
+        )
+
+    # ------------------------------------------------------------------
+    # Training helpers
+    # ------------------------------------------------------------------
+
+    def _select_patch_size(self) -> int:
+        """Choose a fixed patch size for training.
+
+        If ``config.patch_size`` is an explicit integer it is returned as-is.
+        Otherwise the largest available patch size that yields at least 4
+        context patches is selected from the ``MoiraiModule.patch_sizes``.
+        """
+        if isinstance(self.config.patch_size, int):
+            return self.config.patch_size
+        ctx = self.config.context_length
+        available = sorted(self.model.module.patch_sizes, reverse=True)
+        for ps in available:
+            if ctx // ps >= 4:
+                return ps
+        return available[-1]
+
+    def _prepare_training_tensors(
+        self, train_data: Any
+    ) -> Tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        Optional[torch.Tensor],
+    ]:
+        """Convert training data to aligned tensor batches on CPU.
+
+        Returns:
+            Tuple of ``(past_target, future_target, past_observed,
+            future_observed, past_is_pad, future_is_pad, past_covariates)``.
+            Each target/observed tensor has shape ``(N, length, dim)``;
+            ``past_covariates`` is ``None`` when no covariates are configured.
+        """
+        ctx_len = self.config.context_length
+        fh_len = self.config.forecast_length
+        total_len = ctx_len + fh_len
+        target_col = self.config.target_col
+        cov_cols = self.config.covariate_cols or []
+
+        contexts: List[np.ndarray] = []
+        targets: List[np.ndarray] = []
+        covariates: List[np.ndarray] = []
+
+        if isinstance(train_data, pd.DataFrame):
+            available_covs = [c for c in cov_cols if c in train_data.columns]
+            for _, pat_df in train_data.groupby("p_num"):
+                if "datetime" in pat_df.columns:
+                    pat_df = pat_df.set_index("datetime").sort_index()
+                elif not isinstance(pat_df.index, pd.DatetimeIndex):
+                    continue
+                pat_df = pat_df.dropna(subset=[target_col])
+                bg = pat_df[target_col].values
+                cov = pat_df[available_covs].values if available_covs else None
+                for s in range(0, len(bg) - total_len + 1, total_len):
+                    contexts.append(bg[s : s + ctx_len])
+                    targets.append(bg[s + ctx_len : s + total_len])
+                    if cov is not None:
+                        covariates.append(cov[s : s + ctx_len])
+
+        elif isinstance(train_data, dict):
+            for _pid, episodes in train_data.items():
+                if not isinstance(episodes, list):
+                    episodes = [episodes]
+                for ep in episodes:
+                    ctx_df = ep["context_df"]
+                    tgt_bg = ep["target_bg"]
+                    ctx_bg = ctx_df[target_col].values[-ctx_len:]
+                    tgt_bg = tgt_bg[:fh_len]
+                    if len(ctx_bg) != ctx_len or len(tgt_bg) != fh_len:
+                        continue
+                    contexts.append(ctx_bg.astype(np.float32))
+                    targets.append(tgt_bg.astype(np.float32))
+                    if cov_cols:
+                        avail = [c for c in cov_cols if c in ctx_df.columns]
+                        if avail:
+                            covariates.append(
+                                ctx_df[avail].values[-ctx_len:].astype(np.float32)
+                            )
+
+        elif isinstance(train_data, list) and train_data:
+            for ep in train_data:
+                ctx_df = ep["context_df"]
+                tgt_bg = ep["target_bg"]
+                ctx_bg = ctx_df[target_col].values[-ctx_len:]
+                tgt_bg = tgt_bg[:fh_len]
+                if len(ctx_bg) != ctx_len or len(tgt_bg) != fh_len:
+                    continue
+                contexts.append(ctx_bg.astype(np.float32))
+                targets.append(tgt_bg.astype(np.float32))
+                if cov_cols:
+                    avail = [c for c in cov_cols if c in ctx_df.columns]
+                    if avail:
+                        covariates.append(
+                            ctx_df[avail].values[-ctx_len:].astype(np.float32)
+                        )
+
+        if not contexts:
+            return (
+                torch.empty(0),
+                torch.empty(0),
+                torch.empty(0),
+                torch.empty(0),
+                torch.empty(0),
+                torch.empty(0),
+                None,
+            )
+
+        # Shape: (N, length, 1) for univariate BG
+        past_target = torch.tensor(np.stack(contexts), dtype=torch.float32).unsqueeze(
+            -1
+        )
+        future_target = torch.tensor(np.stack(targets), dtype=torch.float32).unsqueeze(
+            -1
+        )
+
+        past_observed = ~torch.isnan(past_target)
+        future_observed = ~torch.isnan(future_target)
+
+        # Impute NaN with 0 (matches uni2ts DummyValueImputation)
+        past_target = torch.nan_to_num(past_target, nan=0.0)
+        future_target = torch.nan_to_num(future_target, nan=0.0)
+
+        past_is_pad = torch.zeros(len(contexts), ctx_len, dtype=torch.long)
+        future_is_pad = torch.zeros(len(targets), fh_len, dtype=torch.long)
+
+        past_covariates: Optional[torch.Tensor] = None
+        if covariates and len(covariates) == len(contexts):
+            past_covariates = torch.tensor(np.stack(covariates), dtype=torch.float32)
+            past_covariates = torch.nan_to_num(past_covariates, nan=0.0)
+
+        return (
+            past_target,
+            future_target,
+            past_observed,
+            future_observed,
+            past_is_pad,
+            future_is_pad,
+            past_covariates,
         )
 
     def _dataframe_to_training_dataset(self, df: pd.DataFrame) -> ListDataset:
