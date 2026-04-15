@@ -68,19 +68,23 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     support. This class wraps the uni2ts ``MoiraiForecast`` / ``MoiraiFinetune``
     APIs inside the project's unified ``BaseTimeSeriesFoundationModel`` interface.
 
-    Two usage modes are supported:
+    Three usage modes are supported:
 
     1. **Zero-shot inference** — pass a ``MoiraiConfig`` with just ``model_path``
        and optionally ``past_covariate_dim``.  The pretrained HuggingFace weights
        are loaded automatically.
 
-    2. **Fine-tuned checkpoint** — set ``config.checkpoint_path`` to a ``.ckpt``
-       file produced by the ``uni2ts`` CLI (``python -m cli.train …``).  The
-       fine-tuned module weights are extracted and used for inference.
+    2. **In-class fine-tuning** — call ``_train_model()`` (via the base class
+       training interface) to fine-tune using ``MoiraiFinetune``.  Training
+       data is converted to the patched tensor format, a training loop runs
+       with the optimizer and LR schedule from ``MoiraiFinetune``, and the
+       best weights are saved via ``_save_checkpoint()`` / loaded via
+       ``_load_checkpoint()``.
 
-    In-class fine-tuning is intentionally **not** implemented here; the
-    ``uni2ts`` CLI handles that workflow externally (see the notebook for the
-    full data-prep → CLI-train → checkpoint-load pipeline).
+    3. **External checkpoint loading** — set ``config.checkpoint_path`` to a
+       ``.ckpt`` file produced by the ``uni2ts`` CLI or any other external
+       trainer.  The fine-tuned module weights are extracted and used for
+       inference.
 
     Attributes:
         config: Moirai-specific configuration (``MoiraiConfig`` instance).
@@ -439,6 +443,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             past_is_pad,
             future_is_pad,
             past_covariates,
+            past_observed_covariates,
         ) = tensors
         N = len(past_target)
         info_print(f"   Prepared {N} training samples")
@@ -466,7 +471,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         for i in range(0, N, chunk):
             sl = slice(i, min(i + chunk, N))
             cov = past_covariates[sl] if past_covariates is not None else None
-            cov_obs = ~torch.isnan(cov) if cov is not None else None
+            cov_obs = past_observed_covariates[sl] if past_observed_covariates is not None else None
             tgt, obs, sid, tid, vid, pmask = self.model._convert(
                 patch_size,
                 past_target=past_target[sl],
@@ -974,14 +979,17 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         torch.Tensor,
         torch.Tensor,
         Optional[torch.Tensor],
+        Optional[torch.Tensor],
     ]:
         """Convert training data to aligned tensor batches on CPU.
 
         Returns:
             Tuple of ``(past_target, future_target, past_observed,
-            future_observed, past_is_pad, future_is_pad, past_covariates)``.
+            future_observed, past_is_pad, future_is_pad, past_covariates,
+            past_observed_covariates)``.
             Each target/observed tensor has shape ``(N, length, dim)``;
-            ``past_covariates`` is ``None`` when no covariates are configured.
+            ``past_covariates`` and ``past_observed_covariates`` are ``None``
+            when no covariates are configured.
         """
         ctx_len = self.config.context_length
         fh_len = self.config.forecast_length
@@ -1055,6 +1063,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 torch.empty(0),
                 torch.empty(0),
                 None,
+                None,
             )
 
         # Shape: (N, length, 1) for univariate BG
@@ -1076,8 +1085,10 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         future_is_pad = torch.zeros(len(targets), fh_len, dtype=torch.long)
 
         past_covariates: Optional[torch.Tensor] = None
+        past_observed_covariates: Optional[torch.Tensor] = None
         if covariates and len(covariates) == len(contexts):
             past_covariates = torch.tensor(np.stack(covariates), dtype=torch.float32)
+            past_observed_covariates = ~torch.isnan(past_covariates)
             past_covariates = torch.nan_to_num(past_covariates, nan=0.0)
 
         return (
@@ -1088,6 +1099,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             past_is_pad,
             future_is_pad,
             past_covariates,
+            past_observed_covariates,
         )
 
     def _dataframe_to_training_dataset(self, df: pd.DataFrame) -> ListDataset:
