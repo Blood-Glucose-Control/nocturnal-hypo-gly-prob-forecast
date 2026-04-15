@@ -471,7 +471,11 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         for i in range(0, N, chunk):
             sl = slice(i, min(i + chunk, N))
             cov = past_covariates[sl] if past_covariates is not None else None
-            cov_obs = past_observed_covariates[sl] if past_observed_covariates is not None else None
+            cov_obs = (
+                past_observed_covariates[sl]
+                if past_observed_covariates is not None
+                else None
+            )
             tgt, obs, sid, tid, vid, pmask = self.model._convert(
                 patch_size,
                 past_target=past_target[sl],
