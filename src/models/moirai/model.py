@@ -66,6 +66,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         >>> model = MoiraiForecaster(config)
     """
 
+    config_class = MoiraiConfig
+
     def __init__(self, config: MoiraiConfig, lora_config=None, distributed_config=None):
         """Initialize the Moirai forecaster.
 
@@ -144,7 +146,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
         info_print(f"  past_feat_dynamic_real_dim = {self.config.past_covariate_dim}")
 
-        model = MoiraiForecast(
+        self.model = MoiraiForecast(
             module=module,
             prediction_length=self.config.forecast_length,
             context_length=self.config.context_length,
@@ -156,7 +158,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         )
 
         info_print("  Moirai loaded successfully")
-        return model
+        return self.model
 
     def _predict(
         self,
