@@ -757,8 +757,9 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         dataset = self.build_gluonts_dataset(episodes, t_col, cov_cols or None)
 
         bs = batch_size or self.config.batch_size
-        if self.predictor is None:
+        if self.predictor is None or bs != self._predictor_batch_size:
             self.predictor = self.model.create_predictor(batch_size=bs)  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
+            self._predictor_batch_size = bs
 
         forecasts = list(self.predictor.predict(dataset))
 

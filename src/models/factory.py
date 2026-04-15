@@ -239,22 +239,46 @@ def create_model_and_config(
     elif model_type == "moirai":
         from src.models.moirai import MoiraiForecaster, MoiraiConfig
 
-        config = MoiraiConfig(
-            model_path=kwargs.get("model_path", "Salesforce/moirai-1.0-R-small"),
-            context_length=kwargs.get("context_length", 512),
-            forecast_length=kwargs.get("forecast_length", 72),
-            batch_size=kwargs.get("batch_size", 32),
-            learning_rate=kwargs.get("learning_rate", 1e-4),
-            num_epochs=kwargs.get("num_epochs", 1),
-            patch_size=kwargs.get("patch_size", "auto"),
-            num_samples=kwargs.get("num_samples", 100),
-            past_covariate_dim=kwargs.get("past_covariate_dim", 0),
-            checkpoint_path=checkpoint,
-            interval_mins=kwargs.get("interval_mins", 5),
-            target_col=kwargs.get("target_col", "bg_mM"),
-            covariate_cols=kwargs.get("covariate_cols", []),
-        )
-        model = MoiraiForecaster(config)
+        if checkpoint and os.path.isdir(checkpoint):
+            # Base-class save format (model.pt/ directory with config.json)
+            model = MoiraiForecaster.load(checkpoint)
+            config = model.config
+
+            # Apply valid overrides
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "num_samples" in kwargs:
+                config.num_samples = kwargs["num_samples"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            # Zero-shot or .ckpt Lightning checkpoint
+            config = MoiraiConfig(
+                model_path=kwargs.get("model_path", "Salesforce/moirai-1.0-R-small"),
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                batch_size=kwargs.get("batch_size", 32),
+                learning_rate=kwargs.get("learning_rate", 1e-4),
+                num_epochs=kwargs.get("num_epochs", 1),
+                patch_size=kwargs.get("patch_size", "auto"),
+                num_samples=kwargs.get("num_samples", 100),
+                past_covariate_dim=kwargs.get("past_covariate_dim", 0),
+                checkpoint_path=checkpoint,
+                interval_mins=kwargs.get("interval_mins", 5),
+                target_col=kwargs.get("target_col", "bg_mM"),
+                covariate_cols=kwargs.get("covariate_cols", []),
+            )
+            model = MoiraiForecaster(config)
         return model, config
 
     elif model_type == "timegrad":
