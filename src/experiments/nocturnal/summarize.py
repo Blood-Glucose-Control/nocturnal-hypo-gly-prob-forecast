@@ -141,13 +141,13 @@ class NocturnalSummarizer(ExperimentSummarizer):
             "mape": float("nan"),
             "mse": float("nan"),
             # Probabilistic metrics (NaN for non-probabilistic runs)
-            "wql": data.get("overall_wql", float("nan")),
-            "brier_3_9": data.get("overall_brier", float("nan")),
-            "mace": data.get("overall_mace", float("nan")),
-            "coverage_50": data.get("overall_coverage_50", float("nan")),
-            "coverage_80": data.get("overall_coverage_80", float("nan")),
-            "sharpness_50": data.get("overall_sharpness_50", float("nan")),
-            "sharpness_80": data.get("overall_sharpness_80", float("nan")),
+            "wql": _as_float(data.get("overall_wql")),
+            "brier_3_9": _as_float(data.get("overall_brier")),
+            "mace": _as_float(data.get("overall_mace")),
+            "coverage_50": _as_float(data.get("overall_coverage_50")),
+            "coverage_80": _as_float(data.get("overall_coverage_80")),
+            "sharpness_50": _as_float(data.get("overall_sharpness_50")),
+            "sharpness_80": _as_float(data.get("overall_sharpness_80")),
             "total_episodes": int(total_episodes),
             "git_commit": git_commit,
             "run_path": str(run_dir),
@@ -157,6 +157,16 @@ class NocturnalSummarizer(ExperimentSummarizer):
 # ------------------------------------------------------------------
 # Private helpers
 # ------------------------------------------------------------------
+
+
+def _as_float(value: Any) -> float:
+    """Coerce to float, returning NaN for missing or non-numeric values."""
+    if value is None:
+        return float("nan")
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
 
 
 def _read_git_commit(run_dir: Path) -> str | None:

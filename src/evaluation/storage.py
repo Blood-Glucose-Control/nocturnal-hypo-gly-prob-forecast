@@ -116,16 +116,12 @@ def _write_tier2(
 ) -> Path:
     """Write ``episodes.parquet`` - per-episode scalar metrics, no arrays."""
     per_episode: List[Dict[str, Any]] = results.get("per_episode", [])
-    if not per_episode:
-        # Write an empty parquet with the expected schema
-        df = pd.DataFrame()
-    else:
-        # Strip array columns
-        rows = [
-            {k: v for k, v in ep.items() if k not in _ARRAY_COLUMNS}
-            for ep in per_episode
-        ]
-        df = pd.DataFrame(rows)
+    # Strip array columns
+    rows = [
+        {k: v for k, v in ep.items() if k not in _ARRAY_COLUMNS}
+        for ep in per_episode
+    ]
+    df = pd.DataFrame(rows)
 
     path = output_path / "episodes.parquet"
     df.to_parquet(path, index=False, engine="pyarrow")
@@ -147,7 +143,8 @@ def _write_tier3(
     """
     q_forecasts = results["_q_forecasts"]  # (n_eps, n_q, fh)
     actuals = results["_actuals_array"]  # (n_eps, fh)
-    episode_ids = np.array(results["_episode_ids"], dtype=object)
+    # dtype=str → fixed-width unicode, avoids pickling (allow_pickle=False-safe)
+    episode_ids = np.array(results["_episode_ids"], dtype=str)
     quantile_levels = np.array(results.get("quantile_levels", []), dtype=np.float64)
 
     path = output_path / "forecasts.npz"
