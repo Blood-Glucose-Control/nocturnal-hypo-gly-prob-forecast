@@ -5,7 +5,7 @@ This module provides configuration classes specific to Moirai models,
 extending the base model configuration with Moirai-specific parameters.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from typing import Dict, List, Optional
 
 from src.models.base import ModelConfig
@@ -124,8 +124,8 @@ class MoiraiConfig(ModelConfig):
 
         Args:
             **kwargs: Any ModelConfig or Moirai-specific parameters. Unknown
-                keys are silently accepted and stored as attributes so that
-                ``create_moirai_model()`` can forward arbitrary kwargs cleanly.
+                keys are silently ignored so that config round-tripping
+                through JSON (e.g. ``_load_checkpoint``) is forward-compatible.
         """
         # Keys that belong only to MoiraiConfig, not ModelConfig
         moirai_only_keys = {
@@ -145,7 +145,12 @@ class MoiraiConfig(ModelConfig):
             "data_config",
         }
 
-        base_kwargs = {k: v for k, v in kwargs.items() if k not in moirai_only_keys}
+        base_field_names = {f.name for f in fields(ModelConfig)}
+        base_kwargs = {
+            k: v
+            for k, v in kwargs.items()
+            if k not in moirai_only_keys and k in base_field_names
+        }
         super().__init__(**base_kwargs)
 
         self.model_type = "moirai"

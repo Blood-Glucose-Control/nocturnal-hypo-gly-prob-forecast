@@ -451,6 +451,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         # ------------------------------------------------------------------
         info_print("Step 2: Converting to patched training format...")
         patch_size = self._select_patch_size()
+        self.config.patch_size = patch_size  # persist resolved value for rebuild & save
         info_print(f"   Using patch_size={patch_size}")
 
         all_tgt, all_obs, all_sid, all_tid, all_vid, all_pmask = (
