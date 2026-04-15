@@ -64,9 +64,7 @@ def write_nocturnal_results(
 
     written["tier1"] = _write_tier1(results, metadata, output_path)
     written["tier2"] = _write_tier2(results, output_path)
-
-    if "_q_forecasts" in results:
-        written["tier3"] = _write_tier3(results, output_path)
+    written["tier3"] = _write_tier3(results, output_path)
 
     return written
 
@@ -118,8 +116,7 @@ def _write_tier2(
     per_episode: List[Dict[str, Any]] = results.get("per_episode", [])
     # Strip array columns
     rows = [
-        {k: v for k, v in ep.items() if k not in _ARRAY_COLUMNS}
-        for ep in per_episode
+        {k: v for k, v in ep.items() if k not in _ARRAY_COLUMNS} for ep in per_episode
     ]
     df = pd.DataFrame(rows)
 
@@ -133,26 +130,32 @@ def _write_tier3(
     results: Dict[str, Any],
     output_path: Path,
 ) -> Path:
-    """Write ``forecasts.npz`` - compressed raw quantile arrays.
+    """Write ``forecasts.npz`` - compressed raw forecast arrays.
 
-    Contents:
+    Always written. Contents:
+        predictions:        (n_episodes, forecast_length) — point forecasts
+                            (median quantile when probabilistic)
+        actuals:            (n_episodes, forecast_length)
+        episode_ids:        (n_episodes,) fixed-width unicode
         quantile_forecasts: (n_episodes, n_quantiles, forecast_length)
-        actuals: (n_episodes, forecast_length)
-        episode_ids: (n_episodes,) string array
-        quantile_levels: (n_quantiles,) float array
+                            Empty array when run was non-probabilistic.
+        quantile_levels:    (n_quantiles,) float
+                            Empty array when run was non-probabilistic.
     """
-    q_forecasts = results["_q_forecasts"]  # (n_eps, n_q, fh)
+    predictions = results["_predictions"]  # (n_eps, fh)
     actuals = results["_actuals_array"]  # (n_eps, fh)
     # dtype=str → fixed-width unicode, avoids pickling (allow_pickle=False-safe)
     episode_ids = np.array(results["_episode_ids"], dtype=str)
+    q_forecasts = results.get("_q_forecasts", np.empty((0, 0, 0), dtype=np.float64))
     quantile_levels = np.array(results.get("quantile_levels", []), dtype=np.float64)
 
     path = output_path / "forecasts.npz"
     np.savez_compressed(
         path,
-        quantile_forecasts=q_forecasts,
+        predictions=predictions,
         actuals=actuals,
         episode_ids=episode_ids,
+        quantile_forecasts=q_forecasts,
         quantile_levels=quantile_levels,
     )
     size_mb = path.stat().st_size / (1024 * 1024)

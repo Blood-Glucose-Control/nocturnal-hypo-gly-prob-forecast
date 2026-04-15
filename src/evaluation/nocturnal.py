@@ -196,8 +196,11 @@ def evaluate_nocturnal_forecasting(
     patient_episodes: Dict[str, list] = {}
     discontinuities = []
 
-    # Accumulators for Tier 3 raw arrays (probabilistic only)
-    all_q_forecasts: List[np.ndarray] = []
+    # Accumulators for Tier 3 raw arrays
+    all_q_forecasts: List[np.ndarray] = []  # probabilistic only
+    all_predictions: List[
+        np.ndarray
+    ] = []  # point forecasts (median when probabilistic)
     all_actuals_arrays: List[np.ndarray] = []
     all_episode_ids: List[str] = []
 
@@ -230,12 +233,14 @@ def evaluate_nocturnal_forecasting(
                 compute_sharpness(q_forecast, quantile_levels, level=0.8)
             )
 
-            # Accumulate for Tier 3
             all_q_forecasts.append(q_forecast)
-            all_actuals_arrays.append(target)
-            all_episode_ids.append(ep_id)
         else:
             pred = raw[: len(target)]
+
+        # Accumulate arrays for Tier 3 storage (every episode, all modes)
+        all_predictions.append(pred)
+        all_actuals_arrays.append(target)
+        all_episode_ids.append(ep_id)
 
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
 
@@ -320,6 +325,10 @@ def evaluate_nocturnal_forecasting(
         "total_episodes": len(all_episode_results),
         "per_patient": all_patient_results,
         "per_episode": all_episode_results,
+        # Internal: raw arrays for Tier 3 storage (underscore = not JSON-serializable)
+        "_predictions": np.stack(all_predictions),  # (n_eps, fh)
+        "_actuals_array": np.stack(all_actuals_arrays),  # (n_eps, fh)
+        "_episode_ids": all_episode_ids,
     }
 
     log_msg = f"Nocturnal evaluation: {overall_rmse:.4f} RMSE, {mean_disc:.4f} mean discontinuity"
@@ -349,11 +358,7 @@ def evaluate_nocturnal_forecasting(
             compute_mace(q_stacked, actuals_concat, quantile_levels)
         )
         results["quantile_levels"] = quantile_levels
-
-        # Internal: raw arrays for Tier 3 storage (underscore = not JSON-serializable)
         results["_q_forecasts"] = np.stack(all_q_forecasts)  # (n_eps, n_q, fh)
-        results["_actuals_array"] = np.stack(all_actuals_arrays)  # (n_eps, fh)
-        results["_episode_ids"] = all_episode_ids
 
         log_msg += (
             f", {results['overall_wql']:.4f} WQL"

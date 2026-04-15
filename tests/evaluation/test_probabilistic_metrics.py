@@ -271,9 +271,7 @@ class TestComputeMACE:
         actuals = rng.uniform(0, 10, size=n)
         levels = [0.1, 0.3, 0.5, 0.7, 0.9]
         # Set each forecast quantile to the empirical quantile of actuals
-        q_forecast = np.array(
-            [[np.quantile(actuals, q)] * n for q in levels]
-        )
+        q_forecast = np.array([[np.quantile(actuals, q)] * n for q in levels])
         mace = compute_mace(q_forecast, actuals, levels)
         assert mace < 0.01  # approximately perfectly calibrated
 
@@ -294,9 +292,7 @@ class TestComputeMACE:
         levels = [0.1, 0.3, 0.5, 0.7, 0.9]
         for _ in range(20):
             actuals = rng.uniform(2.0, 15.0, size=72)
-            q_vals = np.sort(
-                rng.uniform(2.0, 15.0, size=(len(levels), 72)), axis=0
-            )
+            q_vals = np.sort(rng.uniform(2.0, 15.0, size=(len(levels), 72)), axis=0)
             mace = compute_mace(q_vals, actuals, levels)
             assert 0.0 <= mace <= 1.0
 
