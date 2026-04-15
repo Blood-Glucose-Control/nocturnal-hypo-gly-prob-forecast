@@ -722,6 +722,13 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             >>> preds = model._predict(ds)
         """
         freq = f"{self.config.interval_mins}min"
+
+        if covariate_cols and len(covariate_cols) != self.config.past_covariate_dim:
+            raise ValueError(
+                f"len(covariate_cols)={len(covariate_cols)} does not match "
+                f"config.past_covariate_dim={self.config.past_covariate_dim}"
+            )
+
         entries = []
 
         for ep in episodes:
@@ -731,6 +738,12 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 "target": ctx[target_col].to_numpy(dtype=np.float32),
             }
             if covariate_cols:
+                missing = [c for c in covariate_cols if c not in ctx.columns]
+                if missing:
+                    raise ValueError(
+                        f"Covariate columns {missing} not found in context_df. "
+                        f"Available: {list(ctx.columns)}"
+                    )
                 # shape: (n_covariates, context_length)
                 entry["past_feat_dynamic_real"] = (
                     ctx[covariate_cols].to_numpy(dtype=np.float32).T
@@ -934,11 +947,15 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             "target": df[self.config.target_col].to_numpy(dtype=np.float32),
         }
         if self.config.covariate_cols:
-            available_covs = [c for c in self.config.covariate_cols if c in df.columns]
-            if available_covs:
-                entry["past_feat_dynamic_real"] = (
-                    df[available_covs].to_numpy(dtype=np.float32).T
+            missing = [c for c in self.config.covariate_cols if c not in df.columns]
+            if missing:
+                raise ValueError(
+                    f"Covariate columns {missing} not found in DataFrame. "
+                    f"Available: {list(df.columns)}"
                 )
+            entry["past_feat_dynamic_real"] = (
+                df[self.config.covariate_cols].to_numpy(dtype=np.float32).T
+            )
         return ListDataset([entry], freq=freq)
 
     def _episodes_to_gluonts(self, episodes: list) -> ListDataset:
