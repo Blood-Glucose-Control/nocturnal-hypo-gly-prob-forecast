@@ -267,129 +267,18 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     def _prepare_training_data(
         self, data: Any, split: Optional[str] = None
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
-        """Prepare training data for Moirai (episodes → DataLoader format, not used for CLI).
+        """Base-class compatibility stub (not used by Moirai).
 
-        Args:
-            data: Dict of episodes {patient_id: [episode_list]} or DataFrame
-            split: Optional, not used (data splitting handled by uni2ts)
-
-        Returns:
-            Tuple of (DataLoader, None, None). Only train_loader is populated;
-            the CLI handles all data splitting internally.
-
-        Note:
-            This method is for compatibility with the base class interface but is
-            NOT used for actual CLI training. The _train_model method calls
-            _export_training_data separately to prepare CSV for the CLI.
+        Moirai's ``_train_model()`` calls ``_prepare_training_tensors()``
+        directly to produce the patched tensor format that
+        ``MoiraiFinetune`` expects, so this method is never invoked.
         """
-        # This is a compatibility stub. Actual CLI training uses _export_training_data.
-        # We return a dummy DataLoader here.
         dataset = ListDataset(
             [{"target": np.array([0.0])} for _ in range(10)],
             freq=f"{self.config.interval_mins}min",
         )
         loader = DataLoader(dataset, batch_size=self.config.batch_size)
         return loader, None, None
-
-    def _export_training_data(
-        self,
-        train_data: Any,
-        output_dir: str,
-        target_col: str = "bg_mM",
-        context_len: int = 512,
-        horizon: int = 72,
-    ) -> str:
-        """Export episodes to wide-format CSV for uni2ts CLI training.
-
-        Args:
-            train_data: Dict {patient_id: [episode_list]} where each episode contains:
-                - "context_df": DataFrame with time-indexed context window
-                - "target_bg": np.ndarray of ground truth BG values (horizon)
-            output_dir: Directory to save training CSV
-            target_col: Name of the BG column in context_df
-            context_len: Number of context steps (should match config.context_length)
-            horizon: Number of forecast steps (should match config.forecast_length)
-
-        Returns:
-            Path to the exported wide-format CSV file
-
-        Raises:
-            ValueError: If train_data format is invalid
-            FileNotFoundError: If output_dir cannot be created
-        """
-        if not isinstance(train_data, dict):
-            raise ValueError(
-                f"train_data must be a dict of episodes {{patient_id: [episodes]}}, "
-                f"got {type(train_data)}"
-            )
-
-        os.makedirs(output_dir, exist_ok=True)
-        total_len = context_len + horizon
-        episode_data = {}
-
-        # Flatten all episodes and assign column names
-        for patient_id, episodes in train_data.items():
-            if not isinstance(episodes, list):
-                raise ValueError(
-                    f"train_data[{patient_id}] must be a list of episodes, "
-                    f"got {type(episodes)}"
-                )
-
-            for ep_idx, ep in enumerate(episodes):
-                col_name = f"{patient_id}_{ep_idx:03d}"
-
-                # Extract context and target BG
-                if (
-                    not isinstance(ep, dict)
-                    or "context_df" not in ep
-                    or "target_bg" not in ep
-                ):
-                    raise ValueError(
-                        f"Each episode must be a dict with 'context_df' and 'target_bg' keys. "
-                        f"Got episode at {col_name}: {list(ep.keys()) if isinstance(ep, dict) else type(ep)}"
-                    )
-
-                context_df = ep["context_df"]
-                target_bg = ep["target_bg"]
-
-                # Extract context BG values
-                if target_col not in context_df.columns:
-                    raise ValueError(
-                        f"Column '{target_col}' not found in context_df for {col_name}. "
-                        f"Available columns: {list(context_df.columns)}"
-                    )
-
-                context_bg = context_df[target_col].values
-                full_series = np.concatenate([context_bg, target_bg])
-
-                if len(full_series) != total_len:
-                    info_print(
-                        f"Warning: {col_name} has {len(full_series)} steps "
-                        f"(expected {total_len}), skipping"
-                    )
-                    continue
-
-                episode_data[col_name] = full_series
-
-        if not episode_data:
-            raise ValueError("No valid episodes found in train_data")
-
-        # Create DataFrame with synthetic aligned timestamps
-        synthetic_index = pd.date_range(
-            "2024-01-01 00:00:00",
-            periods=total_len,
-            freq=f"{self.config.interval_mins}min",
-        )
-
-        df = pd.DataFrame(episode_data, index=synthetic_index)
-        df.index.name = "datetime"
-
-        # Save to CSV
-        csv_path = os.path.join(output_dir, "train_wide.csv")
-        df.to_csv(csv_path)
-        info_print(f"Exported {len(df.columns)} episodes to {csv_path}")
-
-        return csv_path
 
     def _train_model(
         self, train_data: Any, output_dir: str, **kwargs
@@ -665,7 +554,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         with open(config_path) as f:
             config_dict = json.load(f)
 
-        self.config = MoiraiConfig(**config_dict)
+        self.config = MoiraiConfig.from_dict(config_dict)
 
         weights_path = os.path.join(model_dir, "moirai_finetuned.pt")
         if os.path.exists(weights_path):
@@ -1023,7 +912,13 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         covariates: List[np.ndarray] = []
 
         if isinstance(train_data, pd.DataFrame):
-            available_covs = [c for c in cov_cols if c in train_data.columns]
+            if cov_cols:
+                missing = [c for c in cov_cols if c not in train_data.columns]
+                if missing:
+                    raise ValueError(
+                        f"Covariate columns {missing} not found in training "
+                        f"DataFrame. Available: {list(train_data.columns)}"
+                    )
             for _, pat_df in train_data.groupby("p_num"):
                 if "datetime" in pat_df.columns:
                     pat_df = pat_df.set_index("datetime").sort_index()
@@ -1031,7 +926,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                     continue
                 pat_df = pat_df.dropna(subset=[target_col])
                 bg = pat_df[target_col].values
-                cov = pat_df[available_covs].values if available_covs else None
+                cov = pat_df[cov_cols].values if cov_cols else None
                 for s in range(0, len(bg) - total_len + 1, total_len):
                     contexts.append(bg[s : s + ctx_len])
                     targets.append(bg[s + ctx_len : s + total_len])
@@ -1052,11 +947,15 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                     contexts.append(ctx_bg.astype(np.float32))
                     targets.append(tgt_bg.astype(np.float32))
                     if cov_cols:
-                        avail = [c for c in cov_cols if c in ctx_df.columns]
-                        if avail:
-                            covariates.append(
-                                ctx_df[avail].values[-ctx_len:].astype(np.float32)
+                        missing = [c for c in cov_cols if c not in ctx_df.columns]
+                        if missing:
+                            raise ValueError(
+                                f"Covariate columns {missing} not found in "
+                                f"episode context_df. Available: {list(ctx_df.columns)}"
                             )
+                        covariates.append(
+                            ctx_df[cov_cols].values[-ctx_len:].astype(np.float32)
+                        )
 
         elif isinstance(train_data, list) and train_data:
             for ep in train_data:
@@ -1069,11 +968,15 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 contexts.append(ctx_bg.astype(np.float32))
                 targets.append(tgt_bg.astype(np.float32))
                 if cov_cols:
-                    avail = [c for c in cov_cols if c in ctx_df.columns]
-                    if avail:
-                        covariates.append(
-                            ctx_df[avail].values[-ctx_len:].astype(np.float32)
+                    missing = [c for c in cov_cols if c not in ctx_df.columns]
+                    if missing:
+                        raise ValueError(
+                            f"Covariate columns {missing} not found in "
+                            f"episode context_df. Available: {list(ctx_df.columns)}"
                         )
+                    covariates.append(
+                        ctx_df[cov_cols].values[-ctx_len:].astype(np.float32)
+                    )
 
         if not contexts:
             return (
@@ -1122,58 +1025,6 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             past_covariates,
             past_observed_covariates,
         )
-
-    def _dataframe_to_training_dataset(self, df: pd.DataFrame) -> ListDataset:
-        """Window a raw multi-patient DataFrame into GluonTS training entries.
-
-        The generic holdout workflow passes a single large DataFrame with all
-        patients concatenated.  This method groups by patient, sets a datetime
-        index, and slices non-overlapping windows of ``context_length`` steps,
-        producing one GluonTS entry per window.
-
-        Args:
-            df: Combined training DataFrame with ``p_num``, ``datetime``, and
-                at least ``config.target_col``.
-
-        Returns:
-            GluonTS ``ListDataset`` of windowed entries.
-        """
-        freq = f"{self.config.interval_mins}min"
-        target_col = self.config.target_col
-        cov_cols = self.config.covariate_cols or []
-        available_covs = [c for c in cov_cols if c in df.columns]
-        window = self.config.context_length
-        patient_col = "p_num"
-
-        entries: List[Dict[str, Any]] = []
-
-        for _, pat_df in df.groupby(patient_col):
-            # Ensure datetime index
-            if "datetime" in pat_df.columns:
-                pat_df = pat_df.set_index("datetime").sort_index()
-            elif not isinstance(pat_df.index, pd.DatetimeIndex):
-                continue
-
-            # Drop rows where target is NaN (can't train on gaps)
-            pat_df = pat_df.dropna(subset=[target_col])
-            if len(pat_df) < window:
-                continue
-
-            # Non-overlapping windows
-            for start_idx in range(0, len(pat_df) - window + 1, window):
-                chunk = pat_df.iloc[start_idx : start_idx + window]
-                entry: Dict[str, Any] = {
-                    "start": chunk.index[0],
-                    "target": chunk[target_col].to_numpy(dtype=np.float32),
-                }
-                if available_covs:
-                    entry["past_feat_dynamic_real"] = (
-                        chunk[available_covs].to_numpy(dtype=np.float32).T
-                    )
-                entries.append(entry)
-
-        info_print(f"   Windowed {len(entries)} training segments from DataFrame")
-        return ListDataset(entries, freq=freq)
 
 
 def create_moirai_model(
