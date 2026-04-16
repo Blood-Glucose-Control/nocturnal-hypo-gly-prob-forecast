@@ -46,6 +46,7 @@ from src.evaluation.nocturnal import (
     plot_best_worst_episodes,
     STEPS_PER_HOUR,
 )
+from src.evaluation.storage import write_nocturnal_results
 from src.models import create_model_and_config
 from src.utils import get_git_commit_hash, setup_file_logging, load_yaml_config
 
@@ -101,14 +102,6 @@ def save_experiment_config(
     with open(config_file, "w") as f:
         json.dump(config, f, indent=2)
     logger.info(f"Experiment config saved to: {config_file}")
-
-
-def save_results(results: Dict[str, Any], output_path: Path) -> None:
-    """Save evaluation results to JSON file."""
-    results_file = output_path / "nocturnal_results.json"
-    with open(results_file, "w") as f:
-        json.dump(results, f, indent=2, default=str)
-    logger.info(f"Results saved to: {results_file}")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -228,6 +221,16 @@ def main():
         args.model, checkpoint=args.checkpoint, **model_kwargs
     )
 
+    # Early check: ensure model supports probabilistic forecasting if requested
+    if args.probabilistic and not model.supports_probabilistic_forecast:
+        logger.error(
+            "%s does not support probabilistic forecasting. "
+            "Remove --probabilistic or use a model that supports it "
+            "(e.g., chronos2).",
+            args.model,
+        )
+        raise ValueError("Model does not support probabilistic forecasting")
+
     context_length = config.context_length
     forecast_length = config.forecast_length
     mode = "Fine-tuned" if args.checkpoint else "Zero-shot"
@@ -325,10 +328,15 @@ def main():
     if "overall_wql" in results:
         logger.info(f"Overall WQL:  {results['overall_wql']:.4f}")
         logger.info(f"Overall Brier@3.9: {results['overall_brier']:.4f}")
+        logger.info(f"Overall MACE: {results['overall_mace']:.4f}")
+        logger.info(f"Coverage 50%%: {results['overall_coverage_50']:.3f}")
+        logger.info(f"Coverage 80%%: {results['overall_coverage_80']:.3f}")
+        logger.info(f"Sharpness 50%%: {results['overall_sharpness_50']:.3f}")
+        logger.info(f"Sharpness 80%%: {results['overall_sharpness_80']:.3f}")
     logger.info(f"Total midnight episodes: {results['total_episodes']}")
 
-    # Prepare full results
-    full_results = {
+    # Save results (3-tier storage)
+    tier_metadata = {
         "evaluation_type": "nocturnal_hypoglycemia",
         "model": args.model,
         "mode": mode.lower(),
@@ -336,11 +344,10 @@ def main():
         "dataset": args.dataset,
         "timestamp": datetime.now().isoformat(),
         "config": resolved_config,
-        **results,
     }
-
-    # Save results
-    save_results(full_results, output_path)
+    written = write_nocturnal_results(results, output_path, tier_metadata)
+    for tier_name, tier_path in written.items():
+        logger.info(f"  {tier_name}: {tier_path}")
 
     # Generate best/worst episode plots
     logger.info("\n--- Generating Plots ---")
