@@ -28,7 +28,13 @@ import pandas as pd
 from src.data.utils import get_patient_column
 from src.evaluation.episode_builders import build_midnight_episodes
 from src.evaluation.metrics import compute_regression_metrics
-from src.evaluation.metrics.probabilistic import compute_wql, compute_brier_score
+from src.evaluation.metrics.probabilistic import (
+    compute_wql,
+    compute_brier_score,
+    compute_coverage,
+    compute_sharpness,
+    compute_mace,
+)
 
 # Constants
 SAMPLING_INTERVAL_MINUTES = 5
@@ -102,12 +108,19 @@ def evaluate_nocturnal_forecasting(
                 )
                 continue
 
+        # In multi-target mode, joint_target_cols (e.g. ["bg_mM", "iob"]) must be
+        # included as covariates so they appear in context_df for stacking.
+        effective_covs = list(covariate_cols) if covariate_cols else []
+        if hasattr(model, "config") and getattr(model.config, "is_multitarget", False):
+            for col in getattr(model.config, "joint_target_cols", []):
+                if col != target_col and col not in effective_covs:
+                    effective_covs.append(col)
         episodes, _ = build_midnight_episodes(
             patient_df,
             context_length=context_length,
             forecast_length=forecast_length,
             target_col=target_col,
-            covariate_cols=covariate_cols,
+            covariate_cols=effective_covs or None,
             interval_mins=interval_mins,
         )
 
@@ -183,6 +196,14 @@ def evaluate_nocturnal_forecasting(
     patient_episodes: Dict[str, list] = {}
     discontinuities = []
 
+    # Accumulators for Tier 3 raw arrays
+    all_q_forecasts: List[np.ndarray] = []  # probabilistic only
+    all_predictions: List[
+        np.ndarray
+    ] = []  # point forecasts (median when probabilistic)
+    all_actuals_arrays: List[np.ndarray] = []
+    all_episode_ids: List[str] = []
+
     for ctx_df, meta in zip(context_dfs, episode_metadata):
         ep_id = meta["episode_id"]
         target = np.asarray(meta["target_bg"])
@@ -199,8 +220,27 @@ def evaluate_nocturnal_forecasting(
             pred = q_forecast[median_idx]  # median as point forecast
             ep_wql = float(compute_wql(q_forecast, target, quantile_levels))
             ep_brier = float(compute_brier_score(q_forecast, target, quantile_levels))
+            ep_coverage_50 = float(
+                compute_coverage(q_forecast, target, quantile_levels, level=0.5)
+            )
+            ep_coverage_80 = float(
+                compute_coverage(q_forecast, target, quantile_levels, level=0.8)
+            )
+            ep_sharpness_50 = float(
+                compute_sharpness(q_forecast, quantile_levels, level=0.5)
+            )
+            ep_sharpness_80 = float(
+                compute_sharpness(q_forecast, quantile_levels, level=0.8)
+            )
+
+            all_q_forecasts.append(q_forecast)
         else:
             pred = raw[: len(target)]
+
+        # Accumulate arrays for Tier 3 storage (every episode, all modes)
+        all_predictions.append(pred)
+        all_actuals_arrays.append(target)
+        all_episode_ids.append(ep_id)
 
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
 
@@ -222,6 +262,10 @@ def evaluate_nocturnal_forecasting(
         if probabilistic:
             ep_result["wql"] = ep_wql
             ep_result["brier"] = ep_brier
+            ep_result["coverage_50"] = ep_coverage_50
+            ep_result["coverage_80"] = ep_coverage_80
+            ep_result["sharpness_50"] = ep_sharpness_50
+            ep_result["sharpness_80"] = ep_sharpness_80
 
         all_episode_results.append(ep_result)
 
@@ -281,6 +325,10 @@ def evaluate_nocturnal_forecasting(
         "total_episodes": len(all_episode_results),
         "per_patient": all_patient_results,
         "per_episode": all_episode_results,
+        # Internal: raw arrays for Tier 3 storage (underscore = not JSON-serializable)
+        "_predictions": np.stack(all_predictions),  # (n_eps, fh)
+        "_actuals_array": np.stack(all_actuals_arrays),  # (n_eps, fh)
+        "_episode_ids": all_episode_ids,
     }
 
     log_msg = f"Nocturnal evaluation: {overall_rmse:.4f} RMSE, {mean_disc:.4f} mean discontinuity"
@@ -291,8 +339,34 @@ def evaluate_nocturnal_forecasting(
         results["overall_brier"] = float(
             np.mean([ep["brier"] for ep in all_episode_results])
         )
+        results["overall_coverage_50"] = float(
+            np.mean([ep["coverage_50"] for ep in all_episode_results])
+        )
+        results["overall_coverage_80"] = float(
+            np.mean([ep["coverage_80"] for ep in all_episode_results])
+        )
+        results["overall_sharpness_50"] = float(
+            np.mean([ep["sharpness_50"] for ep in all_episode_results])
+        )
+        results["overall_sharpness_80"] = float(
+            np.mean([ep["sharpness_80"] for ep in all_episode_results])
+        )
+        # MACE computed from stacked arrays (all timesteps, all quantiles)
+        q_stacked = np.concatenate(all_q_forecasts, axis=1)  # (n_q, total_timesteps)
+        actuals_concat = np.concatenate(all_actuals_arrays)  # (total_timesteps,)
+        results["overall_mace"] = float(
+            compute_mace(q_stacked, actuals_concat, quantile_levels)
+        )
         results["quantile_levels"] = quantile_levels
-        log_msg += f", {results['overall_wql']:.4f} WQL, {results['overall_brier']:.4f} Brier@{HYPO_THRESHOLD_MMOL}"
+        results["_q_forecasts"] = np.stack(all_q_forecasts)  # (n_eps, n_q, fh)
+
+        log_msg += (
+            f", {results['overall_wql']:.4f} WQL"
+            f", {results['overall_brier']:.4f} Brier@{HYPO_THRESHOLD_MMOL}"
+            f", {results['overall_mace']:.4f} MACE"
+            f", cov50={results['overall_coverage_50']:.3f}"
+            f", cov80={results['overall_coverage_80']:.3f}"
+        )
     log_msg += f" over {len(all_episode_results)} midnight episodes"
     logger.info(log_msg)
 

@@ -171,3 +171,149 @@ def compute_brier_score(
 
     indicator = (actuals < threshold).astype(np.float64)
     return float(np.mean((p_hat - indicator) ** 2))
+
+
+def _validate_quantile_inputs(
+    quantile_forecasts: np.ndarray,
+    quantile_levels: List[float],
+    actuals: np.ndarray = None,
+) -> np.ndarray:
+    """Shared validation for probabilistic metric inputs.
+
+    Checks quantile_forecasts shape, matching length with quantile_levels,
+    and monotonicity of quantile_levels. When ``actuals`` is provided, also
+    checks it matches the forecast horizon.
+
+    Returns the validated quantile_levels as a sorted np.ndarray.
+    """
+    if quantile_forecasts.ndim != 2:
+        raise ValueError(
+            f"quantile_forecasts must be 2D (n_quantiles, forecast_length), "
+            f"got shape {quantile_forecasts.shape}"
+        )
+    if len(quantile_levels) != quantile_forecasts.shape[0]:
+        raise ValueError(
+            f"len(quantile_levels)={len(quantile_levels)} does not match "
+            f"quantile_forecasts.shape[0]={quantile_forecasts.shape[0]}"
+        )
+    if actuals is not None and actuals.shape[0] != quantile_forecasts.shape[1]:
+        raise ValueError(
+            f"actuals length {actuals.shape[0]} does not match "
+            f"forecast_length {quantile_forecasts.shape[1]}"
+        )
+    q_arr = np.array(quantile_levels, dtype=np.float64)
+    if not np.all(np.diff(q_arr) > 0):
+        raise ValueError("quantile_levels must be strictly increasing.")
+    return q_arr
+
+
+def _interval_bounds(
+    quantile_forecasts: np.ndarray,
+    q_arr: np.ndarray,
+    level: float,
+) -> tuple:
+    """Return (lower, upper) prediction interval bounds at the given level.
+
+    When the target quantiles (e.g., 0.25 and 0.75 for level=0.5) are not
+    present in ``q_arr``, the bounds are linearly interpolated from the
+    available quantile forecasts at each timestep. Values outside the
+    available range are clamped to the outermost quantile values.
+    """
+    if not 0.0 < level < 1.0:
+        raise ValueError(f"level must be in (0, 1), got {level}")
+    target_lower = (1.0 - level) / 2.0
+    target_upper = (1.0 + level) / 2.0
+
+    forecast_length = quantile_forecasts.shape[1]
+    lower = np.empty(forecast_length, dtype=np.float64)
+    upper = np.empty(forecast_length, dtype=np.float64)
+    for t in range(forecast_length):
+        lower[t] = np.interp(target_lower, q_arr, quantile_forecasts[:, t])
+        upper[t] = np.interp(target_upper, q_arr, quantile_forecasts[:, t])
+    return lower, upper
+
+
+def compute_coverage(
+    quantile_forecasts: np.ndarray,
+    actuals: np.ndarray,
+    quantile_levels: List[float],
+    level: float = 0.5,
+) -> float:
+    """Compute prediction interval coverage at a given nominal level.
+
+    For level=0.8, measures the fraction of actual values that fall within
+    the [q_0.10, q_0.90] prediction interval. Perfect calibration yields
+    coverage ≈ level. When the target quantiles are not present, the interval
+    bounds are linearly interpolated from the available quantile forecasts.
+
+    Args:
+        quantile_forecasts: Shape (n_quantiles, forecast_length).
+        actuals: Shape (forecast_length,). Ground-truth values.
+        quantile_levels: List of quantile levels in strictly increasing order.
+        level: Nominal coverage level in (0, 1). Default 0.5.
+
+    Returns:
+        float: Empirical coverage fraction in [0, 1].
+    """
+    quantile_forecasts = np.asarray(quantile_forecasts, dtype=np.float64)
+    actuals = np.asarray(actuals, dtype=np.float64)
+    q_arr = _validate_quantile_inputs(quantile_forecasts, quantile_levels, actuals)
+
+    lower, upper = _interval_bounds(quantile_forecasts, q_arr, level)
+    covered = (actuals >= lower) & (actuals <= upper)
+    return float(np.mean(covered))
+
+
+def compute_sharpness(
+    quantile_forecasts: np.ndarray,
+    quantile_levels: List[float],
+    level: float = 0.5,
+) -> float:
+    """Compute mean prediction interval width (sharpness) at a given level.
+
+    Sharpness measures the average width of the prediction interval. Lower is
+    better (tighter intervals), conditional on adequate coverage. When the
+    target quantiles are not present, bounds are linearly interpolated.
+
+    Args:
+        quantile_forecasts: Shape (n_quantiles, forecast_length).
+        quantile_levels: List of quantile levels in strictly increasing order.
+        level: Nominal coverage level in (0, 1). Default 0.5.
+
+    Returns:
+        float: Mean interval width in the same units as the forecasts (mmol/L).
+    """
+    quantile_forecasts = np.asarray(quantile_forecasts, dtype=np.float64)
+    q_arr = _validate_quantile_inputs(quantile_forecasts, quantile_levels)
+
+    lower, upper = _interval_bounds(quantile_forecasts, q_arr, level)
+    return float(np.mean(upper - lower))
+
+
+def compute_mace(
+    quantile_forecasts: np.ndarray,
+    actuals: np.ndarray,
+    quantile_levels: List[float],
+) -> float:
+    """Compute Mean Absolute Calibration Error (MACE).
+
+    For each quantile level q, computes the empirical coverage
+    c_q = mean(actual <= forecast_q), then returns mean(|c_q - q|) over all
+    quantile levels. A perfectly calibrated model has MACE = 0.
+
+    Args:
+        quantile_forecasts: Shape (n_quantiles, forecast_length).
+        actuals: Shape (forecast_length,).
+        quantile_levels: List of quantile levels in strictly increasing order.
+
+    Returns:
+        float: MACE in [0, 1]. Lower is better.
+    """
+    quantile_forecasts = np.asarray(quantile_forecasts, dtype=np.float64)
+    actuals = np.asarray(actuals, dtype=np.float64)
+    q_arr = _validate_quantile_inputs(quantile_forecasts, quantile_levels, actuals)
+
+    # Empirical coverage for each quantile: fraction of timesteps where
+    # actual <= predicted quantile value.  Shape: (n_quantiles,)
+    empirical = np.mean(actuals[np.newaxis, :] <= quantile_forecasts, axis=1)
+    return float(np.mean(np.abs(empirical - q_arr)))
