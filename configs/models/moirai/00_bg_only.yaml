@@ -1,0 +1,41 @@
+# =============================================================================
+# Moirai — Blood Glucose Only Baseline
+# =============================================================================
+# BG (bg_mM) as the sole input — no covariates. past_covariate_dim=0.
+# This is the BG-only baseline for comparison against covariate models.
+#
+# Uses Moirai-Small (14M params) for fast iteration. Switch model_path
+# to "Salesforce/moirai-1.0-R-base" (91M) for production runs.
+#
+# Usage:
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="moirai" \
+#   MODEL_CONFIG="configs/models/moirai/00_bg_only.yaml" \
+#   CONFIG_DIR="configs/data/holdout_10pct" \
+#   DATASETS="aleppo_2017 brown_2019 lynch_2022 tamborlane_2008" \
+#   SKIP_TRAINING="false" SKIP_STEPS="7" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+model_path: "Salesforce/moirai-1.0-R-small"
+context_length: 512
+forecast_length: 96  # 8 hours at 5-min intervals
+
+training_mode: "fine_tune"
+freeze_backbone: false
+learning_rate: 1.0e-4
+batch_size: 32
+num_epochs: 5
+
+# Inference
+patch_size: "auto"
+num_samples: 50
+
+# BG only — no covariates
+past_covariate_dim: 0
+covariate_cols: []
+target_col: "bg_mM"
+interval_mins: 5
+
+# Hardware
+fp16: true
+use_cpu: false
