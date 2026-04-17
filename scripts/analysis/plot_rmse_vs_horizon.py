@@ -46,7 +46,7 @@ def load_horizon(path: str) -> list[dict]:
     if p.suffix == ".npz":
         data = np.load(p, allow_pickle=False)
         pred_matrix = data["predictions"]  # (n_episodes, forecast_length)
-        tgt_matrix = data["actuals"]       # (n_episodes, forecast_length)
+        tgt_matrix = data["actuals"]  # (n_episodes, forecast_length)
         forecast_length = pred_matrix.shape[1]
     else:
         with open(p) as f:
@@ -57,7 +57,11 @@ def load_horizon(path: str) -> list[dict]:
             [ep["pred"] for ep in episodes if len(ep["pred"]) == forecast_length]
         )
         tgt_matrix = np.array(
-            [ep["target_bg"] for ep in episodes if len(ep["target_bg"]) == forecast_length]
+            [
+                ep["target_bg"]
+                for ep in episodes
+                if len(ep["target_bg"]) == forecast_length
+            ]
         )
 
     sampling_interval = 5  # CGM sampling interval (minutes)
