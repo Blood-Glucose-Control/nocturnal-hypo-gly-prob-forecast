@@ -81,7 +81,9 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
     def supports_probabilistic_forecast(self) -> bool:
         return True
 
-    def _predict(self, data: pd.DataFrame, quantile_levels=None, **kwargs) -> np.ndarray:
+    def _predict(
+        self, data: pd.DataFrame, quantile_levels=None, **kwargs
+    ) -> np.ndarray:
         """Make predictions given context data.
 
         Uses self.config.forecast_length to determine the prediction horizon,

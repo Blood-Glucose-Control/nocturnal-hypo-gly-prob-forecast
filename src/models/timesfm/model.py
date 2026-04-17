@@ -264,7 +264,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         if quantile_levels is not None:
             # full_predictions shape: (1, horizon_len, 1+n_quantiles)
             # dim 2 index 0 = mean; indices 1..n = quantiles at hf_model.config.quantiles
-            full = outputs.full_predictions[0].float().cpu().numpy()  # (horizon_len, 10)
+            full = (
+                outputs.full_predictions[0].float().cpu().numpy()
+            )  # (horizon_len, 10)
             model_qtls = list(self.hf_model.config.quantiles)  # [0.1, ..., 0.9]
             quantile_rows = []
             for q in quantile_levels:

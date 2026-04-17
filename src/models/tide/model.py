@@ -244,7 +244,11 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         if quantile_levels is not None:
             ep_preds = ag_predictions.loc["ep_0"]
             available = [float(c) for c in ep_preds.columns if c != "mean"]
-            missing = [q for q in quantile_levels if round(q, 8) not in [round(a, 8) for a in available]]
+            missing = [
+                q
+                for q in quantile_levels
+                if round(q, 8) not in [round(a, 8) for a in available]
+            ]
             if missing:
                 raise ValueError(
                     f"Quantile levels {missing} not in TiDE predictor "
@@ -316,7 +320,11 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
             ep_preds = ag_predictions.loc[item_id]
             if quantile_levels is not None:
                 available = [float(c) for c in ep_preds.columns if c != "mean"]
-                missing = [q for q in quantile_levels if round(q, 8) not in [round(a, 8) for a in available]]
+                missing = [
+                    q
+                    for q in quantile_levels
+                    if round(q, 8) not in [round(a, 8) for a in available]
+                ]
                 if missing:
                     raise ValueError(
                         f"Quantile levels {missing} not in TiDE predictor "
