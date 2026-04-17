@@ -208,12 +208,14 @@ def main():
     # Load config from file if provided
     config_dict = load_yaml_config(args.model_config) if args.model_config else {}
 
-    # Prepare model kwargs
+    # Prepare model kwargs — pop model_type to avoid collision with the
+    # positional argument in create_model_and_config()
     model_kwargs = {
         **config_dict,
         "context_length": args.context_length,
         "forecast_length": args.forecast_length,
     }
+    model_kwargs.pop("model_type", None)
 
     # Initialize model
     logger.info(f"\n--- Initializing {args.model.upper()} ---")

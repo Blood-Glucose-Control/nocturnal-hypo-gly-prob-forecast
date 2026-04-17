@@ -153,6 +153,11 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         """Moirai ships pretrained weights and forecasts out of the box."""
         return True
 
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        """Moirai is a generative model — samples are always available."""
+        return True
+
     def _initialize_model(self) -> MoiraiForecast:
         """Load the MoiraiForecast wrapper.
 
@@ -227,14 +232,20 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 * ``pd.DataFrame`` — single-episode DataFrame with a
                   ``config.target_col`` column (called via the base ``predict()``).
 
-            quantile_levels: Ignored for now (Moirai produces sample-based
-                probabilistic forecasts; quantile extraction is a future TODO).
+            quantile_levels: When set, return quantile forecasts extracted from
+                Moirai's Monte Carlo samples (``fc.samples``). Shape is
+                ``(len(quantile_levels), forecast_length)`` for a single episode
+                or ``(N, len(quantile_levels), forecast_length)`` for a batch.
+                When None (default), returns mean forecasts.
             batch_size: Overrides ``config.batch_size`` for the GluonTS predictor.
             **kwargs: Unused; accepted for forward-compatibility.
 
         Returns:
-            Array of shape ``(N, forecast_length)`` with mean predictions, or
-            shape ``(forecast_length,)`` when a single DataFrame is passed.
+            Without quantile_levels: shape ``(N, forecast_length)`` or
+            ``(forecast_length,)`` for a single DataFrame.
+            With quantile_levels: shape ``(len(quantile_levels), forecast_length)``
+            for a single DataFrame, ``(N, len(quantile_levels), forecast_length)``
+            for a batch.
         """
         if self.model is None:
             self.model = self._initialize_model()
@@ -260,8 +271,16 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             single = False
 
         forecasts = list(self.predictor.predict(dataset))
-        means = np.stack([f.mean for f in forecasts], axis=0)  # (N, horizon)
 
+        if quantile_levels is not None:
+            # fc.samples: (num_samples, horizon) — extract requested quantiles
+            quantiles = np.stack(
+                [np.quantile(f.samples, quantile_levels, axis=0) for f in forecasts],
+                axis=0,
+            )  # (N, n_q, horizon)
+            return quantiles[0] if single else quantiles
+
+        means = np.stack([f.mean for f in forecasts], axis=0)  # (N, horizon)
         return means[0] if single else means
 
     def _prepare_training_data(

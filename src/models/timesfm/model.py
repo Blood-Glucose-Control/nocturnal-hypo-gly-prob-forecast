@@ -185,8 +185,16 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def supports_zero_shot(self) -> bool:
         return True
 
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        return True
+
     def _predict(
-        self, data: pd.DataFrame, prediction_length: Optional[int] = None
+        self,
+        data: pd.DataFrame,
+        prediction_length: Optional[int] = None,
+        quantile_levels=None,
+        **kwargs,
     ) -> np.ndarray:
         """Make predictions given context data.
 
@@ -197,9 +205,14 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         Args:
             data: DataFrame with 'bg_mM' column containing context window
             prediction_length: Number of steps to forecast
+            quantile_levels: When set, return quantile forecasts as shape
+                (len(quantile_levels), forecast_length). Must be a subset of
+                the model's native quantile levels (config.quantiles).
 
         Returns:
-            Forecast as 1D numpy array
+            Forecast as 1D numpy array of shape (forecast_length,), or
+            shape (len(quantile_levels), forecast_length) when quantile_levels
+            is set.
         """
         if self.hf_model is None:
             raise ValueError("Model not initialized.")
@@ -247,6 +260,25 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 freq=freq_tensor,
                 return_dict=True,
             )
+
+        if quantile_levels is not None:
+            # full_predictions shape: (1, horizon_len, 1+n_quantiles)
+            # dim 2 index 0 = mean; indices 1..n = quantiles at hf_model.config.quantiles
+            full = (
+                outputs.full_predictions[0].float().cpu().numpy()
+            )  # (horizon_len, 10)
+            model_qtls = list(self.hf_model.config.quantiles)  # [0.1, ..., 0.9]
+            quantile_rows = []
+            for q in quantile_levels:
+                rounded = round(q, 8)
+                if rounded not in [round(mq, 8) for mq in model_qtls]:
+                    raise ValueError(
+                        f"Quantile level {q} not available in TimesFM model "
+                        f"(available: {model_qtls}). Check config.quantiles."
+                    )
+                col_idx = 1 + [round(mq, 8) for mq in model_qtls].index(rounded)
+                quantile_rows.append(full[:prediction_length, col_idx])
+            return np.stack(quantile_rows, axis=0)  # (n_quantiles, forecast_length)
 
         forecast = outputs.mean_predictions[0].float().cpu().numpy()
 

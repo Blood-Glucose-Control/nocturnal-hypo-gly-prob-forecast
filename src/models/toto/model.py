@@ -17,8 +17,8 @@ from toto.inference.forecaster import TotoForecaster as _TotoForecaster
 
 from src.models.toto.config import TotoConfig
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.utils.logging_helper import info_print
-from utils.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,8 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
     config_class = TotoConfig
     config: TotoConfig
+
+    DEFAULT_NUM_SAMPLES: int = 50
 
     def _initialize_model(self) -> None:
         """Load the Toto model from HuggingFace."""
@@ -60,6 +62,10 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
     @property
     def supports_zero_shot(self) -> bool:
+        return True
+
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
         return True
 
     # ------------------------------------------------------------------
@@ -120,8 +126,19 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
     # Prediction
     # ------------------------------------------------------------------
 
-    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
-        """Predict a single episode. Returns 1D array of shape (forecast_length,)."""
+    def _predict(
+        self,
+        data: pd.DataFrame,
+        quantile_levels: Optional[List[float]] = None,
+        **kwargs,
+    ) -> np.ndarray:
+        """Predict a single episode.
+
+        Returns:
+            np.ndarray: A 1D array of shape (forecast_length,) when
+            ``quantile_levels`` is ``None``; otherwise a 2D array of shape
+            (n_quantiles, forecast_length) containing the requested quantiles.
+        """
         timestamps = self._extract_timestamps(data)
         variates = self._build_variates(data)
         num_covariates = len(self.config.covariate_cols or [])
@@ -152,6 +169,19 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             ),
             num_exogenous_variables=num_covariates,
         )
+
+        if quantile_levels is not None:
+            num_samples = self.config.num_samples or self.DEFAULT_NUM_SAMPLES
+            with torch.no_grad():
+                forecast = self.forecaster.forecast(
+                    inputs,
+                    prediction_length=self.config.forecast_length,
+                    num_samples=num_samples,
+                    samples_per_batch=self.config.samples_per_batch,
+                )
+            # samples: (1, num_variates, fh, num_samples) → BG variate → (fh, num_samples)
+            samples = forecast.samples[0, 0, :, :].cpu().numpy()
+            return np.quantile(samples, quantile_levels, axis=1)  # (n_q, fh)
 
         return self._run_forecast(inputs).flatten()
 
@@ -218,6 +248,25 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             ),
             num_exogenous_variables=num_covariates,
         )
+
+        if quantile_levels is not None:
+            num_samples = self.config.num_samples or self.DEFAULT_NUM_SAMPLES
+            with torch.no_grad():
+                forecast = self.forecaster.forecast(
+                    inputs,
+                    prediction_length=self.config.forecast_length,
+                    num_samples=num_samples,
+                    samples_per_batch=self.config.samples_per_batch,
+                )
+            # samples: (batch, num_variates, fh, num_samples) → BG variate → (fh, num_samples)
+            return {
+                eid: np.quantile(
+                    forecast.samples[i, 0, :, :].cpu().numpy(),
+                    quantile_levels,
+                    axis=1,
+                )  # (n_q, fh)
+                for i, eid in enumerate(episode_ids)
+            }
 
         preds = self._run_forecast(inputs)
         return {eid: preds[i] for i, eid in enumerate(episode_ids)}

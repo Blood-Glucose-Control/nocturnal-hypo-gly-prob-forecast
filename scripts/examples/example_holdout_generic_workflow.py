@@ -48,6 +48,7 @@ import argparse
 import json
 import logging
 import shutil
+import sys
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -2264,9 +2265,11 @@ stored in separate subdirectories for comparison.
 
     except KeyboardInterrupt:
         logger.info("\n\nWorkflow interrupted by user")
+        sys.exit(1)
     except Exception as e:
         logger.error(f"\n\nWorkflow failed: {e}")
         traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
