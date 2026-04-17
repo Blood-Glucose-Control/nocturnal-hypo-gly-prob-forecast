@@ -1,0 +1,35 @@
+# =============================================================================
+# Moirai — BG + IOB + insulin_availability  |  lr=5e-4  |  ctx=512
+# =============================================================================
+# Same covariates as 02, but 5x higher learning rate.
+# Compare against 02 to check LR sensitivity.
+#
+# Usage:
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="moirai" \
+#   MODEL_CONFIG="configs/models/moirai/03_bg_iob_ia_high_lr.yaml" \
+#   CONFIG_DIR="configs/data/holdout_10pct" \
+#   DATASETS="aleppo_2017 brown_2019 lynch_2022 tamborlane_2008" \
+#   SKIP_TRAINING="false" SKIP_STEPS="7" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+model_path: "Salesforce/moirai-1.0-R-small"
+context_length: 512
+forecast_length: 96
+
+training_mode: "fine_tune"
+freeze_backbone: false
+learning_rate: 5.0e-4
+batch_size: 32
+num_epochs: 5
+
+patch_size: "auto"
+num_samples: 50
+
+past_covariate_dim: 2
+covariate_cols: [iob, insulin_availability]
+target_col: "bg_mM"
+interval_mins: 5
+
+fp16: true
+use_cpu: false

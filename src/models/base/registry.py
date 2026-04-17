@@ -12,6 +12,7 @@ _MODEL_MODULES: Dict[str, str] = {
     "tsmixer": "src.models.tsmixer",
     "timesfm": "src.models.timesfm",
     "timegrad": "src.models.timegrad",
+    "toto": "src.models.toto",
     "moirai": "src.models.moirai",
     "moment": "src.models.moment",
 }
