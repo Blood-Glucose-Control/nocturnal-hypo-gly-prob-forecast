@@ -3,13 +3,19 @@ Plot absolute error distribution (box plots) vs forecast horizon for one or more
 
 Usage:
     python scripts/analysis/plot_rmse_vs_horizon.py \
-        --results path/to/nocturnal_results.json [path2.json ...] \
+        --results path/to/run_dir [path2/run_dir ...] \
         --labels "Zero-Shot" "Fine-Tuned" \
         --output rmse_vs_horizon.svg
+
+--results accepts three formats (auto-detected):
+  1. Run directory  — prefers forecasts.npz (Tier 3), falls back to nocturnal_results.json
+  2. forecasts.npz  — Tier 3 compressed arrays (new storage format)
+  3. nocturnal_results.json — legacy monolithic JSON
 """
 
 import argparse
 import json
+from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -22,19 +28,39 @@ COLORS = ["#E07B54", "#3A7FD5", "#5BAD6F", "#9B59B6"]
 
 
 def load_horizon(path: str) -> list[dict]:
-    with open(path) as f:
-        d = json.load(f)
+    p = Path(path)
 
-    episodes = d["per_episode"]
-    forecast_length = len(episodes[0]["pred"])
+    # Resolve run directory: prefer Tier 3 NPZ, fall back to legacy JSON
+    if p.is_dir():
+        npz_candidate = p / "forecasts.npz"
+        json_candidate = p / "nocturnal_results.json"
+        if npz_candidate.exists():
+            p = npz_candidate
+        elif json_candidate.exists():
+            p = json_candidate
+        else:
+            raise FileNotFoundError(
+                f"No results found in {path!r}: expected forecasts.npz or nocturnal_results.json"
+            )
+
+    if p.suffix == ".npz":
+        data = np.load(p, allow_pickle=False)
+        pred_matrix = data["predictions"]  # (n_episodes, forecast_length)
+        tgt_matrix = data["actuals"]       # (n_episodes, forecast_length)
+        forecast_length = pred_matrix.shape[1]
+    else:
+        with open(p) as f:
+            d = json.load(f)
+        episodes = d["per_episode"]
+        forecast_length = len(episodes[0]["pred"])
+        pred_matrix = np.array(
+            [ep["pred"] for ep in episodes if len(ep["pred"]) == forecast_length]
+        )
+        tgt_matrix = np.array(
+            [ep["target_bg"] for ep in episodes if len(ep["target_bg"]) == forecast_length]
+        )
+
     sampling_interval = 5  # CGM sampling interval (minutes)
-
-    pred_matrix = np.array(
-        [ep["pred"] for ep in episodes if len(ep["pred"]) == forecast_length]
-    )
-    tgt_matrix = np.array(
-        [ep["target_bg"] for ep in episodes if len(ep["target_bg"]) == forecast_length]
-    )
 
     horizon_data = []
     for idx in range(forecast_length):
@@ -54,26 +80,29 @@ def load_horizon(path: str) -> list[dict]:
 
 
 def make_plot(results: list[list[dict]], labels: list[str], output_path: str):
-    fig, ax = plt.subplots(figsize=(9, 5))
-
     n_series = len(results)
     box_width = 0.06  # hours
-    gap = box_width * 1.3  # space between series at the same horizon
-    total_span = gap * (n_series - 1)
 
-    for i, (data, label, color) in enumerate(zip(results, labels, COLORS)):
+    fig, axes = plt.subplots(
+        1, n_series, figsize=(5 * n_series, 5), sharey=True, sharex=True
+    )
+    if n_series == 1:
+        axes = [axes]
+
+    # Compute shared y-axis upper limit across all series
+    all_q90 = [d["q90"] for data in results for d in data]
+    y_max = max(all_q90) * 1.1
+
+    for i, (ax, data, label, color) in enumerate(zip(axes, results, labels, COLORS)):
         hours = np.array([d["horizon_minutes"] / 60 for d in data])
-        offset = -total_span / 2 + i * gap
-        positions = hours + offset
 
-        has_whiskers = "q10" in data[0]
         stats = [
             {
                 "med": d["q50"],
                 "q1": d["q25"],
                 "q3": d["q75"],
-                "whislo": d["q10"] if has_whiskers else d["q25"],
-                "whishi": d["q90"] if has_whiskers else d["q75"],
+                "whislo": d["q10"],
+                "whishi": d["q90"],
                 "fliers": [],
             }
             for d in data
@@ -81,7 +110,7 @@ def make_plot(results: list[list[dict]], labels: list[str], output_path: str):
 
         bp = ax.bxp(
             stats,
-            positions=positions,
+            positions=hours,
             widths=box_width,
             manage_ticks=False,
             patch_artist=True,
@@ -102,29 +131,19 @@ def make_plot(results: list[list[dict]], labels: list[str], output_path: str):
             element.set_linewidth(1.2)
             element.set_gid(f"whisker-{label}")
 
-        # Invisible line for legend
-        ax.plot(
-            [],
-            [],
-            color=color,
-            linewidth=6,
-            alpha=0.6,
-            solid_capstyle="round",
-            label=label,
-        )
-
-    ax.set_xlabel("Forecast horizon (hours)", fontsize=11)
-    ax.set_ylabel("RMSE (mmol/L)", fontsize=11)
-    ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
-    ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.5))
-    ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
-    ax.set_xlim(left=0)
-    ax.set_ylim(bottom=0)
-    ax.spines[["top", "right"]].set_visible(False)
-    ax.tick_params(labelsize=9)
-
-    legend = ax.legend(fontsize=9, framealpha=0.9, edgecolor="#CCCCCC")
-    legend.set_gid("legend")
+        ax.set_title(label, fontsize=11, color=color, fontweight="bold")
+        ax.set_xlabel("Forecast horizon (hours)", fontsize=10)
+        if i == 0:
+            ax.set_ylabel("RMSE (mmol/L)", fontsize=10)
+        ax.xaxis.set_major_locator(ticker.MultipleLocator(1))
+        ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.5))
+        ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+        ax.set_xlim(left=0)
+        ax.set_ylim(bottom=0, top=y_max)
+        ax.spines[["top", "right"]].set_visible(False)
+        ax.tick_params(labelsize=9)
+        ax.grid(True, axis="both", linestyle="--", linewidth=0.6, alpha=0.5, zorder=0)
+        ax.set_axisbelow(True)
 
     fig.tight_layout()
     fig.savefig(
