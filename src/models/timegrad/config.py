@@ -67,7 +67,7 @@ class TimeGradConfig(ModelConfig):
         self.residual_channels = kwargs.get("residual_channels", 8)
 
         # Inference parameters
-        self.num_samples = kwargs.get("num_samples", 100)
+        self.num_samples = kwargs.get("num_samples", 50)
 
         # Training parameters
         self.scaling = kwargs.get("scaling", True)

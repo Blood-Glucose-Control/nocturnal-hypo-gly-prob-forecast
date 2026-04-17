@@ -76,6 +76,10 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     def supports_zero_shot(self) -> bool:
         return False
 
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        return True
+
     def _initialize_model(self) -> None:
         """No-op: AutoGluon predictor is created lazily in _train_model
         or _load_checkpoint."""
@@ -156,6 +160,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
             eval_metric=config.eval_metric,
             freq=freq,
             path=output_dir,
+            quantile_levels=self.DEFAULT_QUANTILE_LEVELS,
         )
 
         fit_kwargs = {
@@ -187,6 +192,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     def _predict(
         self,
         data: pd.DataFrame,
+        quantile_levels=None,
         **kwargs,
     ) -> np.ndarray:
         """Make predictions for a single episode using the fitted predictor.
@@ -195,10 +201,15 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
             data: Single-episode DataFrame with target_col (bg_mM) and
                 optional covariate columns (e.g. iob). Covariates are
                 past-only — included in context, not as future known values.
+            quantile_levels: When set, return quantile forecasts as shape
+                (len(quantile_levels), forecast_length). Must be a subset of
+                the quantile levels the predictor was trained with.
             **kwargs: Unused.
 
         Returns:
-            1D numpy array of predicted BG values for the forecast horizon.
+            1D numpy array of predicted BG values for the forecast horizon,
+            or shape (len(quantile_levels), forecast_length) when quantile_levels
+            is set.
         """
         from autogluon.timeseries import TimeSeriesDataFrame
 
@@ -229,6 +240,21 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         ts_data = TimeSeriesDataFrame(context)
 
         ag_predictions = self.predictor.predict(ts_data)
+
+        if quantile_levels is not None:
+            ep_preds = ag_predictions.loc["ep_0"]
+            available = [float(c) for c in ep_preds.columns if c != "mean"]
+            missing = [q for q in quantile_levels if round(q, 8) not in [round(a, 8) for a in available]]
+            if missing:
+                raise ValueError(
+                    f"Quantile levels {missing} not in TiDE predictor "
+                    f"(available: {sorted(available)}). Retrain with "
+                    f"DEFAULT_QUANTILE_LEVELS to get all 9 levels."
+                )
+            return np.stack(
+                [ep_preds[str(q)].values for q in quantile_levels], axis=0
+            )  # (n_quantiles, forecast_length)
+
         return ag_predictions.loc["ep_0"]["mean"].values
 
     def _predict_batch(
@@ -285,8 +311,23 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         episode_ids = data[episode_col].astype(str).unique().tolist()
         results: Dict[str, np.ndarray] = {}
         for item_id in episode_ids:
-            if item_id in ag_predictions.index.get_level_values(0):
-                results[item_id] = ag_predictions.loc[item_id]["mean"].values
+            if item_id not in ag_predictions.index.get_level_values(0):
+                continue
+            ep_preds = ag_predictions.loc[item_id]
+            if quantile_levels is not None:
+                available = [float(c) for c in ep_preds.columns if c != "mean"]
+                missing = [q for q in quantile_levels if round(q, 8) not in [round(a, 8) for a in available]]
+                if missing:
+                    raise ValueError(
+                        f"Quantile levels {missing} not in TiDE predictor "
+                        f"(available: {sorted(available)}). Retrain with "
+                        f"DEFAULT_QUANTILE_LEVELS to get all 9 levels."
+                    )
+                results[item_id] = np.stack(
+                    [ep_preds[str(q)].values for q in quantile_levels], axis=0
+                )  # (n_quantiles, forecast_length)
+            else:
+                results[item_id] = ep_preds["mean"].values
         return results
 
     # ------------------------------------------------------------------
