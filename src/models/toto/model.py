@@ -17,8 +17,8 @@ from toto.inference.forecaster import TotoForecaster as _TotoForecaster
 
 from src.models.toto.config import TotoConfig
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
+from src.models.base.registry import ModelRegistry
 from src.utils.logging_helper import info_print
-from utils.model_registry import ModelRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,13 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         quantile_levels: Optional[List[float]] = None,
         **kwargs,
     ) -> np.ndarray:
-        """Predict a single episode. Returns 1D array of shape (forecast_length,)."""
+        """Predict a single episode.
+
+        Returns:
+            np.ndarray: A 1D array of shape (forecast_length,) when
+            ``quantile_levels`` is ``None``; otherwise a 2D array of shape
+            (n_quantiles, forecast_length) containing the requested quantiles.
+        """
         timestamps = self._extract_timestamps(data)
         variates = self._build_variates(data)
         num_covariates = len(self.config.covariate_cols or [])

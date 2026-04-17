@@ -160,7 +160,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
             eval_metric=config.eval_metric,
             freq=freq,
             path=output_dir,
-            quantile_levels=self.DEFAULT_QUANTILE_LEVELS,
+            quantile_levels=config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS,
         )
 
         fit_kwargs = {
@@ -279,7 +279,10 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
             episode_col: Column name identifying episodes.
 
         Returns:
-            Dict mapping episode ID (as str) to 1-D numpy forecast array.
+            Dict mapping episode ID (as str) to either:
+            - mean forecasts as a 1-D array with shape (forecast_length,), or
+            - quantile forecasts as a 2-D array with shape
+              (n_quantiles, forecast_length) when quantile_levels is provided.
         """
         from autogluon.timeseries import TimeSeriesDataFrame
 
@@ -313,6 +316,10 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         ag_predictions = self.predictor.predict(ts_data)
 
         episode_ids = data[episode_col].astype(str).unique().tolist()
+        # Maps each episode/item_id to either:
+        # - mean forecasts as a 1-D array with shape (forecast_length,), or
+        # - quantile forecasts as a 2-D array with shape
+        #   (n_quantiles, forecast_length) when quantile_levels is provided
         results: Dict[str, np.ndarray] = {}
         for item_id in episode_ids:
             if item_id not in ag_predictions.index.get_level_values(0):
@@ -333,9 +340,9 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
                     )
                 results[item_id] = np.stack(
                     [ep_preds[str(q)].values for q in quantile_levels], axis=0
-                )  # (n_quantiles, forecast_length)
+                )  # 2-D: (n_quantiles, forecast_length)
             else:
-                results[item_id] = ep_preds["mean"].values
+                results[item_id] = ep_preds["mean"].values  # 1-D: (forecast_length,)
         return results
 
     # ------------------------------------------------------------------
