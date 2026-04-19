@@ -40,6 +40,12 @@ VALID_METRICS = {
     "dilate_g0001",
     "dilate_g001",
     "dilate_g01",
+    "shape_g0001",
+    "shape_g001",
+    "shape_g01",
+    "temporal_g0001",
+    "temporal_g001",
+    "temporal_g01",
 }
 
 
