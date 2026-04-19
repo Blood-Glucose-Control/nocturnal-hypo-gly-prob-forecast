@@ -59,6 +59,10 @@ class TimesFMConfig(ModelConfig):
     # Gap handling (applied before windowing)
     imputation_threshold_mins: int = 45
 
+    # Data column names
+    target_col: str = "bg_mM"
+    interval_mins: int = 5  # CGM sampling interval; informational (freq_type is the authoritative encoding)
+
     def __post_init__(self):
         """Post-initialization to handle defaults, aliases, and validation."""
         # Handle None values from generic workflow
