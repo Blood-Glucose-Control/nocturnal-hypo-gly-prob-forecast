@@ -41,14 +41,14 @@ MANIFEST="trained_models/artifacts/toto/sweep_manifest.txt"
 # Format: "config_path|datasets_key"
 # datasets_key: ALL, IOB, or COB
 CONFIGS=(
-#    "configs/models/toto/00_bg_only.yaml|ALL"
-#    "configs/models/toto/01_bg_iob.yaml|IOB"
-#    "configs/models/toto/02_bg_iob_ia.yaml|IOB"
-#    "configs/models/toto/03_bg_iob_ia_high_lr.yaml|IOB"
-#    "configs/models/toto/04_bg_iob_short_ctx.yaml|IOB"
-#    "configs/models/toto/05_bg_iob_cob.yaml|COB"
-#    "configs/models/toto/06_bg_full_features.yaml|COB"
-#    "configs/models/toto/07_bg_iob_cob_high_lr.yaml|COB"
+    "configs/models/toto/00_bg_only.yaml|ALL"
+    "configs/models/toto/01_bg_iob.yaml|IOB"
+    "configs/models/toto/02_bg_iob_ia.yaml|IOB"
+    "configs/models/toto/03_bg_iob_ia_high_lr.yaml|IOB"
+    "configs/models/toto/04_bg_iob_short_ctx.yaml|IOB"
+    "configs/models/toto/05_bg_iob_cob.yaml|COB"
+    "configs/models/toto/06_bg_full_features.yaml|COB"
+    "configs/models/toto/07_bg_iob_cob_high_lr.yaml|COB"
     "configs/models/toto/08_bg_iob_cob_short_ctx.yaml|COB"
 )
 

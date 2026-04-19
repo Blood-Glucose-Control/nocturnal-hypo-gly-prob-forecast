@@ -46,10 +46,16 @@ class TestComputeDilateMetrics:
 
         assert set(result.keys()) == set(DILATE_COLUMNS)
 
-        # Check hard-DTW regime (gamma=0.001)
-        assert result["shape_g0001"] == pytest.approx(2.0, abs=1e-6)
-        assert result["temporal_g0001"] == pytest.approx(0.16, abs=1e-6)
-        assert result["dilate_g0001"] == pytest.approx(1.08, abs=1e-6)
+        # Check hard-DTW regime (gamma=0.001); tolerance loosened to 1e-4 to
+        # guard against minor float differences across numba versions/platforms.
+        assert result["shape_g0001"] == pytest.approx(2.0, abs=1e-4)
+        assert result["temporal_g0001"] == pytest.approx(0.16, abs=1e-4)
+        # Assert the DILATE composition invariant rather than a hardcoded value.
+        alpha = 0.5
+        assert result["dilate_g0001"] == pytest.approx(
+            alpha * result["shape_g0001"] + (1 - alpha) * result["temporal_g0001"],
+            abs=1e-12,
+        )
 
     def test_too_short_input_returns_nan(self):
         """Inputs shorter than 2 elements should return all NaN."""

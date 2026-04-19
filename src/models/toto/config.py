@@ -12,7 +12,8 @@ class TotoConfig(ModelConfig):
         num_samples: Number of forecast samples (None = single mean prediction).
         samples_per_batch: Samples per batch during inference.
         eval_batch_size: Number of episodes per forward pass during evaluation
-            (chunk size for _predict_batch). None defaults to the full batch.
+            (chunk size for _predict_batch). Defaults to 64. None processes
+            the entire batch in a single forward pass.
         max_steps: Number of fine-tuning gradient steps.
         lr: Learning rate for fine-tuning.
         min_lr: Minimum learning rate after decay.
