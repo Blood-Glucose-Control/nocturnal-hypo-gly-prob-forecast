@@ -36,6 +36,8 @@ from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
 
+from src.evaluation.metrics.shape import DILATE_COLUMNS
+
 logger = logging.getLogger(__name__)
 
 # Columns to strip from per-episode dicts before writing Tier 2.
@@ -93,7 +95,7 @@ def _write_tier1(
         "overall_sharpness_50",
         "overall_sharpness_80",
         "quantile_levels",
-    ):
+    ) + tuple(f"overall_{col}" for col in DILATE_COLUMNS):
         if key in results:
             summary[key] = results[key]
 

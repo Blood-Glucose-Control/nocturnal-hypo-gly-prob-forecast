@@ -31,7 +31,16 @@ log = logging.getLogger(__name__)
 # Run-directory naming convention: YYYY-MM-DD_HHMM_<dataset>_<mode>
 _RUN_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{4}_\S+$")
 
-VALID_METRICS = {"rmse", "mae", "mape", "mse", "wql"}
+VALID_METRICS = {
+    "rmse",
+    "mae",
+    "mape",
+    "mse",
+    "wql",
+    "dilate_g0001",
+    "dilate_g001",
+    "dilate_g01",
+}
 
 
 class ExperimentSummarizer(ABC):

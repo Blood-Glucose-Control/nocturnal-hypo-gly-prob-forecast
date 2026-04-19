@@ -8,6 +8,11 @@ from src.evaluation.metrics.probabilistic import (
     compute_sharpness,
     compute_mace,
 )
+from src.evaluation.metrics.shape import (
+    compute_dilate_metrics,
+    compute_dilate_metrics_batch,
+    DILATE_COLUMNS,
+)
 
 __all__ = [
     "compute_regression_metrics",
@@ -16,4 +21,7 @@ __all__ = [
     "compute_coverage",
     "compute_sharpness",
     "compute_mace",
+    "compute_dilate_metrics",
+    "compute_dilate_metrics_batch",
+    "DILATE_COLUMNS",
 ]

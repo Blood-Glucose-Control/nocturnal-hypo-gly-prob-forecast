@@ -35,6 +35,7 @@ from src.evaluation.metrics.probabilistic import (
     compute_sharpness,
     compute_mace,
 )
+from src.evaluation.metrics.shape import compute_dilate_metrics, DILATE_COLUMNS
 
 # Constants
 SAMPLING_INTERVAL_MINUTES = 5
@@ -244,6 +245,9 @@ def evaluate_nocturnal_forecasting(
 
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
 
+        # Shape-aware metrics (DILATE at 3 gamma values → 9 scalars)
+        ep_dilate = compute_dilate_metrics(pred, target)
+
         # Discontinuity: absolute BG jump at the context-forecast boundary.
         disc = float("nan")
         if context_bg is not None and len(context_bg) > 0 and len(pred) > 0:
@@ -255,6 +259,7 @@ def evaluate_nocturnal_forecasting(
             "anchor": meta["anchor"].isoformat(),
             "rmse": ep_rmse,
             "discontinuity": disc,
+            **ep_dilate,
             "pred": pred.tolist(),
             "target_bg": target.tolist(),
             "context_bg": context_bg.tolist() if context_bg is not None else None,
@@ -330,6 +335,15 @@ def evaluate_nocturnal_forecasting(
         "_actuals_array": np.stack(all_actuals_arrays),  # (n_eps, fh)
         "_episode_ids": all_episode_ids,
     }
+
+    # Overall DILATE means (computed for all modes — only needs point forecasts)
+    for col in DILATE_COLUMNS:
+        vals = [
+            ep[col]
+            for ep in all_episode_results
+            if not np.isnan(ep.get(col, float("nan")))
+        ]
+        results[f"overall_{col}"] = float(np.mean(vals)) if vals else float("nan")
 
     log_msg = f"Nocturnal evaluation: {overall_rmse:.4f} RMSE, {mean_disc:.4f} mean discontinuity"
     if probabilistic:

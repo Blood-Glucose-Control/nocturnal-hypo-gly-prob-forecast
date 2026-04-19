@@ -26,6 +26,7 @@ class TotoConfig(ModelConfig):
         toto_specific_params = {
             "num_samples",
             "samples_per_batch",
+            "eval_batch_size",
             "max_steps",
             "num_epochs",
             "lr",
@@ -51,7 +52,8 @@ class TotoConfig(ModelConfig):
 
         # Inference
         self.num_samples = kwargs.get("num_samples", None)
-        self.samples_per_batch = kwargs.get("samples_per_batch", 20)
+        self.samples_per_batch = kwargs.get("samples_per_batch", 10)
+        self.eval_batch_size = kwargs.get("eval_batch_size", 64)
 
         # Training — supports both max_steps and num_epochs.
         # num_epochs is used by the generic workflow; max_steps is Toto-native.
