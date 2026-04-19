@@ -223,7 +223,9 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         if _eval_bs is None:
             chunk = batch_size
         else:
-            chunk = int(_eval_bs)  # raises TypeError if non-numeric
+            chunk = int(
+                _eval_bs
+            )  # raises TypeError or ValueError if unconvertible; accepts numeric strings
             if chunk <= 0:
                 raise ValueError(
                     f"eval_batch_size must be a positive integer, got {_eval_bs!r}"

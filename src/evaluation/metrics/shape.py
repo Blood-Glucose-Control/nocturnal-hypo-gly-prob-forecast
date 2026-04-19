@@ -280,6 +280,13 @@ def compute_dilate_metrics_batch(
 
     B = preds.shape[0]
 
+    if preds.shape[1] < 2:
+        return {
+            f"{m}_{s}": np.full(B, float("nan"))
+            for s in _GAMMAS.values()
+            for m in ("dilate", "shape", "temporal")
+        }
+
     result: Dict[str, np.ndarray] = {}
     for gamma, suffix in _GAMMAS.items():
         d_arr = np.empty(B, dtype=np.float64)

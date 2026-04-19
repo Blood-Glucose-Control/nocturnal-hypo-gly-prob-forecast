@@ -230,11 +230,12 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         nan_mask = np.isnan(context)
         if nan_mask.any():
             max_gap = _longest_nan_run(nan_mask)
-            # 9 readings = 45 min at 5-min resolution
-            max_allowed = self.config.imputation_threshold_mins // 5
+            max_allowed = (
+                self.config.imputation_threshold_mins // self.config.interval_mins
+            )
             if max_gap > max_allowed:
                 raise ValueError(
-                    f"Context contains a {max_gap * 5}-minute gap "
+                    f"Context contains a {max_gap * self.config.interval_mins}-minute gap "
                     f"(>{self.config.imputation_threshold_mins} min threshold). "
                     f"Pre-process data to remove large gaps before predict()."
                 )

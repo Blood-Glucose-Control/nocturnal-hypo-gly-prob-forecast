@@ -61,7 +61,7 @@ class TimesFMConfig(ModelConfig):
 
     # Data column names
     target_col: str = "bg_mM"
-    interval_mins: int = 5  # CGM sampling interval; informational (freq_type is the authoritative encoding)
+    interval_mins: int = 5  # CGM sampling interval in minutes; used for gap-length calculations (e.g. imputation_threshold_mins // interval_mins)
 
     def __post_init__(self):
         """Post-initialization to handle defaults, aliases, and validation."""
