@@ -257,6 +257,21 @@ def compute_dilate_metrics_batch(
     """
     preds = np.asarray(preds, dtype=np.float64)
     actuals = np.asarray(actuals, dtype=np.float64)
+
+    if preds.ndim != 2:
+        raise ValueError(
+            f"preds must be 2-D (B, forecast_length), got shape {preds.shape}"
+        )
+    if actuals.ndim != 2:
+        raise ValueError(
+            f"actuals must be 2-D (B, forecast_length), got shape {actuals.shape}"
+        )
+    if preds.shape != actuals.shape:
+        raise ValueError(
+            f"preds and actuals must have identical shapes, "
+            f"got {preds.shape} vs {actuals.shape}"
+        )
+
     B = preds.shape[0]
 
     result: Dict[str, np.ndarray] = {}
