@@ -219,6 +219,15 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         # Left-pad to max length so recent context is right-aligned
         max_len = max(s.shape[1] for s in all_series)
         batch_size = len(all_series)
+        _eval_bs = self.config.eval_batch_size
+        if _eval_bs is None:
+            chunk = batch_size
+        else:
+            chunk = int(_eval_bs)  # raises TypeError if non-numeric
+            if chunk <= 0:
+                raise ValueError(
+                    f"eval_batch_size must be a positive integer, got {_eval_bs!r}"
+                )
 
         series = torch.zeros(batch_size, num_variates, max_len)
         padding_mask = torch.zeros(batch_size, num_variates, max_len, dtype=torch.bool)
@@ -252,7 +261,6 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         if quantile_levels is not None:
             num_samples = self.config.num_samples or self.DEFAULT_NUM_SAMPLES
             results: Dict[str, np.ndarray] = {}
-            chunk = self.config.eval_batch_size
             for start in range(0, batch_size, chunk):
                 end = min(start + chunk, batch_size)
                 chunk_inputs = MaskedTimeseries(
@@ -280,7 +288,6 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             return results
 
         results_pt: Dict[str, np.ndarray] = {}
-        chunk = self.config.eval_batch_size
         for start in range(0, batch_size, chunk):
             end = min(start + chunk, batch_size)
             chunk_inputs = MaskedTimeseries(

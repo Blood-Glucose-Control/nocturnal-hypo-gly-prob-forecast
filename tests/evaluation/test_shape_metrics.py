@@ -88,3 +88,20 @@ class TestComputeDilateMetricsBatch:
 
         for key, arr in batch.items():
             assert arr.shape == (B,), f"{key} shape = {arr.shape}, expected ({B},)"
+
+    def test_1d_preds_raises(self):
+        """1-D preds (missing batch dimension) must raise ValueError."""
+        with pytest.raises(ValueError, match="preds must be 2-D"):
+            compute_dilate_metrics_batch(IDENTICAL_SEQ, IDENTICAL_SEQ[np.newaxis, :])
+
+    def test_1d_actuals_raises(self):
+        """1-D actuals (missing batch dimension) must raise ValueError."""
+        with pytest.raises(ValueError, match="actuals must be 2-D"):
+            compute_dilate_metrics_batch(IDENTICAL_SEQ[np.newaxis, :], IDENTICAL_SEQ)
+
+    def test_mismatched_shapes_raises(self):
+        """Mismatched forecast lengths between preds and actuals must raise ValueError."""
+        preds = np.tile(IDENTICAL_SEQ, (2, 1))  # (2, 5)
+        actuals = np.tile(IDENTICAL_SEQ[:3], (2, 1))  # (2, 3)
+        with pytest.raises(ValueError, match="identical shapes"):
+            compute_dilate_metrics_batch(preds, actuals)
