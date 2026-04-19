@@ -223,11 +223,17 @@ def compute_dilate_metrics(
         for m in ("dilate", "shape", "temporal")
     }
 
-    if len(pred) < 2 or len(actual) < 2:
-        return nan_result
-
     pred = np.asarray(pred, dtype=np.float64).ravel()
     actual = np.asarray(actual, dtype=np.float64).ravel()
+
+    if pred.shape != actual.shape:
+        raise ValueError(
+            f"pred and actual must have the same length, "
+            f"got {pred.shape[0]} vs {actual.shape[0]}"
+        )
+
+    if len(pred) < 2 or len(actual) < 2:
+        return nan_result
 
     result: Dict[str, float] = {}
     for gamma, suffix in _GAMMAS.items():

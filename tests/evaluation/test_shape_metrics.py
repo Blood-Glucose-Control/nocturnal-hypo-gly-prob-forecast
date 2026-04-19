@@ -56,6 +56,16 @@ class TestComputeDilateMetrics:
         result = compute_dilate_metrics(np.array([1.0]), np.array([2.0]))
         assert all(np.isnan(v) for v in result.values())
 
+    def test_mismatched_lengths_raises(self):
+        """pred and actual with different lengths must raise ValueError."""
+        with pytest.raises(ValueError, match="same length"):
+            compute_dilate_metrics(IDENTICAL_SEQ, IDENTICAL_SEQ[:3])
+
+    def test_scalar_input_returns_nan(self):
+        """Scalar (0-D) inputs are ravelled to length-1 arrays and return all NaN."""
+        result = compute_dilate_metrics(np.float64(1.0), np.float64(2.0))
+        assert all(np.isnan(v) for v in result.values())
+
 
 class TestComputeDilateMetricsBatch:
     """Tests for the batch compute_dilate_metrics_batch function."""
