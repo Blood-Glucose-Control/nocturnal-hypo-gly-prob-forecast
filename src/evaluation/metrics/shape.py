@@ -46,7 +46,7 @@ Usage::
     # Each value is a 1-D array of shape (B,).
 """
 
-from typing import Dict, Union
+from typing import Dict
 
 import numpy as np
 from numba import njit
@@ -71,6 +71,7 @@ _ALPHA = 0.5
 # Numba-accelerated Soft-DTW / DILATE kernels
 # Adapted from vincent-leguen/DILATE and marcdemers/batch-DILATE (MIT).
 # ---------------------------------------------------------------------------
+
 
 @njit(cache=True)
 def _softdtw_forward(D, gamma):
@@ -134,7 +135,7 @@ def _softdtw_path(D, R, gamma):
 
     # Pad D with zeros for boundary indexing
     D_pad = np.zeros((N + 2, M + 2))
-    D_pad[1:N + 1, 1:M + 1] = D
+    D_pad[1 : N + 1, 1 : M + 1] = D
 
     E = np.zeros((N + 2, M + 2))
     E[N + 1, M + 1] = 1.0
@@ -151,7 +152,7 @@ def _softdtw_path(D, R, gamma):
             c = np.exp((R[i + 1, j + 1] - R[i, j] - D_pad[i + 1, j + 1]) / gamma)
             E[i, j] = E[i + 1, j] * a + E[i, j + 1] * b + E[i + 1, j + 1] * c
 
-    return E[1:N + 1, 1:M + 1]
+    return E[1 : N + 1, 1 : M + 1]
 
 
 @njit(cache=True)
@@ -198,6 +199,7 @@ def _dilate_single(pred, actual, alpha, gamma):
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def compute_dilate_metrics(
     pred: np.ndarray,
