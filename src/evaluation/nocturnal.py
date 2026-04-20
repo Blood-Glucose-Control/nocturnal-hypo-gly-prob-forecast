@@ -33,6 +33,8 @@ from src.evaluation.metrics.probabilistic import (
     compute_brier_score,
     compute_coverage,
     compute_sharpness,
+    compute_coverage_by_step,
+    compute_sharpness_by_step,
     compute_mace,
 )
 from src.evaluation.metrics.shape import compute_dilate_metrics, DILATE_COLUMNS
@@ -178,6 +180,25 @@ def evaluate_nocturnal_forecasting(
         if 0.5 not in quantile_levels:
             quantile_levels = sorted(set(quantile_levels) | {0.5})
         median_idx = quantile_levels.index(0.5)
+
+        # Determine which coverage levels (50/90/95) the model's quantile
+        # range actually supports.  A level L requires bounds at (1-L)/2 and
+        # (1+L)/2; if those fall outside [min_q, max_q] the metric would be
+        # silently clamped, so we skip it entirely.
+        _CANDIDATE_LEVELS = (0.5, 0.9, 0.95)
+        q_min, q_max = min(quantile_levels), max(quantile_levels)
+        supported_levels = []
+        for lvl in _CANDIDATE_LEVELS:
+            lo, hi = (1.0 - lvl) / 2.0, (1.0 + lvl) / 2.0
+            if lo >= q_min - 1e-9 and hi <= q_max + 1e-9:
+                supported_levels.append(lvl)
+            else:
+                logger.info(
+                    "Skipping %d%% coverage/sharpness — needs quantiles "
+                    "%.4f/%.4f but model range is [%.3f, %.3f]",
+                    int(lvl * 100), lo, hi, q_min, q_max,
+                )
+
         logger.info(
             "Probabilistic mode — computing WQL and Brier@%.1f (quantiles: %s)",
             HYPO_THRESHOLD_MMOL,
@@ -224,18 +245,16 @@ def evaluate_nocturnal_forecasting(
             pred = q_forecast[median_idx]  # median as point forecast
             ep_wql = float(compute_wql(q_forecast, target, quantile_levels))
             ep_brier = float(compute_brier_score(q_forecast, target, quantile_levels))
-            ep_coverage_50 = float(
-                compute_coverage(q_forecast, target, quantile_levels, level=0.5)
-            )
-            ep_coverage_80 = float(
-                compute_coverage(q_forecast, target, quantile_levels, level=0.8)
-            )
-            ep_sharpness_50 = float(
-                compute_sharpness(q_forecast, quantile_levels, level=0.5)
-            )
-            ep_sharpness_80 = float(
-                compute_sharpness(q_forecast, quantile_levels, level=0.8)
-            )
+
+            ep_prob = {}
+            for lvl in supported_levels:
+                suffix = str(int(lvl * 100))
+                ep_prob[f"coverage_{suffix}"] = float(
+                    compute_coverage(q_forecast, target, quantile_levels, level=lvl)
+                )
+                ep_prob[f"sharpness_{suffix}"] = float(
+                    compute_sharpness(q_forecast, quantile_levels, level=lvl)
+                )
 
             all_q_forecasts.append(q_forecast)
         else:
@@ -270,10 +289,7 @@ def evaluate_nocturnal_forecasting(
         if probabilistic:
             ep_result["wql"] = ep_wql
             ep_result["brier"] = ep_brier
-            ep_result["coverage_50"] = ep_coverage_50
-            ep_result["coverage_80"] = ep_coverage_80
-            ep_result["sharpness_50"] = ep_sharpness_50
-            ep_result["sharpness_80"] = ep_sharpness_80
+            ep_result.update(ep_prob)
 
         all_episode_results.append(ep_result)
 
@@ -357,18 +373,14 @@ def evaluate_nocturnal_forecasting(
         results["overall_brier"] = float(
             np.mean([ep["brier"] for ep in all_episode_results])
         )
-        results["overall_coverage_50"] = float(
-            np.mean([ep["coverage_50"] for ep in all_episode_results])
-        )
-        results["overall_coverage_80"] = float(
-            np.mean([ep["coverage_80"] for ep in all_episode_results])
-        )
-        results["overall_sharpness_50"] = float(
-            np.mean([ep["sharpness_50"] for ep in all_episode_results])
-        )
-        results["overall_sharpness_80"] = float(
-            np.mean([ep["sharpness_80"] for ep in all_episode_results])
-        )
+        for lvl in supported_levels:
+            suffix = str(int(lvl * 100))
+            results[f"overall_coverage_{suffix}"] = float(
+                np.mean([ep[f"coverage_{suffix}"] for ep in all_episode_results])
+            )
+            results[f"overall_sharpness_{suffix}"] = float(
+                np.mean([ep[f"sharpness_{suffix}"] for ep in all_episode_results])
+            )
         # MACE computed from stacked arrays (all timesteps, all quantiles)
         q_stacked = np.concatenate(all_q_forecasts, axis=1)  # (n_q, total_timesteps)
         actuals_concat = np.concatenate(all_actuals_arrays)  # (total_timesteps,)
@@ -378,13 +390,28 @@ def evaluate_nocturnal_forecasting(
         results["quantile_levels"] = quantile_levels
         results["_q_forecasts"] = np.stack(all_q_forecasts)  # (n_eps, n_q, fh)
 
+        # Per-step coverage and sharpness across all episodes (shape: (fh,) each).
+        # Stored in Tier 3 for calibration plots; not in summary.csv.
+        # Only computed for levels the model's quantile range supports.
+        q_batch = results["_q_forecasts"]  # (n_eps, n_q, fh)
+        act_batch = results["_actuals_array"]  # (n_eps, fh)
+        for lvl in supported_levels:
+            suffix = str(int(lvl * 100))
+            results[f"_coverage_by_step_{suffix}"] = compute_coverage_by_step(
+                q_batch, act_batch, quantile_levels, level=lvl
+            )
+            results[f"_sharpness_by_step_{suffix}"] = compute_sharpness_by_step(
+                q_batch, quantile_levels, level=lvl
+            )
+
         log_msg += (
             f", {results['overall_wql']:.4f} WQL"
             f", {results['overall_brier']:.4f} Brier@{HYPO_THRESHOLD_MMOL}"
             f", {results['overall_mace']:.4f} MACE"
-            f", cov50={results['overall_coverage_50']:.3f}"
-            f", cov80={results['overall_coverage_80']:.3f}"
         )
+        for lvl in supported_levels:
+            suffix = str(int(lvl * 100))
+            log_msg += f", cov{suffix}={results[f'overall_coverage_{suffix}']:.3f}"
     log_msg += f" over {len(all_episode_results)} midnight episodes"
     logger.info(log_msg)
 

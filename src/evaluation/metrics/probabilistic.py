@@ -290,6 +290,85 @@ def compute_sharpness(
     return float(np.mean(upper - lower))
 
 
+def compute_coverage_by_step(
+    quantile_forecasts_batch: np.ndarray,
+    actuals_batch: np.ndarray,
+    quantile_levels: List[float],
+    level: float = 0.9,
+) -> np.ndarray:
+    """Compute empirical coverage at each forecast horizon step across episodes.
+
+    Args:
+        quantile_forecasts_batch: Shape (n_episodes, n_quantiles, forecast_length).
+        actuals_batch: Shape (n_episodes, forecast_length).
+        quantile_levels: List of quantile levels in strictly increasing order.
+        level: Nominal coverage level in (0, 1).
+
+    Returns:
+        np.ndarray: Shape (forecast_length,). Each entry is the fraction of
+        episodes where the actual value at that step fell within the
+        prediction interval.
+    """
+    quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
+    actuals_batch = np.asarray(actuals_batch, dtype=np.float64)
+    q_arr = np.array(quantile_levels, dtype=np.float64)
+    if not np.all(np.diff(q_arr) > 0):
+        raise ValueError("quantile_levels must be strictly increasing.")
+    if not 0.0 < level < 1.0:
+        raise ValueError(f"level must be in (0, 1), got {level}")
+
+    target_lower = (1.0 - level) / 2.0
+    target_upper = (1.0 + level) / 2.0
+    n_eps, _, fh = quantile_forecasts_batch.shape
+
+    lower = np.empty((n_eps, fh), dtype=np.float64)
+    upper = np.empty((n_eps, fh), dtype=np.float64)
+    for e in range(n_eps):
+        for t in range(fh):
+            lower[e, t] = np.interp(target_lower, q_arr, quantile_forecasts_batch[e, :, t])
+            upper[e, t] = np.interp(target_upper, q_arr, quantile_forecasts_batch[e, :, t])
+
+    covered = (actuals_batch >= lower) & (actuals_batch <= upper)
+    return np.mean(covered, axis=0)  # (fh,)
+
+
+def compute_sharpness_by_step(
+    quantile_forecasts_batch: np.ndarray,
+    quantile_levels: List[float],
+    level: float = 0.9,
+) -> np.ndarray:
+    """Compute mean prediction interval width at each forecast horizon step.
+
+    Args:
+        quantile_forecasts_batch: Shape (n_episodes, n_quantiles, forecast_length).
+        quantile_levels: List of quantile levels in strictly increasing order.
+        level: Nominal coverage level in (0, 1).
+
+    Returns:
+        np.ndarray: Shape (forecast_length,). Each entry is the mean interval
+        width (mmol/L) across episodes at that forecast step.
+    """
+    quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
+    q_arr = np.array(quantile_levels, dtype=np.float64)
+    if not np.all(np.diff(q_arr) > 0):
+        raise ValueError("quantile_levels must be strictly increasing.")
+    if not 0.0 < level < 1.0:
+        raise ValueError(f"level must be in (0, 1), got {level}")
+
+    target_lower = (1.0 - level) / 2.0
+    target_upper = (1.0 + level) / 2.0
+    n_eps, _, fh = quantile_forecasts_batch.shape
+
+    lower = np.empty((n_eps, fh), dtype=np.float64)
+    upper = np.empty((n_eps, fh), dtype=np.float64)
+    for e in range(n_eps):
+        for t in range(fh):
+            lower[e, t] = np.interp(target_lower, q_arr, quantile_forecasts_batch[e, :, t])
+            upper[e, t] = np.interp(target_upper, q_arr, quantile_forecasts_batch[e, :, t])
+
+    return np.mean(upper - lower, axis=0)  # (fh,)
+
+
 def compute_mace(
     quantile_forecasts: np.ndarray,
     actuals: np.ndarray,

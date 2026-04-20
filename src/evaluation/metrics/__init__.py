@@ -6,6 +6,8 @@ from src.evaluation.metrics.probabilistic import (
     compute_brier_score,
     compute_coverage,
     compute_sharpness,
+    compute_coverage_by_step,
+    compute_sharpness_by_step,
     compute_mace,
 )
 from src.evaluation.metrics.shape import (
@@ -20,6 +22,8 @@ __all__ = [
     "compute_brier_score",
     "compute_coverage",
     "compute_sharpness",
+    "compute_coverage_by_step",
+    "compute_sharpness_by_step",
     "compute_mace",
     "compute_dilate_metrics",
     "compute_dilate_metrics_batch",

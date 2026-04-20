@@ -91,9 +91,11 @@ def _write_tier1(
         "overall_brier",
         "overall_mace",
         "overall_coverage_50",
-        "overall_coverage_80",
+        "overall_coverage_90",
+        "overall_coverage_95",
         "overall_sharpness_50",
-        "overall_sharpness_80",
+        "overall_sharpness_90",
+        "overall_sharpness_95",
         "quantile_levels",
     ) + tuple(f"overall_{col}" for col in DILATE_COLUMNS):
         if key in results:
@@ -135,14 +137,21 @@ def _write_tier3(
     """Write ``forecasts.npz`` - compressed raw forecast arrays.
 
     Always written. Contents:
-        predictions:        (n_episodes, forecast_length) — point forecasts
-                            (median quantile when probabilistic)
-        actuals:            (n_episodes, forecast_length)
-        episode_ids:        (n_episodes,) fixed-width unicode
-        quantile_forecasts: (n_episodes, n_quantiles, forecast_length)
-                            Empty array when run was non-probabilistic.
-        quantile_levels:    (n_quantiles,) float
-                            Empty array when run was non-probabilistic.
+        predictions:            (n_episodes, forecast_length) — point forecasts
+                                (median quantile when probabilistic)
+        actuals:                (n_episodes, forecast_length)
+        episode_ids:            (n_episodes,) fixed-width unicode
+        quantile_forecasts:     (n_episodes, n_quantiles, forecast_length)
+                                Empty array when run was non-probabilistic.
+        quantile_levels:        (n_quantiles,) float
+                                Empty array when run was non-probabilistic.
+        coverage_by_step_{50,90,95}: (forecast_length,) — empirical coverage at
+                                each horizon step across all episodes, at the
+                                50/90/95% nominal levels. Only present for
+                                levels the model's quantile range supports.
+        sharpness_by_step_{50,90,95}: (forecast_length,) — mean interval width at
+                                each horizon step across all episodes. Only
+                                present for supported levels.
     """
     predictions = results["_predictions"]  # (n_eps, fh)
     actuals = results["_actuals_array"]  # (n_eps, fh)
@@ -151,15 +160,23 @@ def _write_tier3(
     q_forecasts = results.get("_q_forecasts", np.empty((0, 0, 0), dtype=np.float64))
     quantile_levels = np.array(results.get("quantile_levels", []), dtype=np.float64)
 
-    path = output_path / "forecasts.npz"
-    np.savez_compressed(
-        path,
+    # Build the base arrays dict, then conditionally add by-step arrays
+    # only for coverage levels that were actually computed.
+    arrays = dict(
         predictions=predictions,
         actuals=actuals,
         episode_ids=episode_ids,
         quantile_forecasts=q_forecasts,
         quantile_levels=quantile_levels,
     )
+    for lvl in (50, 90, 95):
+        for metric in ("coverage", "sharpness"):
+            key = f"_{metric}_by_step_{lvl}"
+            if key in results:
+                arrays[f"{metric}_by_step_{lvl}"] = results[key]
+
+    path = output_path / "forecasts.npz"
+    np.savez_compressed(path, **arrays)
     size_mb = path.stat().st_size / (1024 * 1024)
     logger.info("Tier 3 (forecasts): %s  (%.1f MB)", path, size_mb)
     return path

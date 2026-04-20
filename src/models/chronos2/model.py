@@ -230,7 +230,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             self._zs_pipeline = Chronos2Pipeline.from_pretrained(
                 self.config.model_path,
                 device_map=device,
-                torch_dtype=torch.float32,
+                dtype=torch.float32,
             )
 
     def _prepare_zero_shot_context(self, data: pd.DataFrame):
@@ -349,8 +349,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         if quantile_levels is not None:
             kwargs["quantile_levels"] = quantile_levels
         quantiles, mean = self._zs_pipeline.predict_quantiles(context, **kwargs)
+        # predict_quantiles returns list of tensors with shape
+        # (n_variates, prediction_length, n_quantiles).  For univariate
+        # forecasting we squeeze the variate dim and transpose to (Q, H).
         return (
-            quantiles[0].detach().cpu().numpy(),
+            quantiles[0].squeeze(0).T.detach().cpu().numpy(),
             mean[0].squeeze().detach().cpu().numpy(),
         )
 
@@ -564,7 +567,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         results = {}
         for i, ep_id in enumerate(episode_ids):
             if quantile_levels is not None:
-                results[ep_id] = quantiles[i].detach().cpu().numpy()
+                # Shape: (n_variates, H, Q) -> squeeze variate -> (H, Q) -> T -> (Q, H)
+                results[ep_id] = quantiles[i].squeeze(0).T.detach().cpu().numpy()
             else:
                 results[ep_id] = mean[i].squeeze().detach().cpu().numpy()
         return results

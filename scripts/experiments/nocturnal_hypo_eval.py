@@ -339,10 +339,14 @@ def main():
         logger.info(f"Overall WQL:  {results['overall_wql']:.4f}")
         logger.info(f"Overall Brier@3.9: {results['overall_brier']:.4f}")
         logger.info(f"Overall MACE: {results['overall_mace']:.4f}")
-        logger.info(f"Coverage 50%%: {results['overall_coverage_50']:.3f}")
-        logger.info(f"Coverage 80%%: {results['overall_coverage_80']:.3f}")
-        logger.info(f"Sharpness 50%%: {results['overall_sharpness_50']:.3f}")
-        logger.info(f"Sharpness 80%%: {results['overall_sharpness_80']:.3f}")
+        for lvl in (50, 90, 95):
+            key = f"overall_coverage_{lvl}"
+            if key in results:
+                logger.info(f"Coverage {lvl}%%: {results[key]:.3f}")
+        for lvl in (50, 90, 95):
+            key = f"overall_sharpness_{lvl}"
+            if key in results:
+                logger.info(f"Sharpness {lvl}%%: {results[key]:.3f}")
     logger.info(f"Total midnight episodes: {results['total_episodes']}")
 
     # Save results (3-tier storage)
