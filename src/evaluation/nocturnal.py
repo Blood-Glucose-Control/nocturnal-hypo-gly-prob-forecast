@@ -54,6 +54,7 @@ def evaluate_nocturnal_forecasting(
     covariate_cols: Optional[List[str]] = None,
     interval_mins: int = SAMPLING_INTERVAL_MINUTES,
     probabilistic: bool = False,
+    compute_dilate: bool = True,
 ) -> Dict[str, Any]:
     """Evaluate model on midnight-anchored nocturnal forecasting task.
 
@@ -78,6 +79,8 @@ def evaluate_nocturnal_forecasting(
         interval_mins: Sampling interval in minutes.
         probabilistic: If True, pass quantile_levels to predict_batch() and
             compute WQL/Brier alongside RMSE.
+        compute_dilate: If False, skip Soft-DTW/DILATE metrics (saves
+            O(n_episodes * forecast_length^2) work on large runs).
 
     Returns:
         Dict with overall_rmse, mean_discontinuity, total_episodes, per_patient,
@@ -246,7 +249,7 @@ def evaluate_nocturnal_forecasting(
         ep_rmse = float(np.sqrt(np.mean((pred - target) ** 2)))
 
         # Shape-aware metrics (DILATE at 3 gamma values → 9 scalars)
-        ep_dilate = compute_dilate_metrics(pred, target)
+        ep_dilate = compute_dilate_metrics(pred, target) if compute_dilate else {}
 
         # Discontinuity: absolute BG jump at the context-forecast boundary.
         disc = float("nan")
@@ -337,13 +340,14 @@ def evaluate_nocturnal_forecasting(
     }
 
     # Overall DILATE means (computed for all modes — only needs point forecasts)
-    for col in DILATE_COLUMNS:
-        vals = [
-            ep[col]
-            for ep in all_episode_results
-            if not np.isnan(ep.get(col, float("nan")))
-        ]
-        results[f"overall_{col}"] = float(np.mean(vals)) if vals else float("nan")
+    if compute_dilate:
+        for col in DILATE_COLUMNS:
+            vals = [
+                ep[col]
+                for ep in all_episode_results
+                if not np.isnan(ep.get(col, float("nan")))
+            ]
+            results[f"overall_{col}"] = float(np.mean(vals)) if vals else float("nan")
 
     log_msg = f"Nocturnal evaluation: {overall_rmse:.4f} RMSE, {mean_disc:.4f} mean discontinuity"
     if probabilistic:

@@ -194,6 +194,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Use predict_quantiles() and compute WQL + Brier@3.9 "
         "(model must support probabilistic forecasting)",
     )
+    parser.add_argument(
+        "--no-dilate",
+        action="store_true",
+        default=False,
+        help="Skip DILATE (Soft-DTW shape) metrics. Useful for large runs "
+        "where the O(n_episodes * forecast_length^2) cost is prohibitive.",
+    )
     return parser.parse_args()
 
 
@@ -319,6 +326,7 @@ def main():
         forecast_length=forecast_length,
         covariate_cols=args.covariate_cols,
         probabilistic=args.probabilistic,
+        compute_dilate=not args.no_dilate,
     )
 
     # Log overall results

@@ -198,9 +198,10 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     ) -> np.ndarray:
         """Make predictions given context data.
 
-        Handles NaN values consistently with training: short gaps (<=45 min
-        at 5-min resolution = 9 readings) are linearly interpolated, longer
-        gaps raise an error.
+        Handles NaN values consistently with training: short gaps
+        (<=``config.imputation_threshold_mins``, resolved to readings via
+        ``config.interval_mins``) are linearly interpolated; longer gaps raise
+        an error.
 
         Args:
             data: DataFrame with column matching config.target_col (default 'bg_mM')
