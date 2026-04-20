@@ -122,9 +122,12 @@ class NocturnalSummarizer(ExperimentSummarizer):
 
         cfg = data.get("config", {})
         git_commit = _read_git_commit(run_dir)
+        checkpoint = data.get("checkpoint") or _read_checkpoint(run_dir)
 
         return {
             "run_id": run_dir.name,
+            "run_path": str(run_dir),
+            "checkpoint": checkpoint,
             "experiment_type": _EXPERIMENT_TYPE,
             "ctx_fh": ctx_fh,
             "model": data.get("model", model),
@@ -164,7 +167,6 @@ class NocturnalSummarizer(ExperimentSummarizer):
             "temporal_g01": _as_float(data.get("overall_temporal_g01")),
             "total_episodes": int(total_episodes),
             "git_commit": git_commit,
-            "run_path": str(run_dir),
         }
 
 
@@ -192,6 +194,21 @@ def _read_git_commit(run_dir: Path) -> str | None:
                 with config_path.open() as fh:
                     cfg = json.load(fh)
                 return cfg.get("environment", {}).get("git_commit")
+            except (json.JSONDecodeError, OSError):
+                pass
+    return None
+
+
+def _read_checkpoint(run_dir: Path) -> str | None:
+    """Try to extract checkpoint path from an experiment config file."""
+    for fname in (_CONFIG_FILENAME, _CONFIG_FILENAME_ALT):
+        config_path = run_dir / fname
+        if config_path.exists():
+            try:
+                with config_path.open() as fh:
+                    cfg = json.load(fh)
+                checkpoint = cfg.get("cli_args", {}).get("checkpoint")
+                return checkpoint if checkpoint else None
             except (json.JSONDecodeError, OSError):
                 pass
     return None

@@ -395,6 +395,52 @@ Issues 5 + 6 fold into whichever training run confirms positive signal (marginal
 
 ---
 
+## 8. Evaluation Methodology Decisions
+
+### 8.1 Probabilistic Interval Levels: 50%, 90%, 95%
+
+Coverage and sharpness are computed at three nominal levels:
+
+| Level | Interpretation | Rationale |
+|-------|---------------|-----------|
+| 50%   | Every other night the actual BG falls inside the interval | Standard narrow interval; universally reported |
+| 90%   | 9 out of 10 nights inside the interval | Clinical resonance ("9 in 10 nights safe"); widely used in ML forecasting literature |
+| 95%   | 19 out of 20 nights inside the interval | Aligns with M4/M5 competition standard; comparable to published baselines |
+
+80% was considered but rejected: non-standard (no literature comparison point), and at this
+clinical safety application the 80%/90%/95% gap is mostly a tail-calibration diagnostic that
+90% already captures.
+
+### 8.2 DILATE Metrics: Per-Episode Scalar, Not Per-Time-Step
+
+DILATE (Soft-DTW shape + TDI temporal) is computed as a scalar per episode because it is a
+holistic trajectory measure — it does not decompose meaningfully by time step. We compute it
+at three gamma values (0.001, 0.01, 0.1) to capture sensitivity across alignment softness.
+
+A `--no-dilate` flag is available in `nocturnal_hypo_eval.py` to skip DILATE for large
+hyperparameter sweeps where the O(n_episodes × forecast_length²) cost is prohibitive.
+
+### 8.3 Per-Time-Step Coverage and Sharpness (Future Work)
+
+Coverage and sharpness are also meaningful at each forecast horizon step (e.g., step 5 = 25 min,
+step 72 = 6 hrs). This would reveal *temporal miscalibration* — whether intervals are
+well-calibrated early but collapse or blow up later overnight.
+
+**Decision:** Implement as a post-loop summary over stacked arrays, not per-episode. After the
+episode loop, stack `_q_forecasts` (n_eps, n_q, fh) and `_actuals_array` (n_eps, fh), then for
+each time step t compute the mean coverage/sharpness across all episodes simultaneously.
+Result: 1-D arrays of length `forecast_length` stored in Tier 3 `forecasts.npz` under keys
+`coverage_by_step_{50,90,95}` and `sharpness_by_step_{50,90,95}` (not in `summary.csv` —
+wrong shape for a flat table). Primary use: calibration plots (x = forecast horizon in minutes,
+y = coverage) for the paper's supplementary material.
+
+**Status:** Implemented. See `src/evaluation/metrics/probabilistic.py`
+(`compute_coverage_by_step`, `compute_sharpness_by_step`) and `src/evaluation/nocturnal.py`
+(post-loop probabilistic block). Arrays are saved via `src/evaluation/storage.py`
+`_write_tier3` into `forecasts.npz`.
+
+---
+
 ## 7. References
 
 - Georga et al. (2015). *Multivariate Prediction of Subcutaneous Glucose Concentration in T1DM

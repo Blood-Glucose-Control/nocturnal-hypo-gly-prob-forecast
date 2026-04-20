@@ -325,8 +325,12 @@ def compute_coverage_by_step(
     upper = np.empty((n_eps, fh), dtype=np.float64)
     for e in range(n_eps):
         for t in range(fh):
-            lower[e, t] = np.interp(target_lower, q_arr, quantile_forecasts_batch[e, :, t])
-            upper[e, t] = np.interp(target_upper, q_arr, quantile_forecasts_batch[e, :, t])
+            lower[e, t] = np.interp(
+                target_lower, q_arr, quantile_forecasts_batch[e, :, t]
+            )
+            upper[e, t] = np.interp(
+                target_upper, q_arr, quantile_forecasts_batch[e, :, t]
+            )
 
     covered = (actuals_batch >= lower) & (actuals_batch <= upper)
     return np.mean(covered, axis=0)  # (fh,)
@@ -363,8 +367,12 @@ def compute_sharpness_by_step(
     upper = np.empty((n_eps, fh), dtype=np.float64)
     for e in range(n_eps):
         for t in range(fh):
-            lower[e, t] = np.interp(target_lower, q_arr, quantile_forecasts_batch[e, :, t])
-            upper[e, t] = np.interp(target_upper, q_arr, quantile_forecasts_batch[e, :, t])
+            lower[e, t] = np.interp(
+                target_lower, q_arr, quantile_forecasts_batch[e, :, t]
+            )
+            upper[e, t] = np.interp(
+                target_upper, q_arr, quantile_forecasts_batch[e, :, t]
+            )
 
     return np.mean(upper - lower, axis=0)  # (fh,)
 

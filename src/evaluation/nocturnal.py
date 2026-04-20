@@ -196,7 +196,11 @@ def evaluate_nocturnal_forecasting(
                 logger.info(
                     "Skipping %d%% coverage/sharpness — needs quantiles "
                     "%.4f/%.4f but model range is [%.3f, %.3f]",
-                    int(lvl * 100), lo, hi, q_min, q_max,
+                    int(lvl * 100),
+                    lo,
+                    hi,
+                    q_min,
+                    q_max,
                 )
 
         logger.info(
