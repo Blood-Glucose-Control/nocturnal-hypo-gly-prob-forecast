@@ -91,9 +91,11 @@ def _write_tier1(
         "overall_brier",
         "overall_mace",
         "overall_coverage_50",
+        "overall_coverage_80",
         "overall_coverage_90",
         "overall_coverage_95",
         "overall_sharpness_50",
+        "overall_sharpness_80",
         "overall_sharpness_90",
         "overall_sharpness_95",
         "quantile_levels",
@@ -145,11 +147,11 @@ def _write_tier3(
                                 Empty array when run was non-probabilistic.
         quantile_levels:        (n_quantiles,) float
                                 Empty array when run was non-probabilistic.
-        coverage_by_step_{50,90,95}: (forecast_length,) — empirical coverage at
+        coverage_by_step_{50,80,90,95}: (forecast_length,) — empirical coverage at
                                 each horizon step across all episodes, at the
-                                50/90/95% nominal levels. Only present for
+                                50/80/90/95% nominal levels. Only present for
                                 levels the model's quantile range supports.
-        sharpness_by_step_{50,90,95}: (forecast_length,) — mean interval width at
+        sharpness_by_step_{50,80,90,95}: (forecast_length,) — mean interval width at
                                 each horizon step across all episodes. Only
                                 present for supported levels.
     """
@@ -169,7 +171,7 @@ def _write_tier3(
         quantile_forecasts=q_forecasts,
         quantile_levels=quantile_levels,
     )
-    for lvl in (50, 90, 95):
+    for lvl in (50, 80, 90, 95):
         for metric in ("coverage", "sharpness"):
             key = f"_{metric}_by_step_{lvl}"
             if key in results:

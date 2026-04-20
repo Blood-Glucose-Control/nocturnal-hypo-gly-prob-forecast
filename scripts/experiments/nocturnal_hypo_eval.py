@@ -339,11 +339,11 @@ def main():
         logger.info(f"Overall WQL:  {results['overall_wql']:.4f}")
         logger.info(f"Overall Brier@3.9: {results['overall_brier']:.4f}")
         logger.info(f"Overall MACE: {results['overall_mace']:.4f}")
-        for lvl in (50, 90, 95):
+        for lvl in (50, 80, 90, 95):
             key = f"overall_coverage_{lvl}"
             if key in results:
                 logger.info(f"Coverage {lvl}%%: {results[key]:.3f}")
-        for lvl in (50, 90, 95):
+        for lvl in (50, 80, 90, 95):
             key = f"overall_sharpness_{lvl}"
             if key in results:
                 logger.info(f"Sharpness {lvl}%%: {results[key]:.3f}")

@@ -185,7 +185,7 @@ def evaluate_nocturnal_forecasting(
         # range actually supports.  A level L requires bounds at (1-L)/2 and
         # (1+L)/2; if those fall outside [min_q, max_q] the metric would be
         # silently clamped, so we skip it entirely.
-        _CANDIDATE_LEVELS = (0.5, 0.9, 0.95)
+        _CANDIDATE_LEVELS = (0.5, 0.80, 0.90, 0.95)
         q_min, q_max = min(quantile_levels), max(quantile_levels)
         supported_levels = []
         for lvl in _CANDIDATE_LEVELS:

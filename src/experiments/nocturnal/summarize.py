@@ -145,9 +145,11 @@ class NocturnalSummarizer(ExperimentSummarizer):
             "brier_3_9": _as_float(data.get("overall_brier")),
             "mace": _as_float(data.get("overall_mace")),
             "coverage_50": _as_float(data.get("overall_coverage_50")),
+            "coverage_80": _as_float(data.get("overall_coverage_80")),
             "coverage_90": _as_float(data.get("overall_coverage_90")),
             "coverage_95": _as_float(data.get("overall_coverage_95")),
             "sharpness_50": _as_float(data.get("overall_sharpness_50")),
+            "sharpness_80": _as_float(data.get("overall_sharpness_80")),
             "sharpness_90": _as_float(data.get("overall_sharpness_90")),
             "sharpness_95": _as_float(data.get("overall_sharpness_95")),
             # DILATE shape-temporal decomposition (3 gamma levels)
