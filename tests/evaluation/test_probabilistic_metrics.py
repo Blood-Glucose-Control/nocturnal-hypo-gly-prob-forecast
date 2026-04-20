@@ -265,6 +265,51 @@ class TestComputeSharpness:
 
 
 class TestPerStepProbabilisticMetrics:
+    @staticmethod
+    def _coverage_by_step_reference(
+        q_batch: np.ndarray,
+        actuals: np.ndarray,
+        q_levels: list,
+        level: float,
+    ) -> np.ndarray:
+        """Slow reference implementation used for regression parity checks."""
+        q_arr = np.array(q_levels, dtype=float)
+        target_lower = (1.0 - level) / 2.0
+        target_upper = (1.0 + level) / 2.0
+        n_eps, _, fh = q_batch.shape
+
+        out = np.empty(fh, dtype=float)
+        for t in range(fh):
+            covered = 0
+            for e in range(n_eps):
+                lo = np.interp(target_lower, q_arr, q_batch[e, :, t])
+                hi = np.interp(target_upper, q_arr, q_batch[e, :, t])
+                covered += int(lo <= actuals[e, t] <= hi)
+            out[t] = covered / n_eps
+        return out
+
+    @staticmethod
+    def _sharpness_by_step_reference(
+        q_batch: np.ndarray,
+        q_levels: list,
+        level: float,
+    ) -> np.ndarray:
+        """Slow reference implementation used for regression parity checks."""
+        q_arr = np.array(q_levels, dtype=float)
+        target_lower = (1.0 - level) / 2.0
+        target_upper = (1.0 + level) / 2.0
+        n_eps, _, fh = q_batch.shape
+
+        out = np.empty(fh, dtype=float)
+        for t in range(fh):
+            widths = []
+            for e in range(n_eps):
+                lo = np.interp(target_lower, q_arr, q_batch[e, :, t])
+                hi = np.interp(target_upper, q_arr, q_batch[e, :, t])
+                widths.append(hi - lo)
+            out[t] = float(np.mean(widths))
+        return out
+
     def test_coverage_by_step_known_values(self):
         """Per-step coverage matches hand-computed fractions across episodes."""
         # 2 episodes, 3 quantiles [0.1, 0.5, 0.9], 4-step horizon
@@ -321,6 +366,46 @@ class TestPerStepProbabilisticMetrics:
             compute_coverage_by_step(q_batch, actuals, [0.9, 0.1], level=0.8)
         with pytest.raises(ValueError, match="strictly increasing"):
             compute_sharpness_by_step(q_batch, [0.9, 0.1], level=0.8)
+
+    def test_per_step_randomized_parity_with_reference(self):
+        """Vectorized/optimized implementations must match reference outputs."""
+        rng = np.random.default_rng(123)
+        n_eps, n_q, fh = 11, 9, 17
+        q_levels = [round(0.1 * i, 1) for i in range(1, 10)]
+        q_batch = np.sort(rng.uniform(2.0, 14.0, size=(n_eps, n_q, fh)), axis=1)
+        actuals = rng.uniform(1.5, 14.5, size=(n_eps, fh))
+        level = 0.65  # Forces interpolation (targets 0.175 / 0.825 are absent)
+
+        cov_expected = self._coverage_by_step_reference(
+            q_batch, actuals, q_levels, level
+        )
+        shp_expected = self._sharpness_by_step_reference(q_batch, q_levels, level)
+
+        cov_got = compute_coverage_by_step(q_batch, actuals, q_levels, level=level)
+        shp_got = compute_sharpness_by_step(q_batch, q_levels, level=level)
+
+        assert np.allclose(cov_got, cov_expected, atol=1e-12)
+        assert np.allclose(shp_got, shp_expected, atol=1e-12)
+
+    def test_per_step_missing_target_quantiles_interpolate_correctly(self):
+        """Interpolation works when interval bounds are not explicit quantile levels."""
+        # level=0.5 requires 0.25/0.75, which are absent here.
+        q_levels = [round(0.1 * i, 1) for i in range(1, 10)]
+        q_batch = np.array(
+            [
+                [[1], [2], [3], [4], [5], [6], [7], [8], [9]],
+                [[1], [2], [3], [4], [5], [6], [7], [8], [9]],
+            ],
+            dtype=float,
+        )
+        actuals = np.array([[5.0], [2.0]], dtype=float)
+
+        # Interpolated bounds: lower=2.5 at q=0.25, upper=7.5 at q=0.75
+        coverage = compute_coverage_by_step(q_batch, actuals, q_levels, level=0.5)
+        sharpness = compute_sharpness_by_step(q_batch, q_levels, level=0.5)
+
+        assert np.allclose(coverage, np.array([0.5]))
+        assert np.allclose(sharpness, np.array([5.0]))
 
 
 # ---------------------------------------------------------------------------

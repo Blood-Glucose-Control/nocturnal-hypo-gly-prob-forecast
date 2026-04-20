@@ -26,7 +26,7 @@ Usage
     brier = compute_brier_score(quantile_forecasts, actuals, quantile_levels)
 """
 
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -176,7 +176,7 @@ def compute_brier_score(
 def _validate_quantile_inputs(
     quantile_forecasts: np.ndarray,
     quantile_levels: List[float],
-    actuals: np.ndarray = None,
+    actuals: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """Shared validation for probabilistic metric inputs.
 
@@ -224,13 +224,42 @@ def _interval_bounds(
     target_lower = (1.0 - level) / 2.0
     target_upper = (1.0 + level) / 2.0
 
-    forecast_length = quantile_forecasts.shape[1]
-    lower = np.empty(forecast_length, dtype=np.float64)
-    upper = np.empty(forecast_length, dtype=np.float64)
-    for t in range(forecast_length):
-        lower[t] = np.interp(target_lower, q_arr, quantile_forecasts[:, t])
-        upper[t] = np.interp(target_upper, q_arr, quantile_forecasts[:, t])
+    q_batch = quantile_forecasts[np.newaxis, :, :]
+    lower = _interp_quantile_level_batch(q_batch, q_arr, target_lower)[0]
+    upper = _interp_quantile_level_batch(q_batch, q_arr, target_upper)[0]
     return lower, upper
+
+
+def _interp_quantile_level_batch(
+    quantile_forecasts_batch: np.ndarray,
+    q_arr: np.ndarray,
+    target: float,
+) -> np.ndarray:
+    """Interpolate one target quantile level for a full batch.
+
+    Args:
+        quantile_forecasts_batch: Shape (n_episodes, n_quantiles, forecast_length).
+        q_arr: Sorted quantile levels with shape (n_quantiles,).
+        target: Target quantile to interpolate.
+
+    Returns:
+        np.ndarray: Interpolated values with shape (n_episodes, forecast_length).
+    """
+    if target <= q_arr[0]:
+        return quantile_forecasts_batch[:, 0, :]
+    if target >= q_arr[-1]:
+        return quantile_forecasts_batch[:, -1, :]
+
+    hi = int(np.searchsorted(q_arr, target, side="left"))
+    if np.isclose(q_arr[hi], target, atol=1e-12, rtol=0.0):
+        return quantile_forecasts_batch[:, hi, :]
+
+    lo = hi - 1
+    q_lo, q_hi = q_arr[lo], q_arr[hi]
+    weight = (target - q_lo) / (q_hi - q_lo)
+    lo_vals = quantile_forecasts_batch[:, lo, :]
+    hi_vals = quantile_forecasts_batch[:, hi, :]
+    return lo_vals + weight * (hi_vals - lo_vals)
 
 
 def compute_coverage(
@@ -319,18 +348,8 @@ def compute_coverage_by_step(
 
     target_lower = (1.0 - level) / 2.0
     target_upper = (1.0 + level) / 2.0
-    n_eps, _, fh = quantile_forecasts_batch.shape
-
-    lower = np.empty((n_eps, fh), dtype=np.float64)
-    upper = np.empty((n_eps, fh), dtype=np.float64)
-    for e in range(n_eps):
-        for t in range(fh):
-            lower[e, t] = np.interp(
-                target_lower, q_arr, quantile_forecasts_batch[e, :, t]
-            )
-            upper[e, t] = np.interp(
-                target_upper, q_arr, quantile_forecasts_batch[e, :, t]
-            )
+    lower = _interp_quantile_level_batch(quantile_forecasts_batch, q_arr, target_lower)
+    upper = _interp_quantile_level_batch(quantile_forecasts_batch, q_arr, target_upper)
 
     covered = (actuals_batch >= lower) & (actuals_batch <= upper)
     return np.mean(covered, axis=0)  # (fh,)
@@ -361,18 +380,8 @@ def compute_sharpness_by_step(
 
     target_lower = (1.0 - level) / 2.0
     target_upper = (1.0 + level) / 2.0
-    n_eps, _, fh = quantile_forecasts_batch.shape
-
-    lower = np.empty((n_eps, fh), dtype=np.float64)
-    upper = np.empty((n_eps, fh), dtype=np.float64)
-    for e in range(n_eps):
-        for t in range(fh):
-            lower[e, t] = np.interp(
-                target_lower, q_arr, quantile_forecasts_batch[e, :, t]
-            )
-            upper[e, t] = np.interp(
-                target_upper, q_arr, quantile_forecasts_batch[e, :, t]
-            )
+    lower = _interp_quantile_level_batch(quantile_forecasts_batch, q_arr, target_lower)
+    upper = _interp_quantile_level_batch(quantile_forecasts_batch, q_arr, target_upper)
 
     return np.mean(upper - lower, axis=0)  # (fh,)
 

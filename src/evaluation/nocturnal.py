@@ -181,7 +181,7 @@ def evaluate_nocturnal_forecasting(
             quantile_levels = sorted(set(quantile_levels) | {0.5})
         median_idx = quantile_levels.index(0.5)
 
-        # Determine which coverage levels (50/90/95) the model's quantile
+        # Determine which coverage levels (50/80/90/95) the model's quantile
         # range actually supports.  A level L requires bounds at (1-L)/2 and
         # (1+L)/2; if those fall outside [min_q, max_q] the metric would be
         # silently clamped, so we skip it entirely.

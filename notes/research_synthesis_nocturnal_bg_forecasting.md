@@ -395,21 +395,26 @@ Issues 5 + 6 fold into whichever training run confirms positive signal (marginal
 
 ---
 
-## 8. Evaluation Methodology Decisions
+## 7. Evaluation Methodology Decisions
 
-### 8.1 Probabilistic Interval Levels: 50%, 90%, 95%
+### 8.1 Probabilistic Interval Levels: 50%, 80%, 90%, 95%
 
-Coverage and sharpness are computed at three nominal levels:
+Coverage and sharpness are computed at four nominal levels:
 
 | Level | Interpretation | Rationale |
 |-------|---------------|-----------|
 | 50%   | Every other night the actual BG falls inside the interval | Standard narrow interval; universally reported |
+| 80%   | 4 out of 5 nights inside the interval | Useful intermediate calibration/sharpness diagnostic between central and high-coverage intervals |
 | 90%   | 9 out of 10 nights inside the interval | Clinical resonance ("9 in 10 nights safe"); widely used in ML forecasting literature |
 | 95%   | 19 out of 20 nights inside the interval | Aligns with M4/M5 competition standard; comparable to published baselines |
 
-80% was considered but rejected: non-standard (no literature comparison point), and at this
-clinical safety application the 80%/90%/95% gap is mostly a tail-calibration diagnostic that
-90% already captures.
+We retain 80% alongside 90% and 95% as an intermediate diagnostic level. In reporting and
+interpretation, 90% and 95% remain the primary high-coverage comparison points, while 80%
+helps assess how calibration and interval width evolve across confidence levels.
+
+Implementation note: metrics are only reported for interval levels supported by a model's
+quantile range. Many TSFMs expose quantiles only in [0.1, 0.9], so they can support 50% and
+80% intervals but not 90% or 95%.
 
 ### 8.2 DILATE Metrics: Per-Episode Scalar, Not Per-Time-Step
 
@@ -420,7 +425,7 @@ at three gamma values (0.001, 0.01, 0.1) to capture sensitivity across alignment
 A `--no-dilate` flag is available in `nocturnal_hypo_eval.py` to skip DILATE for large
 hyperparameter sweeps where the O(n_episodes × forecast_length²) cost is prohibitive.
 
-### 8.3 Per-Time-Step Coverage and Sharpness (Future Work)
+### 8.3 Per-Time-Step Coverage and Sharpness (Implemented)
 
 Coverage and sharpness are also meaningful at each forecast horizon step (e.g., step 5 = 25 min,
 step 72 = 6 hrs). This would reveal *temporal miscalibration* — whether intervals are
@@ -430,7 +435,7 @@ well-calibrated early but collapse or blow up later overnight.
 episode loop, stack `_q_forecasts` (n_eps, n_q, fh) and `_actuals_array` (n_eps, fh), then for
 each time step t compute the mean coverage/sharpness across all episodes simultaneously.
 Result: 1-D arrays of length `forecast_length` stored in Tier 3 `forecasts.npz` under keys
-`coverage_by_step_{50,90,95}` and `sharpness_by_step_{50,90,95}` (not in `summary.csv` —
+`coverage_by_step_{50,80,90,95}` and `sharpness_by_step_{50,80,90,95}` (not in `summary.csv` —
 wrong shape for a flat table). Primary use: calibration plots (x = forecast horizon in minutes,
 y = coverage) for the paper's supplementary material.
 
@@ -441,7 +446,7 @@ y = coverage) for the paper's supplementary material.
 
 ---
 
-## 7. References
+## 8. References
 
 - Georga et al. (2015). *Multivariate Prediction of Subcutaneous Glucose Concentration in T1DM
   Patients Based on Support Vector Regression.* IEEE JBHI.
