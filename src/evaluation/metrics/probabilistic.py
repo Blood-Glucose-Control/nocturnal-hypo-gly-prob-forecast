@@ -26,7 +26,7 @@ Usage
     brier = compute_brier_score(quantile_forecasts, actuals, quantile_levels)
 """
 
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -176,7 +176,7 @@ def compute_brier_score(
 def _validate_quantile_inputs(
     quantile_forecasts: np.ndarray,
     quantile_levels: List[float],
-    actuals: np.ndarray = None,
+    actuals: Optional[np.ndarray] = None,
 ) -> np.ndarray:
     """Shared validation for probabilistic metric inputs.
 
@@ -224,13 +224,98 @@ def _interval_bounds(
     target_lower = (1.0 - level) / 2.0
     target_upper = (1.0 + level) / 2.0
 
-    forecast_length = quantile_forecasts.shape[1]
-    lower = np.empty(forecast_length, dtype=np.float64)
-    upper = np.empty(forecast_length, dtype=np.float64)
-    for t in range(forecast_length):
-        lower[t] = np.interp(target_lower, q_arr, quantile_forecasts[:, t])
-        upper[t] = np.interp(target_upper, q_arr, quantile_forecasts[:, t])
+    q_batch = quantile_forecasts[np.newaxis, :, :]
+    lower = _interp_quantile_level_batch(q_batch, q_arr, target_lower)[0]
+    upper = _interp_quantile_level_batch(q_batch, q_arr, target_upper)[0]
     return lower, upper
+
+
+def _interp_quantile_level_batch(
+    quantile_forecasts_batch: np.ndarray,
+    q_arr: np.ndarray,
+    target: float,
+) -> np.ndarray:
+    """Interpolate one target quantile level for a full batch.
+
+    Args:
+        quantile_forecasts_batch: Shape (n_episodes, n_quantiles, forecast_length).
+        q_arr: Sorted quantile levels with shape (n_quantiles,).
+        target: Target quantile to interpolate.
+
+    Returns:
+        np.ndarray: Interpolated values with shape (n_episodes, forecast_length).
+    """
+    if target <= q_arr[0]:
+        return quantile_forecasts_batch[:, 0, :]
+    if target >= q_arr[-1]:
+        return quantile_forecasts_batch[:, -1, :]
+
+    hi = int(np.searchsorted(q_arr, target, side="left"))
+    if np.isclose(q_arr[hi], target, atol=1e-12, rtol=0.0):
+        return quantile_forecasts_batch[:, hi, :]
+
+    lo = hi - 1
+    q_lo, q_hi = q_arr[lo], q_arr[hi]
+    weight = (target - q_lo) / (q_hi - q_lo)
+    lo_vals = quantile_forecasts_batch[:, lo, :]
+    hi_vals = quantile_forecasts_batch[:, hi, :]
+    return lo_vals + weight * (hi_vals - lo_vals)
+
+
+def _validate_batch_quantile_inputs(
+    quantile_forecasts_batch: np.ndarray,
+    quantile_levels: List[float],
+    actuals_batch: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """Shared validation for batch probabilistic metric inputs.
+
+    Checks batch forecast dimensionality, quantile count consistency, and
+    quantile-level monotonicity. When ``actuals_batch`` is provided, also
+    checks that it is 2D and matches (n_episodes, forecast_length).
+
+    Returns the validated quantile levels as a sorted np.ndarray.
+    """
+    if quantile_forecasts_batch.ndim != 3:
+        raise ValueError(
+            "quantile_forecasts_batch must be 3D "
+            "(n_episodes, n_quantiles, forecast_length), "
+            f"got shape {quantile_forecasts_batch.shape}"
+        )
+
+    n_eps, n_q, fh = quantile_forecasts_batch.shape
+    if n_q == 0:
+        raise ValueError(
+            "quantile_forecasts_batch must include at least one quantile "
+            "(n_quantiles > 0)."
+        )
+
+    if len(quantile_levels) != n_q:
+        raise ValueError(
+            f"len(quantile_levels)={len(quantile_levels)} does not match "
+            f"quantile_forecasts_batch.shape[1]={n_q}"
+        )
+
+    if actuals_batch is not None:
+        if actuals_batch.ndim != 2:
+            raise ValueError(
+                "actuals_batch must be 2D (n_episodes, forecast_length), "
+                f"got shape {actuals_batch.shape}"
+            )
+        if actuals_batch.shape[0] != n_eps:
+            raise ValueError(
+                f"actuals_batch.shape[0]={actuals_batch.shape[0]} does not "
+                f"match quantile_forecasts_batch.shape[0]={n_eps}"
+            )
+        if actuals_batch.shape[1] != fh:
+            raise ValueError(
+                f"actuals_batch.shape[1]={actuals_batch.shape[1]} does not "
+                f"match quantile_forecasts_batch.shape[2]={fh}"
+            )
+
+    q_arr = np.array(quantile_levels, dtype=np.float64)
+    if not np.all(np.diff(q_arr) > 0):
+        raise ValueError("quantile_levels must be strictly increasing.")
+    return q_arr
 
 
 def compute_coverage(
@@ -288,6 +373,71 @@ def compute_sharpness(
 
     lower, upper = _interval_bounds(quantile_forecasts, q_arr, level)
     return float(np.mean(upper - lower))
+
+
+def compute_coverage_by_step(
+    quantile_forecasts_batch: np.ndarray,
+    actuals_batch: np.ndarray,
+    quantile_levels: List[float],
+    level: float = 0.9,
+) -> np.ndarray:
+    """Compute empirical coverage at each forecast horizon step across episodes.
+
+    Args:
+        quantile_forecasts_batch: Shape (n_episodes, n_quantiles, forecast_length).
+        actuals_batch: Shape (n_episodes, forecast_length).
+        quantile_levels: List of quantile levels in strictly increasing order.
+        level: Nominal coverage level in (0, 1).
+
+    Returns:
+        np.ndarray: Shape (forecast_length,). Each entry is the fraction of
+        episodes where the actual value at that step fell within the
+        prediction interval.
+    """
+    quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
+    actuals_batch = np.asarray(actuals_batch, dtype=np.float64)
+    q_arr = _validate_batch_quantile_inputs(
+        quantile_forecasts_batch, quantile_levels, actuals_batch
+    )
+    if not 0.0 < level < 1.0:
+        raise ValueError(f"level must be in (0, 1), got {level}")
+
+    target_lower = (1.0 - level) / 2.0
+    target_upper = (1.0 + level) / 2.0
+    lower = _interp_quantile_level_batch(quantile_forecasts_batch, q_arr, target_lower)
+    upper = _interp_quantile_level_batch(quantile_forecasts_batch, q_arr, target_upper)
+
+    covered = (actuals_batch >= lower) & (actuals_batch <= upper)
+    return np.mean(covered, axis=0)  # (fh,)
+
+
+def compute_sharpness_by_step(
+    quantile_forecasts_batch: np.ndarray,
+    quantile_levels: List[float],
+    level: float = 0.9,
+) -> np.ndarray:
+    """Compute mean prediction interval width at each forecast horizon step.
+
+    Args:
+        quantile_forecasts_batch: Shape (n_episodes, n_quantiles, forecast_length).
+        quantile_levels: List of quantile levels in strictly increasing order.
+        level: Nominal coverage level in (0, 1).
+
+    Returns:
+        np.ndarray: Shape (forecast_length,). Each entry is the mean interval
+        width (mmol/L) across episodes at that forecast step.
+    """
+    quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
+    q_arr = _validate_batch_quantile_inputs(quantile_forecasts_batch, quantile_levels)
+    if not 0.0 < level < 1.0:
+        raise ValueError(f"level must be in (0, 1), got {level}")
+
+    target_lower = (1.0 - level) / 2.0
+    target_upper = (1.0 + level) / 2.0
+    lower = _interp_quantile_level_batch(quantile_forecasts_batch, q_arr, target_lower)
+    upper = _interp_quantile_level_batch(quantile_forecasts_batch, q_arr, target_upper)
+
+    return np.mean(upper - lower, axis=0)  # (fh,)
 
 
 def compute_mace(

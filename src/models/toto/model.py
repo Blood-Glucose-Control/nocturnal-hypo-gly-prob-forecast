@@ -32,7 +32,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
     config_class = TotoConfig
     config: TotoConfig
 
-    DEFAULT_NUM_SAMPLES: int = 50
+    DEFAULT_NUM_SAMPLES: int = 40
 
     def _initialize_model(self) -> None:
         """Load the Toto model from HuggingFace."""
@@ -219,6 +219,17 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         # Left-pad to max length so recent context is right-aligned
         max_len = max(s.shape[1] for s in all_series)
         batch_size = len(all_series)
+        _eval_bs = self.config.eval_batch_size
+        if _eval_bs is None:
+            chunk = batch_size
+        else:
+            chunk = int(
+                _eval_bs
+            )  # raises TypeError or ValueError if unconvertible; accepts numeric strings
+            if chunk <= 0:
+                raise ValueError(
+                    f"eval_batch_size must be a positive integer, got {_eval_bs!r}"
+                )
 
         series = torch.zeros(batch_size, num_variates, max_len)
         padding_mask = torch.zeros(batch_size, num_variates, max_len, dtype=torch.bool)
@@ -251,25 +262,48 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
         if quantile_levels is not None:
             num_samples = self.config.num_samples or self.DEFAULT_NUM_SAMPLES
-            with torch.no_grad():
-                forecast = self.forecaster.forecast(
-                    inputs,
-                    prediction_length=self.config.forecast_length,
-                    num_samples=num_samples,
-                    samples_per_batch=self.config.samples_per_batch,
+            results: Dict[str, np.ndarray] = {}
+            for start in range(0, batch_size, chunk):
+                end = min(start + chunk, batch_size)
+                chunk_inputs = MaskedTimeseries(
+                    series=inputs.series[start:end],
+                    padding_mask=inputs.padding_mask[start:end],
+                    id_mask=inputs.id_mask[start:end],
+                    timestamp_seconds=inputs.timestamp_seconds[start:end],
+                    time_interval_seconds=inputs.time_interval_seconds[start:end],
+                    num_exogenous_variables=inputs.num_exogenous_variables,
                 )
-            # samples: (batch, num_variates, fh, num_samples) → BG variate → (fh, num_samples)
-            return {
-                eid: np.quantile(
-                    forecast.samples[i, 0, :, :].cpu().numpy(),
-                    quantile_levels,
-                    axis=1,
-                )  # (n_q, fh)
-                for i, eid in enumerate(episode_ids)
-            }
+                with torch.no_grad():
+                    forecast = self.forecaster.forecast(
+                        chunk_inputs,
+                        prediction_length=self.config.forecast_length,
+                        num_samples=num_samples,
+                        samples_per_batch=self.config.samples_per_batch,
+                    )
+                # samples: (chunk, num_variates, fh, num_samples) → BG variate → (fh, num_samples)
+                for local_i, eid in enumerate(episode_ids[start:end]):
+                    results[eid] = np.quantile(
+                        forecast.samples[local_i, 0, :, :].cpu().numpy(),
+                        quantile_levels,
+                        axis=1,
+                    )  # (n_q, fh)
+            return results
 
-        preds = self._run_forecast(inputs)
-        return {eid: preds[i] for i, eid in enumerate(episode_ids)}
+        results_pt: Dict[str, np.ndarray] = {}
+        for start in range(0, batch_size, chunk):
+            end = min(start + chunk, batch_size)
+            chunk_inputs = MaskedTimeseries(
+                series=inputs.series[start:end],
+                padding_mask=inputs.padding_mask[start:end],
+                id_mask=inputs.id_mask[start:end],
+                timestamp_seconds=inputs.timestamp_seconds[start:end],
+                time_interval_seconds=inputs.time_interval_seconds[start:end],
+                num_exogenous_variables=inputs.num_exogenous_variables,
+            )
+            chunk_preds = self._run_forecast(chunk_inputs)
+            for local_i, eid in enumerate(episode_ids[start:end]):
+                results_pt[eid] = chunk_preds[local_i]
+        return results_pt
 
     def _dataframe_to_hf_dataset(self, train_data: pd.DataFrame):
         """Convert a flat DataFrame to HuggingFace Dataset format for Toto.
