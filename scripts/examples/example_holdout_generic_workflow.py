@@ -321,8 +321,10 @@ class ModelFactory:
                 batch_size=config.batch_size,
                 num_epochs=config.num_epochs,
                 training_mode=config.training_mode,
+                freeze_backbone=config.freeze_backbone,
                 use_cpu=config.use_cpu,
                 fp16=config.fp16,
+                learning_rate=config.learning_rate,
                 **config.extra_config,
             )
 

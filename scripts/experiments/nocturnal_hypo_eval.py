@@ -118,6 +118,7 @@ def parse_arguments() -> argparse.Namespace:
             "ttm",
             "chronos2",
             "moirai",
+            "moment",
             "timegrad",
             "timesfm",
             "tide",
@@ -324,7 +325,7 @@ def main():
         holdout_data=holdout_data,
         context_length=context_length,
         forecast_length=forecast_length,
-        covariate_cols=args.covariate_cols,
+        covariate_cols=covariate_cols,
         probabilistic=args.probabilistic,
         compute_dilate=not args.no_dilate,
     )

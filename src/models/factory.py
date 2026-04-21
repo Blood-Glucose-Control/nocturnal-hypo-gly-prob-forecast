@@ -329,6 +329,72 @@ def create_model_and_config(
             model = TimeGradForecaster(config)
         return model, config
 
+    elif model_type == "moment":
+        from src.models.moment import MomentForecaster, MomentConfig
+
+        if checkpoint:
+            config_dict = {}
+            config_path = os.path.join(checkpoint, "config.json")
+            training_metadata_path = os.path.join(checkpoint, "training_metadata.json")
+
+            if os.path.exists(config_path):
+                with open(config_path, "r") as f:
+                    config_dict = json.load(f)
+            elif os.path.exists(training_metadata_path):
+                with open(training_metadata_path, "r") as f:
+                    metadata = json.load(f)
+                config_dict = metadata.get("config", {})
+
+            # Defensive cleanup for stale/extra keys and missing model identifier
+            config_dict.pop("model_type", None)
+            if not config_dict.get("model_path"):
+                config_dict["model_path"] = kwargs.get(
+                    "model_path", "AutonLab/MOMENT-1-small"
+                )
+
+            config = MomentConfig(**config_dict)
+
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+            if "context_length" in kwargs:
+                requested = kwargs["context_length"]
+                if requested != config.context_length:
+                    logger.warning(
+                        f"context_length mismatch: requested {requested}, "
+                        f"model trained with {config.context_length}. "
+                        f"Using saved value."
+                    )
+
+            model = MomentForecaster(config)
+            model._load_checkpoint(checkpoint)
+            model.is_fitted = True
+        else:
+            config = MomentConfig(
+                model_path=kwargs.get("model_path", "AutonLab/MOMENT-1-small"),
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 72),
+                batch_size=kwargs.get("batch_size", 32),
+                learning_rate=kwargs.get("learning_rate", 1e-4),
+                num_epochs=kwargs.get("num_epochs", 1),
+                training_mode=kwargs.get("training_mode", "zero_shot"),
+                use_cpu=kwargs.get("use_cpu", False),
+                fp16=kwargs.get("fp16", False),
+            )
+            model = MomentForecaster(config)
+        return model, config
+
     elif model_type == "toto":
         from src.models.toto import TotoForecaster, TotoConfig
 
@@ -446,5 +512,5 @@ def create_model_and_config(
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, tide"
+            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, tide, moment"
         )

@@ -1,0 +1,20 @@
+# MOMENT Sweep 05 - Freeze Backbone
+model_path: "AutonLab/MOMENT-1-small"
+training_mode: "fine_tune"
+context_length: 512
+forecast_length: 96
+use_wrapper_normalization: false
+covariate_cols: []
+
+learning_rate: 2.0e-4
+batch_size: 16
+num_epochs: 5
+
+window_stride: 96
+max_train_windows: 4096
+
+training_config:
+  freeze_backbone: true
+
+target_col: "bg_mM"
+interval_mins: 5
