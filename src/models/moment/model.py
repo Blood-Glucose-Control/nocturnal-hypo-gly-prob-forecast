@@ -393,7 +393,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         """Input channel order for MOMENT: target first, then covariates."""
         return [target_col] + self._get_covariate_columns(df, target_col)
 
-    def _build_context_matrix(self, df: pd.DataFrame, input_cols: List[str]) -> np.ndarray:
+    def _build_context_matrix(
+        self, df: pd.DataFrame, input_cols: List[str]
+    ) -> np.ndarray:
         """Build finite context matrix [time, channels] from selected columns."""
         mat_df = df[input_cols].astype(float).replace([np.inf, -np.inf], np.nan)
         mat_df = mat_df.dropna()
@@ -510,11 +512,15 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
                 if ColumnNames.P_NUM.value in data.columns:
                     for _pid, patient_df in data.groupby(ColumnNames.P_NUM.value):
-                        patient_input_cols = self._get_input_columns(patient_df, target_col)
+                        patient_input_cols = self._get_input_columns(
+                            patient_df, target_col
+                        )
                         for daytime, nocturnal in iter_daily_context_forecast_splits(
                             patient_df
                         ):
-                            ctx = self._build_context_matrix(daytime, patient_input_cols)
+                            ctx = self._build_context_matrix(
+                                daytime, patient_input_cols
+                            )
                             tgt = nocturnal[target_col].values[:fcast_len]
                             if np.isnan(tgt).any():
                                 continue
@@ -640,7 +646,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             fcast_len = targets[0].shape[0] if targets else 0
             n_channels = norm_contexts[0].shape[1] if norm_contexts else 1
 
-            ctx_padded = np.zeros((len(norm_contexts), max_ctx, n_channels), dtype=np.float32)
+            ctx_padded = np.zeros(
+                (len(norm_contexts), max_ctx, n_channels), dtype=np.float32
+            )
             tgt_stacked = np.zeros((len(targets), fcast_len), dtype=np.float32)
             for i, (c, t) in enumerate(zip(norm_contexts, targets)):
                 ctx_padded[i, -len(c) :, :] = c
@@ -928,7 +936,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         if self._use_wrapper_normalization:
             info_print("Using wrapper-side per-window normalization during training")
         else:
-            info_print("Using MOMENT internal normalization (wrapper normalization disabled)")
+            info_print(
+                "Using MOMENT internal normalization (wrapper normalization disabled)"
+            )
 
         # Set model to training mode
         self.model.train()
@@ -1036,7 +1046,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                         output = self.model.forecast(
                             x_enc=input_seq, input_mask=input_mask
                         )
-                        pred_out = output.forecast[0, 0, :forecast_len]  # [forecast_len]
+                        pred_out = output.forecast[
+                            0, 0, :forecast_len
+                        ]  # [forecast_len]
                         loss = loss_fn(pred_out, target_for_loss.to(self._device))
                         losses.append(loss)
 
@@ -1083,7 +1095,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
                             if self._use_wrapper_normalization:
                                 loc = ctx.mean(dim=0)
-                                scale = ctx.std(dim=0).clamp(min=NORMALIZATION_SCALE_FLOOR)
+                                scale = ctx.std(dim=0).clamp(
+                                    min=NORMALIZATION_SCALE_FLOOR
+                                )
                                 ctx_model = (ctx - loc[None, :]) / scale[None, :]
                                 target_for_loss = (tgt - loc[0]) / scale[0]
                             else:
@@ -1119,7 +1133,9 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                             )
                             pred_out = output.forecast[0, 0, : len(tgt)]
                             val_losses.append(
-                                loss_fn(pred_out, target_for_loss.to(self._device)).item()
+                                loss_fn(
+                                    pred_out, target_for_loss.to(self._device)
+                                ).item()
                             )
 
                 val_loss = np.mean(val_losses) if val_losses else None

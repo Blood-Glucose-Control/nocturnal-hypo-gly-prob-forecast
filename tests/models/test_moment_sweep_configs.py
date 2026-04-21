@@ -32,7 +32,9 @@ class _DummyMomentPipeline:
 def patched_moment_import(monkeypatch):
     from src.models.moment import model as moment_model
 
-    monkeypatch.setattr(moment_model, "_optional_moment_import", lambda: _DummyMomentPipeline)
+    monkeypatch.setattr(
+        moment_model, "_optional_moment_import", lambda: _DummyMomentPipeline
+    )
     return moment_model
 
 
