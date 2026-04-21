@@ -497,7 +497,12 @@ class BaseTimeSeriesFoundationModel(ABC):
         if not input_ids:
             return {}
 
-        results = self._predict_batch(data, episode_col, quantile_levels)
+        if quantile_levels is None:
+            # Backward-compatible dispatch for model overrides that implement
+            # _predict_batch(self, data, episode_col) without quantile_levels.
+            results = self._predict_batch(data, episode_col)
+        else:
+            results = self._predict_batch(data, episode_col, quantile_levels)
 
         missing = input_ids - set(results.keys())
         if missing:
