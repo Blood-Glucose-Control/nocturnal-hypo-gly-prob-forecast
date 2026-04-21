@@ -367,6 +367,36 @@ class TestPerStepProbabilisticMetrics:
         with pytest.raises(ValueError, match="strictly increasing"):
             compute_sharpness_by_step(q_batch, [0.9, 0.1], level=0.8)
 
+    def test_per_step_shape_validation(self):
+        q_levels = [0.1, 0.5, 0.9]
+
+        with pytest.raises(ValueError, match="must be 3D"):
+            compute_coverage_by_step(
+                np.ones((2, 3)), np.ones((2, 4)), q_levels, level=0.8
+            )
+        with pytest.raises(ValueError, match="must be 3D"):
+            compute_sharpness_by_step(np.ones((2, 3)), q_levels, level=0.8)
+
+    def test_per_step_actuals_shape_validation(self):
+        q_levels = [0.1, 0.5, 0.9]
+        q_batch = np.ones((2, 3, 4))
+
+        with pytest.raises(ValueError, match="actuals_batch must be 2D"):
+            compute_coverage_by_step(q_batch, np.ones(4), q_levels, level=0.8)
+        with pytest.raises(ValueError, match=r"shape\[0\].*does not match"):
+            compute_coverage_by_step(q_batch, np.ones((3, 4)), q_levels, level=0.8)
+        with pytest.raises(ValueError, match=r"shape\[1\].*does not match"):
+            compute_coverage_by_step(q_batch, np.ones((2, 5)), q_levels, level=0.8)
+
+    def test_per_step_quantile_count_validation(self):
+        q_batch = np.ones((2, 3, 4))
+        actuals = np.ones((2, 4))
+
+        with pytest.raises(ValueError, match=r"len\(quantile_levels\).+does not match"):
+            compute_coverage_by_step(q_batch, actuals, [0.1, 0.5], level=0.8)
+        with pytest.raises(ValueError, match=r"len\(quantile_levels\).+does not match"):
+            compute_sharpness_by_step(q_batch, [0.1, 0.5], level=0.8)
+
     def test_per_step_randomized_parity_with_reference(self):
         """Vectorized/optimized implementations must match reference outputs."""
         rng = np.random.default_rng(123)

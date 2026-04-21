@@ -100,6 +100,11 @@ class TimesFMConfig(ModelConfig):
         if self.batch_size <= 0:
             raise ValueError(f"batch_size must be positive, got {self.batch_size}")
 
+        if self.interval_mins <= 0:
+            raise ValueError(
+                f"interval_mins must be positive, got {self.interval_mins}"
+            )
+
         if not all(0 <= q <= 1 for q in self.quantiles):
             raise ValueError(
                 f"All quantiles must be between 0 and 1, got {self.quantiles}"

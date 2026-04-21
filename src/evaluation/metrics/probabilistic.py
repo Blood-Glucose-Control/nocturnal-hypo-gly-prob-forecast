@@ -262,6 +262,62 @@ def _interp_quantile_level_batch(
     return lo_vals + weight * (hi_vals - lo_vals)
 
 
+def _validate_batch_quantile_inputs(
+    quantile_forecasts_batch: np.ndarray,
+    quantile_levels: List[float],
+    actuals_batch: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """Shared validation for batch probabilistic metric inputs.
+
+    Checks batch forecast dimensionality, quantile count consistency, and
+    quantile-level monotonicity. When ``actuals_batch`` is provided, also
+    checks that it is 2D and matches (n_episodes, forecast_length).
+
+    Returns the validated quantile levels as a sorted np.ndarray.
+    """
+    if quantile_forecasts_batch.ndim != 3:
+        raise ValueError(
+            "quantile_forecasts_batch must be 3D "
+            "(n_episodes, n_quantiles, forecast_length), "
+            f"got shape {quantile_forecasts_batch.shape}"
+        )
+
+    n_eps, n_q, fh = quantile_forecasts_batch.shape
+    if n_q == 0:
+        raise ValueError(
+            "quantile_forecasts_batch must include at least one quantile "
+            "(n_quantiles > 0)."
+        )
+
+    if len(quantile_levels) != n_q:
+        raise ValueError(
+            f"len(quantile_levels)={len(quantile_levels)} does not match "
+            f"quantile_forecasts_batch.shape[1]={n_q}"
+        )
+
+    if actuals_batch is not None:
+        if actuals_batch.ndim != 2:
+            raise ValueError(
+                "actuals_batch must be 2D (n_episodes, forecast_length), "
+                f"got shape {actuals_batch.shape}"
+            )
+        if actuals_batch.shape[0] != n_eps:
+            raise ValueError(
+                f"actuals_batch.shape[0]={actuals_batch.shape[0]} does not "
+                f"match quantile_forecasts_batch.shape[0]={n_eps}"
+            )
+        if actuals_batch.shape[1] != fh:
+            raise ValueError(
+                f"actuals_batch.shape[1]={actuals_batch.shape[1]} does not "
+                f"match quantile_forecasts_batch.shape[2]={fh}"
+            )
+
+    q_arr = np.array(quantile_levels, dtype=np.float64)
+    if not np.all(np.diff(q_arr) > 0):
+        raise ValueError("quantile_levels must be strictly increasing.")
+    return q_arr
+
+
 def compute_coverage(
     quantile_forecasts: np.ndarray,
     actuals: np.ndarray,
@@ -340,9 +396,9 @@ def compute_coverage_by_step(
     """
     quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
     actuals_batch = np.asarray(actuals_batch, dtype=np.float64)
-    q_arr = np.array(quantile_levels, dtype=np.float64)
-    if not np.all(np.diff(q_arr) > 0):
-        raise ValueError("quantile_levels must be strictly increasing.")
+    q_arr = _validate_batch_quantile_inputs(
+        quantile_forecasts_batch, quantile_levels, actuals_batch
+    )
     if not 0.0 < level < 1.0:
         raise ValueError(f"level must be in (0, 1), got {level}")
 
@@ -372,9 +428,7 @@ def compute_sharpness_by_step(
         width (mmol/L) across episodes at that forecast step.
     """
     quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
-    q_arr = np.array(quantile_levels, dtype=np.float64)
-    if not np.all(np.diff(q_arr) > 0):
-        raise ValueError("quantile_levels must be strictly increasing.")
+    q_arr = _validate_batch_quantile_inputs(quantile_forecasts_batch, quantile_levels)
     if not 0.0 < level < 1.0:
         raise ValueError(f"level must be in (0, 1), got {level}")
 
