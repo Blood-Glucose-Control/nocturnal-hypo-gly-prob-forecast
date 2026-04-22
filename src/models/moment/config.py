@@ -140,6 +140,8 @@ class MomentConfig(ModelConfig):
             "use_wrapper_normalization",
             "training_config",
             "data_config",
+            "target_col",
+            "interval_mins",
         }
 
         # Filter out Moment-specific params from kwargs for parent class
@@ -166,6 +168,8 @@ class MomentConfig(ModelConfig):
         self.mask_ratio = kwargs.get("mask_ratio", 0.15)
         self.covariate_cols = kwargs.get("covariate_cols", [])
         self.use_wrapper_normalization = kwargs.get("use_wrapper_normalization", False)
+        self.target_col: Optional[str] = kwargs.get("target_col", None)
+        self.interval_mins: Optional[int] = kwargs.get("interval_mins", None)
 
         # Initialize Moment-specific configs (support dicts from checkpoint JSON)
         training_cfg = kwargs.get("training_config", MomentTrainingConfig())
@@ -202,6 +206,8 @@ class MomentConfig(ModelConfig):
                 "mask_ratio": self.mask_ratio,
                 "covariate_cols": list(self.covariate_cols or []),
                 "use_wrapper_normalization": self.use_wrapper_normalization,
+                "target_col": self.target_col,
+                "interval_mins": self.interval_mins,
                 "training_config": asdict(self.training_config),
                 "data_config": asdict(self.data_config),
             }
@@ -246,7 +252,7 @@ def create_moment_fine_tuning_config(**kwargs) -> MomentConfig:
         "model_path": "AutonLab/MOMENT-1-large",
         "context_length": 512,
         "forecast_length": 96,
-        "training_backend": TrainingBackend.PYTORCH,  # Fine-tuning uses custom PyTorch loop
+        "training_backend": TrainingBackend.PYTORCH,  # Fine-tuning uses custom PyTorch training loop (not HF Trainer)
         "learning_rate": 5e-5,
         "batch_size": 16,
         "num_epochs": 20,

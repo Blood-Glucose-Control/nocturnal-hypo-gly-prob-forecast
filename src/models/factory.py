@@ -352,7 +352,7 @@ def create_model_and_config(
                     "model_path", "AutonLab/MOMENT-1-small"
                 )
 
-            config = MomentConfig(**config_dict)
+            config = MomentConfig.from_dict(config_dict)
 
             if "batch_size" in kwargs:
                 config.batch_size = kwargs["batch_size"]

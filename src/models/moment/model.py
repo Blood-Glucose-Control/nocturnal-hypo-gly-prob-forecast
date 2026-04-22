@@ -9,11 +9,11 @@ import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
+from src.models.base.registry import ModelRegistry
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
-from transformers.training_args import TrainingArguments
 
 # Local imports
 from src.data.models import ColumnNames
@@ -60,12 +60,13 @@ class _ContextTargetDataset(Dataset):
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
         return {
-            "context": self.contexts[idx].astype(np.float32),
-            "target": self.targets[idx].astype(np.float32),
+            "context": self.contexts[idx],
+            "target": self.targets[idx],
             "context_len": int(self.context_lengths[idx]),
         }
 
 
+@ModelRegistry.register("moment")
 class MomentForecaster(BaseTimeSeriesFoundationModel):
     """Moment forecaster implementation using the base TSFM framework.
 
@@ -147,25 +148,31 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         quantile_levels: Optional[List[float]] = None,
         **kwargs: Any,
     ) -> np.ndarray:
-        """Base-class compatible prediction bridge.
+        """Point forecast implementation delegated to by the base-class predict().
 
         Moment currently provides deterministic point forecasts only.
         """
-        if quantile_levels is not None:
-            raise NotImplementedError(
-                "MomentForecaster does not support probabilistic forecasts."
+        bs = kwargs.get("batch_size") or self.config.batch_size
+        loader, _, _ = self._prepare_training_data(data, batch_size=bs)
+        all_preds = []
+        for batch in loader:
+            ctx = batch["context"]
+            if isinstance(ctx, torch.Tensor):
+                ctx = ctx.numpy()
+            ctx_lens = batch.get("context_len")
+            if isinstance(ctx_lens, torch.Tensor):
+                ctx_lens = ctx_lens.numpy()
+            preds = self._forecast_batch(
+                ctx,
+                self.config.forecast_length,
+                context_lengths=ctx_lens,
             )
-
-        preds = self.predict(
-            data,
-            batch_size=kwargs.get("batch_size"),
-            return_dict=False,
-        )
-
+            all_preds.append(preds)
+        predictions = np.concatenate(all_preds, axis=0)
         # Base contract expects shape (forecast_length,) for a single prediction.
-        if isinstance(preds, np.ndarray) and preds.ndim == 2 and preds.shape[0] == 1:
-            return preds[0]
-        return preds
+        if predictions.ndim == 2 and predictions.shape[0] == 1:
+            return predictions[0]
+        return predictions
 
     # --- Model init ---
     def _initialize_model(self) -> None:
@@ -367,6 +374,11 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
     def _get_target_column(self, df: pd.DataFrame) -> str:
         if self._target_col is not None and self._target_col in df.columns:
             return self._target_col
+        # Use target_col from config if set (e.g. from sweep YAML)
+        config_target_col = getattr(self.config, "target_col", None)
+        if config_target_col and config_target_col in df.columns:
+            self._target_col = config_target_col
+            return config_target_col
         col = getattr(
             self.config.data_config,
             "target_features",
@@ -599,8 +611,8 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         if split_config and len(pairs) > 1:
             import random
 
-            random.seed(42)  # For reproducibility
-            random.shuffle(pairs)
+            rng = random.Random(42)
+            rng.shuffle(pairs)
 
             train_ratio = split_config.get("train", 0.7)
             val_ratio = split_config.get("val", 0.2)
@@ -686,62 +698,13 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         return targets
 
     # --- Public API ---
-    def predict(
-        self,
-        data: Any,
-        quantile_levels: Optional[List[float]] = None,
-        batch_size: Optional[int] = None,
-        return_dict: bool = False,
-        **kwargs: Any,
-    ) -> np.ndarray:
-        """Make zero-shot predictions. Model must be initialized (no fit required).
-
-        Note: Base class signature returns np.ndarray only. Use predict_with_metadata()
-        for dict return with additional info.
-        """
-        if quantile_levels is not None:
-            raise NotImplementedError(
-                "MomentForecaster does not support probabilistic forecasts."
-            )
-
-        if self.model is None:
-            raise ValueError(
-                "Model not initialized; call constructor with valid config"
-            )
-
-        bs = batch_size if batch_size is not None else self.config.batch_size
-        loader, _, _ = self._prepare_training_data(data, batch_size=bs)
-        all_preds = []
-        for batch in loader:
-            ctx = batch["context"]
-            if isinstance(ctx, torch.Tensor):
-                ctx = ctx.numpy()
-            ctx_lens = batch.get("context_len")
-            if isinstance(ctx_lens, torch.Tensor):
-                ctx_lens = ctx_lens.numpy()
-            preds = self._forecast_batch(
-                ctx,
-                self.config.forecast_length,
-                context_lengths=ctx_lens,
-            )
-            all_preds.append(preds)
-        predictions = np.concatenate(all_preds, axis=0)
-        if predictions.ndim == 2 and predictions.shape[0] == 1:
-            predictions = predictions[0]
-
-        if return_dict:
-            # For compatibility, but base signature doesn't support this
-            # Users should use predict_with_metadata() if they need dict
-            return predictions  # type: ignore[return-value]
-        return predictions
-
     def predict_with_metadata(
         self,
-        data: Any,
+        data: pd.DataFrame,
         batch_size: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Make predictions and return dict with metadata."""
-        predictions = self.predict(data, batch_size=batch_size, return_dict=False)
+        predictions = self.predict(data, batch_size=batch_size)
         return {
             "predictions": predictions,
             "model_type": "moment",
@@ -834,14 +797,6 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         if len(context) < 10:
             raise ValueError("context must have at least 10 values")
         return self._forecast_single(context, prediction_length=forecast_length)
-
-    def predict_zero_shot(
-        self,
-        data: Any,
-        batch_size: Optional[int] = None,
-    ) -> np.ndarray:
-        """Zero-shot predictions without requiring fit(). Same as predict() for Moment."""
-        return self.predict(data, batch_size=batch_size)
 
     # --- Checkpoints ---
     def _save_checkpoint(self, output_dir: str) -> None:
@@ -997,63 +952,45 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
                 batch_size = contexts.shape[0]
                 forecast_len = targets.shape[1]
-                losses = []
+                n_channels = contexts.shape[2]
+
+                # Clamp each context to MOMENT_MAX_LEN - forecast_len
+                max_ctx = min(contexts.shape[1], MOMENT_MAX_LEN - forecast_len)
+                contexts = contexts[:, -max_ctx:, :]  # [B, max_ctx, C]
+                eff_ctx_lens = context_lens.clamp(max=max_ctx)
+                full_len = max_ctx + forecast_len
+
+                # Build [B, C, full_len] input and [B, full_len] mask in one shot
+                x_enc = torch.zeros(
+                    batch_size,
+                    n_channels,
+                    full_len,
+                    dtype=torch.float32,
+                    device=self._device,
+                )
+                input_mask = torch.zeros(
+                    batch_size,
+                    full_len,
+                    dtype=torch.long,
+                    device=self._device,
+                )
+                targets_normed = targets.clone()
 
                 for i in range(batch_size):
-                    ctx_len = int(context_lens[i])
-                    ctx = contexts[i, -ctx_len:, :].float()  # [T, C], remove padding
-                    tgt = targets[i].float()  # Target to predict
-                    n_channels = ctx.shape[1]
-
+                    cl = int(eff_ctx_lens[i])
+                    ctx = contexts[i, -cl:, :].float()  # [cl, C]
                     if self._use_wrapper_normalization:
-                        # Optional legacy path: normalize each channel per window.
                         loc = ctx.mean(dim=0)
                         scale = ctx.std(dim=0).clamp(min=NORMALIZATION_SCALE_FLOOR)
-                        ctx_model = (ctx - loc[None, :]) / scale[None, :]
-                        target_for_loss = (tgt[:forecast_len] - loc[0]) / scale[0]
-                    else:
-                        ctx_model = ctx
-                        target_for_loss = tgt[:forecast_len]
+                        ctx = (ctx - loc[None, :]) / scale[None, :]
+                        targets_normed[i] = (targets[i] - loc[0]) / scale[0]
+                    x_enc[i, :, :cl] = ctx.transpose(0, 1)
+                    input_mask[i, :cl] = 1
 
-                    full_len = ctx_model.shape[0] + forecast_len
-                    if full_len > MOMENT_MAX_LEN:
-                        keep = MOMENT_MAX_LEN - forecast_len
-                        ctx_model = ctx_model[-keep:]
-                        target_for_loss = target_for_loss[:forecast_len]
-                        full_len = MOMENT_MAX_LEN
-                        ctx_len = keep
-
-                    # Input tensor [1, C, seq_len]
-                    input_seq = torch.zeros(
-                        n_channels,
-                        full_len,
-                        dtype=torch.float32,
-                        device=self._device,
-                    )
-                    input_seq[:, : ctx_model.shape[0]] = ctx_model.transpose(0, 1).to(
-                        self._device
-                    )
-                    input_seq = input_seq.unsqueeze(0)
-
-                    # Mask: 1 = observed (context), 0 = to predict (target)
-                    input_mask = torch.ones(
-                        full_len, dtype=torch.long, device=self._device
-                    )
-                    input_mask[ctx_model.shape[0] :] = 0
-                    input_mask = input_mask.unsqueeze(0)
-
-                    with torch.set_grad_enabled(True):
-                        output = self.model.forecast(
-                            x_enc=input_seq, input_mask=input_mask
-                        )
-                        pred_out = output.forecast[
-                            0, 0, :forecast_len
-                        ]  # [forecast_len]
-                        loss = loss_fn(pred_out, target_for_loss.to(self._device))
-                        losses.append(loss)
-
-                # Average loss across batch
-                batch_loss = torch.stack(losses).mean()
+                output = self.model.forecast(x_enc=x_enc, input_mask=input_mask)  # type: ignore[call-overload]
+                # output.forecast: [B, C, full_len] — take channel 0, last forecast_len steps
+                preds = output.forecast[:, 0, -forecast_len:]  # type: ignore[union-attr] # [B, forecast_len]
+                batch_loss = loss_fn(preds, targets_normed)
 
                 # Backward pass
                 batch_loss.backward()
@@ -1087,56 +1024,47 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                         val_targets = val_batch["target"].to(self._device)
                         val_context_lens = val_batch["context_len"]
 
-                        for i in range(val_contexts.shape[0]):
-                            ctx_len = int(val_context_lens[i])
-                            ctx = val_contexts[i, -ctx_len:, :].float()
-                            tgt = val_targets[i].float()
-                            n_channels = ctx.shape[1]
+                        vb = val_contexts.shape[0]
+                        vf = val_targets.shape[1]
+                        vc = val_contexts.shape[2]
+                        v_max_ctx = min(val_contexts.shape[1], MOMENT_MAX_LEN - vf)
+                        val_contexts = val_contexts[:, -v_max_ctx:, :]
+                        eff_lens = val_context_lens.clamp(max=v_max_ctx)
+                        v_full_len = v_max_ctx + vf
 
+                        vx_enc = torch.zeros(
+                            vb,
+                            vc,
+                            v_full_len,
+                            dtype=torch.float32,
+                            device=self._device,
+                        )
+                        v_mask = torch.zeros(
+                            vb,
+                            v_full_len,
+                            dtype=torch.long,
+                            device=self._device,
+                        )
+                        val_targets_normed = val_targets.clone()
+
+                        for i in range(vb):
+                            cl = int(eff_lens[i])
+                            ctx = val_contexts[i, -cl:, :].float()
                             if self._use_wrapper_normalization:
                                 loc = ctx.mean(dim=0)
                                 scale = ctx.std(dim=0).clamp(
                                     min=NORMALIZATION_SCALE_FLOOR
                                 )
-                                ctx_model = (ctx - loc[None, :]) / scale[None, :]
-                                target_for_loss = (tgt - loc[0]) / scale[0]
-                            else:
-                                ctx_model = ctx
-                                target_for_loss = tgt
+                                ctx = (ctx - loc[None, :]) / scale[None, :]
+                                val_targets_normed[i] = (
+                                    val_targets[i] - loc[0]
+                                ) / scale[0]
+                            vx_enc[i, :, :cl] = ctx.transpose(0, 1)
+                            v_mask[i, :cl] = 1
 
-                            full_len = ctx_model.shape[0] + len(tgt)
-                            if full_len > MOMENT_MAX_LEN:
-                                keep = MOMENT_MAX_LEN - len(tgt)
-                                ctx_model = ctx_model[-keep:]
-                                full_len = MOMENT_MAX_LEN
-
-                            input_seq = torch.zeros(
-                                n_channels,
-                                full_len,
-                                dtype=torch.float32,
-                                device=self._device,
-                            )
-                            input_seq[:, : ctx_model.shape[0]] = ctx_model.transpose(
-                                0,
-                                1,
-                            ).to(self._device)
-                            input_seq = input_seq.unsqueeze(0)
-
-                            input_mask = torch.ones(
-                                full_len, dtype=torch.long, device=self._device
-                            )
-                            input_mask[ctx_model.shape[0] :] = 0
-                            input_mask = input_mask.unsqueeze(0)
-
-                            output = self.model.forecast(
-                                x_enc=input_seq, input_mask=input_mask
-                            )
-                            pred_out = output.forecast[0, 0, : len(tgt)]
-                            val_losses.append(
-                                loss_fn(
-                                    pred_out, target_for_loss.to(self._device)
-                                ).item()
-                            )
+                        v_output = self.model.forecast(x_enc=vx_enc, input_mask=v_mask)  # type: ignore[call-overload]
+                        v_preds = v_output.forecast[:, 0, -vf:]  # type: ignore[union-attr] # [vb, vf]
+                        val_losses.append(loss_fn(v_preds, val_targets_normed).item())
 
                 val_loss = np.mean(val_losses) if val_losses else None
 
@@ -1199,25 +1127,6 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             },
             "training_history": training_history,
         }
-
-    def _get_training_args(self) -> TrainingArguments:
-        output_dir = getattr(self.config, "output_dir", None) or "./moment_output"
-        return TrainingArguments(
-            output_dir=output_dir,
-            per_device_train_batch_size=self.config.batch_size,
-            per_device_eval_batch_size=self.config.batch_size,
-            num_train_epochs=self.config.num_epochs,
-            learning_rate=self.config.learning_rate,
-            save_strategy="epoch",
-            eval_strategy="epoch",  # Fixed: evaluation_strategy -> eval_strategy
-            load_best_model_at_end=True,
-            metric_for_best_model="eval_loss",
-            greater_is_better=False,
-            logging_dir=os.path.join(output_dir, "logs"),
-            logging_steps=10,
-            save_total_limit=3,
-            fp16=torch.cuda.is_available() and not self.config.use_cpu,
-        )
 
 
 def create_moment_model(
