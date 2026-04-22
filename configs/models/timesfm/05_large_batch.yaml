@@ -1,5 +1,5 @@
-# TimesFM Sweep Config 05 — Large batch
-# Larger per-device batch with less gradient accumulation (same effective batch)
+# TimesFM Sweep Config 05 — Small effective batch ablation
+# batch_size=256, grad_accum=1 → effective batch 256 vs 1024 for all other configs
 model_type: "timesfm"
 training_mode: "fine_tune"
 context_length: 512
@@ -8,8 +8,8 @@ forecast_length: 96
 # Training
 learning_rate: 1.0e-4
 num_epochs: 10
-batch_size: 64
-gradient_accumulation_steps: 2
+batch_size: 256
+gradient_accumulation_steps: 1
 weight_decay: 0.01
 torch_dtype: "bfloat16"
 

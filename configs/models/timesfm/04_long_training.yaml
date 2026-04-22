@@ -1,5 +1,5 @@
 # TimesFM Sweep Config 04 — Long training
-# More epochs to see if longer training improves convergence
+# More epochs vs baseline (15 vs 10) to test whether longer training improves convergence
 model_type: "timesfm"
 training_mode: "fine_tune"
 context_length: 512
@@ -7,8 +7,8 @@ forecast_length: 96
 
 # Training
 learning_rate: 1.0e-4
-num_epochs: 20
-batch_size: 32
+num_epochs: 15
+batch_size: 256
 gradient_accumulation_steps: 4
 weight_decay: 0.01
 torch_dtype: "bfloat16"

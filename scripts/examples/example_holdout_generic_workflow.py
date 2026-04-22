@@ -345,8 +345,10 @@ class ModelFactory:
         try:
             from src.models.timesfm import TimesFMForecaster, TimesFMConfig
 
+            extra = dict(config.extra_config)
+            checkpoint_path = extra.pop("checkpoint_path", None) or config.model_path
             timesfm_config = TimesFMConfig(
-                checkpoint_path=config.model_path,
+                checkpoint_path=checkpoint_path,
                 context_length=config.context_length,
                 forecast_length=config.forecast_length,
                 horizon_length=config.forecast_length,
@@ -354,7 +356,7 @@ class ModelFactory:
                 num_epochs=config.num_epochs,
                 use_cpu=config.use_cpu,
                 learning_rate=config.learning_rate,
-                **config.extra_config,
+                **extra,
             )
 
             return TimesFMForecaster(
@@ -715,8 +717,10 @@ class ModelFactory:
         elif model_type_lower == "timesfm":
             from src.models.timesfm import TimesFMForecaster, TimesFMConfig
 
+            extra = dict(config.extra_config)
+            checkpoint_path = extra.pop("checkpoint_path", None) or config.model_path
             timesfm_config = TimesFMConfig(
-                checkpoint_path=config.model_path,
+                checkpoint_path=checkpoint_path,
                 context_length=config.context_length,
                 forecast_length=config.forecast_length,
                 horizon_length=config.forecast_length,
@@ -724,7 +728,7 @@ class ModelFactory:
                 num_epochs=config.num_epochs,
                 use_cpu=config.use_cpu,
                 learning_rate=config.learning_rate,
-                **config.extra_config,
+                **extra,
             )
             return TimesFMForecaster.load(model_path, timesfm_config)
         elif model_type_lower == "timegrad":
