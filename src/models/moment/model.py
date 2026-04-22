@@ -123,7 +123,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
         return getattr(
             self.config,
             "training_backend",
-            TrainingBackend.TRANSFORMERS,
+            TrainingBackend.PYTORCH,  # Fine-tuning always uses custom PyTorch loop
         )
 
     @property
@@ -478,6 +478,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             for _pid, patient_df in data.items():
                 target_col = self._get_target_column(patient_df)
                 input_cols = self._get_input_columns(patient_df, target_col)
+                pairs_before = len(pairs)
                 for daytime, nocturnal in iter_daily_context_forecast_splits(
                     patient_df
                 ):
@@ -490,7 +491,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                     if ctx.shape[0] > ctx_len:
                         ctx = ctx[-ctx_len:, :]
                     pairs.append((ctx.astype(np.float32), tgt.astype(np.float32)))
-                if not pairs and require_target:
+                if len(pairs) == pairs_before and require_target:
                     _append_rolling_pairs(patient_df, target_col, input_cols)
                 if require_target and len(pairs) >= max_train_windows:
                     return pairs[:max_train_windows]
@@ -527,6 +528,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                         patient_input_cols = self._get_input_columns(
                             patient_df, target_col
                         )
+                        pairs_before = len(pairs)
                         for daytime, nocturnal in iter_daily_context_forecast_splits(
                             patient_df
                         ):
@@ -543,22 +545,12 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                             pairs.append(
                                 (ctx.astype(np.float32), tgt.astype(np.float32))
                             )
+                        if len(pairs) == pairs_before and require_target:
+                            _append_rolling_pairs(
+                                patient_df, target_col, patient_input_cols
+                            )
                         if require_target and len(pairs) >= max_train_windows:
                             return pairs[:max_train_windows]
-
-                    if not pairs and require_target:
-                        for _pid, patient_df in data.groupby(ColumnNames.P_NUM.value):
-                            patient_input_cols = self._get_input_columns(
-                                patient_df,
-                                target_col,
-                            )
-                            _append_rolling_pairs(
-                                patient_df,
-                                target_col,
-                                patient_input_cols,
-                            )
-                            if len(pairs) >= max_train_windows:
-                                return pairs[:max_train_windows]
                 else:
                     # Single patient
                     patient_input_cols = self._get_input_columns(data, target_col)
