@@ -7,7 +7,7 @@ forecast_length: 96
 # Training
 learning_rate: 5.0e-4
 num_epochs: 10
-batch_size: 32
+batch_size: 256
 gradient_accumulation_steps: 4
 weight_decay: 0.01
 torch_dtype: "bfloat16"
