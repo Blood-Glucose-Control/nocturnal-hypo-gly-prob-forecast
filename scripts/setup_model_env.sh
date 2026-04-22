@@ -9,7 +9,7 @@
 #   source scripts/setup_model_env.sh sundial
 #
 # Available models (defined as optional deps in pyproject.toml):
-#   ttm, sundial, timesfm, chronos2, tide
+#   ttm, sundial, chronos2, timegrad, moment, timesfm, tide, moirai, toto
 
 MODEL="${1:?Usage: source scripts/setup_model_env.sh <model>}"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Error: Must be run from within a git repository"; return 1 2>/dev/null || exit 1; }
@@ -35,6 +35,20 @@ else
 fi
 
 echo "Using Python: ${PYTHON_CMD} ($(${PYTHON_CMD} --version 2>&1))"
+
+install_model_dependencies() {
+    if [ "${MODEL}" = "moment" ]; then
+        # momentfm currently has resolver friction on Python 3.12 in some environments.
+        # Install project deps first, then install momentfm without transitive re-resolution.
+        echo "Installing project dependencies for 'moment' environment..."
+        pip install -e . || return 1
+        echo "Installing momentfm (no-deps workaround)..."
+        pip install --no-deps momentfm || return 1
+    else
+        echo "Installing project with [${MODEL}] dependencies..."
+        pip install -e ".[${MODEL}]" || return 1
+    fi
+}
 
 # Validate model name exists in pyproject.toml [project.optional-dependencies]
 OPT_DEPS=$(sed -n '/^\[project.optional-dependencies\]/,/^\[/p' "${REPO_ROOT}/pyproject.toml" 2>/dev/null | tail -n +2)
@@ -70,8 +84,10 @@ if [ ! -d "${VENV_PATH}" ]; then
 
     source "${VENV_PATH}/bin/activate"
     pip install --upgrade pip
-    echo "Installing project with [${MODEL}] dependencies..."
-    pip install -e ".[${MODEL}]" || { echo "Error: Failed to install dependencies"; return 1 2>/dev/null || exit 1; }
+    install_model_dependencies || {
+        echo "Error: Failed to install dependencies"
+        return 1 2>/dev/null || exit 1
+    }
     echo ""
     echo "Done! Environment '${MODEL}' is ready and activated."
 elif [ ! -f "${VENV_PATH}/bin/activate" ]; then
@@ -85,7 +101,11 @@ elif [ ! -f "${VENV_PATH}/bin/activate" ]; then
 else
     source "${VENV_PATH}/bin/activate"
     echo "Activated existing '${MODEL}' environment."
-    echo "To reinstall deps: pip install -e '.[${MODEL}]'"
+    if [ "${MODEL}" = "moment" ]; then
+        echo "To reinstall deps: pip install -e . && pip install --no-deps momentfm"
+    else
+        echo "To reinstall deps: pip install -e '.[${MODEL}]'"
+    fi
 fi
 
 echo "Python: $(which python)"
