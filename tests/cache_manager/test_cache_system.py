@@ -311,7 +311,7 @@ class TestDatasetConfigs:
         """Test listing available datasets."""
         datasets = list_available_datasets()
         assert DatasetSourceType.KAGGLE_BRIS_T1D.value in datasets
-        assert DatasetSourceType.GLUROO.value in datasets
+        assert DatasetSourceType.GLUROO_2026.value in datasets
         assert DatasetSourceType.SIMGLUCOSE.value in datasets
 
     def test_get_dataset_info(self):
