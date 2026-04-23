@@ -32,7 +32,6 @@ from src.data.diabetes_datasets.lynch_2022.data_cleaner import (
     clean_lynch2022_train_data,
     load_lynch2022_raw_dataset,
 )
-from src.data.utils.patient_id import format_patient_id
 
 logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
@@ -57,7 +56,9 @@ def _count_potential_midnight_episodes(df: pd.DataFrame, p_num: str) -> int:
     """
     if df.empty:
         return 0
-    idx = pd.DatetimeIndex(df.index if isinstance(df.index, pd.DatetimeIndex) else df["datetime"])
+    idx = pd.DatetimeIndex(
+        df.index if isinstance(df.index, pd.DatetimeIndex) else df["datetime"]
+    )
     midnights = pd.date_range(idx.normalize().min(), idx.normalize().max(), freq="D")
     count = 0
     for midnight in midnights:
@@ -100,7 +101,9 @@ def main():
     new_patients = set(cleaned_new["p_num"].unique())
     print(f"   Patients: {len(new_patients)}")
     print(f"   Total rows: {len(cleaned_new):,}")
-    print(f"   Date range: {cleaned_new['datetime'].min()} → {cleaned_new['datetime'].max()}")
+    print(
+        f"   Date range: {cleaned_new['datetime'].min()} → {cleaned_new['datetime'].max()}"
+    )
     ts_new = pd.DatetimeIndex(cleaned_new["datetime"])
     print(f"   Timestamps on 5-min boundary: {_pct_on_boundary(ts_new):.1f}%")
 
@@ -137,7 +140,9 @@ def main():
     raw_id = sample_pid_str.split("_")[1]  # "372"
     if raw_id in bb_cgm:
         bb_pt = bb_cgm[raw_id].set_index("datetime")["cgm_mgdl"]
-        our_pt = cleaned_new[cleaned_new["p_num"] == sample_pid_str].set_index("datetime")["bg_mM"]
+        our_pt = cleaned_new[cleaned_new["p_num"] == sample_pid_str].set_index(
+            "datetime"
+        )["bg_mM"]
         our_pt_mgdl = our_pt * 18.0
 
         # Round both to nearest 5-min for alignment comparison
@@ -155,7 +160,9 @@ def main():
             print(f"   Mean |ΔBGM| (mg/dL): {diff.mean():.3f}")
             print(f"   Max  |ΔBGM| (mg/dL): {diff.max():.3f}")
             threshold_ok = (diff <= 0.5).mean() * 100
-            print(f"   Within 0.5 mg/dL: {threshold_ok:.1f}%  (expect ~100%: same raw CGMVal, no timestamp shift)")
+            print(
+                f"   Within 0.5 mg/dL: {threshold_ok:.1f}%  (expect ~100%: same raw CGMVal, no timestamp shift)"
+            )
         else:
             print(f"   No common timestamps for {sample_pid_str}")
     else:
@@ -170,14 +177,16 @@ def main():
     for p_num in holdout_patients:
         pt_df = cleaned_new[cleaned_new["p_num"] == p_num].set_index("datetime")
         n_episodes = _count_potential_midnight_episodes(pt_df, p_num)
-        episode_results.append({"patient": p_num, "rows": len(pt_df), "potential_episodes": n_episodes})
+        episode_results.append(
+            {"patient": p_num, "rows": len(pt_df), "potential_episodes": n_episodes}
+        )
 
     ep_df = pd.DataFrame(episode_results)
     total_eps = ep_df["potential_episodes"].sum()
     covered = (ep_df["potential_episodes"] > 0).sum()
     print(f"   Total potential episodes: {total_eps}")
     print(f"   Patients with ≥1 episode: {covered} / {len(holdout_patients)}")
-    print(f"\n   Per-patient breakdown:")
+    print("\n   Per-patient breakdown:")
     print(ep_df.to_string(index=False))
 
     # ------------------------------------------------------------------ #
@@ -190,16 +199,22 @@ def main():
     processed_dir = cache_manager.get_processed_data_path("lynch_2022")
     sample_processed_path = processed_dir / f"{holdout_patients[0]}_full.csv"
     if sample_processed_path.exists():
-        proc_df = pd.read_csv(sample_processed_path, index_col="datetime", parse_dates=True)
+        proc_df = pd.read_csv(
+            sample_processed_path, index_col="datetime", parse_dates=True
+        )
         ts_proc = proc_df.index
         proc_pct = _pct_on_boundary(ts_proc)
         status = "PASS" if proc_pct == 100.0 else "FAIL"
-        print(f"   Processed cache timestamp alignment [{status}]: {proc_pct:.1f}% on 5-min boundary")
+        print(
+            f"   Processed cache timestamp alignment [{status}]: {proc_pct:.1f}% on 5-min boundary"
+        )
     else:
-        print("   Processed cache not found — run Lynch2022DataLoader(use_cached=False) first")
+        print(
+            "   Processed cache not found — run Lynch2022DataLoader(use_cached=False) first"
+        )
     status = "PASS" if total_eps >= 1000 else ("WARN" if total_eps >= 100 else "FAIL")
     print(f"   Episode count [{status}]: {total_eps} potential holdout episodes")
-    print(f"   (Pre-fix count was ~57; expect ≥2000 after cache regeneration)")
+    print("   (Pre-fix count was ~57; expect ≥2000 after cache regeneration)")
 
 
 if __name__ == "__main__":

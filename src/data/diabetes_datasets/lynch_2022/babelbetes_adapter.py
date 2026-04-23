@@ -33,7 +33,7 @@ _ILET_FILENAME = "IOBP2DeviceiLet.txt"
 _DEMO_FILENAME = "IOBP2DiabScreening.txt"
 
 # mg/dL sentinel values used by the iLet device
-_CGM_SENTINEL_LOW = 39    # sensor below range → clamp to 40
+_CGM_SENTINEL_LOW = 39  # sensor below range → clamp to 40
 _CGM_SENTINEL_HIGH = 401  # sensor above range → clamp to 400
 
 
@@ -71,9 +71,7 @@ class IOBP2Adapter:
             self._ilet["DeviceDtTm"] = pd.to_datetime(
                 self._ilet["DeviceDtTm"], errors="coerce"
             )
-            self._ilet["CGMVal"] = pd.to_numeric(
-                self._ilet["CGMVal"], errors="coerce"
-            )
+            self._ilet["CGMVal"] = pd.to_numeric(self._ilet["CGMVal"], errors="coerce")
             logger.info("Loaded %s with shape %s", _ILET_FILENAME, self._ilet.shape)
         return self._ilet
 

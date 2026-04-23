@@ -61,8 +61,12 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
         raise FileNotFoundError(f"Missing required files in {base_dir}: {missing}")
 
     # Load pipe-separated txt files
-    ilet_data = pd.read_csv(base_dir / _RAW_TXT_FILENAMES["ilet"], sep="|", low_memory=False)
-    demo_data = pd.read_csv(base_dir / _RAW_TXT_FILENAMES["demo"], sep="|", low_memory=False)
+    ilet_data = pd.read_csv(
+        base_dir / _RAW_TXT_FILENAMES["ilet"], sep="|", low_memory=False
+    )
+    demo_data = pd.read_csv(
+        base_dir / _RAW_TXT_FILENAMES["demo"], sep="|", low_memory=False
+    )
 
     logger.info("Loaded iLet data with shape %s", ilet_data.shape)
     logger.info("Loaded Demographics data with shape %s", demo_data.shape)
