@@ -201,6 +201,7 @@ run_eval_lane() {
                 --context-length "$ctx_len"
                 --forecast-length 96
                 --cuda-device "$gpu"
+                --probabilistic
             )
             if [[ ${#cov_array[@]} -gt 0 ]]; then
                 CMD+=(--covariate-cols "${cov_array[@]}")
