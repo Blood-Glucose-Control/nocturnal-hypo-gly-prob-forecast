@@ -92,23 +92,45 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
     # Drop duplicate CGM readings for same patient+timestamp
     cgm_rows = cgm_rows.drop_duplicates(subset=["PtID", "DeviceDtTm"])
 
-    # Build composite insulin dose from previous-step delivery components
+    # Build composite insulin dose from ALL iLet rows — including rows where CGMVal is
+    # absent (sensor gap, warm-up, signal loss) but the iLet was still delivering insulin.
+    # Computing dose_units only from cgm_rows drops ~7% of total insulin delivery (confirmed
+    # empirically: 117,865 U / 1,701,765 U total), which distorts IOB features.
+    ins_all = ilet_data[["PtID", "DeviceDtTm"]].copy()
     for col in ["BasalDelivPrev", "BolusDelivPrev", "MealBolusDelivPrev"]:
-        if col in cgm_rows.columns:
-            cgm_rows[col] = pd.to_numeric(cgm_rows[col], errors="coerce").fillna(0.0)
+        if col in ilet_data.columns:
+            ins_all[col] = pd.to_numeric(ilet_data[col], errors="coerce").fillna(0.0)
         else:
-            cgm_rows[col] = 0.0
-    cgm_rows["dose_units"] = (
-        cgm_rows["BasalDelivPrev"]
-        + cgm_rows["BolusDelivPrev"]
-        + cgm_rows["MealBolusDelivPrev"]
+            ins_all[col] = 0.0
+    ins_all["dose_units"] = (
+        ins_all["BasalDelivPrev"]
+        + ins_all["BolusDelivPrev"]
+        + ins_all["MealBolusDelivPrev"]
     )
+    # Aggregate to 5-min bins (matching the pipeline's rounding grid) so that insulin
+    # delivered during CGM-gap rows is attributed to the correct CGM bin.
+    ins_all["_bin"] = ins_all["DeviceDtTm"].dt.round("5min")
+    ins_binned = ins_all.groupby(["PtID", "_bin"], as_index=False)["dose_units"].sum()
+
+    # Merge aggregated insulin onto CGM rows by 5-min bin, then keep one CGM row per
+    # (patient, bin) so the pipeline's aggregation does not re-sum the doses.
+    cgm_rows["_bin"] = cgm_rows["DeviceDtTm"].dt.round("5min")
+    cgm_rows = (
+        cgm_rows.drop(
+            columns=["BasalDelivPrev", "BolusDelivPrev", "MealBolusDelivPrev"],
+            errors="ignore",
+        )
+        .merge(ins_binned, on=["PtID", "_bin"], how="left")
+        .sort_values(["PtID", "DeviceDtTm"])
+        .drop_duplicates(subset=["PtID", "_bin"], keep="last")
+        .drop(columns=["_bin"])
+    )
+    cgm_rows["dose_units"] = cgm_rows["dose_units"].fillna(0.0)
 
     # Note on timestamp shift: BabelBetes shifts insulin timestamps back 5 min
     # (delivery is for the previous step). In our pipeline, we keep the original
-    # DeviceDtTm for both CGM and insulin because ensure_regular_time_intervals_with_aggregation
-    # rounds to 5-min bins anyway, making a 5-min shift within the same bin immaterial.
-    # Keeping the original timestamp also preserves perfect CGM alignment.
+    # DeviceDtTm for both CGM and insulin because the 5-min bin aggregation above
+    # already aligns insulin to the CGM grid, making a 5-min shift immaterial.
     cgm_rows["time"] = cgm_rows["DeviceDtTm"]
 
     # food_g = 0: MealSize is categorical text, kept separately as meal_size_text
