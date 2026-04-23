@@ -91,6 +91,9 @@ moirai = [
 toto = [
     "toto-ts",
 ]
+dev = [
+    "babelbetes>=0.2.3",
+]
 
 [tool.setuptools.packages.find]
 include = ["src*"]

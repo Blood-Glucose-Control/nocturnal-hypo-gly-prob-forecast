@@ -397,19 +397,19 @@ class Lynch2022DataLoader(DatasetBase):
             self.test_data = self.processed_data
 
     def load_raw(self):
-        """Load the raw Lynch dataset directly from the SAS tables."""
+        """Load the raw Lynch dataset from the pipe-separated txt files."""
         raw_data_path = self.cache_manager.get_absolute_path_by_type(
             self.dataset_name, "raw"
         )
-        sas_base = raw_data_path / "IOBP2 RCT Public Dataset" / "Data Tables in SAS"
+        txt_base = raw_data_path / "IOBP2 RCT Public Dataset" / "Data Tables"
 
-        if not sas_base.exists():
+        if not txt_base.exists():
             raise FileNotFoundError(
-                f"Expected SAS tables at {sas_base} but directory does not exist."
+                f"Expected txt data tables at {txt_base} but directory does not exist."
             )
 
-        logger.info("Loading Lynch 2022 raw data from %s", sas_base)
-        raw_df = load_lynch2022_raw_dataset(sas_base)
+        logger.info("Loading Lynch 2022 raw data from %s", txt_base)
+        raw_df = load_lynch2022_raw_dataset(txt_base)
         logger.info("Loaded Lynch 2022 raw data with shape %s", raw_df.shape)
         return raw_df
 

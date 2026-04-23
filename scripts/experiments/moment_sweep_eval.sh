@@ -5,6 +5,9 @@
 #   - Lane A runs sequentially on GPU 0
 #   - Lane B runs sequentially on GPU 1
 #
+# Note: MOMENT does not support probabilistic forecasting; only point metrics
+# (RMSE, MAE, DILATE) are computed.
+#
 # Configs are discovered from configs/models/moment/[0-9][0-9]_*.yaml,
 # sorted, and split alternately across the two lanes.
 #
@@ -198,7 +201,6 @@ run_eval_lane() {
                 --context-length "$ctx_len"
                 --forecast-length 96
                 --cuda-device "$gpu"
-                --probabilistic
             )
             if [[ ${#cov_array[@]} -gt 0 ]]; then
                 CMD+=(--covariate-cols "${cov_array[@]}")

@@ -35,6 +35,19 @@ Ablation note:
   `insulin_availability`, `cob`, `carb_availability`).
 - `14_bg_full_covariates.yaml` includes all four covariates together.
 
+## Expected evaluation count
+
+Dataset assignment follows the same covariate-availability rules used across
+all sweep eval scripts:
+
+| Group | Datasets | Configs | Evals |
+|---|---|---|---|
+| BG-only (`covariate_cols: []`) | 4 (all) | 00–08 (× 9) | 36 |
+| BG + insulin only (`iob` and/or `insulin_availability`) | 3 (excl. tamborlane) | 09, 10, 11 (× 3) | 9 |
+| BG + carb only (`cob` and/or `carb_availability`) | 2 (excl. brown + tamborlane) | 12, 13 (× 2) | 4 |
+| BG + full covariates (insulin + carb) | 2 (excl. brown + tamborlane) | 14 (× 1) | 2 |
+| **Total** | | **15 configs** | **51** |
+
 Usage example:
 
 ```bash
