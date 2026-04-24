@@ -167,7 +167,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Args:
             train_data: Flat DataFrame from the registry.
             output_dir: Directory for AutoGluon to save the predictor.
-            **kwargs: Passed through from fit().
+            **kwargs: Accepts ``val_data`` (DataFrame) for early stopping.
+                When provided, it is processed through the same pipeline as
+                train_data and passed as ``tuning_data`` to AutoGluon.
 
         Returns:
             Dict with training metrics.
@@ -175,6 +177,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         from autogluon.timeseries import TimeSeriesPredictor
 
         config = self.config
+        val_data = kwargs.pop("val_data", None)
         ts_train, _, _ = self._prepare_training_data(train_data)
 
         info_print(f"Creating TimeSeriesPredictor at {output_dir}")
@@ -201,6 +204,13 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             "hyperparameters": config.get_autogluon_hyperparameters(),
             "enable_ensemble": config.enable_ensemble,
         }
+        if val_data is not None:
+            ts_val, _, _ = self._prepare_training_data(val_data)
+            fit_kwargs["tuning_data"] = ts_val
+            info_print(
+                f"Validation data provided: {ts_val.shape} "
+                f"(eval_during_fine_tune={config.eval_during_fine_tune})"
+            )
         if config.time_limit is not None:
             fit_kwargs["time_limit"] = config.time_limit
 
