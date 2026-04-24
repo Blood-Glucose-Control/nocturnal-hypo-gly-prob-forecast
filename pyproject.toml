@@ -73,6 +73,9 @@ timegrad = [
     "pytorchts",
     "gluonts>=0.9.0,<0.10.0",
 ]
+moment = [
+    "momentfm",
+]
 timesfm = [
     "transformers>=5.2.0",
 ]
@@ -87,6 +90,9 @@ moirai = [
 ]
 toto = [
     "toto-ts",
+]
+dev = [
+    "babelbetes>=0.2.3",
 ]
 
 [tool.setuptools.packages.find]

@@ -100,9 +100,12 @@ class StandardForecastingSummarizer(ExperimentSummarizer):
 
         cfg = data.get("config", {})
         git_commit = _read_git_commit(run_dir)
+        checkpoint = data.get("checkpoint") or _read_checkpoint(run_dir)
 
         return {
             "run_id": run_dir.name,
+            "run_path": str(run_dir),
+            "checkpoint": checkpoint,
             "experiment_type": _EXPERIMENT_TYPE,
             "ctx_fh": ctx_fh,
             "model": data.get("model", model),
@@ -117,7 +120,6 @@ class StandardForecastingSummarizer(ExperimentSummarizer):
             "mse": overall.get("mse"),
             "total_episodes": total_episodes,
             "git_commit": git_commit,
-            "run_path": str(run_dir),
         }
 
 
@@ -135,5 +137,19 @@ def _read_git_commit(run_dir: Path) -> str | None:
         with config_path.open() as fh:
             cfg = json.load(fh)
         return cfg.get("environment", {}).get("git_commit")
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _read_checkpoint(run_dir: Path) -> str | None:
+    """Try to extract checkpoint path from ``experiment_configs.json``."""
+    config_path = run_dir / _CONFIG_FILENAME
+    if not config_path.exists():
+        return None
+    try:
+        with config_path.open() as fh:
+            cfg = json.load(fh)
+        checkpoint = cfg.get("cli_args", {}).get("checkpoint")
+        return checkpoint if checkpoint else None
     except (json.JSONDecodeError, OSError):
         return None

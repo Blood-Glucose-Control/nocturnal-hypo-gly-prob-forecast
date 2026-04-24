@@ -59,6 +59,10 @@ class TimesFMConfig(ModelConfig):
     # Gap handling (applied before windowing)
     imputation_threshold_mins: int = 45
 
+    # Data column names
+    target_col: str = "bg_mM"
+    interval_mins: int = 5  # CGM sampling interval in minutes; used for gap-length calculations (e.g. imputation_threshold_mins // interval_mins)
+
     def __post_init__(self):
         """Post-initialization to handle defaults, aliases, and validation."""
         # Handle None values from generic workflow
@@ -95,6 +99,11 @@ class TimesFMConfig(ModelConfig):
 
         if self.batch_size <= 0:
             raise ValueError(f"batch_size must be positive, got {self.batch_size}")
+
+        if self.interval_mins <= 0:
+            raise ValueError(
+                f"interval_mins must be positive, got {self.interval_mins}"
+            )
 
         if not all(0 <= q <= 1 for q in self.quantiles):
             raise ValueError(

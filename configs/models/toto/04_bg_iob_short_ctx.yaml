@@ -1,7 +1,7 @@
 # =============================================================================
-# Toto — BG + IOB + insulin_availability  |  lr=1e-4  |  ctx=288
+# Toto — BG + IOB + insulin_availability  |  lr=1e-4  |  ctx=256
 # =============================================================================
-# Same covariates as 02, but shorter context window (288 vs 512).
+# Same covariates as 02, but shorter context window (256 vs 512).
 # Compare against 02 to check context length sensitivity.
 #
 # Usage:
@@ -13,7 +13,7 @@
 #     ./scripts/examples/run_holdout_generic_workflow.sh
 # =============================================================================
 
-context_length: 288
+context_length: 256
 forecast_length: 96
 
 training_mode: "fine_tune"

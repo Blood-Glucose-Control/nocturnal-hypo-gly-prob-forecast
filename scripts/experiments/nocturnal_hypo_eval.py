@@ -118,6 +118,7 @@ def parse_arguments() -> argparse.Namespace:
             "ttm",
             "chronos2",
             "moirai",
+            "moment",
             "timegrad",
             "timesfm",
             "tide",
@@ -194,6 +195,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Use predict_quantiles() and compute WQL + Brier@3.9 "
         "(model must support probabilistic forecasting)",
     )
+    parser.add_argument(
+        "--no-dilate",
+        action="store_true",
+        default=False,
+        help="Skip DILATE (Soft-DTW shape) metrics. Useful for large runs "
+        "where the O(n_episodes * forecast_length^2) cost is prohibitive.",
+    )
     return parser.parse_args()
 
 
@@ -208,12 +216,14 @@ def main():
     # Load config from file if provided
     config_dict = load_yaml_config(args.model_config) if args.model_config else {}
 
-    # Prepare model kwargs
+    # Prepare model kwargs — pop model_type to avoid collision with the
+    # positional argument in create_model_and_config()
     model_kwargs = {
         **config_dict,
         "context_length": args.context_length,
         "forecast_length": args.forecast_length,
     }
+    model_kwargs.pop("model_type", None)
 
     # Initialize model
     logger.info(f"\n--- Initializing {args.model.upper()} ---")
@@ -315,8 +325,9 @@ def main():
         holdout_data=holdout_data,
         context_length=context_length,
         forecast_length=forecast_length,
-        covariate_cols=args.covariate_cols,
+        covariate_cols=covariate_cols,
         probabilistic=args.probabilistic,
+        compute_dilate=not args.no_dilate,
     )
 
     # Log overall results
@@ -329,10 +340,14 @@ def main():
         logger.info(f"Overall WQL:  {results['overall_wql']:.4f}")
         logger.info(f"Overall Brier@3.9: {results['overall_brier']:.4f}")
         logger.info(f"Overall MACE: {results['overall_mace']:.4f}")
-        logger.info(f"Coverage 50%%: {results['overall_coverage_50']:.3f}")
-        logger.info(f"Coverage 80%%: {results['overall_coverage_80']:.3f}")
-        logger.info(f"Sharpness 50%%: {results['overall_sharpness_50']:.3f}")
-        logger.info(f"Sharpness 80%%: {results['overall_sharpness_80']:.3f}")
+        for lvl in (50, 80, 90, 95):
+            key = f"overall_coverage_{lvl}"
+            if key in results:
+                logger.info(f"Coverage {lvl}%%: {results[key]:.3f}")
+        for lvl in (50, 80, 90, 95):
+            key = f"overall_sharpness_{lvl}"
+            if key in results:
+                logger.info(f"Sharpness {lvl}%%: {results[key]:.3f}")
     logger.info(f"Total midnight episodes: {results['total_episodes']}")
 
     # Save results (3-tier storage)

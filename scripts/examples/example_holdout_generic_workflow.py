@@ -48,6 +48,7 @@ import argparse
 import json
 import logging
 import shutil
+import sys
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -320,8 +321,10 @@ class ModelFactory:
                 batch_size=config.batch_size,
                 num_epochs=config.num_epochs,
                 training_mode=config.training_mode,
+                freeze_backbone=config.freeze_backbone,
                 use_cpu=config.use_cpu,
                 fp16=config.fp16,
+                learning_rate=config.learning_rate,
                 **config.extra_config,
             )
 
@@ -342,8 +345,10 @@ class ModelFactory:
         try:
             from src.models.timesfm import TimesFMForecaster, TimesFMConfig
 
+            extra = dict(config.extra_config)
+            checkpoint_path = extra.pop("checkpoint_path", None) or config.model_path
             timesfm_config = TimesFMConfig(
-                checkpoint_path=config.model_path,
+                checkpoint_path=checkpoint_path,
                 context_length=config.context_length,
                 forecast_length=config.forecast_length,
                 horizon_length=config.forecast_length,
@@ -351,7 +356,7 @@ class ModelFactory:
                 num_epochs=config.num_epochs,
                 use_cpu=config.use_cpu,
                 learning_rate=config.learning_rate,
-                **config.extra_config,
+                **extra,
             )
 
             return TimesFMForecaster(
@@ -712,8 +717,10 @@ class ModelFactory:
         elif model_type_lower == "timesfm":
             from src.models.timesfm import TimesFMForecaster, TimesFMConfig
 
+            extra = dict(config.extra_config)
+            checkpoint_path = extra.pop("checkpoint_path", None) or config.model_path
             timesfm_config = TimesFMConfig(
-                checkpoint_path=config.model_path,
+                checkpoint_path=checkpoint_path,
                 context_length=config.context_length,
                 forecast_length=config.forecast_length,
                 horizon_length=config.forecast_length,
@@ -721,7 +728,7 @@ class ModelFactory:
                 num_epochs=config.num_epochs,
                 use_cpu=config.use_cpu,
                 learning_rate=config.learning_rate,
-                **config.extra_config,
+                **extra,
             )
             return TimesFMForecaster.load(model_path, timesfm_config)
         elif model_type_lower == "timegrad":
@@ -2264,9 +2271,11 @@ stored in separate subdirectories for comparison.
 
     except KeyboardInterrupt:
         logger.info("\n\nWorkflow interrupted by user")
+        sys.exit(1)
     except Exception as e:
         logger.error(f"\n\nWorkflow failed: {e}")
         traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
