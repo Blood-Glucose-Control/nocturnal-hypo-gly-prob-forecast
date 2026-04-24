@@ -765,7 +765,11 @@ class BaseTimeSeriesFoundationModel(ABC):
         if metadata:
             instance.training_history = metadata.get("training_history", {})
             instance.best_metrics = metadata.get("best_metrics", {})
-            instance.is_fitted = metadata.get("is_fitted", False)
+            # Preserve is_fitted=True if _load_checkpoint() already set it
+            # (e.g., Chronos2 loads an AutoGluon predictor). Only override
+            # from metadata if the checkpoint didn't set it.
+            if not instance.is_fitted:
+                instance.is_fitted = metadata.get("is_fitted", False)
 
         info_print(f"Model loaded from {model_path}")
         return instance

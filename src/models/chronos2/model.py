@@ -146,8 +146,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 segments, target_cols=config.joint_target_cols
             )
         else:
+            all_covariate_cols = list(
+                dict.fromkeys(config.covariate_cols + config.known_covariate_cols)
+            )
             ts_train = format_segments_for_autogluon(
-                segments, config.target_col, config.covariate_cols
+                segments, config.target_col, all_covariate_cols
             )
         info_print(f"Training data: {ts_train.shape}")
 
@@ -183,15 +186,16 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             # "target" is the column name after format_segments_for_autogluon
             # renames config.target_col (e.g. "bg_mM") -> "target"
             target="target",
-            # known_covariates_names intentionally NOT set — covariates (IOB,
-            # COB) are included as past-only context columns. Setting them as
-            # "known" would require providing future values at inference time,
-            # which constitutes data leakage (post-midnight IOB/COB are
-            # reactive to future BG and unknowable at the prediction origin).
+            # Past-only covariates (IOB, COB) are NOT listed here — they
+            # appear in training data columns but aren't provided for the
+            # forecast horizon (avoiding data leakage). Only deterministic
+            # known future covariates (e.g., hour_sin, hour_cos) are declared.
             freq=f"{config.interval_mins}min",
             eval_metric=config.eval_metric,
             path=output_dir,
         )
+        if config.known_covariate_cols:
+            predictor_kwargs["known_covariates_names"] = config.known_covariate_cols
         if config.quantile_levels is not None:
             predictor_kwargs["quantile_levels"] = config.quantile_levels
         predictor = TimeSeriesPredictor(**predictor_kwargs)
@@ -312,7 +316,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         context["item_id"] = context["episode_id"].astype(str)
         context = context.rename(columns={config.target_col: "target"})
 
-        ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
+        ag_cols = (
+            ["item_id", "timestamp", "target"]
+            + config.covariate_cols
+            + [c for c in config.known_covariate_cols if c not in config.covariate_cols]
+        )
         ag_cols = [c for c in ag_cols if c in context.columns]
         context = context[ag_cols].set_index(["item_id", "timestamp"])
         return TimeSeriesDataFrame(context)
@@ -323,6 +331,59 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         if "episode_id" in data.columns:
             return data["episode_id"].unique()
         return np.array(["ep_0"])
+
+    def _build_known_covariates(
+        self, data: pd.DataFrame, episode_col: str = "episode_id"
+    ):  # -> TimeSeriesDataFrame (autogluon.timeseries)
+        """Build known_covariates DataFrame for all episodes in data.
+
+        Generates deterministic future values (e.g., hour_sin, hour_cos)
+        for each episode's forecast horizon. Values are computed from
+        timestamps, never forward-filled.
+
+        Args:
+            data: Input DataFrame with episode_col and time_col columns.
+            episode_col: Column name identifying episodes.
+
+        Returns:
+            TimeSeriesDataFrame with item_id/timestamp index and one column
+            per known covariate, covering forecast_length steps per episode.
+        """
+        from autogluon.timeseries import TimeSeriesDataFrame
+
+        from src.data.preprocessing.feature_engineering import (
+            generate_future_known_covariates,
+        )
+
+        config = self.config
+        if episode_col in data.columns:
+            episode_ids = data[episode_col].unique()
+        else:
+            episode_ids = np.array(["ep_0"])
+        frames = []
+
+        for ep_id in episode_ids:
+            if episode_col in data.columns:
+                ep_data = data[data[episode_col] == ep_id]
+            else:
+                ep_data = data
+            if config.time_col in ep_data.columns:
+                last_ts = pd.to_datetime(ep_data[config.time_col]).max()
+            else:
+                last_ts = pd.to_datetime(ep_data.index).max()
+
+            future_df = generate_future_known_covariates(
+                last_timestamp=last_ts,
+                forecast_length=config.forecast_length,
+                known_covariate_cols=config.known_covariate_cols,
+                interval_mins=config.interval_mins,
+            )
+            future_df["item_id"] = str(ep_id)
+            future_df["timestamp"] = future_df.index
+            frames.append(future_df)
+
+        combined = pd.concat(frames).set_index(["item_id", "timestamp"])
+        return TimeSeriesDataFrame(combined)
 
     def _ag_item_id(self, episode_id: str) -> str:
         """Map an episode ID to the AutoGluon item_id used for extraction.
@@ -343,6 +404,12 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
               - quantiles_np: shape (n_quantile_levels, forecast_length)
               - mean_np: shape (forecast_length,)
         """
+        if self.config.known_covariate_cols:
+            logger.warning(
+                "known_covariate_cols=%s set but zero-shot Chronos2Pipeline "
+                "does not support known covariates. Proceeding without them.",
+                self.config.known_covariate_cols,
+            )
         self._ensure_zs_pipeline()
         context = self._prepare_zero_shot_context(data)
         kwargs = dict(prediction_length=self.config.forecast_length)
@@ -375,7 +442,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             For multiple columns: shape (len(columns), n_episodes * forecast_length).
         """
         ts_data = self._prepare_autogluon_data(data)
-        ag_predictions = self.predictor.predict(ts_data)
+        predict_kwargs = {}
+        if self.config.known_covariate_cols:
+            predict_kwargs["known_covariates"] = self._build_known_covariates(data)
+        ag_predictions = self.predictor.predict(ts_data, **predict_kwargs)
         multi = len(columns) > 1
 
         result_arrays = []
@@ -508,7 +578,12 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             batch_data = data.rename(columns={episode_col: "episode_id"})
             ts_data = self._prepare_autogluon_data(batch_data)
 
-            ag_predictions = self.predictor.predict(ts_data)
+            predict_kwargs = {}
+            if config.known_covariate_cols:
+                predict_kwargs["known_covariates"] = self._build_known_covariates(
+                    data, episode_col=episode_col
+                )
+            ag_predictions = self.predictor.predict(ts_data, **predict_kwargs)
 
             # Choose which columns to extract
             if quantile_levels is not None:
@@ -529,6 +604,12 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             return results
 
         # Zero-shot path: batch via Chronos2Pipeline
+        if config.known_covariate_cols:
+            logger.warning(
+                "known_covariate_cols=%s set but zero-shot Chronos2Pipeline "
+                "does not support known covariates. Proceeding without them.",
+                config.known_covariate_cols,
+            )
         self._ensure_zs_pipeline()
 
         if config.target_col not in data.columns:
