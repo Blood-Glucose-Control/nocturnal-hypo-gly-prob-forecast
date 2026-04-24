@@ -185,28 +185,42 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def supports_zero_shot(self) -> bool:
         return True
 
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        return True
+
     def _predict(
-        self, data: pd.DataFrame, prediction_length: Optional[int] = None
+        self,
+        data: pd.DataFrame,
+        prediction_length: Optional[int] = None,
+        quantile_levels=None,
+        **kwargs,
     ) -> np.ndarray:
         """Make predictions given context data.
 
-        Handles NaN values consistently with training: short gaps (<=45 min
-        at 5-min resolution = 9 readings) are linearly interpolated, longer
-        gaps raise an error.
+        Handles NaN values consistently with training: short gaps
+        (<=``config.imputation_threshold_mins``, resolved to readings via
+        ``config.interval_mins``) are linearly interpolated; longer gaps raise
+        an error.
 
         Args:
-            data: DataFrame with 'bg_mM' column containing context window
+            data: DataFrame with column matching config.target_col (default 'bg_mM')
             prediction_length: Number of steps to forecast
+            quantile_levels: When set, return quantile forecasts as shape
+                (len(quantile_levels), forecast_length). Must be a subset of
+                the model's native quantile levels (config.quantiles).
 
         Returns:
-            Forecast as 1D numpy array
+            Forecast as 1D numpy array of shape (forecast_length,), or
+            shape (len(quantile_levels), forecast_length) when quantile_levels
+            is set.
         """
         if self.hf_model is None:
             raise ValueError("Model not initialized.")
 
         prediction_length = prediction_length or self.config.horizon_length
 
-        bg_col = "bg_mM"
+        bg_col = self.config.target_col
         if bg_col not in data.columns:
             raise ValueError(f"DataFrame must contain '{bg_col}' column")
 
@@ -217,11 +231,12 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         nan_mask = np.isnan(context)
         if nan_mask.any():
             max_gap = _longest_nan_run(nan_mask)
-            # 9 readings = 45 min at 5-min resolution
-            max_allowed = self.config.imputation_threshold_mins // 5
+            max_allowed = (
+                self.config.imputation_threshold_mins // self.config.interval_mins
+            )
             if max_gap > max_allowed:
                 raise ValueError(
-                    f"Context contains a {max_gap * 5}-minute gap "
+                    f"Context contains a {max_gap * self.config.interval_mins}-minute gap "
                     f"(>{self.config.imputation_threshold_mins} min threshold). "
                     f"Pre-process data to remove large gaps before predict()."
                 )
@@ -248,6 +263,25 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 return_dict=True,
             )
 
+        if quantile_levels is not None:
+            # full_predictions shape: (1, horizon_len, 1+n_quantiles)
+            # dim 2 index 0 = mean; indices 1..n = quantiles at hf_model.config.quantiles
+            full = (
+                outputs.full_predictions[0].float().cpu().numpy()
+            )  # (horizon_len, 10)
+            model_qtls = list(self.hf_model.config.quantiles)  # [0.1, ..., 0.9]
+            quantile_rows = []
+            for q in quantile_levels:
+                rounded = round(q, 8)
+                if rounded not in [round(mq, 8) for mq in model_qtls]:
+                    raise ValueError(
+                        f"Quantile level {q} not available in TimesFM model "
+                        f"(available: {model_qtls}). Check config.quantiles."
+                    )
+                col_idx = 1 + [round(mq, 8) for mq in model_qtls].index(rounded)
+                quantile_rows.append(full[:prediction_length, col_idx])
+            return np.stack(quantile_rows, axis=0)  # (n_quantiles, forecast_length)
+
         forecast = outputs.mean_predictions[0].float().cpu().numpy()
 
         if len(forecast) > prediction_length:
@@ -256,11 +290,12 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         return forecast
 
     def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
-        """Extract ground truth bg_mM values from the end of the test data."""
-        if isinstance(test_data, pd.DataFrame) and "bg_mM" in test_data.columns:
-            values = test_data["bg_mM"].dropna().values.astype(np.float32)
+        """Extract ground truth values from the end of the test data."""
+        target_col = self.config.target_col
+        if isinstance(test_data, pd.DataFrame) and target_col in test_data.columns:
+            values = test_data[target_col].dropna().values.astype(np.float32)
             return values[-self.config.horizon_length :]
-        raise ValueError("test_data must be a DataFrame with 'bg_mM' column")
+        raise ValueError(f"test_data must be a DataFrame with '{target_col}' column")
 
     def evaluate(
         self,
@@ -275,8 +310,14 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         """
         if self.hf_model is None:
             raise ValueError("Model not initialized.")
-        if not isinstance(test_data, pd.DataFrame) or "bg_mM" not in test_data.columns:
-            raise ValueError("test_data must be a DataFrame with 'bg_mM' column")
+        target_col = self.config.target_col
+        if (
+            not isinstance(test_data, pd.DataFrame)
+            or target_col not in test_data.columns
+        ):
+            raise ValueError(
+                f"test_data must be a DataFrame with '{target_col}' column"
+            )
 
         cl = self.config.context_length
         hl = self.config.horizon_length
@@ -296,7 +337,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 if pid is not None
                 else test_data
             )
-            values = patient_data["bg_mM"].values.astype(np.float32)
+            values = patient_data[target_col].values.astype(np.float32)
 
             for start in range(0, len(values) - total_len + 1, hl):
                 context = values[start : start + cl]
@@ -314,7 +355,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         if num_windows == 0:
             raise ValueError(
                 f"No valid evaluation windows found. Need at least "
-                f"{total_len} contiguous non-NaN bg_mM values per patient."
+                f"{total_len} contiguous non-NaN {target_col} values per patient."
             )
 
         eval_batch_size = batch_size or self.config.batch_size
@@ -415,14 +456,15 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         info_print("Preparing data for TimesFM finetuning...")
 
         # Step 1: Extract per-patient DataFrames (need DatetimeIndex for gap handling)
+        target_col = self.config.target_col
         if isinstance(train_data, dict):
             patient_dfs = {}
             for pid, df in train_data.items():
-                if "bg_mM" in df.columns:
+                if target_col in df.columns:
                     patient_dfs[str(pid)] = df
         elif isinstance(train_data, pd.DataFrame):
-            if "bg_mM" not in train_data.columns:
-                raise ValueError("DataFrame must contain 'bg_mM' column")
+            if target_col not in train_data.columns:
+                raise ValueError(f"DataFrame must contain '{target_col}' column")
             patient_col = next(
                 (c for c in ["p_num", "id"] if c in train_data.columns), None
             )
@@ -459,7 +501,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             patient_dfs,
             imputation_threshold_mins=self.config.imputation_threshold_mins,
             min_segment_length=min_seg_length,
-            bg_col="bg_mM",
+            bg_col=target_col,
         )
         info_print(
             f"Gap handling: {len(segments)} segments from "
@@ -472,7 +514,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         patient_to_segments: Dict[str, List[np.ndarray]] = defaultdict(list)
         for seg_id, seg_df in segments.items():
             original_pid = seg_id.rsplit("_seg_", 1)[0]
-            patient_to_segments[original_pid].append(seg_df["bg_mM"].values)
+            patient_to_segments[original_pid].append(seg_df[target_col].values)
 
         # Step 5: Patient-level train/val split
         pids = sorted(patient_to_segments.keys(), key=str)

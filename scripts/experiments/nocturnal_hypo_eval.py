@@ -46,6 +46,7 @@ from src.evaluation.nocturnal import (
     plot_best_worst_episodes,
     STEPS_PER_HOUR,
 )
+from src.evaluation.storage import write_nocturnal_results
 from src.models import create_model_and_config
 from src.utils import get_git_commit_hash, setup_file_logging, load_yaml_config
 
@@ -135,14 +136,6 @@ def save_experiment_config(
     logger.info(f"Experiment config saved to: {config_file}")
 
 
-def save_results(results: Dict[str, Any], output_path: Path) -> None:
-    """Save evaluation results to JSON file."""
-    results_file = output_path / "nocturnal_results.json"
-    with open(results_file, "w") as f:
-        json.dump(results, f, indent=2, default=str)
-    logger.info(f"Results saved to: {results_file}")
-
-
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
@@ -157,6 +150,7 @@ def parse_arguments() -> argparse.Namespace:
             "ttm",
             "chronos2",
             "moirai",
+            "moment",
             "timegrad",
             "timesfm",
             "tide",
@@ -214,6 +208,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Covariate column names (e.g., iob cob)",
     )
     parser.add_argument(
+        "--patients",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Subset of patient IDs to evaluate (default: all holdout patients)",
+    )
+    parser.add_argument(
         "--cuda-device",
         type=int,
         default=1,
@@ -225,6 +226,13 @@ def parse_arguments() -> argparse.Namespace:
         default=False,
         help="Use predict_quantiles() and compute WQL + Brier@3.9 "
         "(model must support probabilistic forecasting)",
+    )
+    parser.add_argument(
+        "--no-dilate",
+        action="store_true",
+        default=False,
+        help="Skip DILATE (Soft-DTW shape) metrics. Useful for large runs "
+        "where the O(n_episodes * forecast_length^2) cost is prohibitive.",
     )
     return parser.parse_args()
 
@@ -240,18 +248,30 @@ def main():
     # Load config from file if provided
     config_dict = load_yaml_config(args.model_config) if args.model_config else {}
 
-    # Prepare model kwargs
+    # Prepare model kwargs — pop model_type to avoid collision with the
+    # positional argument in create_model_and_config()
     model_kwargs = {
         **config_dict,
         "context_length": args.context_length,
         "forecast_length": args.forecast_length,
     }
+    model_kwargs.pop("model_type", None)
 
     # Initialize model
     logger.info(f"\n--- Initializing {args.model.upper()} ---")
     model, config = create_model_and_config(
         args.model, checkpoint=args.checkpoint, **model_kwargs
     )
+
+    # Early check: ensure model supports probabilistic forecasting if requested
+    if args.probabilistic and not model.supports_probabilistic_forecast:
+        logger.error(
+            "%s does not support probabilistic forecasting. "
+            "Remove --probabilistic or use a model that supports it "
+            "(e.g., chronos2).",
+            args.model,
+        )
+        raise ValueError("Model does not support probabilistic forecasting")
 
     context_length = config.context_length
     forecast_length = config.forecast_length
@@ -291,8 +311,21 @@ def main():
     holdout_data = registry.load_holdout_data_only(args.dataset)
 
     patient_col = get_patient_column(holdout_data)
+    if args.patients:
+        requested = set(args.patients)
+        available = set(holdout_data[patient_col].unique())
+        missing = requested - available
+        if missing:
+            logger.warning(
+                f"Requested patients not found in holdout data: {sorted(missing)}"
+            )
+        holdout_data = holdout_data[holdout_data[patient_col].isin(args.patients)]
     patients = holdout_data[patient_col].unique()
-    logger.info(f"Holdout patients: {list(patients)}")
+    if args.patients:
+        logger.info(
+            f"Filtered to {len(patients)} of {len(args.patients)} requested patients: {list(patients)}"
+        )
+    logger.info(f"Evaluating patients: {list(patients)}")
     logger.info(f"Total samples: {len(holdout_data):,}")
 
     # Auto-detect covariates from model config if not explicitly specified.
@@ -339,6 +372,7 @@ def main():
         forecast_length=forecast_length,
         covariate_cols=covariate_cols,
         probabilistic=args.probabilistic,
+        compute_dilate=not args.no_dilate,
     )
 
     # Log overall results
@@ -350,10 +384,19 @@ def main():
     if "overall_wql" in results:
         logger.info(f"Overall WQL:  {results['overall_wql']:.4f}")
         logger.info(f"Overall Brier@3.9: {results['overall_brier']:.4f}")
+        logger.info(f"Overall MACE: {results['overall_mace']:.4f}")
+        for lvl in (50, 80, 90, 95):
+            key = f"overall_coverage_{lvl}"
+            if key in results:
+                logger.info(f"Coverage {lvl}%%: {results[key]:.3f}")
+        for lvl in (50, 80, 90, 95):
+            key = f"overall_sharpness_{lvl}"
+            if key in results:
+                logger.info(f"Sharpness {lvl}%%: {results[key]:.3f}")
     logger.info(f"Total midnight episodes: {results['total_episodes']}")
 
-    # Prepare full results
-    full_results = {
+    # Save results (3-tier storage)
+    tier_metadata = {
         "evaluation_type": "nocturnal_hypoglycemia",
         "model": args.model,
         "mode": mode.lower(),
@@ -361,11 +404,10 @@ def main():
         "dataset": args.dataset,
         "timestamp": datetime.now().isoformat(),
         "config": resolved_config,
-        **results,
     }
-
-    # Save results
-    save_results(full_results, output_path)
+    written = write_nocturnal_results(results, output_path, tier_metadata)
+    for tier_name, tier_path in written.items():
+        logger.info(f"  {tier_name}: {tier_path}")
 
     # Generate best/worst episode plots
     logger.info("\n--- Generating Plots ---")

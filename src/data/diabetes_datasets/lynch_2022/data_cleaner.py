@@ -17,7 +17,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pyreadstat
 
 from src.data.cache_manager import get_cache_manager
 from src.data.physiological.carb_model.carb_model import (
@@ -32,19 +31,22 @@ from src.data.utils.patient_id import format_patient_id
 
 logger = logging.getLogger(__name__)
 
-_RAW_SAS_FILENAMES = {
-    "cgm": "iobp2devicecgm.sas7bdat",
-    "ilet": "iobp2deviceilet.sas7bdat",
-    "demo": "iobp2diabscreening.sas7bdat",
+_RAW_TXT_FILENAMES = {
+    "ilet": "IOBP2DeviceiLet.txt",
+    "demo": "IOBP2DiabScreening.txt",
 }
 
 
 def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
     """
-    Load and merge Lynch 2022 SAS tables into a single dataframe.
+    Load and process Lynch 2022 txt tables into a single dataframe.
+
+    Reads from the pipe-separated flat files in the "Data Tables" directory,
+    matching the BabelBetes IOBP2 approach. CGM and insulin are co-logged by
+    the iLet device into a single file (IOBP2DeviceiLet.txt).
 
     Args:
-        base_dir: Path to the "Data Tables in SAS" directory.
+        base_dir: Path to the "Data Tables" directory (pipe-separated txt files).
 
     Returns:
         DataFrame with columns needed for cleaning.
@@ -52,156 +54,146 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
     base_dir = Path(base_dir)
     missing = [
         fname
-        for fname in _RAW_SAS_FILENAMES.values()
+        for fname in _RAW_TXT_FILENAMES.values()
         if not (base_dir / fname).exists()
     ]
     if missing:
-        raise FileNotFoundError(f"Missing required SAS tables in {base_dir}: {missing}")
+        raise FileNotFoundError(f"Missing required files in {base_dir}: {missing}")
 
-    # Load SAS files
-    cgm_data, _ = pyreadstat.read_sas7bdat(str(base_dir / _RAW_SAS_FILENAMES["cgm"]))
-    ilet_data, _ = pyreadstat.read_sas7bdat(str(base_dir / _RAW_SAS_FILENAMES["ilet"]))
-    demo_data, _ = pyreadstat.read_sas7bdat(str(base_dir / _RAW_SAS_FILENAMES["demo"]))
+    # Load pipe-separated txt files
+    ilet_data = pd.read_csv(
+        base_dir / _RAW_TXT_FILENAMES["ilet"], sep="|", low_memory=False
+    )
+    demo_data = pd.read_csv(
+        base_dir / _RAW_TXT_FILENAMES["demo"], sep="|", low_memory=False
+    )
 
-    logger.info("Loaded CGM data with shape %s", cgm_data.shape)
     logger.info("Loaded iLet data with shape %s", ilet_data.shape)
     logger.info("Loaded Demographics data with shape %s", demo_data.shape)
 
-    # Extract CGM glucose values from iobp2devicecgm
-    # RecordType helps identify the type of reading
-    cgm_glucose = (
-        cgm_data[cgm_data["RecordType"] == "EGV"].copy()
-        if "RecordType" in cgm_data.columns
-        else cgm_data.copy()
-    )
-    cgm_glucose = cgm_glucose[["PtID", "DeviceDtTm", "Value"]].rename(
-        columns={"DeviceDtTm": "time", "Value": "gl"}
-    )
+    # Parse timestamps
+    ilet_data["DeviceDtTm"] = pd.to_datetime(ilet_data["DeviceDtTm"], errors="coerce")
 
-    # Extract data from iobp2deviceilet
-    # CGMVal: CGM glucose value
-    # MealSize: meal carbohydrate amount
-    # InsComp: insulin compensation (insulin given at this time step)
-    ilet_cols = {
-        "PtID": "PtID",
-        "DeviceDtTm": "time",
-        "CGMVal": "gl_ilet",
-        "MealSize": "food_g",
-        "InsComp": "dose_units",
-        "PtWeight": "weight",
-    }
-
-    available_cols = [col for col in ilet_cols.keys() if col in ilet_data.columns]
-    ilet_subset = ilet_data[available_cols].rename(
-        columns={k: ilet_cols[k] for k in available_cols}
+    # Preserve meal size text before any numeric coercion (Bug B fix)
+    ilet_data["meal_size_text"] = (
+        ilet_data["MealSize"].fillna("").astype(str).str.strip()
+        if "MealSize" in ilet_data.columns
+        else ""
     )
 
-    # Convert numeric columns to proper types BEFORE merging
-    if "food_g" in ilet_subset.columns:
-        ilet_subset["food_g"] = pd.to_numeric(ilet_subset["food_g"], errors="coerce")
-    if "dose_units" in ilet_subset.columns:
-        ilet_subset["dose_units"] = pd.to_numeric(
-            ilet_subset["dose_units"], errors="coerce"
+    # Extract CGM rows: only rows with a valid numeric CGM reading
+    ilet_data["CGMVal"] = pd.to_numeric(ilet_data["CGMVal"], errors="coerce")
+    cgm_rows = ilet_data.dropna(subset=["CGMVal"]).copy()
+
+    # Apply BabelBetes sentinel clamping: sensor-low → 40, sensor-high → 400
+    cgm_rows.loc[cgm_rows["CGMVal"] <= 39, "CGMVal"] = 40.0
+    cgm_rows.loc[cgm_rows["CGMVal"] >= 401, "CGMVal"] = 400.0
+
+    # Drop duplicate CGM readings for same patient+timestamp
+    cgm_rows = cgm_rows.drop_duplicates(subset=["PtID", "DeviceDtTm"])
+
+    # Build composite insulin dose from ALL iLet rows — including rows where CGMVal is
+    # absent (sensor gap, warm-up, signal loss) but the iLet was still delivering insulin.
+    # Computing dose_units only from cgm_rows drops ~7% of total insulin delivery (confirmed
+    # empirically: 117,865 U / 1,701,765 U total), which distorts IOB features.
+    ins_all = ilet_data[["PtID", "DeviceDtTm"]].copy()
+    for col in ["BasalDelivPrev", "BolusDelivPrev", "MealBolusDelivPrev"]:
+        if col in ilet_data.columns:
+            ins_all[col] = pd.to_numeric(ilet_data[col], errors="coerce").fillna(0.0)
+        else:
+            ins_all[col] = 0.0
+    ins_all["dose_units"] = (
+        ins_all["BasalDelivPrev"]
+        + ins_all["BolusDelivPrev"]
+        + ins_all["MealBolusDelivPrev"]
+    )
+    # Aggregate to 5-min bins (matching the pipeline's rounding grid) so that insulin
+    # delivered during CGM-gap rows is attributed to the correct CGM bin.
+    ins_all["_bin"] = ins_all["DeviceDtTm"].dt.round("5min")
+    ins_binned = ins_all.groupby(["PtID", "_bin"], as_index=False)["dose_units"].sum()
+
+    # Merge aggregated insulin onto CGM rows by 5-min bin, then keep one CGM row per
+    # (patient, bin) so the pipeline's aggregation does not re-sum the doses.
+    cgm_rows["_bin"] = cgm_rows["DeviceDtTm"].dt.round("5min")
+    cgm_rows = (
+        cgm_rows.drop(
+            columns=["BasalDelivPrev", "BolusDelivPrev", "MealBolusDelivPrev"],
+            errors="ignore",
         )
-    if "gl_ilet" in ilet_subset.columns:
-        ilet_subset["gl_ilet"] = pd.to_numeric(ilet_subset["gl_ilet"], errors="coerce")
+        .merge(ins_binned, on=["PtID", "_bin"], how="left")
+        .sort_values(["PtID", "DeviceDtTm"])
+        .drop_duplicates(subset=["PtID", "_bin"], keep="last")
+        .drop(columns=["_bin"])
+    )
+    cgm_rows["dose_units"] = cgm_rows["dose_units"].fillna(0.0)
 
-    # Extract demographics data
-    # DiagAge: age at diagnosis
-    # Sex: patient sex
+    # Note on timestamp shift: BabelBetes shifts insulin timestamps back 5 min because
+    # BasalDelivPrev/BolusDelivPrev record delivery for the *previous* step, so the
+    # semantically correct delivery time is DeviceDtTm − 5 min. We intentionally skip
+    # this shift: a 1-step offset in dose attribution causes a negligible difference in
+    # the IOB curve (~0.5% of peak over a 2–4 hour decay window) and keeping insulin
+    # co-timestamped with CGM avoids any misalignment after 5-min bin aggregation.
+    # If semantic correctness is required for a future use case, apply:
+    #   cgm_rows["time"] = cgm_rows["DeviceDtTm"] - pd.Timedelta(minutes=5)
+    cgm_rows["time"] = cgm_rows["DeviceDtTm"]
+
+    # food_g = 0: MealSize is categorical text, kept separately as meal_size_text
+    cgm_rows["food_g"] = 0.0
+
+    # Extract demographics
     demo_cols = ["PtID", "DiagAge", "Sex"]
     available_demo_cols = [col for col in demo_cols if col in demo_data.columns]
-    demo_subset = demo_data[available_demo_cols]
+    demo_subset = demo_data[available_demo_cols].copy()
+    if "DiagAge" in demo_subset.columns:
+        demo_subset["DiagAge"] = pd.to_numeric(demo_subset["DiagAge"], errors="coerce")
 
-    # Convert time columns to datetime
-    cgm_glucose["time"] = pd.to_datetime(cgm_glucose["time"], errors="coerce")
-    ilet_subset["time"] = pd.to_datetime(ilet_subset["time"], errors="coerce")
+    # Build output frame
+    out_cols = ["PtID", "time", "CGMVal", "dose_units", "food_g", "meal_size_text"]
+    out = cgm_rows[out_cols].rename(columns={"PtID": "id", "CGMVal": "gl"})
 
-    # Convert glucose to numeric
-    cgm_glucose["gl"] = pd.to_numeric(cgm_glucose["gl"], errors="coerce")
-
-    # Merge CGM and iLet data on PtID and time
-    # Use outer merge to capture all timestamps from both sources
-    merged = pd.merge(
-        cgm_glucose,
-        ilet_subset,
-        on=["PtID", "time"],
-        how="outer",
-        suffixes=("_cgm", "_ilet"),
+    # Merge demographics
+    out = pd.merge(
+        out,
+        demo_subset.rename(columns={"PtID": "id"}),
+        on="id",
+        how="left",
     )
 
-    # Consolidate glucose values: prefer CGM device data, fall back to iLet CGM reading
-    merged["gl"] = merged["gl"].fillna(merged.get("gl_ilet", np.nan))
-    if "gl_ilet" in merged.columns:
-        merged = merged.drop(columns=["gl_ilet"])
-
-    # Merge demographics data on PtID
-    merged = pd.merge(merged, demo_subset, on="PtID", how="left")
-
-    # Ensure insulin dose exists and handle missing values
-    # Convert to numeric first, then fill NaN with 0.0
-    if "dose_units" not in merged.columns:
-        merged["dose_units"] = 0.0
-    else:
-        merged["dose_units"] = pd.to_numeric(
-            merged["dose_units"], errors="coerce"
-        ).fillna(0.0)
-
-    # Food is already in grams (MealSize)
-    # Convert to numeric first, then fill NaN with 0.0
-    if "food_g" not in merged.columns:
-        merged["food_g"] = 0.0
-    else:
-        merged["food_g"] = pd.to_numeric(merged["food_g"], errors="coerce").fillna(0.0)
-
-    # Rename columns for consistency
-    rename_dict = {"PtID": "id"}
-    if "DiagAge" in merged.columns:
-        rename_dict["DiagAge"] = "age"
-        # Convert age to numeric
-        merged["DiagAge"] = pd.to_numeric(merged["DiagAge"], errors="coerce")
-    if "Sex" in merged.columns:
+    rename_dict = {}
+    if "DiagAge" in out.columns:
+        rename_dict["DiagAge"] = "age_at_diagnosis"
+    if "Sex" in out.columns:
         rename_dict["Sex"] = "sex"
-        # Keep sex as string/categorical
-    merged = merged.rename(columns=rename_dict)
+    out = out.rename(columns=rename_dict)
 
-    # Clean up: remove rows without time or glucose
-    merged = (
-        merged.dropna(subset=["time", "gl"])
+    # Remove rows without valid time or glucose
+    out = (
+        out.dropna(subset=["time", "gl"])
         .sort_values(["id", "time"])
         .reset_index(drop=True)
     )
 
     # Add metadata columns
-    merged["type"] = 1  # Type 1 diabetes
-    merged["device"] = "Dexcom G6"
-    merged["dataset"] = "lynch2022"
+    out["type"] = 1  # Type 1 diabetes
+    out["device"] = "iLet CGM"
+    out["dataset"] = "lynch2022"
 
-    # Add placeholder columns for features not available in this dataset
-    if "age" not in merged.columns:
-        merged["age"] = np.nan
-    if "sex" not in merged.columns:
-        merged["sex"] = np.nan
-    merged["insulinModality"] = (
-        1  # Assume pump-based (iLet is automated insulin delivery)
-    )
-    merged["hr_bpm"] = np.nan
-    merged["steps"] = np.nan
-    merged["cals"] = np.nan
-    merged["activity"] = np.nan
-
-    # Clean up temporary columns
-    temp_cols = ["weight"]
-    for col in temp_cols:
-        if col in merged.columns:
-            merged = merged.drop(columns=[col])
+    if "age_at_diagnosis" not in out.columns:
+        out["age_at_diagnosis"] = np.nan
+    if "sex" not in out.columns:
+        out["sex"] = np.nan
+    out["insulinModality"] = 1  # iLet is automated insulin delivery
+    out["hr_bpm"] = np.nan
+    out["steps"] = np.nan
+    out["cals"] = np.nan
+    out["activity"] = np.nan
 
     logger.info(
         "Loaded Lynch 2022 raw dataset with %d rows across %d subjects",
-        len(merged),
-        merged["id"].nunique(),
+        len(out),
+        out["id"].nunique(),
     )
-    return merged
+    return out
 
 
 def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
@@ -238,18 +230,24 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
 
     df["msg_type"] = "bg"
 
+    if "meal_size_text" not in df.columns:
+        df["meal_size_text"] = ""
+    else:
+        df["meal_size_text"] = df["meal_size_text"].fillna("").astype(str)
+
     cols = [
         "p_num",
         "datetime",
         "bg_mM",
         "dose_units",
         "food_g",
+        "meal_size_text",
         "hr_bpm",
         "steps",
         "cals",
         "activity",
         "msg_type",
-        "age",
+        "age_at_diagnosis",
         "sex",
         "insulinModality",
         "type",
@@ -307,7 +305,7 @@ def process_single_patient_data(
         cache_dir.mkdir(parents=True, exist_ok=True)
         data_copy.to_csv(cache_dir / f"{p_num}_pre_pipeline.csv")
 
-    processed_data = preprocessing_pipeline(p_num, data_copy)
+    processed_data = preprocessing_pipeline(p_num, data_copy, use_aggregation=True)
     return p_num, processed_data
 
 

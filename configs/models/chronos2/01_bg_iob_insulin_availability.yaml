@@ -39,5 +39,5 @@ patient_col: "p_num"
 time_col: "datetime"
 interval_mins: 5
 
-eval_metric: "RMSE"
+eval_metric: "WQL"
 enable_ensemble: false

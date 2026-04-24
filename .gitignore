@@ -63,11 +63,16 @@ src/data/diabetes_datasets/**/sample_submission.csv
 src/data/diabetes_datasets/**/processed/*
 scripts/notebooks/**/*.csv
 trained_models/artifacts/*
+<<<<<<< chronos2-train
 experiments/standard_forecasting/512ctx*
 experiments/nocturnal_forecasting/512ctx*
 experiments/nocturnal_forecasting/288ctx*
 experiments/nocturnal_forecasting/_bad_runs_archive/*
 
+=======
+experiments/standard_forecasting/*ctx*
+experiments/nocturnal_forecasting/*ctx*
+>>>>>>> main
 # Ignore sensative Groo files
 docs-internal/notebooks/0.04-cjr-gluroo_full_data_eda.ipynb
 

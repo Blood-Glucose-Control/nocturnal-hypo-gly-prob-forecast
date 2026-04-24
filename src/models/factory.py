@@ -237,7 +237,49 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "moirai":
-        raise NotImplementedError("Moirai model not yet implemented")
+        from src.models.moirai import MoiraiForecaster, MoiraiConfig
+
+        if checkpoint and os.path.isdir(checkpoint):
+            # Base-class save format (model.pt/ directory with config.json)
+            model = MoiraiForecaster.load(checkpoint)
+            config = model.config
+
+            # Apply valid overrides
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "num_samples" in kwargs:
+                config.num_samples = kwargs["num_samples"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            # Zero-shot or .ckpt Lightning checkpoint
+            config = MoiraiConfig(
+                model_path=kwargs.get("model_path", "Salesforce/moirai-1.0-R-small"),
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                batch_size=kwargs.get("batch_size", 32),
+                learning_rate=kwargs.get("learning_rate", 1e-4),
+                num_epochs=kwargs.get("num_epochs", 1),
+                patch_size=kwargs.get("patch_size", "auto"),
+                num_samples=kwargs.get("num_samples", 100),
+                past_covariate_dim=kwargs.get("past_covariate_dim", 0),
+                checkpoint_path=checkpoint,
+                interval_mins=kwargs.get("interval_mins", 5),
+                target_col=kwargs.get("target_col", "bg_mM"),
+                covariate_cols=kwargs.get("covariate_cols", []),
+            )
+            model = MoiraiForecaster(config)
+        return model, config
 
     elif model_type == "timegrad":
         from src.models.timegrad import TimeGradForecaster, TimeGradConfig
@@ -285,6 +327,72 @@ def create_model_and_config(
                 batch_size=kwargs.get("batch_size", 64),
             )
             model = TimeGradForecaster(config)
+        return model, config
+
+    elif model_type == "moment":
+        from src.models.moment import MomentForecaster, MomentConfig
+
+        if checkpoint:
+            config_dict = {}
+            config_path = os.path.join(checkpoint, "config.json")
+            training_metadata_path = os.path.join(checkpoint, "training_metadata.json")
+
+            if os.path.exists(config_path):
+                with open(config_path, "r") as f:
+                    config_dict = json.load(f)
+            elif os.path.exists(training_metadata_path):
+                with open(training_metadata_path, "r") as f:
+                    metadata = json.load(f)
+                config_dict = metadata.get("config", {})
+
+            # Defensive cleanup for stale/extra keys and missing model identifier
+            config_dict.pop("model_type", None)
+            if not config_dict.get("model_path"):
+                config_dict["model_path"] = kwargs.get(
+                    "model_path", "AutonLab/MOMENT-1-small"
+                )
+
+            config = MomentConfig.from_dict(config_dict)
+
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    logger.info(
+                        f"Overriding forecast_length: {config.forecast_length} -> {requested}"
+                    )
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+            if "context_length" in kwargs:
+                requested = kwargs["context_length"]
+                if requested != config.context_length:
+                    logger.warning(
+                        f"context_length mismatch: requested {requested}, "
+                        f"model trained with {config.context_length}. "
+                        f"Using saved value."
+                    )
+
+            model = MomentForecaster(config)
+            model._load_checkpoint(checkpoint)
+            model.is_fitted = True
+        else:
+            config = MomentConfig(
+                model_path=kwargs.get("model_path", "AutonLab/MOMENT-1-small"),
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 72),
+                batch_size=kwargs.get("batch_size", 32),
+                learning_rate=kwargs.get("learning_rate", 1e-4),
+                num_epochs=kwargs.get("num_epochs", 1),
+                training_mode=kwargs.get("training_mode", "zero_shot"),
+                use_cpu=kwargs.get("use_cpu", False),
+                fp16=kwargs.get("fp16", False),
+            )
+            model = MomentForecaster(config)
         return model, config
 
     elif model_type == "toto":
@@ -404,5 +512,5 @@ def create_model_and_config(
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, tide"
+            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, tide, moment"
         )

@@ -33,7 +33,8 @@ from src.experiments.base.experiment import ExperimentSummarizer
 
 log = logging.getLogger(__name__)
 
-_RESULTS_FILENAME = "nocturnal_results.json"
+_RESULTS_FILENAME_NEW = "results_summary.json"
+_RESULTS_FILENAME_OLD = "nocturnal_results.json"
 _CONFIG_FILENAME = "experiment_config.json"  # singular — nocturnal convention
 _CONFIG_FILENAME_ALT = "experiment_configs.json"
 _EXPERIMENT_TYPE = "nocturnal_forecasting"
@@ -83,9 +84,12 @@ class NocturnalSummarizer(ExperimentSummarizer):
         Returns ``None`` when ``nocturnal_results.json`` is absent, empty, or
         malformed.
         """
-        results_path = run_dir / _RESULTS_FILENAME
+        # Try new 3-tier format first, fall back to legacy monolithic JSON
+        results_path = run_dir / _RESULTS_FILENAME_NEW
         if not results_path.exists():
-            log.debug("No %s in %s — skipping", _RESULTS_FILENAME, run_dir)
+            results_path = run_dir / _RESULTS_FILENAME_OLD
+        if not results_path.exists():
+            log.debug("No results file in %s — skipping", run_dir)
             return None
 
         try:
@@ -118,9 +122,12 @@ class NocturnalSummarizer(ExperimentSummarizer):
 
         cfg = data.get("config", {})
         git_commit = _read_git_commit(run_dir)
+        checkpoint = data.get("checkpoint") or _read_checkpoint(run_dir)
 
         return {
             "run_id": run_dir.name,
+            "run_path": str(run_dir),
+            "checkpoint": checkpoint,
             "experiment_type": _EXPERIMENT_TYPE,
             "ctx_fh": ctx_fh,
             "model": data.get("model", model),
@@ -136,15 +143,46 @@ class NocturnalSummarizer(ExperimentSummarizer):
             "mae": float("nan"),
             "mape": float("nan"),
             "mse": float("nan"),
+            # Probabilistic metrics (NaN for non-probabilistic runs)
+            "wql": _as_float(data.get("overall_wql")),
+            "brier_3_9": _as_float(data.get("overall_brier")),
+            "mace": _as_float(data.get("overall_mace")),
+            "coverage_50": _as_float(data.get("overall_coverage_50")),
+            "coverage_80": _as_float(data.get("overall_coverage_80")),
+            "coverage_90": _as_float(data.get("overall_coverage_90")),
+            "coverage_95": _as_float(data.get("overall_coverage_95")),
+            "sharpness_50": _as_float(data.get("overall_sharpness_50")),
+            "sharpness_80": _as_float(data.get("overall_sharpness_80")),
+            "sharpness_90": _as_float(data.get("overall_sharpness_90")),
+            "sharpness_95": _as_float(data.get("overall_sharpness_95")),
+            # DILATE shape-temporal decomposition (3 gamma levels)
+            "dilate_g0001": _as_float(data.get("overall_dilate_g0001")),
+            "shape_g0001": _as_float(data.get("overall_shape_g0001")),
+            "temporal_g0001": _as_float(data.get("overall_temporal_g0001")),
+            "dilate_g001": _as_float(data.get("overall_dilate_g001")),
+            "shape_g001": _as_float(data.get("overall_shape_g001")),
+            "temporal_g001": _as_float(data.get("overall_temporal_g001")),
+            "dilate_g01": _as_float(data.get("overall_dilate_g01")),
+            "shape_g01": _as_float(data.get("overall_shape_g01")),
+            "temporal_g01": _as_float(data.get("overall_temporal_g01")),
             "total_episodes": int(total_episodes),
             "git_commit": git_commit,
-            "run_path": str(run_dir),
         }
 
 
 # ------------------------------------------------------------------
 # Private helpers
 # ------------------------------------------------------------------
+
+
+def _as_float(value: Any) -> float:
+    """Coerce to float, returning NaN for missing or non-numeric values."""
+    if value is None:
+        return float("nan")
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
 
 
 def _read_git_commit(run_dir: Path) -> str | None:
@@ -156,6 +194,21 @@ def _read_git_commit(run_dir: Path) -> str | None:
                 with config_path.open() as fh:
                     cfg = json.load(fh)
                 return cfg.get("environment", {}).get("git_commit")
+            except (json.JSONDecodeError, OSError):
+                pass
+    return None
+
+
+def _read_checkpoint(run_dir: Path) -> str | None:
+    """Try to extract checkpoint path from an experiment config file."""
+    for fname in (_CONFIG_FILENAME, _CONFIG_FILENAME_ALT):
+        config_path = run_dir / fname
+        if config_path.exists():
+            try:
+                with config_path.open() as fh:
+                    cfg = json.load(fh)
+                checkpoint = cfg.get("cli_args", {}).get("checkpoint")
+                return checkpoint if checkpoint else None
             except (json.JSONDecodeError, OSError):
                 pass
     return None

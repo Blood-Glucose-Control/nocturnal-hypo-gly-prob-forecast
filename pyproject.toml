@@ -73,14 +73,26 @@ timegrad = [
     "pytorchts",
     "gluonts>=0.9.0,<0.10.0",
 ]
+moment = [
+    "momentfm",
+]
 timesfm = [
     "transformers>=5.2.0",
 ]
 tide = [
     "autogluon.timeseries==1.5.0",
 ]
+moirai = [
+    "uni2ts @ git+https://github.com/SalesforceAIResearch/uni2ts.git",
+    "gluonts>=0.14.0",
+    "lightning>=2.0",
+    "transformers>=4.56.0",
+]
 toto = [
     "toto-ts",
+]
+dev = [
+    "babelbetes>=0.2.3",
 ]
 
 [tool.setuptools.packages.find]
