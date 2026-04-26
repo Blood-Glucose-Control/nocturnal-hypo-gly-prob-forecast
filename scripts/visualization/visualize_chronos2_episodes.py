@@ -19,7 +19,7 @@ Usage:
     # Override defaults
     python scripts/visualization/visualize_chronos2_episodes.py \
         --predictor-path trained_models/artifacts/chronos2/<run_dir> \
-        --output-dir images/figures/chronos2_episodes
+        --output-dir results/chronos2_episodes
 """
 
 from __future__ import annotations
@@ -74,7 +74,7 @@ DEFAULT_PREDICTOR_PATH = str(
 #     / "2026-02-28_05:54_RID20260228_055400_391511_holdout_workflow"
 # )
 
-DEFAULT_OUTPUT_DIR = str(REPO_ROOT / "images" / "figures" / "chronos2_episodes")
+DEFAULT_OUTPUT_DIR = str(REPO_ROOT / "results" / "chronos2_episodes")
 
 
 # ── Data Loading & Prediction ──────────────────────────────────────────

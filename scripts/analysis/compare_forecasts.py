@@ -22,7 +22,7 @@ Two-stage workflow to handle models that require different Python environments:
           --from-results \\
               results/forecast_comparisons/a3f82c1d.json \\
               results/forecast_comparisons/9b14e702.json
-      # → saves figure + sidecar to images/figures/forecast_comparisons/
+      # → saves figure + sidecar to results/forecast_comparisons/
       # Grid: n_patients rows x 4 cols (P10/P30/P60/P90 RMSE per patient)
       # Override percentile columns: --percentiles 25 50 75
 
@@ -84,7 +84,7 @@ DEFAULT_PERCENTILES = [10, 30, 70, 90]
 DEFAULT_SEED = 42
 
 RESULTS_DIR = Path("results/forecast_comparisons")
-FIGURES_DIR = Path("images/figures/forecast_comparisons")
+FIGURES_DIR = Path("results/forecast_comparisons")
 
 COLOR_CYCLE = [
     "#1f77b4",
