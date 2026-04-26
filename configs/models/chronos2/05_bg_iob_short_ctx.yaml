@@ -1,0 +1,49 @@
+# =============================================================================
+# Chronos-2  05 — CGM + IOB + insulin_availability  |  context = 288 (~24h)
+# =============================================================================
+# Same covariate set as 01_bg_iob_insulin_availability.yaml but with a reduced
+# context window of 288 steps (~24h) vs the default 512 (~42h).
+#
+# Rationale: with a 512-step context the model has ~42h of BG autocorrelation
+# to exploit, which may cause it to under-weight the exogenous IOB signal
+# (driver-blindness, C1 per Shakeri et al. 2025). Cutting context to 24h
+# reduces BG autocorrelation dominance while still providing one full circadian
+# cycle of history — potentially forcing greater reliance on covariates.
+#
+# Note: min_segment_length auto-computes to context_length + forecast_length
+#       = 288 + 96 = 384 rows per segment (Chronos2Config.__post_init__).
+#
+# Datasets: aleppo_2017, brown_2019, lynch_2022
+#
+# Comparison target:
+#   01_bg_iob_insulin_availability.yaml  → same covariates, context=512
+#   THIS config                          → same covariates, context=288
+#
+# Usage:
+#   MODEL_TYPE="chronos2" \
+#   MODEL_CONFIG="configs/models/chronos2/05_bg_iob_short_ctx.yaml" \
+#   DATASETS="aleppo_2017 brown_2019 lynch_2022" \
+#   SKIP_TRAINING="false" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+model_path: "autogluon/chronos-2"
+context_length: 288  # ~24h at 5-min intervals (vs 512 ~42h baseline)
+forecast_length: 96  # 8 hours at 5-min intervals
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+fine_tune_steps: 10000
+fine_tune_lr: 1.0e-5
+fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB; T5-small 256→~45GB (verified safe)
+checkpoint_save_steps: 2000
+
+covariate_cols: [iob, insulin_availability]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false

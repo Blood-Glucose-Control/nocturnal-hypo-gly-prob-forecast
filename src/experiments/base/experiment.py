@@ -28,8 +28,10 @@ import pandas as pd
 
 log = logging.getLogger(__name__)
 
-# Run-directory naming convention: YYYY-MM-DD_HHMM_<dataset>_<mode>
-_RUN_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{4}_\S+$")
+# Conventional run-directory naming: YYYY-MM-DD_HHMM[SS]_<dataset>_<mode>
+# nocturnal_hypo_eval*.py use %H%M%S (6 digits); sliding_window_eval.py uses
+# %H%M (4 digits).  Both formats are accepted.
+_RUN_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{4,6}_\S+$")
 
 VALID_METRICS = {
     "rmse",
@@ -80,8 +82,12 @@ class ExperimentSummarizer(ABC):
     def _iter_run_dirs(self):
         """Yield ``(ctx_fh, model, run_dir_path)`` for every completed run.
 
-        A valid run directory is any leaf directory whose name matches the
-        ``YYYY-MM-DD_HHMM_*`` convention.
+        A candidate run directory is any leaf directory under
+        ``<experiment_type>/<ctx_fh>/<model>/``.
+
+        Historically, run names followed ``YYYY-MM-DD_HHMM_*``; we still
+        recognize and log that convention, but we no longer require it so
+        custom output-dir names are not silently ignored.
         """
         if not self.experiment_dir.is_dir():
             log.warning("Experiment directory not found: %s", self.experiment_dir)
@@ -94,8 +100,15 @@ class ExperimentSummarizer(ABC):
                 if not model_dir.is_dir():
                     continue
                 for run_dir in sorted(model_dir.iterdir()):
-                    if run_dir.is_dir() and _RUN_DIR_RE.match(run_dir.name):
-                        yield ctx_fh_dir.name, model_dir.name, run_dir
+                    if not run_dir.is_dir():
+                        continue
+                    if not _RUN_DIR_RE.match(run_dir.name):
+                        log.debug(
+                            "Non-standard run directory name '%s' under %s; attempting to parse",
+                            run_dir.name,
+                            model_dir,
+                        )
+                    yield ctx_fh_dir.name, model_dir.name, run_dir
 
     @abstractmethod
     def _parse_run_dir(

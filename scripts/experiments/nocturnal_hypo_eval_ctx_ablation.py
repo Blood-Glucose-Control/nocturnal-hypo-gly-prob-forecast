@@ -1,33 +1,24 @@
 #!/usr/bin/env python3
 r"""
-Nocturnal Hypoglycemia Evaluation Script.
+Nocturnal Hypoglycemia Evaluation Script — Context-Ablation Variant.
 
-Evaluates models on the midnight-anchored nocturnal forecasting task — a clinically
-meaningful evaluation where context ends at midnight and the model forecasts 6 hours
-of overnight blood glucose when hypoglycemia risk is highest.
+Identical to nocturnal_hypo_eval.py except:
+  - Results are written under experiments/nocturnal_forecasting_ctx_ablation/
+    to keep ablation runs separate from the main evaluation results.
+  - Accepts --episode-context-length (default 512) which controls the minimum
+    history required for an episode to be included. All shorter context configs
+    are evaluated on the same set of midnight anchors (those valid at 512 steps),
+    ensuring apples-to-apples comparison across context window sizes.
 
-This is fundamentally different from sliding-window evaluation (sliding_window_eval.py),
-which measures general forecast accuracy across all times of day. These two evaluation
-modes produce DIFFERENT RMSE numbers and must never be compared on the same leaderboard.
+This script is invoked by chronos2_ctx_ablation_eval.sh.
 
 Usage:
-    # Zero-shot:
-    python scripts/experiments/nocturnal_hypo_eval.py --model chronos2 --dataset brown_2019
-
-    # Fine-tuned with checkpoint:
-    python scripts/experiments/nocturnal_hypo_eval.py \
-        --model chronos2 --dataset tamborlane_2008 \
-        --checkpoint trained_models/artifacts/chronos2/.../model.pt
-
-    # Full options:
-    python scripts/experiments/nocturnal_hypo_eval.py \
-        --model chronos2 --dataset brown_2019 \
-        --config-dir configs/data/holdout_10pct \
-        --context-length 512 --forecast-length 96 \
-        --cuda-device 0 --covariate-cols iob
-
-    # Exact commands for past experiments are saved in each run's
-    # experiment_config.json under "reproducibility_command".
+    # ctx=64 fine-tuned, same episodes as ctx=512:
+    python scripts/experiments/nocturnal_hypo_eval_ctx_ablation.py \
+        --model chronos2 --dataset lynch_2022 \
+        --checkpoint trained_models/artifacts/.../model.pt \
+        --context-length 64 --episode-context-length 512 \
+        --forecast-length 96 --probabilistic
 """
 
 import argparse
@@ -70,7 +61,7 @@ def setup_output_directory(
         timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         mode = "finetuned" if checkpoint else "zeroshot"
         output_dir = (
-            f"./experiments/nocturnal_forecasting/"
+            f"./experiments/nocturnal_forecasting_ctx_ablation/"
             f"{context_length}ctx_{forecast_length}fh/{model_name}/"
             f"{timestamp}_{dataset_name}_{mode}"
         )
@@ -234,6 +225,16 @@ def parse_arguments() -> argparse.Namespace:
         help="Skip DILATE (Soft-DTW shape) metrics. Useful for large runs "
         "where the O(n_episodes * forecast_length^2) cost is prohibitive.",
     )
+    parser.add_argument(
+        "--episode-context-length",
+        type=int,
+        default=512,
+        help="Minimum context history required for an episode to be included. "
+        "When larger than --context-length, episodes are filtered to those "
+        "valid at this length, then context_df is trimmed to --context-length "
+        "before model inference. Ensures all context ablation configs are "
+        "evaluated on the same set of midnight anchors (default: 512).",
+    )
     return parser.parse_args()
 
 
@@ -332,13 +333,11 @@ def main():
     # Fine-tuned models (e.g., Chronos-2 with IOB) need the same columns at
     # predict time as were present during training.
     covariate_cols = args.covariate_cols
-    if (
-        covariate_cols is None
-        and hasattr(config, "covariate_cols")
-        and config.covariate_cols
-    ):
-        covariate_cols = config.covariate_cols
-        logger.info("Using covariates from model config: %s", covariate_cols)
+    if covariate_cols is None:
+        config_covariates = getattr(config, "covariate_cols", None)
+        if config_covariates:
+            covariate_cols = config_covariates
+            logger.info("Using covariates from model config: %s", covariate_cols)
 
     # Build resolved config dict once (used in experiment_config.json and results)
     resolved_config = {
@@ -351,17 +350,14 @@ def main():
     # Save experiment configuration
     save_experiment_config(args, resolved_config, output_path)
 
-    # Auto-detect covariates from model config if not explicitly specified.
-    # Fine-tuned models (e.g., Chronos-2 with IOB) need the same columns at
-    # predict time as were present during training.
-    covariate_cols = args.covariate_cols
-    if (
-        covariate_cols is None
-        and hasattr(config, "covariate_cols")
-        and config.covariate_cols
-    ):
-        covariate_cols = config.covariate_cols
-        logger.info("Using covariates from model config: %s", covariate_cols)
+    episode_context_length = args.episode_context_length
+    if episode_context_length > context_length:
+        logger.info(
+            "Context-ablation mode: episodes filtered to those valid at %d steps; "
+            "context trimmed to %d steps for model inference.",
+            episode_context_length,
+            context_length,
+        )
 
     # Run nocturnal evaluation
     logger.info("\n--- Running Nocturnal Evaluation ---")
@@ -373,6 +369,7 @@ def main():
         covariate_cols=covariate_cols,
         probabilistic=args.probabilistic,
         compute_dilate=not args.no_dilate,
+        episode_context_length=episode_context_length,
     )
 
     # Log overall results

@@ -39,7 +39,7 @@ eval "$(/opt/anaconda3/bin/conda shell.bash hook)"
 conda activate chronos
 
 echo "============================================"
-echo "Chronos-2 Time Covariate A/B Experiment"
+echo "Chronos-2 Covariate A/B/C/D Experiment"
 echo "============================================"
 echo "Job ID: $SLURM_JOB_ID"
 echo "Node: $(hostname)"

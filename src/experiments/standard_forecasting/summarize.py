@@ -106,7 +106,7 @@ class StandardForecastingSummarizer(ExperimentSummarizer):
             "run_id": run_dir.name,
             "run_path": str(run_dir),
             "checkpoint": checkpoint,
-            "experiment_type": _EXPERIMENT_TYPE,
+            "experiment_type": self.experiment_type,
             "ctx_fh": ctx_fh,
             "model": data.get("model", model),
             "dataset": data.get("dataset", ""),

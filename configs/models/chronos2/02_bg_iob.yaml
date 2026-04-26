@@ -1,15 +1,22 @@
 # =============================================================================
-# Chronos-2  00 — BG only  |  lr=1e-5  |  ctx=512  (baseline)
+# Chronos-2 - CGM + IOB (raw IOB only, no insulin_availability)
 # =============================================================================
-# BG-only baseline — no covariates. Reference point for all other configs.
-# 10k steps with checkpoints every 2k lets you see the learning curve and
-# compare convergence speed against covariate configs.
+# Isolates the contribution of raw IOB as a covariate, filling the gap between
+# the BG-only baseline (00) and the full iob+insulin_availability config (01).
+# Baseline LR and context length — only covariate set changes.
 #
 # Datasets: aleppo_2017, brown_2019, lynch_2022
+# (All three have dose_units → iob via Hovorka model. Exclude tamborlane_2008:
+#  CGM-only, no insulin data.)
+#
+# Comparison target:
+#   00_bg_only.yaml          → no covariates
+#   01_bg_iob_insulin_avail  → [iob, insulin_availability]
+#   THIS config              → [iob] only  (isolates iob from insulin_availability)
 #
 # Usage:
 #   MODEL_TYPE="chronos2" \
-#   MODEL_CONFIG="configs/models/chronos2/00_bg_only.yaml" \
+#   MODEL_CONFIG="configs/models/chronos2/02_bg_iob.yaml" \
 #   DATASETS="aleppo_2017 brown_2019 lynch_2022" \
 #   SKIP_TRAINING="false" \
 #     ./scripts/examples/run_holdout_generic_workflow.sh
@@ -17,20 +24,17 @@
 
 model_path: "autogluon/chronos-2"
 context_length: 512
-forecast_length: 96  # 6 hours at 5-min intervals
+forecast_length: 96  # 8 hours at 5-min intervals
 
 training_mode: "fine_tune"
 freeze_backbone: false
 
-# Step-based training (Chronos-2 / AutoGluon does not use epochs directly).
-# 100 steps = fast smoke test. Use ~15000 for a real training run.
 fine_tune_steps: 10000
 fine_tune_lr: 1.0e-5
 fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB; T5-small 256→~45GB (verified safe)
 checkpoint_save_steps: 2000
 
-# BG only — no covariates
-covariate_cols: []
+covariate_cols: [iob]
 target_col: "bg_mM"
 patient_col: "p_num"
 time_col: "datetime"

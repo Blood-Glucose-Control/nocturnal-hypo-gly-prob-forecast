@@ -87,6 +87,36 @@ class TestChronos2:
         hp_zs = zs_cfg.get_autogluon_hyperparameters()
         assert hp_zs["Chronos2"]["fine_tune"] is False
 
+    def test_checkpoint_save_steps_hyperparams(self):
+        """checkpoint_save_steps wires the correct fine_tune_trainer_kwargs.
+
+        Critical invariant: save_total_limit must be None (not 0 or an int)
+        so that the HuggingFace Trainer does NOT prune intermediate checkpoints.
+        Chronos-2's pipeline hardcodes save_total_limit=1; we must override it.
+        """
+        cfg = Chronos2Config(training_mode="fine_tune", checkpoint_save_steps=5000)
+        hp = cfg.get_autogluon_hyperparameters()
+
+        assert (
+            "fine_tune_trainer_kwargs" in hp["Chronos2"]
+        ), "fine_tune_trainer_kwargs missing — checkpoints will not be saved"
+        trainer_kwargs = hp["Chronos2"]["fine_tune_trainer_kwargs"]
+        assert trainer_kwargs["save_strategy"] == "steps"
+        assert trainer_kwargs["save_steps"] == 5000
+        assert trainer_kwargs["save_only_model"] is True
+        # None tells HF Trainer to keep all checkpoints; 0 or any int would
+        # still limit saves and defeat the purpose of the sweep.
+        assert trainer_kwargs["save_total_limit"] is None, (
+            f"save_total_limit={trainer_kwargs['save_total_limit']!r} — "
+            "must be None to override Chronos-2's hardcoded save_total_limit=1"
+        )
+
+        # Without checkpoint_save_steps, fine_tune_trainer_kwargs must be absent
+        # so we don't accidentally inject an empty dict into AutoGluon.
+        cfg_no_ckpt = Chronos2Config(training_mode="fine_tune")
+        hp_no_ckpt = cfg_no_ckpt.get_autogluon_hyperparameters()
+        assert "fine_tune_trainer_kwargs" not in hp_no_ckpt["Chronos2"]
+
         # Factory routing — pipeline depends on this
         from src.models.base.base_model import create_model_from_config
 
