@@ -11,6 +11,9 @@ from src.evaluation.metrics.probabilistic import (
     compute_sharpness,
     compute_sharpness_by_step,
     compute_mace,
+    compute_pit_values,
+    compute_reliability_curve,
+    compute_ece,
 )
 
 
@@ -486,3 +489,238 @@ class TestComputeMACE:
     def test_unsorted_quantile_levels_raises(self):
         with pytest.raises(ValueError, match="strictly increasing"):
             compute_mace(np.ones((2, 3)), np.ones(3), [0.9, 0.1])
+
+
+# ---------------------------------------------------------------------------
+# compute_pit_values tests
+# ---------------------------------------------------------------------------
+
+
+def _batch_quantile_forecast(
+    actuals_batch: np.ndarray,
+    spread: float = 1.0,
+) -> np.ndarray:
+    """Build a batch forecast: quantiles evenly spread around each actual.
+
+    Returns shape (n_episodes, n_quantiles, forecast_length).
+    """
+    n_eps, fh = actuals_batch.shape
+    n_q = len(QUANTILE_LEVELS)
+    # Spread quantiles symmetrically: q_i ∈ [actual - spread, actual + spread]
+    offsets = np.linspace(-spread, spread, n_q)  # (n_q,)
+    # broadcast: (n_eps, n_q, fh)
+    return actuals_batch[:, np.newaxis, :] + offsets[np.newaxis, :, np.newaxis]
+
+
+class TestComputePITValues:
+    def test_output_shape_is_flat(self):
+        """Returns flat (n_episodes * forecast_length,) array."""
+        n_eps, fh = 5, 12
+        actuals = np.ones((n_eps, fh)) * 5.0
+        q_fc = _batch_quantile_forecast(actuals)
+        pit = compute_pit_values(q_fc, actuals, QUANTILE_LEVELS)
+        assert pit.shape == (n_eps * fh,)
+
+    def test_uniform_spread_yields_approx_uniform(self):
+        """Uniform actuals spanning the quantile range → PIT ≈ uniform in [0.1, 0.9]."""
+        rng = np.random.default_rng(0)
+        n_eps, fh = 1000, 96
+        n_q = len(QUANTILE_LEVELS)
+
+        # Fixed quantile forecast: q_levels[i] maps to value (i+1), so the
+        # forecast CDF is a linearly-spaced grid from 1.0 to 9.0.
+        q_vals = np.arange(1, n_q + 1, dtype=np.float64)  # [1, 2, ..., 9]
+        q_fc = np.broadcast_to(
+            q_vals[np.newaxis, :, np.newaxis], (n_eps, n_q, fh)
+        ).copy()
+
+        # Actuals drawn uniformly inside [1, 9] (the quantile value range).
+        actuals = rng.uniform(1.0, 9.0, size=(n_eps, fh))
+
+        pit = compute_pit_values(q_fc, actuals, QUANTILE_LEVELS)
+        # Under this setup PIT ~ Uniform[0.1, 0.9]; median ≈ 0.5.
+        assert 0.4 < float(np.median(pit)) < 0.6
+        assert float(np.percentile(pit, 25)) < 0.45  # ~0.3
+        assert float(np.percentile(pit, 75)) > 0.55  # ~0.7
+
+    def test_actual_at_median_quantile_gives_pit_half(self):
+        """When actual == forecast for the median quantile, PIT ≈ 0.5."""
+        fh = 4
+        actuals = np.array([[5.0, 6.0, 7.0, 8.0]])  # (1, 4)
+        # Build quantiles so q=0.5 exactly hits the actual
+        n_q = len(QUANTILE_LEVELS)
+        q_fc = np.zeros((1, n_q, fh))
+        for i, q in enumerate(QUANTILE_LEVELS):
+            q_fc[0, i, :] = actuals[0] + (q - 0.5) * 2.0
+        pit = compute_pit_values(q_fc, actuals, QUANTILE_LEVELS)
+        assert np.allclose(pit, 0.5, atol=1e-10)
+
+    def test_below_all_quantiles_gives_pit_zero(self):
+        """Actual below the lowest quantile → PIT = 0.0."""
+        actuals = np.array([[0.0]])  # (1, 1) — below all forecast values
+        q_fc = np.array([[[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]]]).reshape(
+            1, len(QUANTILE_LEVELS), 1
+        )
+        pit = compute_pit_values(q_fc, actuals, QUANTILE_LEVELS)
+        assert pit[0] == pytest.approx(0.0)
+
+    def test_above_all_quantiles_gives_pit_one(self):
+        """Actual above the highest quantile → PIT = 1.0."""
+        actuals = np.array([[99.0]])  # (1, 1) — above all forecast values
+        q_fc = np.array([[[1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]]]).reshape(
+            1, len(QUANTILE_LEVELS), 1
+        )
+        pit = compute_pit_values(q_fc, actuals, QUANTILE_LEVELS)
+        assert pit[0] == pytest.approx(1.0)
+
+    def test_pit_bounded_0_1(self):
+        """All PIT values must lie in [0, 1] for arbitrary inputs."""
+        rng = np.random.default_rng(7)
+        actuals = rng.uniform(2.0, 20.0, size=(20, 48))
+        q_fc = np.sort(
+            rng.uniform(2.0, 20.0, size=(20, len(QUANTILE_LEVELS), 48)), axis=1
+        )
+        pit = compute_pit_values(q_fc, actuals, QUANTILE_LEVELS)
+        assert np.all(pit >= 0.0)
+        assert np.all(pit <= 1.0)
+
+    def test_linear_interpolation_between_quantiles(self):
+        """PIT is linearly interpolated inside a quantile bin."""
+        # Two quantiles: q=0.1 → value=1.0, q=0.2 → value=2.0
+        # Actual = 1.5 → PIT should be 0.15 (midpoint of [0.1, 0.2])
+        actuals = np.array([[1.5]])  # (1, 1)
+        q_levels = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+        q_fc = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]).reshape(1, 9, 1)
+        pit = compute_pit_values(q_fc, actuals, q_levels)
+        assert pit[0] == pytest.approx(0.15, abs=1e-10)
+
+    def test_shape_mismatch_raises(self):
+        """Mismatched n_quantiles and len(quantile_levels) should raise ValueError."""
+        q_fc = np.ones((3, 5, 10))  # 5 quantiles
+        actuals = np.ones((3, 10))
+        with pytest.raises(ValueError, match="does not match"):
+            compute_pit_values(q_fc, actuals, [0.1, 0.5, 0.9])  # 3 levels
+
+    def test_unsorted_quantile_levels_raises(self):
+        with pytest.raises(ValueError, match="strictly increasing"):
+            q_fc = np.ones((2, 3, 4))
+            compute_pit_values(q_fc, np.ones((2, 4)), [0.9, 0.5, 0.1])
+
+
+# ---------------------------------------------------------------------------
+# compute_reliability_curve tests
+# ---------------------------------------------------------------------------
+
+
+class TestComputeReliabilityCurve:
+    def test_output_shapes(self):
+        """Returns two arrays each of length n_quantiles."""
+        n_eps, fh = 10, 12
+        actuals = np.ones((n_eps, fh)) * 5.0
+        q_fc = _batch_quantile_forecast(actuals)
+        nominal, empirical = compute_reliability_curve(q_fc, actuals, QUANTILE_LEVELS)
+        assert nominal.shape == (len(QUANTILE_LEVELS),)
+        assert empirical.shape == (len(QUANTILE_LEVELS),)
+
+    def test_nominal_equals_quantile_levels(self):
+        """nominal should be exactly the supplied quantile_levels."""
+        actuals = np.ones((4, 8)) * 5.0
+        q_fc = _batch_quantile_forecast(actuals)
+        nominal, _ = compute_reliability_curve(q_fc, actuals, QUANTILE_LEVELS)
+        np.testing.assert_array_almost_equal(nominal, QUANTILE_LEVELS)
+
+    def test_perfect_calibration_diagonal(self):
+        """When the forecast CDF exactly matches the data, empirical ≈ nominal."""
+        # For a perfectly calibrated model, the predicted quantile at level q
+        # should equal the true q-th quantile of the data.
+        # Actuals ~ U[1, 9].  True quantile at level q = 1 + q * 8.
+        rng = np.random.default_rng(42)
+        n_q = len(QUANTILE_LEVELS)
+        n_eps, fh = 2000, 96
+        q_arr = np.array(QUANTILE_LEVELS, dtype=np.float64)  # [0.1..0.9]
+        q_vals = 1.0 + q_arr * 8.0  # true quantiles of U[1,9]
+        q_fc = np.broadcast_to(
+            q_vals[np.newaxis, :, np.newaxis], (n_eps, n_q, fh)
+        ).copy()
+        actuals = rng.uniform(1.0, 9.0, size=(n_eps, fh))
+        nominal, empirical = compute_reliability_curve(q_fc, actuals, QUANTILE_LEVELS)
+        # P(U[1,9] ≤ 1 + q*8) = q  →  empirical ≈ nominal
+        np.testing.assert_allclose(empirical, nominal, atol=0.02)
+
+    def test_empirical_bounded_0_1(self):
+        """All empirical values must lie in [0, 1]."""
+        rng = np.random.default_rng(7)
+        actuals = rng.uniform(2.0, 20.0, size=(20, 48))
+        q_fc = np.sort(
+            rng.uniform(2.0, 20.0, size=(20, len(QUANTILE_LEVELS), 48)), axis=1
+        )
+        _, empirical = compute_reliability_curve(q_fc, actuals, QUANTILE_LEVELS)
+        assert np.all(empirical >= 0.0)
+        assert np.all(empirical <= 1.0)
+
+    def test_over_forecasting_curve_above_diagonal(self):
+        """If quantile forecasts are always too high, empirical > nominal."""
+        n_eps, fh = 50, 10
+        actuals = np.ones((n_eps, fh)) * 3.0
+        # All quantile values well above actuals → P(actual ≤ q_i) ≈ 1 for all i
+        q_fc = np.ones((n_eps, len(QUANTILE_LEVELS), fh)) * 10.0
+        nominal, empirical = compute_reliability_curve(q_fc, actuals, QUANTILE_LEVELS)
+        assert np.all(empirical > nominal)
+
+    def test_shape_mismatch_raises(self):
+        with pytest.raises(ValueError, match="does not match"):
+            q_fc = np.ones((5, 3, 10))
+            compute_reliability_curve(q_fc, np.ones((5, 10)), [0.1, 0.9])
+
+    def test_unsorted_quantile_levels_raises(self):
+        with pytest.raises(ValueError, match="strictly increasing"):
+            compute_reliability_curve(np.ones((2, 2, 4)), np.ones((2, 4)), [0.9, 0.1])
+
+
+# ---------------------------------------------------------------------------
+# compute_ece tests
+# ---------------------------------------------------------------------------
+
+
+class TestComputeECE:
+    def test_perfect_calibration_ece_near_zero(self):
+        """Perfect calibration → ECE ≈ 0."""
+        rng = np.random.default_rng(42)
+        n_q = len(QUANTILE_LEVELS)
+        n_eps, fh = 2000, 96
+        q_arr = np.array(QUANTILE_LEVELS, dtype=np.float64)
+        q_vals = 1.0 + q_arr * 8.0  # true quantiles of U[1,9]
+        q_fc = np.broadcast_to(
+            q_vals[np.newaxis, :, np.newaxis], (n_eps, n_q, fh)
+        ).copy()
+        actuals = rng.uniform(1.0, 9.0, size=(n_eps, fh))
+        ece = compute_ece(q_fc, actuals, QUANTILE_LEVELS)
+        assert ece == pytest.approx(0.0, abs=0.02)
+
+    def test_ece_positive(self):
+        """ECE is non-negative for any inputs."""
+        rng = np.random.default_rng(9)
+        actuals = rng.uniform(2.0, 20.0, size=(30, 24))
+        q_fc = np.sort(
+            rng.uniform(2.0, 20.0, size=(30, len(QUANTILE_LEVELS), 24)), axis=1
+        )
+        ece = compute_ece(q_fc, actuals, QUANTILE_LEVELS)
+        assert ece >= 0.0
+
+    def test_ece_bounded_by_half(self):
+        """Max possible ECE is 0.5 (integral of |q - 0| or |q - 1| over [0,1])."""
+        rng = np.random.default_rng(5)
+        actuals = rng.uniform(2.0, 20.0, size=(20, 48))
+        q_fc = np.sort(
+            rng.uniform(2.0, 20.0, size=(20, len(QUANTILE_LEVELS), 48)), axis=1
+        )
+        ece = compute_ece(q_fc, actuals, QUANTILE_LEVELS)
+        assert ece <= 0.5
+
+    def test_extreme_over_forecast_ece_large(self):
+        """Forecasts always too high → ECE significantly > 0."""
+        n_eps, fh = 50, 10
+        actuals = np.ones((n_eps, fh)) * 3.0
+        q_fc = np.ones((n_eps, len(QUANTILE_LEVELS), fh)) * 10.0
+        ece = compute_ece(q_fc, actuals, QUANTILE_LEVELS)
+        assert ece > 0.2

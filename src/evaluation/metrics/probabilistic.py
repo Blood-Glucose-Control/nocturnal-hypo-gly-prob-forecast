@@ -467,3 +467,149 @@ def compute_mace(
     # actual <= predicted quantile value.  Shape: (n_quantiles,)
     empirical = np.mean(actuals[np.newaxis, :] <= quantile_forecasts, axis=1)
     return float(np.mean(np.abs(empirical - q_arr)))
+
+
+def compute_pit_values(
+    quantile_forecasts: np.ndarray,
+    actuals: np.ndarray,
+    quantile_levels: List[float],
+) -> np.ndarray:
+    """Compute Probability Integral Transform (PIT) values.
+
+    For each (episode, timestep) pair, evaluates the empirical CDF F̂(y_true)
+    by linearly interpolating through the discrete quantile forecast. Under a
+    perfectly calibrated model PIT values follow Uniform[0, 1].
+
+    Values below all predicted quantile values are assigned PIT = 0.0; values
+    above are assigned PIT = 1.0 (hard clamp). Pile-up at the boundaries
+    indicates actuals frequently fall outside the predicted quantile range.
+
+    Args:
+        quantile_forecasts: Shape (n_episodes, n_quantiles, forecast_length).
+            Values along the quantile axis must be non-decreasing.
+        actuals: Shape (n_episodes, forecast_length).
+        quantile_levels: Strictly increasing list of quantile levels, length
+            matching n_quantiles.
+
+    Returns:
+        np.ndarray: Flat array of PIT values in [0, 1], shape
+            (n_episodes * forecast_length,).
+    """
+    quantile_forecasts = np.asarray(quantile_forecasts, dtype=np.float64)
+    actuals = np.asarray(actuals, dtype=np.float64)
+    q_arr = _validate_batch_quantile_inputs(
+        quantile_forecasts, quantile_levels, actuals
+    )
+
+    n_episodes, n_quantiles, forecast_length = quantile_forecasts.shape
+
+    # Reshape to (N, n_quantiles) where N = n_episodes * forecast_length.
+    # transpose(0, 2, 1) → (n_episodes, forecast_length, n_quantiles)
+    xp = quantile_forecasts.transpose(0, 2, 1).reshape(-1, n_quantiles)  # (N, n_q)
+    y = actuals.ravel()  # (N,)
+
+    # hi: count of quantile values strictly ≤ y for each sample.
+    # Equivalent to searchsorted(xp[i], y[i], side='right') per row.
+    # Shape: (N,), values in {0, 1, ..., n_quantiles}.
+    hi = (xp <= y[:, np.newaxis]).sum(axis=1)
+
+    pit = np.empty(len(y), dtype=np.float64)
+    below = hi == 0
+    above = hi == n_quantiles
+    inside = ~below & ~above
+
+    pit[below] = 0.0
+    pit[above] = 1.0
+
+    if inside.any():
+        rows = np.where(inside)[0]
+        lo_idx = hi[rows] - 1
+        hi_idx = hi[rows]
+        xp_lo = xp[rows, lo_idx]
+        xp_hi = xp[rows, hi_idx]
+        q_lo = q_arr[lo_idx]
+        q_hi = q_arr[hi_idx]
+        denom = xp_hi - xp_lo
+        # When xp_lo == xp_hi (flat quantile region), use midpoint of the bin.
+        # safe_denom avoids divide-by-zero in both branches of np.where since
+        # numpy evaluates both sides even when the condition is False.
+        safe_denom = np.where(denom > 0, denom, 1.0)
+        weight = np.where(denom > 0, (y[rows] - xp_lo) / safe_denom, 0.5)
+        pit[inside] = q_lo + np.clip(weight, 0.0, 1.0) * (q_hi - q_lo)
+
+    return pit
+
+
+def compute_reliability_curve(
+    quantile_forecasts_batch: np.ndarray,
+    actuals_batch: np.ndarray,
+    quantile_levels: List[float],
+) -> tuple:
+    """Compute the reliability (quantile calibration) curve.
+
+    For each nominal quantile level q, the empirical exceedance fraction is:
+
+        empirical_q = mean over all (episode, timestep) pairs of
+                          I(actual ≤ forecast_q)
+
+    A perfectly calibrated model satisfies empirical_q == q for every level
+    (points lie on the diagonal). A curve above the diagonal indicates
+    over-forecasting (the model's predicted quantiles are too high); below
+    indicates under-forecasting.
+
+    Args:
+        quantile_forecasts_batch: Shape (n_episodes, n_quantiles, forecast_length).
+        actuals_batch: Shape (n_episodes, forecast_length).
+        quantile_levels: Strictly increasing list of quantile levels, length
+            matching n_quantiles.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: (nominal, empirical) each of shape
+        (n_quantiles,). ``nominal`` is simply ``np.array(quantile_levels)``;
+        ``empirical[i]`` is the fraction of observed values at or below the
+        i-th quantile forecast.
+    """
+    quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
+    actuals_batch = np.asarray(actuals_batch, dtype=np.float64)
+    q_arr = _validate_batch_quantile_inputs(
+        quantile_forecasts_batch, quantile_levels, actuals_batch
+    )
+
+    # actuals_batch[:, np.newaxis, :] broadcasts to (n_eps, n_q, fh)
+    # Compare each actual to its corresponding quantile forecast at each step.
+    empirical = np.mean(
+        actuals_batch[:, np.newaxis, :] <= quantile_forecasts_batch,
+        axis=(0, 2),  # average over episodes and timesteps
+    )  # shape: (n_quantiles,)
+
+    return q_arr, empirical
+
+
+def compute_ece(
+    quantile_forecasts_batch: np.ndarray,
+    actuals_batch: np.ndarray,
+    quantile_levels: List[float],
+) -> float:
+    """Compute Expected Calibration Error (ECE) for quantile forecasts.
+
+    ECE is the trapezoidal-integration area between the reliability curve and
+    the perfect-calibration diagonal, normalised to [0, 1]:
+
+        ECE = ∫₀¹ |empirical(q) − q| dq  ≈  trapz(|empirical − nominal|, nominal)
+
+    This differs from MACE (which uses equal weights 1/n_q) in that it assigns
+    weights proportional to the spacing between consecutive quantile levels,
+    making it invariant to the chosen quantile grid density.
+
+    Args:
+        quantile_forecasts_batch: Shape (n_episodes, n_quantiles, forecast_length).
+        actuals_batch: Shape (n_episodes, forecast_length).
+        quantile_levels: Strictly increasing list of quantile levels.
+
+    Returns:
+        float: ECE in [0, 0.5]. Lower is better; 0 = perfectly calibrated.
+    """
+    nominal, empirical = compute_reliability_curve(
+        quantile_forecasts_batch, actuals_batch, quantile_levels
+    )
+    return float(np.trapz(np.abs(empirical - nominal), nominal))
