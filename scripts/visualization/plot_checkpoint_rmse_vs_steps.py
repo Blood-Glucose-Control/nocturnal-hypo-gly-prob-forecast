@@ -6,7 +6,7 @@ Reads nocturnal_results.json from:
         step_<N>_<dataset>/nocturnal_results.json
 
 Results are produced by running:
-    bash scripts/experiments/run_sweep03_checkpoint_evals.sh <artifact_dir>
+    bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh <artifact_dir>
 
 after training with 99_250k_checkpoints.yaml (or any config with
 checkpoint_save_steps set).  The script discovers all available step × dataset
@@ -61,7 +61,8 @@ def discover_step_results(dataset: str) -> list[tuple[int, float]]:
             continue
         with open(results_file) as f:
             data = json.load(f)
-        metric = data.get("overall_wql") or data.get("overall_rmse")
+        wql = data.get("overall_wql")
+        metric = wql if wql is not None else data.get("overall_rmse")
         if metric is not None:
             results.append((int(m.group(1)), metric))
     return sorted(results)
