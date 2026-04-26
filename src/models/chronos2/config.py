@@ -51,7 +51,7 @@ class Chronos2Config(ModelConfig):
 
     # Override parent defaults
     model_type: str = "chronos2"
-    model_path: str = "autogluon/chronos-2"
+    model_path: Optional[str] = "autogluon/chronos-2"
     forecast_length: int = 96  # 8 hours at 5-min intervals
     training_backend: TrainingBackend = TrainingBackend.CUSTOM
 
@@ -60,11 +60,11 @@ class Chronos2Config(ModelConfig):
     fine_tune_lr: float = 1e-5
     # None = use AutoGluon defaults (fine_tune_batch_size=32, batch_size=256)
     fine_tune_batch_size: Optional[int] = None
-    batch_size: Optional[int] = None
+    batch_size: Optional[int] = None  # type: ignore[assignment]
     time_limit: Optional[int] = None
     # How often (in gradient steps) the HuggingFace Trainer logs loss/lr.
-    # 500 gives ~20 log lines over a 10k-step run. Set None to use HF default (500).
-    fine_tune_logging_steps: int = 500
+    # None = use HF Trainer default (500). Set explicitly to override.
+    fine_tune_logging_steps: Optional[int] = None
 
     # Gap handling (used in _prepare_training_data)
     imputation_threshold_mins: int = 45
@@ -151,12 +151,16 @@ class Chronos2Config(ModelConfig):
             hp["Chronos2"]["batch_size"] = self.batch_size
         if self.min_past != 1:
             hp["Chronos2"]["min_past"] = self.min_past
-        trainer_kwargs: dict = {
-            # Log loss/lr every N steps so training progress is visible in
-            # the log without waiting for a full checkpoint interval.
-            "logging_strategy": "steps",
-            "logging_steps": self.fine_tune_logging_steps,
-        }
+        trainer_kwargs: dict = {}
+        if self.fine_tune_logging_steps is not None:
+            trainer_kwargs.update(
+                {
+                    # Log loss/lr every N steps so training progress is visible
+                    # in the log without waiting for a full checkpoint interval.
+                    "logging_strategy": "steps",
+                    "logging_steps": self.fine_tune_logging_steps,
+                }
+            )
         if self.checkpoint_save_steps is not None:
             trainer_kwargs.update(
                 {
@@ -169,5 +173,6 @@ class Chronos2Config(ModelConfig):
                     "save_total_limit": None,
                 }
             )
-        hp["Chronos2"]["fine_tune_trainer_kwargs"] = trainer_kwargs
+        if trainer_kwargs:
+            hp["Chronos2"]["fine_tune_trainer_kwargs"] = trainer_kwargs
         return hp
