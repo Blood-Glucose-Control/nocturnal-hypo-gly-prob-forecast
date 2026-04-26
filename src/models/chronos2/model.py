@@ -28,7 +28,7 @@ import pickle
 import logging
 import os
 import shutil
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -66,6 +66,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     """
 
     config_class = Chronos2Config
+    config: Chronos2Config
 
     def __init__(
         self,
@@ -75,9 +76,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     ):
         # AutoGluon predictor — set before super().__init__() which calls
         # _initialize_model() (our no-op)
-        self.predictor = None
+        self.predictor: Optional[Any] = None
         # Chronos2Pipeline for zero-shot inference (lazily initialized)
-        self._zs_pipeline = None
+        self._zs_pipeline: Optional[Any] = None
         # lora_config and distributed_config are accepted for base class
         # compatibility but unused — AutoGluon handles LoRA internally
         super().__init__(config, lora_config, distributed_config)
@@ -133,6 +134,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         info_print(f"Converted to {len(patient_dict)} patient dicts")
 
         # gap handling: interpolate small gaps, segment at large gaps
+        # min_segment_length is guaranteed non-None by Chronos2Config.__init__
+        assert config.min_segment_length is not None
         segments = segment_all_patients(
             patient_dict,
             imputation_threshold_mins=config.imputation_threshold_mins,
@@ -174,13 +177,13 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Dict with training metrics.
         """
-        from autogluon.timeseries import TimeSeriesPredictor
+        from autogluon.timeseries import TimeSeriesPredictor  # type: ignore[import-not-found]
 
         config = self.config
         ts_train, _, _ = self._prepare_training_data(train_data)
 
         info_print(f"Creating TimeSeriesPredictor at {output_dir}")
-        predictor_kwargs = dict(
+        predictor_kwargs: Dict[str, Any] = dict(
             prediction_length=config.forecast_length,
             # "target" is the column name after format_segments_for_autogluon
             # renames config.target_col (e.g. "bg_mM") -> "target"
@@ -382,14 +385,13 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             snapshot_model_pt = os.path.join(snapshot_dir, "model.pt")
             os.makedirs(snapshot_model_pt, exist_ok=True)
 
-            # predictor_path must be absolute — _load_checkpoint resolves it against
-            # CWD, not against the JSON file location.
+            # Use a relative path so snapshot artifacts remain valid if the directory
+            # tree is moved. The JSON is at model.pt/chronos2_predictor.json;
+            # "../predictor" always resolves to step_N/predictor/.
             with open(
                 os.path.join(snapshot_model_pt, "chronos2_predictor.json"), "w"
             ) as f:
-                json.dump(
-                    {"predictor_path": os.path.abspath(shadow_predictor)}, f, indent=2
-                )
+                json.dump({"predictor_path": "../predictor"}, f, indent=2)
 
             # Write config.json from self.config — do NOT copy from main_model_pt
             # because _materialize_intermediate_checkpoints() runs inside train(),
@@ -414,7 +416,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         """Lazily initialise the zero-shot Chronos2Pipeline."""
         if self._zs_pipeline is None:
             import torch
-            from chronos import Chronos2Pipeline
+            from chronos import Chronos2Pipeline  # type: ignore[import-not-found]
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
             self._zs_pipeline = Chronos2Pipeline.from_pretrained(
@@ -454,7 +456,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Returns:
             TimeSeriesDataFrame ready for AutoGluon prediction.
         """
-        from autogluon.timeseries import TimeSeriesDataFrame
+        from autogluon.timeseries import TimeSeriesDataFrame  # type: ignore[import-not-found]
 
         config = self.config
         context = data.copy()
@@ -534,6 +536,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
               - mean_np: shape (forecast_length,)
         """
         self._ensure_zs_pipeline()
+        assert self._zs_pipeline is not None  # guaranteed by _ensure_zs_pipeline
         context = self._prepare_zero_shot_context(data)
         kwargs = dict(prediction_length=self.config.forecast_length)
         if quantile_levels is not None:
@@ -565,6 +568,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             For multiple columns: shape (len(columns), n_episodes * forecast_length).
         """
         ts_data = self._prepare_autogluon_data(data)
+        assert self.predictor is not None  # only called in the fine-tuned path
         ag_predictions = self.predictor.predict(ts_data)
         multi = len(columns) > 1
 
@@ -725,6 +729,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
         # Zero-shot path: batch via Chronos2Pipeline
         self._ensure_zs_pipeline()
+        assert self._zs_pipeline is not None  # guaranteed by _ensure_zs_pipeline
 
         if config.target_col not in data.columns:
             raise ValueError(
@@ -751,7 +756,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         )  # (N, L)
         context_tensor = padded.unsqueeze(1)  # (N, 1, L)
 
-        zs_kwargs = dict(prediction_length=config.forecast_length)
+        zs_kwargs: Dict[str, Any] = dict(prediction_length=config.forecast_length)
         if quantile_levels is not None:
             zs_kwargs["quantile_levels"] = quantile_levels
 
@@ -783,7 +788,15 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             ref_path = os.path.join(output_dir, "chronos2_predictor.json")
             os.makedirs(output_dir, exist_ok=True)
             with open(ref_path, "w") as f:
-                json.dump({"predictor_path": str(self.predictor.path)}, f, indent=2)
+                json.dump(
+                    {
+                        "predictor_path": os.path.relpath(
+                            str(self.predictor.path), output_dir
+                        )
+                    },
+                    f,
+                    indent=2,
+                )
             self.logger.info("Predictor reference saved to %s", ref_path)
 
     def _load_checkpoint(self, model_dir: str) -> None:
@@ -793,12 +806,18 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         by _save_checkpoint). Falls back to loading model_dir directly as
         an AutoGluon predictor path.
         """
-        from autogluon.timeseries import TimeSeriesPredictor
+        from autogluon.timeseries import TimeSeriesPredictor  # type: ignore[import-not-found]
 
         ref_path = os.path.join(model_dir, "chronos2_predictor.json")
         if os.path.exists(ref_path):
             with open(ref_path) as f:
                 predictor_path = json.load(f)["predictor_path"]
+            # Resolve relative paths against the JSON file's own directory so
+            # that the artifact tree remains valid after being moved.
+            if not os.path.isabs(predictor_path):
+                predictor_path = os.path.normpath(
+                    os.path.join(os.path.dirname(ref_path), predictor_path)
+                )
             # Fall back to model_dir if the referenced path no longer exists
             # (e.g. the model directory was relocated after training)
             if not os.path.exists(predictor_path):
