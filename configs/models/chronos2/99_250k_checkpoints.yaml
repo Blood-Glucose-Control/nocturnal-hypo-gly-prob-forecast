@@ -2,7 +2,9 @@
 # Chronos-2  99 — 250k steps, checkpoint every 5k  (long run for winner config)
 # Train the best-performing config from the 10k sweep here for a full
 # RMSE-vs-steps curve. Snapshots land at snapshots/step_5000/ … step_245000/.
-# Evaluate all snapshots with: scripts/experiments/run_sweep03_checkpoint_evals.sh
+# Evaluate snapshots with:
+#   MODEL_CONFIG=configs/models/chronos2/99_250k_checkpoints.yaml \
+#   bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh <artifact_dir>
 # =============================================================================
 
 model_path: "autogluon/chronos-2"

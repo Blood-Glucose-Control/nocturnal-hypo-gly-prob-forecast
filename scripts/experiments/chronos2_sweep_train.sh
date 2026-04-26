@@ -20,7 +20,7 @@
 #
 # Per-GPU logs are written to logs/chronos2_sweep_gpu<N>.log
 # A sweep manifest is written to trained_models/artifacts/chronos2/sweep_manifest.txt
-# (used by run_sweep03_checkpoint_evals.sh to locate artifact dirs).
+# (used by chronos2_eval_long_run_checkpoints.sh to locate artifact dirs).
 
 set -euo pipefail
 

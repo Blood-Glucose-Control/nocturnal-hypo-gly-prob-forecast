@@ -1,31 +1,39 @@
 #!/usr/bin/env bash
-# Evaluate every periodic checkpoint produced by 03_250k_checkpoints.yaml
+# Evaluate every periodic checkpoint from a long-run training artifact
 # across aleppo_2017, brown_2019, and lynch_2022.
 #
-# The 250k training run saves snapshots/step_N/model.pt/ alongside the
-# final model.pt.  This script discovers those dirs automatically and runs
-# nocturnal_hypo_eval.py on each (step × dataset), producing one result
-# directory per combination.
+# Any config that sets checkpoint_save_steps will produce a snapshots/
+# directory with step_N/model.pt entries alongside the final model.pt.
+# This script discovers those dirs automatically and runs
+# nocturnal_hypo_eval.py on each (step × dataset) combination.
+#
+# Set MODEL_CONFIG to the YAML used for training so context_length,
+# covariate_cols, etc. match what the model was trained with.
+# Set OUTPUT_BASE to override the default output directory.
 #
 # USAGE
 # -----
 #   # Evaluate all datasets (default):
-#   bash scripts/experiments/run_sweep03_checkpoint_evals.sh \
+#   MODEL_CONFIG=configs/models/chronos2/<config>.yaml \
+#   bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh \
 #       trained_models/artifacts/chronos2/<run_id>_holdout_workflow
 #
 #   # Evaluate a single dataset:
 #   DATASETS="brown_2019" \
-#   bash scripts/experiments/run_sweep03_checkpoint_evals.sh \
+#   MODEL_CONFIG=configs/models/chronos2/<config>.yaml \
+#   bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh \
 #       trained_models/artifacts/chronos2/<run_id>_holdout_workflow
 #
 #   # Override CUDA device (default: 0):
-#   CUDA_DEVICE=1 bash scripts/experiments/run_sweep03_checkpoint_evals.sh \
+#   CUDA_DEVICE=1 \
+#   MODEL_CONFIG=configs/models/chronos2/<config>.yaml \
+#   bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh \
 #       trained_models/artifacts/chronos2/<run_id>_holdout_workflow
 #
 # OUTPUT
 # ------
 #   experiments/nocturnal_forecasting/512ctx_96fh/chronos2/
-#     250k_checkpoints/
+#     long_run_checkpoints/          (override with OUTPUT_BASE=)
 #       step_5000_aleppo_2017/
 #         nocturnal_results.json
 #         ...
@@ -40,11 +48,12 @@ set -euo pipefail
 ARTIFACT_DIR="${1:?Usage: $0 <artifact_dir>}"
 DATASETS="${DATASETS:-aleppo_2017 brown_2019 lynch_2022}"
 CUDA_DEVICE="${CUDA_DEVICE:-0}"
+# Set MODEL_CONFIG to the YAML used for training (context_length, covariate_cols, etc.).
 MODEL_CONFIG="${MODEL_CONFIG:-configs/models/chronos2/99_250k_checkpoints.yaml}"
 
 EVAL="python scripts/experiments/nocturnal_hypo_eval.py"
 CONFIG_DIR="configs/data/holdout_10pct"
-OUTPUT_BASE="experiments/nocturnal_forecasting/512ctx_96fh/chronos2/250k_checkpoints"
+OUTPUT_BASE="${OUTPUT_BASE:-experiments/nocturnal_forecasting/512ctx_96fh/chronos2/long_run_checkpoints}"
 
 SNAPSHOTS_DIR="${ARTIFACT_DIR}/snapshots"
 
@@ -58,14 +67,18 @@ fi
 
 if [[ ! -d "${SNAPSHOTS_DIR}" ]]; then
     echo "ERROR: no snapshots/ dir found under ${ARTIFACT_DIR}" >&2
-    echo "       Has the 03_250k_checkpoints.yaml training run finished?" >&2
+    echo "       Has the training run with checkpoint_save_steps finished?" >&2
     exit 1
 fi
 
-# Collect and sort snapshots by step number
+# Collect and sort snapshots by step number.
+# Sort on the numeric suffix of the step_N directory name to avoid field
+# shifts caused by underscores in ARTIFACT_DIR path components.
 mapfile -t SNAPSHOT_DIRS < <(
     find "${SNAPSHOTS_DIR}" -maxdepth 2 -name "model.pt" -type d \
-    | sort -t_ -k2 -n
+    | awk -F'/' '{n=$0; sub(/.*step_/, "", n); sub(/\/.*/, "", n); print n+0, $0}' \
+    | sort -k1,1n \
+    | awk '{print $2}'
 )
 
 if [[ ${#SNAPSHOT_DIRS[@]} -eq 0 ]]; then
@@ -74,12 +87,13 @@ if [[ ${#SNAPSHOT_DIRS[@]} -eq 0 ]]; then
 fi
 
 N_STEPS=${#SNAPSHOT_DIRS[@]}
+LAST_IDX=$(( N_STEPS - 1 ))
 N_DATASETS=$(echo "${DATASETS}" | wc -w)
 TOTAL=$(( N_STEPS * N_DATASETS ))
 
-echo "=== sweep-03 checkpoint evals ==="
+echo "=== long-run checkpoint evals ==="
 echo "  artifact dir : ${ARTIFACT_DIR}"
-echo "  snapshots    : ${N_STEPS}  ($(basename "$(dirname "${SNAPSHOT_DIRS[0]}")")  →  $(basename "$(dirname "${SNAPSHOT_DIRS[-1]}")"))"
+echo "  snapshots    : ${N_STEPS}  ($(basename "$(dirname "${SNAPSHOT_DIRS[0]}")")  →  $(basename "$(dirname "${SNAPSHOT_DIRS[LAST_IDX]}")"))"
 echo "  datasets     : ${DATASETS}"
 echo "  total eval   : ${TOTAL}"
 echo ""
