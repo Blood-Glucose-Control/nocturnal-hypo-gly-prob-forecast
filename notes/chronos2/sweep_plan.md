@@ -154,9 +154,17 @@ python scripts/experiments/nocturnal_hypo_eval.py \
 | 00     | none                                | 1e-5 | 512     | ale, bro, lyn | BG-only baseline             |
 | 01     | iob, insulin_avail                  | 1e-5 | 512     | ale, bro, lyn | existing baseline            |
 | **02** | iob                                 | 1e-5 | 512     | ale, bro, lyn | isolates iob vs 00 and 01    |
-| **03** | iob, insulin_avail                  | 5e-5 | 512     | ale, bro, lyn | higher LR vs 01              |
-| **04** | iob, insulin_avail                  | 1e-5 | 288     | ale, bro, lyn | shorter ctx vs 01            |
-| **05** | iob, cob                            | 1e-5 | 512     | ale, lyn      | baseline carb addition vs 02 |
-| **06** | iob, cob, insulin_avail, carb_avail | 1e-5 | 512     | ale, lyn      | kitchen-sink vs 05           |
-| **07** | iob, cob                            | 5e-5 | 512     | ale, lyn      | higher LR vs 05              |
-| **08** | iob, cob                            | 1e-5 | 288     | ale, lyn      | shorter ctx vs 05            |
+| **03** | bg_mM + iob (joint co-target)       | 1e-5 | 512     | ale, bro, lyn | joint training vs 01         |
+| **04** | iob, insulin_avail                  | 5e-5 | 512     | ale, bro, lyn | higher LR vs 01              |
+| **05** | iob, insulin_avail                  | 1e-5 | 288     | ale, bro, lyn | shorter ctx vs 01            |
+| **06** | iob, cob                            | 1e-5 | 512     | ale, lyn      | baseline carb addition vs 02 |
+| **07** | iob, cob, insulin_avail, carb_avail | 1e-5 | 512     | ale, lyn      | kitchen-sink vs 06           |
+| **08** | iob, cob                            | 5e-5 | 512     | ale, lyn      | higher LR vs 06              |
+| **09** | iob, cob                            | 1e-5 | 288     | ale, lyn      | shorter ctx vs 06            |
+| 98     | (smoketest — see 99)                | 5e-5 | 512     | any           | checkpoint materialisation   |
+| **99** | TBD (winner from 10k sweep)         | TBD  | 512     | ale, bro, lyn | 250k long run for top-2      |
+
+All configs 00–09 are set to **10k steps** with **checkpoints every 2k**, giving
+a 5-point learning curve per config for cheap ranking. After the sweep, pick the
+top-2 configs and clone their settings into 99_250k_checkpoints.yaml for the
+full 250k run.

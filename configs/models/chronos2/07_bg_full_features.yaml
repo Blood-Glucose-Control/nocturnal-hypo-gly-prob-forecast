@@ -1,23 +1,24 @@
 # =============================================================================
-# Chronos-2 - CGM + IOB + COB + insulin_availability + carb_availability
+# Chronos-2  07 — CGM + IOB + COB + insulin_availability + carb_availability
 # =============================================================================
 # Kitchen-sink config: all four physiological features simultaneously.
 # Tests whether adding the rate-of-change signals (insulin_availability,
 # carb_availability) on top of the on-board signals (iob, cob) provides
 # additional signal, or whether the extra input noise hurts performance.
 #
-# Datasets: aleppo_2017, lynch_2022
-# (Require food_g for carb_availability/cob, and dose_units for iob/insulin_availability.
-#  Exclude brown_2019 (no meal data) and tamborlane_2008 (CGM-only).)
+# Datasets: aleppo_2017 only
+# (Requires food_g for carb_availability/cob; only aleppo_2017 has real carb data.
+#  lynch_2022 carb/COB columns are all-zero — excluded to avoid spurious zero signal.
+#  brown_2019: no meal data in DCLP3 export. tamborlane_2008: CGM-only.)
 #
 # Comparison targets:
-#   05_bg_iob_cob.yaml  → [iob, cob] only   (does adding availability help?)
+#   06_bg_iob_cob.yaml  → [iob, cob] only   (does adding availability help?)
 #   02_bg_iob.yaml      → [iob] only         (cumulative gain from carbs + availability)
 #
 # Usage:
 #   MODEL_TYPE="chronos2" \
-#   MODEL_CONFIG="configs/models/chronos2/06_bg_full_features.yaml" \
-#   DATASETS="aleppo_2017 lynch_2022" \
+#   MODEL_CONFIG="configs/models/chronos2/07_bg_full_features.yaml" \
+#   DATASETS="aleppo_2017" \
 #   SKIP_TRAINING="false" \
 #     ./scripts/examples/run_holdout_generic_workflow.sh
 # =============================================================================
@@ -29,9 +30,10 @@ forecast_length: 96  # 8 hours at 5-min intervals
 training_mode: "fine_tune"
 freeze_backbone: false
 
-fine_tune_steps: 50000
+fine_tune_steps: 10000
 fine_tune_lr: 1.0e-5
-fine_tune_batch_size: 256  # default=32; GPU has ~96GB VRAM, 32→~4GB so 256→~32GB
+fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB; T5-small 256→~45GB (verified safe)
+checkpoint_save_steps: 2000
 
 covariate_cols: [iob, cob, insulin_availability, carb_availability]
 target_col: "bg_mM"
@@ -39,5 +41,5 @@ patient_col: "p_num"
 time_col: "datetime"
 interval_mins: 5
 
-eval_metric: "RMSE"
+eval_metric: "WQL"
 enable_ensemble: false

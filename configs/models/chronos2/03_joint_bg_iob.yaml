@@ -20,8 +20,10 @@ forecast_length: 96  # 6 hours at 5-min intervals
 training_mode: "fine_tune"
 freeze_backbone: false
 
-fine_tune_steps: 15000
+fine_tune_steps: 10000
 fine_tune_lr: 1.0e-5
+fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB; T5-small 256→~45GB (verified safe)
+checkpoint_save_steps: 2000
 
 # Joint co-target mode: both columns become separate panel items.
 # covariate_cols is ignored when joint_target_cols has >1 entry.

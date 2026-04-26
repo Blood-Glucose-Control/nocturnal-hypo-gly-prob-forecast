@@ -1,5 +1,5 @@
 # =============================================================================
-# Chronos-2 config 03 — SMOKETEST for periodic checkpoint saving
+# Chronos-2  98 — SMOKETEST for periodic checkpoint saving
 # 200 fine-tune steps, checkpoint every 100 steps
 # Use this to verify that snapshot materialisation works before kicking off
 # the full 250k run.
@@ -14,7 +14,7 @@ freeze_backbone: false
 
 fine_tune_steps: 200
 fine_tune_lr: 5.0e-5
-fine_tune_batch_size: 128
+fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB
 
 checkpoint_save_steps: 100
 
@@ -24,5 +24,5 @@ patient_col: "p_num"
 time_col: "datetime"
 interval_mins: 5
 
-eval_metric: "RMSE"
+eval_metric: "WQL"
 enable_ensemble: false

@@ -1,20 +1,15 @@
 # =============================================================================
-# Chronos-2 - Blood Glucose Only / Test Run Configuration
+# Chronos-2  01 — IOB + insulin_availability  |  lr=1e-5  |  ctx=512  (existing baseline)
 # =============================================================================
-# Minimal fine-tuning config for a quick smoke-test across all 4 datasets.
-# Uses BG (bg_mM) as the sole input — no covariates.
+# Existing covariate baseline — IOB and insulin_availability as covariates.
+# Reference point for covariate contribution experiments (02, 04, 05).
 #
-# Chronos-2 trains by gradient steps rather than epochs. fine_tune_steps=100
-# is intentionally small for a fast end-to-end validation run. Increase to
-# ~15000 for production fine-tuning.
+# Datasets: aleppo_2017, brown_2019, lynch_2022
 #
-# Usage (recommended):
-#   ./scripts/examples/run_holdout_chronos2_workflow.sh
-#
-# Manual usage via generic workflow:
+# Usage:
 #   MODEL_TYPE="chronos2" \
-#   MODEL_CONFIG="configs/models/chronos2/bg_only_test.yaml" \
-#   DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" \
+#   MODEL_CONFIG="configs/models/chronos2/01_bg_iob_insulin_availability.yaml" \
+#   DATASETS="aleppo_2017 brown_2019 lynch_2022" \
 #   SKIP_TRAINING="false" \
 #     ./scripts/examples/run_holdout_generic_workflow.sh
 # =============================================================================
@@ -28,11 +23,11 @@ freeze_backbone: false
 
 # Step-based training (Chronos-2 / AutoGluon does not use epochs directly).
 # 100 steps = fast smoke test. Use ~15000 for a real training run.
-fine_tune_steps: 50000
+fine_tune_steps: 10000
 fine_tune_lr: 1.0e-5
-fine_tune_batch_size: 256  # default=32; GPU has ~96GB VRAM, 32→~4GB so 256→~32GB
+fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB; T5-small 256→~45GB (verified safe)
+checkpoint_save_steps: 2000
 
-# BG only — no covariates
 covariate_cols: [iob, insulin_availability]
 target_col: "bg_mM"
 patient_col: "p_num"

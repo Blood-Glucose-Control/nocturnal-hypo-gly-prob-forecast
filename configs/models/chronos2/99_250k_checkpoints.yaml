@@ -1,7 +1,8 @@
 # =============================================================================
-# Chronos-2 config 03 — 250k steps with periodic checkpoint saving every 5k
-# Produces snapshots/step_5000/ … step_245000/ alongside the final model.pt,
-# giving the full RMSE-vs-steps curve from a single training run.
+# Chronos-2  99 — 250k steps, checkpoint every 5k  (long run for winner config)
+# Train the best-performing config from the 10k sweep here for a full
+# RMSE-vs-steps curve. Snapshots land at snapshots/step_5000/ … step_245000/.
+# Evaluate all snapshots with: scripts/experiments/run_sweep03_checkpoint_evals.sh
 # =============================================================================
 
 model_path: "autogluon/chronos-2"
@@ -13,7 +14,7 @@ freeze_backbone: false
 
 fine_tune_steps: 250000
 fine_tune_lr: 5.0e-5
-fine_tune_batch_size: 128
+fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB; kept moderate at lr=5e-5
 
 checkpoint_save_steps: 5000
 
@@ -23,5 +24,5 @@ patient_col: "p_num"
 time_col: "datetime"
 interval_mins: 5
 
-eval_metric: "RMSE"
+eval_metric: "WQL"
 enable_ensemble: false
