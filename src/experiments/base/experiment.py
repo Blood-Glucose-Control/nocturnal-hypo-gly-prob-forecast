@@ -28,8 +28,10 @@ import pandas as pd
 
 log = logging.getLogger(__name__)
 
-# Conventional run-directory naming: YYYY-MM-DD_HHMM_<dataset>_<mode>
-_RUN_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{4}_\S+$")
+# Conventional run-directory naming: YYYY-MM-DD_HHMM[SS]_<dataset>_<mode>
+# nocturnal_hypo_eval*.py use %H%M%S (6 digits); sliding_window_eval.py uses
+# %H%M (4 digits).  Both formats are accepted.
+_RUN_DIR_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{4,6}_\S+$")
 
 VALID_METRICS = {
     "rmse",
