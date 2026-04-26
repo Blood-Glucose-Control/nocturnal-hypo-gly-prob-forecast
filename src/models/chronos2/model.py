@@ -569,7 +569,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         """
         ts_data = self._prepare_autogluon_data(data)
         assert self.predictor is not None  # only called in the fine-tuned path
-        ag_predictions = self.predictor.predict(ts_data)
+        # use_cache=False: snapshot predictors share a symlinked learner/trainer
+        # that writes cached_predictions.pkl to the same parent dir for all
+        # checkpoints.  Caching on would cause subsequent checkpoints to silently
+        # reuse the first checkpoint's predictions in multi-snapshot eval loops.
+        ag_predictions = self.predictor.predict(ts_data, use_cache=False)
         multi = len(columns) > 1
 
         result_arrays = []
