@@ -177,8 +177,13 @@ if [[ "$SINGLE_GPU" == "1" ]]; then
         epochs=$(grep '^num_epochs:' "$cfg" | awk '{print $2}')
         echo "  $(basename "$cfg") — ${epochs} epochs"
     done
-    run_train_lane "gpu${GPU0}" "$GPU0" "$LANE0_MANIFEST" "${SINGLE_GPU_CONFIGS[@]}"
-    FAIL_LANES=$?
+    # Wrap in if/else so a non-zero return is captured in FAIL_LANES rather
+    # than triggering an immediate exit under set -euo pipefail.
+    if run_train_lane "gpu${GPU0}" "$GPU0" "$LANE0_MANIFEST" "${SINGLE_GPU_CONFIGS[@]}"; then
+        FAIL_LANES=0
+    else
+        FAIL_LANES=1
+    fi
     if [[ -s "$LANE0_MANIFEST" ]]; then
         cat "$LANE0_MANIFEST" >> "$MANIFEST"
     fi

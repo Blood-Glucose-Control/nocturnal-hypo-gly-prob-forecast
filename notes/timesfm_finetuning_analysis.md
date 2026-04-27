@@ -86,10 +86,17 @@ A dedicated ablation holding LR and epochs fixed while varying context would be 
 
 ---
 
-## 4. Root Cause: Training Loss Does Not Supervise Quantile Heads
+## 4. Root Cause: Training Loss Did Not Supervise Quantile Heads
 
-TimesFM fine-tuning in `src/models/timesfm/model.py` (`TimesFMForTrainer.forward`) trains on
-**normalized MSE of mean predictions only**:
+> **Historical context (pre-PR analysis):** This section describes the original
+> `TimesFMForTrainer.forward` implementation that existed *before* this PR. The PR
+> (`timesfm-dilate-loss`) has since added `loss_fn` support (pinball, joint, DILATE,
+> dilate_pinball, dilate_pinball_median) that directly supervises quantile heads. Sections
+> 5.2 and 5.3 below document the recommendations that motivated those changes; both have
+> now been implemented.
+
+TimesFM fine-tuning in `src/models/timesfm/model.py` (`TimesFMForTrainer.forward`)
+originally trained on **normalized MSE of mean predictions only**:
 
 ```python
 mean_predictions = outputs.mean_predictions  # (B, model_horizon)
@@ -97,7 +104,7 @@ mean_predictions = outputs.mean_predictions  # (B, model_horizon)
 loss = F.mse_loss(pred_norm, target_norm)
 ```
 
-`outputs.full_predictions` (shape `(B, horizon, 10)`) contains the quantile heads but is
+`outputs.full_predictions` (shape `(B, horizon, 10)`) contains the quantile heads but was
 never used during training. The quantile levels from the model config are:
 `[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]` (index 0 = mean, indices 1–9 = quantiles).
 
@@ -114,10 +121,13 @@ enough that the pre-trained calibration survives.
 Until the loss function is improved, `lr=1e-5` is the safe operating regime.
 `lr=1e-4` is the threshold where calibration degrades substantially.
 
-### 5.2 Pinball Loss — Easy to Implement, High Expected Gain
+### 5.2 Pinball Loss — ✅ Implemented (this PR)
 
 Adding pinball loss over `outputs.full_predictions` directly supervises calibration
 during fine-tuning. This is ~10 lines added to `TimesFMForTrainer.forward()`:
+
+> **Status:** Implemented in this PR via `loss_fn="pinball"` (and `"joint"`).
+> Configure via `loss_fn` in `TimesFMConfig`; see `configs/models/timesfm/` for sweep configs.
 
 ```python
 # Quantile heads: full_predictions shape (B, model_horizon, 10)
@@ -137,15 +147,21 @@ A `loss_type` config option (`"mse"` / `"pinball"` / `"combined"`) and a `mse_we
 float in `TimesFMConfig` would make this sweepable. Expected outcome: allows higher LR
 without calibration collapse, potentially better WQL/MACE at equivalent RMSE.
 
-### 5.3 DILATE as Training Loss — Non-Trivial, Deferred
+### 5.3 DILATE as Training Loss — ✅ Implemented (this PR)
 
 Our `src/evaluation/metrics/shape.py` is Numba (`@njit`) and has no PyTorch autograd
 backward pass — it cannot be used directly as a training loss. The original DILATE paper
-repo (`vincent-leguen/DILATE`, MIT) has a PyTorch autograd version, but it requires a
-full port (~300 lines). The gradient flows through the soft alignment path matrix `E`
-back to the predictions.
+repo (`vincent-leguen/DILATE`, MIT) has a PyTorch autograd version, vendored here as
+`src/utils/dilate/` (~300 lines). The gradient flows through the soft alignment path
+matrix `E` back to the predictions.
 
-**Recommendation:** Implement pinball loss first. Run a sweep comparing
-`loss_type=mse` vs `loss_type=pinball` vs `loss_type=combined` at LR=1e-4.
-If pinball at LR=1e-4 matches or beats MSE at LR=1e-5 on WQL/MACE without hurting
-RMSE/DILATE, that validates the approach and makes a DILATE training loss less urgent.
+> **Status:** Implemented in this PR. `src/utils/dilate/` vendored from
+> `vincent-leguen/DILATE` (MIT). Enabled via `loss_fn="dilate"`, `"dilate_pinball"`, or
+> `"dilate_pinball_median"` in `TimesFMConfig`. Smoke-tested in
+> `scripts/scratch/timesfm_loss_fn_smoketest.py`.
+
+**Recommendation:** Run a sweep comparing
+`loss_fn=pinball` vs `loss_fn=dilate_pinball_median` vs `loss_fn=dilate_pinball` at LR=1e-5.
+If DILATE variants improve WQL/MACE/RMSE without calibration collapse at matched epochs,
+that validates the approach and motivates full hyperparameter tuning of `dilate_alpha`,
+`dilate_gamma`, and `dilate_weight`.
