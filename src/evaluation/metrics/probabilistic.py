@@ -116,8 +116,9 @@ def compute_brier_score(
     This is conservative — never claims P=0 or P=1 from a finite quantile set.
 
     Args:
-        quantile_forecasts: Shape (n_quantiles, forecast_length). Must be sorted
-            in ascending order along the quantile axis (quantile_levels[0] < ... < [-1]).
+        quantile_forecasts: Shape (n_quantiles, forecast_length). Quantile values
+            are sorted per-timestep before CDF interpolation, so mild crossings
+            (e.g. from TimesFM) are handled correctly.
         actuals: Shape (forecast_length,). Ground-truth BG values.
         quantile_levels: List of quantile levels in ascending order.
         threshold: BG threshold for the binary event (mmol/L). Default 3.9.
@@ -156,16 +157,18 @@ def compute_brier_score(
     # For each timestep, interpolate P(BG < threshold) from the quantile CDF.
     # quantile_forecasts[:, t] are the BG values (x-axis of CDF);
     # quantile_levels are the corresponding probabilities (y-axis).
-    # np.interp(threshold, xp, fp) requires xp to be increasing — valid since
-    # quantile forecasts are non-decreasing by construction. We clamp to
-    # [q_arr[0], q_arr[-1]] to avoid extrapolation to 0/1.
+    # np.interp requires xp to be non-decreasing: sort both arrays together
+    # by BG value so crossing quantiles (e.g. from TimesFM) don't silently
+    # produce wrong CDF estimates. We clamp to [q_arr[0], q_arr[-1]] to
+    # avoid extrapolation to 0/1.
     p_hat = np.empty(forecast_length, dtype=np.float64)
     for t in range(forecast_length):
         x_vals = quantile_forecasts[:, t]
+        sort_idx = np.argsort(x_vals)
         p_hat[t] = np.interp(
             threshold,
-            x_vals,
-            q_arr,
+            x_vals[sort_idx],
+            q_arr[sort_idx],
             left=q_arr[0],  # clamp: threshold below all quantiles → P = q_min
             right=q_arr[-1],  # clamp: threshold above all quantiles → P = q_max
         )

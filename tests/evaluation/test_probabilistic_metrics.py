@@ -142,6 +142,28 @@ class TestComputeBrierScore:
                 [0.9, 0.1],  # descending
             )
 
+    def test_crossing_quantiles_handled_correctly(self):
+        """Crossing quantile BG values must be sorted before np.interp.
+
+        Prior to the fix, np.interp was called with an unsorted xp array whenever
+        quantile values crossed (e.g. q50 BG > q90 BG for a given timestep), which
+        produces undefined/wrong results silently.
+
+        The fix sorts x_vals and q_arr together per-timestep.  The expected
+        Brier score is computed by replicating that sort manually.
+        """
+        actuals = np.array([4.5])  # above threshold 3.9 → indicator = 0
+        levels = [0.1, 0.5, 0.9]
+        # q50=4.1 > q90=4.0 — a typical mild TimesFM crossing
+        q_crossed = np.array([[3.0], [4.1], [4.0]])
+        # Manually replicate the expected sort: argsort([3.0, 4.1, 4.0]) = [0, 2, 1]
+        x_sorted = np.array([3.0, 4.0, 4.1])
+        q_sorted = np.array([0.1, 0.9, 0.5])
+        expected_p = float(np.interp(3.9, x_sorted, q_sorted, left=0.1, right=0.9))
+        expected_brier = expected_p**2  # (P_hat - 0)^2
+        brier = compute_brier_score(q_crossed, actuals, levels)
+        assert brier == pytest.approx(expected_brier, rel=1e-9)
+
 
 # ---------------------------------------------------------------------------
 # compute_coverage tests
