@@ -6,11 +6,11 @@ Two-stage workflow to handle models that require different Python environments:
   Stage 1 — Inference (run once per model, in its model-specific env):
 
       source scripts/setup_model_env.sh chronos2
-      python scripts/analysis/compare_forecasts.py --model chronos2::Chronos2 --no-plot
+      python scripts/visualization/compare_forecasts.py --model chronos2::Chronos2 --no-plot
       # → prints: Results cached at: results/forecast_comparisons/a3f82c1d.json
 
       source scripts/setup_model_env.sh ttm
-      python scripts/analysis/compare_forecasts.py --model ttm::TTM --no-plot
+      python scripts/visualization/compare_forecasts.py --model ttm::TTM --no-plot
       # → prints: Results cached at: results/forecast_comparisons/9b14e702.json
 
   Both runs must use the same --dataset, --seed, --n-patients (or --patients),
@@ -18,7 +18,7 @@ Two-stage workflow to handle models that require different Python environments:
 
   Stage 2 — Plot (run in any env, using the paths printed above):
 
-      python scripts/analysis/compare_forecasts.py \\
+      python scripts/visualization/compare_forecasts.py \\
           --from-results \\
               results/forecast_comparisons/a3f82c1d.json \\
               results/forecast_comparisons/9b14e702.json
@@ -38,7 +38,7 @@ Two-stage workflow to handle models that require different Python environments:
   Single-env shortcut (when all models share an environment, e.g. two
   fine-tuned checkpoints of the same model type):
 
-      python scripts/analysis/compare_forecasts.py \\
+      python scripts/visualization/compare_forecasts.py \\
           --model ttm::TTM-v1 \\
           --model ttm:trained_models/artifacts/ttm-ft-iob:TTM-IOB
 
