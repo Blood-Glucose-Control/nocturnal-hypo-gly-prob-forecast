@@ -3,6 +3,7 @@
 Supports zero-shot inference and fine-tuning with per-window normalized loss.
 """
 
+import contextlib
 import json
 import logging
 import os
@@ -12,7 +13,6 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
@@ -113,16 +113,38 @@ class TimesFMDataset(Dataset):
 
 
 class TimesFMForTrainer(nn.Module):
-    """HF Trainer wrapper that computes loss in per-window normalized space.
+    """HF Trainer wrapper that trains quantile heads with pinball loss in
+    per-window normalized space.
 
     Truncates predictions to match target horizon (HF TimesFM outputs 128 steps)
-    and normalizes both predictions and targets by context mean/std before MSE,
-    preventing high-variance patients from dominating gradients.
+    and normalizes both predictions and targets by context mean/std, preventing
+    high-variance patients from dominating gradients.  Pinball loss is computed
+    over all native quantile heads (full_predictions[:, :, 1:]) so calibration
+    is supervised directly rather than being an emergent property of MSE on the
+    mean head only.
     """
 
-    def __init__(self, hf_prediction_model):
+    def __init__(
+        self,
+        hf_prediction_model,
+        loss_fn: str = "pinball",
+        dilate_alpha: float = 0.5,
+        dilate_gamma: float = 0.01,
+        dilate_weight: float = 0.5,
+    ):
         super().__init__()
         self.prediction_model = hf_prediction_model
+        self.loss_fn = loss_fn
+        self.dilate_alpha = dilate_alpha
+        self.dilate_gamma = dilate_gamma
+        self.dilate_weight = dilate_weight
+        q_levels = list(hf_prediction_model.config.quantiles)  # e.g. [0.1,...,0.9]
+        self.register_buffer(
+            "quantile_levels",
+            torch.tensor(q_levels, dtype=torch.float32),
+        )
+        # Column index of the 0.5 quantile in full_predictions dim-2 (index 0 = mean, 1..n = quantiles)
+        self._median_col = q_levels.index(0.5) + 1 if 0.5 in q_levels else None
 
     def forward(
         self,
@@ -141,7 +163,6 @@ class TimesFMForTrainer(nn.Module):
         loss = None
         if future_values is not None:
             horizon = future_values.shape[1]
-            preds = mean_predictions[:, :horizon].float()
             targets = future_values.float()
 
             # Per-window normalization (clamp scale >= 0.1 for low-variance windows).
@@ -149,12 +170,113 @@ class TimesFMForTrainer(nn.Module):
             scales = torch.stack(
                 [pv.float().std().clamp(min=0.1) for pv in past_values]
             )
-            locs = locs.to(preds.device).unsqueeze(-1)  # (B, 1)
-            scales = scales.to(preds.device).unsqueeze(-1)  # (B, 1)
+            locs = locs.to(targets.device).unsqueeze(-1)  # (B, 1)
+            scales = scales.to(targets.device).unsqueeze(-1)  # (B, 1)
 
-            pred_norm = (preds - locs) / scales
-            target_norm = (targets - locs) / scales
-            loss = F.mse_loss(pred_norm, target_norm)
+            target_norm = (targets - locs) / scales  # (B, horizon)
+
+            if self.loss_fn in ("pinball", "joint"):
+                # Pinball loss over all quantile heads.
+                # full_predictions: (B, model_horizon, 1+n_quantiles); index 0 = mean.
+                q_preds = outputs.full_predictions[
+                    :, :horizon, 1:
+                ].float()  # (B, horizon, n_q)
+                q_preds_norm = (q_preds - locs.unsqueeze(-1)) / scales.unsqueeze(-1)
+                residuals = (
+                    target_norm.unsqueeze(-1) - q_preds_norm
+                )  # (B, horizon, n_q)
+                # Move the registered buffer to the same device as the activations.
+                # (HF Trainer calls model.to(device) before training, but this guards
+                # against direct calls where only hf_model was explicitly placed.)
+                q_levels = self.quantile_levels.to(residuals.device)
+                loss = torch.max(
+                    q_levels * residuals,
+                    (q_levels - 1.0) * residuals,
+                ).mean()
+
+            if self.loss_fn in ("mse", "joint"):
+                mean_preds = mean_predictions[:, :horizon].float()
+                mean_norm = (mean_preds - locs) / scales
+                mse = ((mean_norm - target_norm) ** 2).mean()
+                loss = mse if loss is None else loss + mse
+
+            if self.loss_fn == "dilate":
+                # `from src.utils.dilate import dilate_loss` would bind to the
+                # function (not the module) because __init__.py re-exports it by
+                # the same name.  Import from the submodule file directly instead.
+                from src.utils.dilate.dilate_loss import (
+                    dilate_loss_normalized as _dilate_norm,
+                )
+
+                mean_preds = mean_predictions[:, :horizon].float()
+                loss = _dilate_norm(
+                    mean_preds,
+                    targets,
+                    locs,
+                    scales,
+                    self.dilate_alpha,
+                    self.dilate_gamma,
+                    targets.device,
+                )
+
+            if self.loss_fn in ("dilate_pinball", "dilate_pinball_median"):
+                # See comment in the `dilate` branch above for why we import
+                # from the submodule file rather than from the package.
+                from src.utils.dilate.dilate_loss import (
+                    dilate_loss_normalized as _dilate_norm,
+                )
+
+                # Pinball over all quantile heads — supervises calibration at each step
+                q_preds = outputs.full_predictions[
+                    :, :horizon, 1:
+                ].float()  # (B, horizon, n_q)
+                q_preds_norm = (q_preds - locs.unsqueeze(-1)) / scales.unsqueeze(-1)
+                residuals = (
+                    target_norm.unsqueeze(-1) - q_preds_norm
+                )  # (B, horizon, n_q)
+                q_levels = self.quantile_levels.to(residuals.device)
+                pinball = torch.max(
+                    q_levels * residuals,
+                    (q_levels - 1.0) * residuals,
+                ).mean()
+
+                if self.loss_fn == "dilate_pinball":
+                    # DILATE on every quantile trajectory — each quantile's full shape and timing
+                    # must be correct, not just its per-step level.
+                    n_q = q_preds.shape[-1]
+                    dilate_total = sum(
+                        _dilate_norm(
+                            q_preds[:, :, qi],
+                            targets,
+                            locs,
+                            scales,
+                            self.dilate_alpha,
+                            self.dilate_gamma,
+                            targets.device,
+                        )
+                        for qi in range(n_q)
+                    )
+                    dilate = dilate_total / n_q
+                else:  # dilate_pinball_median
+                    # DILATE on the median (0.5) trajectory only — cheaper; anchors
+                    # shape/timing on the central prediction, quantile spread handled by pinball.
+                    if self._median_col is not None:
+                        anchor = outputs.full_predictions[
+                            :, :horizon, self._median_col
+                        ].float()
+                    else:
+                        anchor = mean_predictions[:, :horizon].float()
+                    dilate = _dilate_norm(
+                        anchor,
+                        targets,
+                        locs,
+                        scales,
+                        self.dilate_alpha,
+                        self.dilate_gamma,
+                        targets.device,
+                    )
+
+                loss = pinball + self.dilate_weight * dilate
 
         return {"loss": loss, "logits": mean_predictions}
 
@@ -562,7 +684,62 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             shuffle=False,
         )
 
-        return train_loader, val_loader, None
+        # Step 6: Temporal eval slice for in-training callback.
+        # Split each series at the RAW level (before windowing) so that no eval
+        # forecast TARGET comes from before the temporal cutoff.  Context windows
+        # ARE allowed to include the last context_length pre-cutoff samples — that
+        # mirrors real deployment where context always comes from before the
+        # forecast origin.
+        temporal_eval_dataset = None
+        if self.config.eval_during_training and self.config.eval_temporal_frac > 0:
+            from torch.utils.data import Subset
+
+            temporal_eval_arrays = []
+            for pid in sorted(patient_to_segments.keys()):
+                for seg in patient_to_segments[pid]:
+                    n = len(seg)
+                    # Number of target-period samples at the end of the series.
+                    eval_samples = max(
+                        self.config.horizon_length,
+                        int(n * self.config.eval_temporal_frac),
+                    )
+                    # Prepend context_length samples so the first eval window has
+                    # full context while its targets remain in the held-out tail.
+                    slice_start = max(0, n - eval_samples - self.config.context_length)
+                    eval_slice = seg[slice_start:]
+                    if (
+                        len(eval_slice)
+                        >= self.config.context_length + self.config.horizon_length
+                    ):
+                        temporal_eval_arrays.append(eval_slice)
+
+            if temporal_eval_arrays:
+                temporal_eval_all = TimesFMDataset(
+                    patient_series=temporal_eval_arrays,
+                    context_length=self.config.context_length,
+                    horizon_length=self.config.horizon_length,
+                    freq_type=self.config.freq_type,
+                    stride=self.config.horizon_length,  # non-overlapping for eval
+                )
+                if (
+                    self.config.eval_subsample is not None
+                    and len(temporal_eval_all) > self.config.eval_subsample
+                ):
+                    indices = np.linspace(
+                        0,
+                        len(temporal_eval_all) - 1,
+                        self.config.eval_subsample,
+                        dtype=int,
+                    )
+                    temporal_eval_dataset = Subset(temporal_eval_all, indices)
+                else:
+                    temporal_eval_dataset = temporal_eval_all
+                info_print(
+                    f"Temporal eval slice: {len(temporal_eval_dataset)} windows "
+                    f"(last {self.config.eval_temporal_frac:.0%} of each series)"
+                )
+
+        return train_loader, val_loader, temporal_eval_dataset
 
     @staticmethod
     def _collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, Any]:
@@ -584,14 +761,170 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         self, train_data: Any, output_dir: str, **kwargs
     ) -> Dict[str, Any]:
         """Fine-tune TimesFM using HF Trainer with per-window normalized loss."""
-        from transformers import Trainer, TrainingArguments
+        from transformers import Trainer, TrainerCallback, TrainingArguments
+
+        class MidTrainingEvalCallback(TrainerCallback):
+            """Writes per-epoch WQL / coverage / MACE / RMSE to epoch_metrics.csv.
+
+            The eval set is the temporal eval slice built in _prepare_training_data:
+            last eval_temporal_frac of each patient series (split at raw-series
+            level before windowing, so forecast targets never overlap with
+            training targets).
+            """
+
+            def __init__(
+                self_cb,
+                eval_dataset,
+                output_dir: str,
+                horizon: int,
+                quantile_levels: list,
+                collate_fn,
+                batch_size: int = 64,
+                device: str = "cuda",
+            ):
+                self_cb.eval_dataset = eval_dataset
+                self_cb.csv_path = os.path.join(output_dir, "epoch_metrics.csv")
+                self_cb.horizon = horizon
+                self_cb.quantile_levels = quantile_levels
+                self_cb.collate_fn = collate_fn
+                self_cb.batch_size = batch_size
+                self_cb.device = device
+                with open(self_cb.csv_path, "w") as f:
+                    f.write(
+                        "epoch,train_loss,wql,coverage_50,coverage_80,coverage_95,mace,rmse\n"
+                    )
+
+            def on_epoch_end(self_cb, args, state, control, model=None, **kw):
+                from torch.utils.data import DataLoader as _EvalDL
+                from src.evaluation.metrics.probabilistic import (
+                    compute_coverage,
+                    compute_mace,
+                    compute_wql,
+                )
+
+                if model is None or self_cb.eval_dataset is None:
+                    return
+
+                # Last logged train loss for this epoch.
+                train_loss = float("nan")
+                for entry in reversed(state.log_history):
+                    if "loss" in entry:
+                        train_loss = entry["loss"]
+                        break
+
+                model.eval()
+                loader = _EvalDL(
+                    self_cb.eval_dataset,
+                    batch_size=self_cb.batch_size,
+                    shuffle=False,
+                    collate_fn=self_cb.collate_fn,
+                )
+
+                all_q_np: List[np.ndarray] = []  # (n_q, horizon) each
+                all_mean_np: List[np.ndarray] = []  # (horizon,) each
+                all_act_np: List[np.ndarray] = []  # (horizon,) each
+
+                with torch.no_grad():
+                    # HF Trainer wraps training steps in autocast(bfloat16), but
+                    # on_epoch_end runs outside that context.  Without autocast here,
+                    # float32 DataLoader tensors hit bfloat16 model weights and matmul
+                    # raises a dtype mismatch.  Mirror the Trainer's dtype setting.
+                    amp_dtype = (
+                        torch.bfloat16
+                        if getattr(args, "bf16", False)
+                        else (torch.float16 if getattr(args, "fp16", False) else None)
+                    )
+                    amp_ctx = (
+                        torch.autocast("cuda", dtype=amp_dtype)
+                        if amp_dtype is not None and self_cb.device != "cpu"
+                        else contextlib.nullcontext()
+                    )
+                    with amp_ctx:
+                        for batch in loader:
+                            past = [
+                                pv.to(self_cb.device) for pv in batch["past_values"]
+                            ]
+                            freq = batch["freq"].to(self_cb.device)
+                            targets = batch["future_values"].float().cpu().numpy()
+
+                            outputs = model.prediction_model(
+                                past_values=past, freq=freq
+                            )
+                            # full_predictions: (B, model_horizon, 1+n_q)
+                            # index 0 = mean, indices 1.. = quantiles
+                            q_preds = (
+                                outputs.full_predictions[:, : self_cb.horizon, 1:]
+                                .float()
+                                .cpu()
+                                .numpy()
+                            )  # (B, horizon, n_q)
+                            mean_preds = (
+                                outputs.mean_predictions[:, : self_cb.horizon]
+                                .float()
+                                .cpu()
+                                .numpy()
+                            )  # (B, horizon)
+
+                            for i in range(targets.shape[0]):
+                                all_q_np.append(q_preds[i].T)  # (n_q, horizon)
+                                all_mean_np.append(mean_preds[i])  # (horizon,)
+                                all_act_np.append(targets[i])  # (horizon,)
+
+                model.train()
+
+                if not all_q_np:
+                    return
+
+                q_arr = np.stack(all_q_np)  # (N, n_q, horizon)
+                mean_arr = np.stack(all_mean_np)  # (N, horizon)
+                act_arr = np.stack(all_act_np)  # (N, horizon)
+
+                n_q = len(self_cb.quantile_levels)
+                # Flatten across windows: (n_q, N*horizon) and (N*horizon,)
+                q_flat = q_arr.transpose(1, 0, 2).reshape(n_q, -1)
+                act_flat = act_arr.reshape(-1)
+
+                wql = compute_wql(q_flat, act_flat, self_cb.quantile_levels)
+                cov50 = compute_coverage(
+                    q_flat, act_flat, self_cb.quantile_levels, level=0.5
+                )
+                cov80 = compute_coverage(
+                    q_flat, act_flat, self_cb.quantile_levels, level=0.8
+                )
+                cov95 = compute_coverage(
+                    q_flat, act_flat, self_cb.quantile_levels, level=0.95
+                )
+                mace = compute_mace(q_flat, act_flat, self_cb.quantile_levels)
+                rmse = float(np.sqrt(np.mean((mean_arr.reshape(-1) - act_flat) ** 2)))
+
+                epoch = round(state.epoch) if state.epoch is not None else "?"
+                with open(self_cb.csv_path, "a") as f:
+                    f.write(
+                        f"{epoch},{train_loss:.6f},{wql:.6f},"
+                        f"{cov50:.4f},{cov80:.4f},{cov95:.4f},"
+                        f"{mace:.6f},{rmse:.6f}\n"
+                    )
+
+                info_print(
+                    f"[Epoch {epoch}] Eval — "
+                    f"WQL: {wql:.4f}, Cov50: {cov50:.3f}, Cov80: {cov80:.3f}, "
+                    f"Cov95: {cov95:.3f}, MACE: {mace:.4f}, RMSE: {rmse:.4f}"
+                )
 
         info_print("Starting TimesFM finetuning with HF Trainer...")
 
-        train_loader, val_loader, _ = self._prepare_training_data(train_data)
+        train_loader, val_loader, temporal_eval_dataset = self._prepare_training_data(
+            train_data
+        )
 
         # Wrap model for normalized-space loss
-        trainer_model = TimesFMForTrainer(self.hf_model)
+        trainer_model = TimesFMForTrainer(
+            self.hf_model,
+            loss_fn=self.config.loss_fn,
+            dilate_alpha=self.config.dilate_alpha,
+            dilate_gamma=self.config.dilate_gamma,
+            dilate_weight=self.config.dilate_weight,
+        )
 
         training_args = TrainingArguments(
             output_dir=output_dir,
@@ -602,6 +935,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             bf16=(self.config.torch_dtype == "bfloat16" and self.device == "cuda"),
             fp16=(self.config.torch_dtype == "float16" and self.device == "cuda"),
             gradient_accumulation_steps=self.config.gradient_accumulation_steps,
+            max_grad_norm=1.0,
             eval_strategy="no",
             save_strategy="epoch",
             save_total_limit=3,
@@ -612,12 +946,33 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             report_to="none",
         )
 
+        # Register in-training eval callback if temporal eval data was built.
+        callbacks = []
+        if self.config.eval_during_training and temporal_eval_dataset is not None:
+            q_levels = list(self.hf_model.config.quantiles)
+            callbacks.append(
+                MidTrainingEvalCallback(
+                    eval_dataset=temporal_eval_dataset,
+                    output_dir=output_dir,
+                    horizon=self.config.horizon_length,
+                    quantile_levels=q_levels,
+                    collate_fn=self._collate_fn,
+                    batch_size=min(self.config.batch_size, 64),
+                    device=self.device,
+                )
+            )
+            info_print(
+                f"In-training eval: {len(temporal_eval_dataset)} temporal windows. "
+                f"Metrics → {os.path.join(output_dir, 'epoch_metrics.csv')}"
+            )
+
         trainer = Trainer(
             model=trainer_model,
             args=training_args,
             train_dataset=train_loader.dataset,
             eval_dataset=val_loader.dataset if val_loader else None,
             data_collator=self._collate_fn,
+            callbacks=callbacks if callbacks else None,
         )
 
         info_print(

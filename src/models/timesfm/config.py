@@ -43,8 +43,23 @@ class TimesFMConfig(ModelConfig):
     # Training parameters
     output_dir: Optional[str] = None
     num_epochs: int = 10
-    learning_rate: float = 1e-4
+    learning_rate: float = 1e-5
     weight_decay: float = 0.01
+    # Loss function for fine-tuning.
+    # 'pinball'               — pinball/quantile loss on all quantile heads (supervises calibration directly)
+    # 'mse'                   — MSE on mean head only (original behaviour)
+    # 'joint'                 — pinball on quantile heads + MSE on mean head
+    # 'dilate'                — DILATE (shape + temporal distortion) on mean head
+    # 'dilate_pinball'        — pinball on all quantile heads + DILATE on every quantile trajectory
+    # 'dilate_pinball_median' — pinball on all quantile heads + DILATE on median (0.5) trajectory only
+    loss_fn: str = "pinball"
+    # DILATE hyper-parameters (ignored unless loss_fn in {'dilate', 'dilate_pinball'})
+    dilate_alpha: float = (
+        0.5  # shape vs. temporal weight (1=pure shape, 0=pure temporal)
+    )
+    dilate_gamma: float = 0.01  # soft-DTW smoothing
+    # Weight applied to the DILATE term when loss_fn='dilate_pinball' (pinball weight = 1.0)
+    dilate_weight: float = 0.5
     freq_type: int = 0
     val_patient_ratio: float = 0.2
     use_lora: bool = False
@@ -58,6 +73,16 @@ class TimesFMConfig(ModelConfig):
 
     # Gap handling (applied before windowing)
     imputation_threshold_mins: int = 45
+
+    # In-training eval callback (writes epoch_metrics.csv to the artifact dir)
+    eval_during_training: bool = True
+    # Fraction of each patient series reserved (chronologically, from the end)
+    # for the in-training eval callback.  Split occurs on the raw series BEFORE
+    # windowing to avoid context-window leakage across the boundary.
+    eval_temporal_frac: float = 0.10
+    # Maximum number of eval windows to use per epoch (None = all).  Set to a
+    # few hundred to cap callback runtime without losing metric accuracy.
+    eval_subsample: Optional[int] = None
 
     # Data column names
     target_col: str = "bg_mM"
@@ -114,4 +139,26 @@ class TimesFMConfig(ModelConfig):
             raise ValueError(
                 f"torch_dtype must be one of ['bfloat16', 'float16', 'float32'], "
                 f"got {self.torch_dtype}"
+            )
+
+        if self.loss_fn not in [
+            "pinball",
+            "mse",
+            "joint",
+            "dilate",
+            "dilate_pinball",
+            "dilate_pinball_median",
+        ]:
+            raise ValueError(
+                f"loss_fn must be one of ['pinball', 'mse', 'joint', 'dilate', 'dilate_pinball', 'dilate_pinball_median'], got {self.loss_fn}"
+            )
+
+        if not 0.0 < self.eval_temporal_frac < 1.0:
+            raise ValueError(
+                f"eval_temporal_frac must be in (0, 1), got {self.eval_temporal_frac}"
+            )
+
+        if self.eval_subsample is not None and self.eval_subsample <= 0:
+            raise ValueError(
+                f"eval_subsample must be a positive int or None, got {self.eval_subsample}"
             )

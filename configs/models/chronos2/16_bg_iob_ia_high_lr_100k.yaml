@@ -1,0 +1,44 @@
+# =============================================================================
+# Chronos-2  16 — CGM + IOB + insulin_availability  |  LR = 5e-5  |  100k steps
+# =============================================================================
+# Long-run version of 04_bg_iob_ia_high_lr.yaml.
+# Config 04 (10k steps) produced the best RMSE for brown_2019 and lynch_2022;
+# RMSE was still monotonically decreasing at 10k in the step sweep, so this
+# trains to 100k to find the plateau.
+#
+# Snapshots every 5k steps (20 checkpoints + final) for an RMSE-vs-steps curve.
+#
+# Datasets: aleppo_2017, brown_2019, lynch_2022
+# (tamborlane excluded: no insulin_availability covariate)
+#
+# Evaluate snapshots with:
+#   MODEL_CONFIG=configs/models/chronos2/16_bg_iob_ia_high_lr_100k.yaml \
+#   DATASETS="aleppo_2017 brown_2019 lynch_2022" \
+#   bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh \
+#       trained_models/artifacts/chronos2/<run_id>
+#
+# Comparison targets:
+#   04_bg_iob_ia_high_lr.yaml  → same config at 10k steps
+#   99_250k_checkpoints.yaml   → same covariate/LR at 250k steps
+# =============================================================================
+
+model_path: "autogluon/chronos-2"
+context_length: 512
+forecast_length: 96  # 8 hours at 5-min intervals
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+fine_tune_steps: 100000
+fine_tune_lr: 5.0e-5
+fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB; T5-small 256→~45GB (verified safe)
+checkpoint_save_steps: 5000
+
+covariate_cols: [iob, insulin_availability]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false

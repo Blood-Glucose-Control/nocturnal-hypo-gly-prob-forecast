@@ -1,0 +1,44 @@
+# =============================================================================
+# Chronos-2  17 — CGM + IOB + insulin_availability  |  LR = 5e-5  |  100k steps  |  ENSEMBLE
+# =============================================================================
+# Ensemble variant of 16_bg_iob_ia_high_lr_100k.yaml.
+# Identical config but with enable_ensemble: true, which passes ensemble=True
+# to AutoGluon's TimeSeriesPredictor.fit(). AutoGluon trains multiple Chronos-2
+# variants and stacks them — expects noticeably longer runtime than config 16.
+#
+# Snapshots every 5k steps (20 checkpoints + final) for an RMSE-vs-steps curve.
+#
+# Datasets: aleppo_2017, brown_2019, lynch_2022
+# (tamborlane excluded: no insulin_availability covariate)
+#
+# Evaluate snapshots with:
+#   MODEL_CONFIG=configs/models/chronos2/17_bg_iob_ia_high_lr_100k_ensemble.yaml \
+#   DATASETS="aleppo_2017 brown_2019 lynch_2022" \
+#   bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh \
+#       trained_models/artifacts/chronos2/<run_id>
+#
+# Comparison targets:
+#   16_bg_iob_ia_high_lr_100k.yaml  → same config without ensemble
+#   04_bg_iob_ia_high_lr.yaml       → same covariates at 10k steps
+# =============================================================================
+
+model_path: "autogluon/chronos-2"
+context_length: 512
+forecast_length: 96  # 8 hours at 5-min intervals
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+fine_tune_steps: 100000
+fine_tune_lr: 5.0e-5
+fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB; T5-small 256→~45GB (verified safe)
+checkpoint_save_steps: 5000
+
+covariate_cols: [iob, insulin_availability]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: true
