@@ -5,7 +5,7 @@
 #   16_bg_iob_ia_high_lr_100k         (config 16, no ensemble)
 #   17_bg_iob_ia_high_lr_100k_ensemble (config 17, ensemble)
 #
-# Every 5k snapshot (step_5000 … step_100000) plus zero-shot (step 0) is
+# Every 10k snapshot (step_10000 … step_100000) plus zero-shot (step 0) is
 # evaluated across aleppo_2017, brown_2019, lynch_2022 using the fixed
 # episode set anchored at episode_context_length=512 (same methodology as
 # the existing step-sweep and ctx-ablation experiments).
@@ -20,11 +20,11 @@
 # ---------------
 # Results land in:
 #   experiments/nocturnal_forecasting_long_run_step_sweep/512ctx_96fh/chronos2/
-#     cfg16_step_5000_aleppo_2017/
+#     cfg16_step_10000_aleppo_2017/
 #       results_summary.json ...
-#     cfg16_step_5000_brown_2019/
+#     cfg16_step_10000_brown_2019/
 #     ...
-#     cfg17_step_5000_aleppo_2017/
+#     cfg17_step_10000_aleppo_2017/
 #     ...
 #
 # USAGE

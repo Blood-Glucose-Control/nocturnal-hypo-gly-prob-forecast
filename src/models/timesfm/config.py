@@ -53,12 +53,13 @@ class TimesFMConfig(ModelConfig):
     # 'dilate_pinball'        — pinball on all quantile heads + DILATE on every quantile trajectory
     # 'dilate_pinball_median' — pinball on all quantile heads + DILATE on median (0.5) trajectory only
     loss_fn: str = "pinball"
-    # DILATE hyper-parameters (ignored unless loss_fn in {'dilate', 'dilate_pinball'})
+    # DILATE hyper-parameters (ignored unless loss_fn in {'dilate', 'dilate_pinball', 'dilate_pinball_median'})
     dilate_alpha: float = (
         0.5  # shape vs. temporal weight (1=pure shape, 0=pure temporal)
     )
     dilate_gamma: float = 0.01  # soft-DTW smoothing
-    # Weight applied to the DILATE term when loss_fn='dilate_pinball' (pinball weight = 1.0)
+    # Weight applied to the DILATE term when loss_fn is a pinball+DILATE variant
+    # ('dilate_pinball' or 'dilate_pinball_median'); pinball weight = 1.0
     dilate_weight: float = 0.5
     freq_type: int = 0
     val_patient_ratio: float = 0.2

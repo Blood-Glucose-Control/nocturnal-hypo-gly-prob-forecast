@@ -17,7 +17,7 @@ Configured via the `loss_fn` field in `TimesFMConfig`. Default is `"pinball"`.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `dilate_alpha` | `0.5` | Balance between shape loss (soft-DTW) and timing loss (path DTW). 0 = pure shape, 1 = pure timing |
+| `dilate_alpha` | `0.5` | Balance between shape loss (soft-DTW) and timing loss (path DTW). 1 = pure shape, 0 = pure timing |
 | `dilate_gamma` | `0.01` | Soft-DTW smoothing. Smaller → closer to hard DTW |
 | `dilate_weight` | `0.5` | Scalar weight on the DILATE term added to pinball: `loss = pinball + dilate_weight * dilate` |
 

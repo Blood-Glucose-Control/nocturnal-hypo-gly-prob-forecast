@@ -113,15 +113,16 @@ class TimesFMDataset(Dataset):
 
 
 class TimesFMForTrainer(nn.Module):
-    """HF Trainer wrapper that trains quantile heads with pinball loss in
-    per-window normalized space.
+    """HF Trainer wrapper for TimesFM fine-tuning with configurable loss.
+
+    Supports pinball, MSE, joint (pinball + MSE), and DILATE-family losses
+    (dilate, dilate_pinball, dilate_pinball_median).  When a pinball-based loss
+    is used, all native quantile heads are supervised directly so calibration
+    is not merely an emergent property of MSE on the mean head.
 
     Truncates predictions to match target horizon (HF TimesFM outputs 128 steps)
     and normalizes both predictions and targets by context mean/std, preventing
-    high-variance patients from dominating gradients.  Pinball loss is computed
-    over all native quantile heads (full_predictions[:, :, 1:]) so calibration
-    is supervised directly rather than being an emergent property of MSE on the
-    mean head only.
+    high-variance patients from dominating gradients.
     """
 
     def __init__(
@@ -565,12 +566,17 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
     def _prepare_training_data(
         self, train_data: Any
-    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
+    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[Dataset]]:
         """Prepare DataLoaders with gap handling and per-patient windowing.
 
         Pipeline: extract per-patient DataFrames → gap handling (interpolate
         small gaps, segment at large gaps) → patient-level train/val split →
         sliding windows within each segment.
+
+        Returns:
+            (train_loader, val_loader, temporal_eval_dataset) where the third
+            element is a Dataset/Subset reserved for the mid-training eval
+            callback (not yet wrapped in a DataLoader).
         """
         from collections import defaultdict
         from src.data.preprocessing.gap_handling import segment_all_patients
