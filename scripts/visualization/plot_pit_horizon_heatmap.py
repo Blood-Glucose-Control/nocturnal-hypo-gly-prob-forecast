@@ -272,8 +272,8 @@ def _compute_step_densities(
     pit_matrix: np.ndarray,
     n_bins: int,
     step_bins: int,
-) -> Tuple[np.ndarray, np.ndarray, List[Tuple[float, float]]]:
-    """Compute a (n_bins, step_bins) PIT density grid and per-bin KS statistics.
+) -> Tuple[np.ndarray, np.ndarray, List[float]]:
+    """Compute a (n_bins, step_bins) PIT density grid and per-bin MAD values.
 
     Args:
         pit_matrix: Shape (n_episodes, forecast_length).
