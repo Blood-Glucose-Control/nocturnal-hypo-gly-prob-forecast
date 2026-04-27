@@ -239,12 +239,6 @@ def plot_main_body(
         ax = axes_flat[i]
         model_data = curves[model]
 
-        # Pool all episodes/timesteps across datasets to get a single curve
-        for (nominal, _), _ece, _n in model_data.values():
-            # We need to reload from disk here; instead, just merge curves
-            # by taking a weighted mean (weighted by n_samples).
-            pass  # handled below via weighted average of empirical arrays
-
         # Weighted average of per-dataset empirical curves
         total_n = sum(n for (_, __), ___, n in model_data.values())
         nominal_ref = None

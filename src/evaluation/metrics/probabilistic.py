@@ -525,12 +525,19 @@ def compute_pit_values(
     """Compute Probability Integral Transform (PIT) values.
 
     For each (episode, timestep) pair, evaluates the empirical CDF F̂(y_true)
-    by linearly interpolating through the discrete quantile forecast. Under a
-    perfectly calibrated model PIT values follow Uniform[0, 1].
+    by linearly interpolating through the discrete quantile forecast.
 
     Values below all predicted quantile values are assigned PIT = 0.0; values
     above are assigned PIT = 1.0 (hard clamp). Pile-up at the boundaries
     indicates actuals frequently fall outside the predicted quantile range.
+
+    **Note on the expected PIT distribution**: with a full [0, 1] quantile grid
+    a perfectly calibrated model yields PIT ~ Uniform[0, 1].  In practice,
+    grids are truncated (e.g. 0.1–0.9), so the clamping above creates point
+    masses at 0 and 1 even under perfect calibration; the distribution is
+    uniform only within (q_min, q_max).  PIT histograms should therefore be
+    interpreted relative to the quantile range used, not against a flat
+    Uniform[0, 1] baseline.
 
     Args:
         quantile_forecasts: Shape (n_episodes, n_quantiles, forecast_length).
