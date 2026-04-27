@@ -143,23 +143,21 @@ class TestComputeBrierScore:
             )
 
     def test_crossing_quantiles_handled_correctly(self):
-        """Crossing quantile BG values must be sorted before np.interp.
+        """Crossing quantile BG values must be handled correctly by sorting x_vals.
 
-        Prior to the fix, np.interp was called with an unsorted xp array whenever
-        quantile values crossed (e.g. q50 BG > q90 BG for a given timestep), which
-        produces undefined/wrong results silently.
-
-        The fix sorts x_vals and q_arr together per-timestep.  The expected
-        Brier score is computed by replicating that sort manually.
+        The fix sorts only the BG values (x_vals) while keeping q_arr in its
+        original increasing order, producing a valid monotone CDF.  Sorting
+        both arrays together (q_arr[sort_idx]) was wrong because it made the
+        implied CDF non-monotone (probabilities could decrease as BG increased).
         """
         actuals = np.array([4.5])  # above threshold 3.9 → indicator = 0
         levels = [0.1, 0.5, 0.9]
         # q50=4.1 > q90=4.0 — a typical mild TimesFM crossing
         q_crossed = np.array([[3.0], [4.1], [4.0]])
-        # Manually replicate the expected sort: argsort([3.0, 4.1, 4.0]) = [0, 2, 1]
+        # Expected: np.sort([3.0, 4.1, 4.0]) = [3.0, 4.0, 4.1] paired with q_arr [0.1, 0.5, 0.9]
         x_sorted = np.array([3.0, 4.0, 4.1])
-        q_sorted = np.array([0.1, 0.9, 0.5])
-        expected_p = float(np.interp(3.9, x_sorted, q_sorted, left=0.1, right=0.9))
+        q_arr = np.array([0.1, 0.5, 0.9])  # unchanged — always in original order
+        expected_p = float(np.interp(3.9, x_sorted, q_arr, left=0.1, right=0.9))
         expected_brier = expected_p**2  # (P_hat - 0)^2
         brier = compute_brier_score(q_crossed, actuals, levels)
         assert brier == pytest.approx(expected_brier, rel=1e-9)
@@ -638,20 +636,25 @@ class TestComputePITValues:
             compute_pit_values(q_fc, np.ones((2, 4)), [0.1, 0.5, 0.9])
 
     def test_moderate_quantile_inversions_sorted(self):
-        """Moderate inversions (0.01–1.0 mmol/L) should be sorted in-place with a warning."""
+        """Moderate inversions (0.01–1.0 mmol/L) should be sorted internally with a warning.
+
+        The function now works on a copy of the input (np.array, not np.asarray),
+        so the caller's original array is NOT mutated.  The function should still
+        warn and complete without raising.
+        """
         q_fc = np.ones((2, 3, 4))
         q_fc[:, 0, :] = 5.0  # inversion magnitude = 0.1 mmol/L (middle tier)
         q_fc[:, 1, :] = 4.9
         q_fc[:, 2, :] = 7.0
+        q_fc_original = q_fc.copy()  # save to verify caller's array is not mutated
         import warnings as _warnings
 
         with _warnings.catch_warnings(record=True) as w:
             _warnings.simplefilter("always")
-            # Should not raise; function should sort in-place and return
             compute_pit_values(q_fc, np.ones((2, 4)), [0.1, 0.5, 0.9])
         assert any("sorted in-place" in str(warning.message) for warning in w)
-        # After sorting, q_fc[:, 0, :] and q_fc[:, 1, :] should be swapped
-        assert np.all(q_fc[:, 0, :] <= q_fc[:, 1, :])
+        # Caller's original array must NOT be mutated
+        np.testing.assert_array_equal(q_fc, q_fc_original)
 
 
 # ---------------------------------------------------------------------------

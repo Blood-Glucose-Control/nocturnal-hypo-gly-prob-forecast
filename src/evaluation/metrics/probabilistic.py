@@ -156,19 +156,19 @@ def compute_brier_score(
 
     # For each timestep, interpolate P(BG < threshold) from the quantile CDF.
     # quantile_forecasts[:, t] are the BG values (x-axis of CDF);
-    # quantile_levels are the corresponding probabilities (y-axis).
-    # np.interp requires xp to be non-decreasing: sort both arrays together
-    # by BG value so crossing quantiles (e.g. from TimesFM) don't silently
-    # produce wrong CDF estimates. We clamp to [q_arr[0], q_arr[-1]] to
-    # avoid extrapolation to 0/1.
+    # q_arr are the corresponding probabilities (y-axis, always increasing).
+    # np.interp requires xp to be non-decreasing: sort x_vals (BG axis) while
+    # keeping q_arr in its original increasing order. This yields a valid CDF
+    # even when quantile values cross (e.g. TimesFM); q_arr[sort_idx] would be
+    # wrong because reindexing probabilities by BG-sort order can make the CDF
+    # non-monotone. We clamp to [q_arr[0], q_arr[-1]] to avoid extrapolation.
     p_hat = np.empty(forecast_length, dtype=np.float64)
     for t in range(forecast_length):
         x_vals = quantile_forecasts[:, t]
-        sort_idx = np.argsort(x_vals)
         p_hat[t] = np.interp(
             threshold,
-            x_vals[sort_idx],
-            q_arr[sort_idx],
+            np.sort(x_vals),
+            q_arr,
             left=q_arr[0],  # clamp: threshold below all quantiles → P = q_min
             right=q_arr[-1],  # clamp: threshold above all quantiles → P = q_max
         )
@@ -445,7 +445,7 @@ def compute_coverage_by_step(
         episodes where the actual value at that step fell within the
         prediction interval.
     """
-    quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
+    quantile_forecasts_batch = np.array(quantile_forecasts_batch, dtype=np.float64)
     actuals_batch = np.asarray(actuals_batch, dtype=np.float64)
     q_arr = _validate_batch_quantile_inputs(
         quantile_forecasts_batch, quantile_levels, actuals_batch
@@ -478,7 +478,7 @@ def compute_sharpness_by_step(
         np.ndarray: Shape (forecast_length,). Each entry is the mean interval
         width (mmol/L) across episodes at that forecast step.
     """
-    quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
+    quantile_forecasts_batch = np.array(quantile_forecasts_batch, dtype=np.float64)
     q_arr = _validate_batch_quantile_inputs(quantile_forecasts_batch, quantile_levels)
     if not 0.0 < level < 1.0:
         raise ValueError(f"level must be in (0, 1), got {level}")
@@ -553,7 +553,7 @@ def compute_pit_values(
         np.ndarray: Flat array of PIT values in [0, 1], shape
             (n_episodes * forecast_length,).
     """
-    quantile_forecasts = np.asarray(quantile_forecasts, dtype=np.float64)
+    quantile_forecasts = np.array(quantile_forecasts, dtype=np.float64)
     actuals = np.asarray(actuals, dtype=np.float64)
     q_arr = _validate_batch_quantile_inputs(
         quantile_forecasts, quantile_levels, actuals
@@ -627,7 +627,7 @@ def compute_reliability_curve(
         ``empirical[i]`` is the fraction of observed values at or below the
         i-th quantile forecast.
     """
-    quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
+    quantile_forecasts_batch = np.array(quantile_forecasts_batch, dtype=np.float64)
     actuals_batch = np.asarray(actuals_batch, dtype=np.float64)
     q_arr = _validate_batch_quantile_inputs(
         quantile_forecasts_batch, quantile_levels, actuals_batch
@@ -651,7 +651,7 @@ def compute_ece(
     """Compute Expected Calibration Error (ECE) for quantile forecasts.
 
     ECE is the trapezoidal-integration area between the reliability curve and
-    the perfect-calibration diagonal, normalised to [0, 1]:
+    the perfect-calibration diagonal:
 
         ECE = ∫₀¹ |empirical(q) − q| dq  ≈  trapz(|empirical − nominal|, nominal)
 
