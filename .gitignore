@@ -79,6 +79,9 @@ cache/data/gluroo/processed/parquet/*
 
 scripts/watgpu_slurm/data_processing_scripts/results/
 
+# Generated plot outputs (large, reproducible from scripts)
+results/
+
 # Cache directory (symlinked to shared location)
 cache
 cache/**/*.csv

@@ -2,7 +2,7 @@
 Plot absolute error distribution (box plots) vs forecast horizon for one or more eval runs.
 
 Usage:
-    python scripts/analysis/plot_rmse_vs_horizon.py \
+    python scripts/visualization/plot_rmse_vs_horizon.py \
         --results path/to/run_dir [path2/run_dir ...] \
         --labels "Zero-Shot" "Fine-Tuned" \
         --output rmse_vs_horizon.svg

@@ -12,8 +12,8 @@ Output:
     notes/chronos2/figures/step_sweep_grid.png
 
 Usage:
-    python scripts/analysis/plot_step_sweep.py
-    python scripts/analysis/plot_step_sweep.py --output path/to/out.png
+    python scripts/visualization/plot_step_sweep.py
+    python scripts/visualization/plot_step_sweep.py --output path/to/out.png
 """
 
 from __future__ import annotations
