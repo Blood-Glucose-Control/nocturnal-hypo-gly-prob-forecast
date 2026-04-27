@@ -547,7 +547,9 @@ def compute_pit_values(
 
     Args:
         quantile_forecasts: Shape (n_episodes, n_quantiles, forecast_length).
-            Values along the quantile axis must be non-decreasing.
+            Moderate quantile crossings (≤ 1.0 mmol/L per row) are
+            auto-sorted and a warning is issued; inversions larger than
+            1.0 mmol/L raise a ``ValueError``.
         actuals: Shape (n_episodes, forecast_length).
         quantile_levels: Strictly increasing list of quantile levels, length
             matching n_quantiles.
