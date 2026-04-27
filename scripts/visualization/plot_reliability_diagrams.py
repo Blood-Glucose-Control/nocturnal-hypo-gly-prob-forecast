@@ -254,14 +254,16 @@ def plot_main_body(
                 nominal_ref = nominal
                 weighted_emp = empirical * n
             else:
+                assert np.allclose(nominal, nominal_ref), (
+                    f"Quantile grids differ across datasets for model '{model}'; "
+                    "cannot average empirical curves without interpolation."
+                )
                 weighted_emp += empirical * n
         assert nominal_ref is not None and weighted_emp is not None
         agg_empirical = weighted_emp / total_n
 
         # ECE from the aggregated curve
-        from scipy.integrate import trapezoid
-
-        agg_ece = float(trapezoid(np.abs(agg_empirical - nominal_ref), nominal_ref))
+        agg_ece = float(np.trapz(np.abs(agg_empirical - nominal_ref), nominal_ref))
 
         datasets_used = ", ".join(
             DATASET_LABELS.get(d, d) for d in sorted(model_data.keys())
