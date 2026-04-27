@@ -359,10 +359,13 @@ def _validate_batch_quantile_inputs(
                 stacklevel=3,
             )
         else:
+            # Sub-clinical fp noise: sort anyway so bracket-finding in
+            # compute_pit_values (which assumes sorted rows) stays correct.
+            quantile_forecasts_batch[:] = np.sort(quantile_forecasts_batch, axis=1)
             warnings.warn(
                 f"quantile_forecasts_batch has {n_inverted:,} minor quantile inversions "
                 f"(max = {max_violation:.2e} mmol/L, likely floating-point noise). "
-                "Results should be unaffected.",
+                "Quantiles sorted in-place; results should be unaffected.",
                 stacklevel=3,
             )
 
