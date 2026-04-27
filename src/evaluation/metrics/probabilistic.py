@@ -572,8 +572,13 @@ def compute_pit_values(
     hi = (xp <= y[:, np.newaxis]).sum(axis=1)
 
     pit = np.empty(len(y), dtype=np.float64)
+    # "below": y strictly below every predicted quantile value (y < xp.min()).
+    # "above": y strictly above every predicted quantile value (y > xp.max()).
+    # Equal to the max quantile value (y == xp.max()) is treated as "inside" so
+    # that interpolation yields q_arr[-1], not 1.0. (hi == n_quantiles covers
+    # both y == xp.max() and y > xp.max(), so we need a second check.)
     below = hi == 0
-    above = hi == n_quantiles
+    above = (xp < y[:, np.newaxis]).sum(axis=1) == n_quantiles  # strictly > xp.max()
     inside = ~below & ~above
 
     pit[below] = 0.0
@@ -581,8 +586,11 @@ def compute_pit_values(
 
     if inside.any():
         rows = np.where(inside)[0]
-        lo_idx = hi[rows] - 1
-        hi_idx = hi[rows]
+        # hi[rows] can be n_quantiles when y == xp.max(); clamp to n_quantiles-1
+        # so hi_idx stays in-bounds.  Interpolation will yield weight=1 → q_arr[-1].
+        hi_clamped = np.minimum(hi[rows], n_quantiles - 1)
+        lo_idx = hi_clamped - 1
+        hi_idx = hi_clamped
         xp_lo = xp[rows, lo_idx]
         xp_hi = xp[rows, hi_idx]
         q_lo = q_arr[lo_idx]

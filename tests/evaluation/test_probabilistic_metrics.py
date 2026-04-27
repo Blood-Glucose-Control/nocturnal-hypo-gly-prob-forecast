@@ -626,6 +626,22 @@ class TestComputePITValues:
             q_fc = np.ones((2, 3, 4))
             compute_pit_values(q_fc, np.ones((2, 4)), [0.9, 0.5, 0.1])
 
+    def test_actual_at_max_quantile_yields_q_max_not_one(self):
+        """y == xp.max() should yield PIT = q_arr[-1], not 1.0.
+
+        The old code used `above = (hi == n_quantiles)` which counted equality at
+        the upper boundary as "above all quantiles", producing PIT = 1.0 instead
+        of the correct q_arr[-1] (e.g. 0.9).
+        """
+        # q_fc: single episode, single timestep, q90 = 8.0
+        q_fc = np.array([[[2.0], [4.0], [6.0], [8.0]]])  # (1, 4, 1)
+        q_levels = [0.1, 0.4, 0.7, 0.9]
+        actuals = np.array([[8.0]])  # actual == q90 value
+        pit = compute_pit_values(q_fc, actuals, q_levels)
+        assert pit[0] == pytest.approx(
+            0.9
+        ), f"Expected PIT=0.9 (q_arr[-1]) when actual equals max quantile, got {pit[0]}"
+
     def test_inverted_quantile_values_raises(self):
         """Catastrophic inversions (> 1 mmol/L) should raise ValueError."""
         q_fc = np.ones((2, 3, 4))
