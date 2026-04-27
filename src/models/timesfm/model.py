@@ -795,10 +795,16 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 self_cb.collate_fn = collate_fn
                 self_cb.batch_size = batch_size
                 self_cb.device = device
-                with open(self_cb.csv_path, "w") as f:
-                    f.write(
-                        "epoch,train_loss,wql,coverage_50,coverage_80,coverage_95,mace,rmse\n"
-                    )
+                # Write header only when the file does not yet exist or is empty,
+                # so that resuming from a checkpoint preserves earlier epoch rows.
+                if (
+                    not os.path.exists(self_cb.csv_path)
+                    or os.path.getsize(self_cb.csv_path) == 0
+                ):
+                    with open(self_cb.csv_path, "w") as f:
+                        f.write(
+                            "epoch,train_loss,wql,coverage_50,coverage_80,coverage_95,mace,rmse\n"
+                        )
 
             def on_epoch_end(self_cb, args, state, control, model=None, **kw):
                 from torch.utils.data import DataLoader as _EvalDL
