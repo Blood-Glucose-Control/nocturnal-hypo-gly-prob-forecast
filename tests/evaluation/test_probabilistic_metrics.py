@@ -606,9 +606,32 @@ class TestComputePITValues:
             q_fc = np.ones((2, 3, 4))
             compute_pit_values(q_fc, np.ones((2, 4)), [0.9, 0.5, 0.1])
 
+    def test_inverted_quantile_values_raises(self):
+        """Catastrophic inversions (> 1 mmol/L) should raise ValueError."""
+        q_fc = np.ones((2, 3, 4))
+        q_fc[:, 0, :] = 5.0  # lower quantile has higher value → inversion = 2 mmol/L
+        q_fc[:, 1, :] = 3.0
+        q_fc[:, 2, :] = 7.0
+        with pytest.raises(ValueError, match="quantile inversions"):
+            compute_pit_values(q_fc, np.ones((2, 4)), [0.1, 0.5, 0.9])
 
-# ---------------------------------------------------------------------------
-# compute_reliability_curve tests
+    def test_moderate_quantile_inversions_sorted(self):
+        """Moderate inversions (0.01–1.0 mmol/L) should be sorted in-place with a warning."""
+        q_fc = np.ones((2, 3, 4))
+        q_fc[:, 0, :] = 5.0  # inversion magnitude = 0.1 mmol/L (middle tier)
+        q_fc[:, 1, :] = 4.9
+        q_fc[:, 2, :] = 7.0
+        import warnings as _warnings
+
+        with _warnings.catch_warnings(record=True) as w:
+            _warnings.simplefilter("always")
+            # Should not raise; function should sort in-place and return
+            compute_pit_values(q_fc, np.ones((2, 4)), [0.1, 0.5, 0.9])
+        assert any("sorted in-place" in str(warning.message) for warning in w)
+        # After sorting, q_fc[:, 0, :] and q_fc[:, 1, :] should be swapped
+        assert np.all(q_fc[:, 0, :] <= q_fc[:, 1, :])
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -676,9 +699,15 @@ class TestComputeReliabilityCurve:
         with pytest.raises(ValueError, match="strictly increasing"):
             compute_reliability_curve(np.ones((2, 2, 4)), np.ones((2, 4)), [0.9, 0.1])
 
+    def test_inverted_quantile_values_raises(self):
+        """Inverted quantile values should raise ValueError."""
+        q_fc = np.ones((2, 2, 4))
+        q_fc[:, 0, :] = 5.0  # lower quantile has higher value → inverted
+        q_fc[:, 1, :] = 3.0
+        with pytest.raises(ValueError, match="quantile inversions"):
+            compute_reliability_curve(q_fc, np.ones((2, 4)), [0.1, 0.9])
 
-# ---------------------------------------------------------------------------
-# compute_ece tests
+
 # ---------------------------------------------------------------------------
 
 

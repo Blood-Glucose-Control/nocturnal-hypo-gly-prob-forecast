@@ -26,6 +26,7 @@ Usage
     brier = compute_brier_score(quantile_forecasts, actuals, quantile_levels)
 """
 
+import warnings
 from typing import List, Optional
 
 import numpy as np
@@ -315,6 +316,53 @@ def _validate_batch_quantile_inputs(
     q_arr = np.array(quantile_levels, dtype=np.float64)
     if not np.all(np.diff(q_arr) > 0):
         raise ValueError("quantile_levels must be strictly increasing.")
+
+    # Check that quantile forecasts are non-decreasing along the quantile axis
+    # (axis=1: shape is n_episodes × n_quantiles × forecast_length).
+    # Three thresholds:
+    #   ≤ 0.01 mmol/L  → sub-clinical floating-point noise; warn and pass through.
+    #   0.01–1.0 mmol/L → real but recoverable quantile crossing (e.g. normal TimesFM
+    #                      post-training); sort in-place and warn so metrics remain valid.
+    #   > 1.0 mmol/L   → catastrophic inversion consistent with a broken-head run
+    #                     (e.g. TimesFM high-LR fine-tuning, sharpness_50 ≈ −742 mmol/L);
+    #                     raise ValueError to prevent silently polluted metrics.
+    diffs = np.diff(quantile_forecasts_batch, axis=1)  # (n_eps, n_q-1, fh)
+    violations = diffs[diffs < 0]
+    if violations.size > 0:
+        max_violation = float(
+            -violations.min()
+        )  # most negative diff, as positive magnitude
+        n_inverted = int((diffs < 0).sum())
+        total = diffs.size
+        if max_violation > 1.0:
+            raise ValueError(
+                f"quantile_forecasts_batch has {n_inverted:,} quantile inversions "
+                f"({100.0 * n_inverted / total:.2f}% of adjacent-quantile pairs, "
+                f"max violation = {max_violation:.4f} mmol/L). "
+                "This magnitude indicates a catastrophic calibration failure "
+                "(e.g. TimesFM high-LR fine-tuning). "
+                "Discard or retrain before computing metrics."
+            )
+        elif max_violation > 0.01:
+            # Moderate inversions (e.g. normal TimesFM quantile crossing): sort to
+            # produce a valid monotone CDF, then warn so the caller is aware.
+            quantile_forecasts_batch[:] = np.sort(quantile_forecasts_batch, axis=1)
+            warnings.warn(
+                f"quantile_forecasts_batch had {n_inverted:,} quantile inversions "
+                f"({100.0 * n_inverted / total:.2f}% of adjacent-quantile pairs, "
+                f"max violation = {max_violation:.4f} mmol/L). "
+                "Quantiles have been sorted in-place to produce a valid CDF. "
+                "This is expected for models without a monotone quantile head (e.g. TimesFM).",
+                stacklevel=3,
+            )
+        else:
+            warnings.warn(
+                f"quantile_forecasts_batch has {n_inverted:,} minor quantile inversions "
+                f"(max = {max_violation:.2e} mmol/L, likely floating-point noise). "
+                "Results should be unaffected.",
+                stacklevel=3,
+            )
+
     return q_arr
 
 

@@ -10,10 +10,9 @@ Y-axis : 0.80 − coverage_80  (80% PI coverage error)
 Panel A — Marker size proportional to mean normalised sharpness.
            Larger = wider / less-sharp intervals.
 
-Panel B — Marker colour saturation (alpha) encodes sharpness, with model
-           identity carried by marker shape only.  Desaturated = sharper;
-           opaque = wider.  This sacrifices the model-colour encoding in
-           exchange for a continuous sharpness scale.
+Panel B — Marker alpha encodes sharpness (faint = sharp, opaque = wide).
+           Colour = model, marker shape = dataset (same as Panel A).
+           Desaturated points are sharper; fully opaque points are wider.
 
 Panel C — Bubble + colour-map.  Colour now encodes sharpness (viridis),
            with model identity lost to keep the colourmap legible.  Best
