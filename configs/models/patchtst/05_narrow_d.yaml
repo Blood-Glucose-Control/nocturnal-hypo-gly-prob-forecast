@@ -1,0 +1,38 @@
+# =============================================================================
+# PatchTST Config 05: narrow_d (BG-only)
+# =============================================================================
+# Narrow transformer (d_model=64, 8 heads).
+# AutoGluon's PatchTST supports static + known covariates only — IOB cannot be
+# passed as a past covariate, so this sweep is BG-only and runs across all
+# four datasets.
+# =============================================================================
+
+model_type: "patchtst"
+training_mode: "from_scratch"
+context_length: 512
+forecast_length: 96
+
+# Patch architecture
+patch_len: 16
+stride: 8
+d_model: 64
+nhead: 8
+num_encoder_layers: 3
+
+# Training
+lr: 0.0001
+weight_decay: 1e-08
+num_batches_per_epoch: 100
+batch_size: 256
+max_epochs: 100
+early_stopping_patience: 20
+
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

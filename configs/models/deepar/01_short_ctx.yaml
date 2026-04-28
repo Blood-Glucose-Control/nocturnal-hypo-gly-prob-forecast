@@ -1,0 +1,34 @@
+# =============================================================================
+# DeepAR Config 01: short_ctx (BG-only)
+# =============================================================================
+# Short context (256 steps ~21 h) — tests sensitivity to history length.
+# AutoGluon's PyTorch DeepAR is LSTM-only and supports static + known
+# covariates only — IOB cannot be passed as a past covariate, so this sweep
+# is BG-only and runs across all four datasets.
+# =============================================================================
+
+model_type: "deepar"
+training_mode: "from_scratch"
+context_length: 256
+forecast_length: 96
+
+hidden_size: 64
+num_layers: 2
+dropout_rate: 0.1
+
+lr: 0.001
+num_batches_per_epoch: 50
+batch_size: 128
+max_epochs: 100
+early_stopping_patience: 20
+gradient_clip_val: 10.0
+
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45
