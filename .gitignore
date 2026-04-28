@@ -64,6 +64,9 @@ src/data/diabetes_datasets/**/processed/*
 scripts/notebooks/**/*.csv
 trained_models/artifacts/*
 experiments/standard_forecasting/*ctx*
+experiments/standard_forecasting/**/*.png
+experiments/standard_forecasting/**/*.svg
+experiments/standard_forecasting/**/*.pdf
 experiments/nocturnal_forecasting/*ctx*
 experiments/nocturnal_forecasting/_bad_runs_archive/*
 experiments/nocturnal_forecasting_ctx_ablation/*ctx*/
@@ -82,6 +85,10 @@ scripts/watgpu_slurm/data_processing_scripts/results/
 
 # Generated plot outputs (large, reproducible from scripts)
 results/
+
+# Local-only research notes and scratch scripts
+notes/
+scripts/scratch/
 
 # Cache directory (symlinked to shared location)
 cache
@@ -133,7 +140,7 @@ profile_default/
 ipython_config.py
 
 # MLflow
-mlflow/artifacts/*
+mlflow/artifacts/
 mlflow/mlflow.db
 
 # pyenv

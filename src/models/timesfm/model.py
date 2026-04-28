@@ -20,6 +20,11 @@ from src.models.base.registry import ModelRegistry
 from src.models.timesfm.config import TimesFMConfig
 from src.utils.logging_helper import info_print, error_print
 
+try:
+    from transformers import TrainerCallback as _TrainerCallback
+except ImportError:
+    _TrainerCallback = object  # type: ignore[assignment,misc]
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -280,6 +285,154 @@ class TimesFMForTrainer(nn.Module):
                 loss = pinball + self.dilate_weight * dilate
 
         return {"loss": loss, "logits": mean_predictions}
+
+
+class MidTrainingEvalCallback(_TrainerCallback):
+    """Writes per-epoch WQL / coverage / MACE / RMSE to epoch_metrics.csv.
+
+    The eval set is the temporal eval slice built in _prepare_training_data:
+    last eval_temporal_frac of each patient series (split at raw-series
+    level before windowing, so forecast targets never overlap with
+    training targets).
+
+    Defined at module level for testability; referenced directly in
+    TimesFMForecaster._train_model.
+    """
+
+    def __init__(
+        self_cb,
+        eval_dataset,
+        output_dir: str,
+        horizon: int,
+        quantile_levels: list,
+        collate_fn,
+        batch_size: int = 64,
+        device: str = "cuda",
+    ):
+        self_cb.eval_dataset = eval_dataset
+        self_cb.csv_path = os.path.join(output_dir, "epoch_metrics.csv")
+        self_cb.horizon = horizon
+        self_cb.quantile_levels = quantile_levels
+        self_cb.collate_fn = collate_fn
+        self_cb.batch_size = batch_size
+        self_cb.device = device
+        # Write header only when the file does not yet exist or is empty,
+        # so that resuming from a checkpoint preserves earlier epoch rows.
+        if (
+            not os.path.exists(self_cb.csv_path)
+            or os.path.getsize(self_cb.csv_path) == 0
+        ):
+            with open(self_cb.csv_path, "w") as f:
+                f.write(
+                    "epoch,train_loss,wql,coverage_50,coverage_80,coverage_95,mace,rmse\n"
+                )
+
+    def on_epoch_end(self_cb, args, state, control, model=None, **kw):
+        from torch.utils.data import DataLoader as _EvalDL
+        from src.evaluation.metrics.probabilistic import (
+            compute_coverage,
+            compute_mace,
+            compute_wql,
+        )
+
+        if model is None or self_cb.eval_dataset is None:
+            return
+
+        # Last logged train loss for this epoch.
+        train_loss = float("nan")
+        for entry in reversed(state.log_history):
+            if "loss" in entry:
+                train_loss = entry["loss"]
+                break
+
+        model.eval()
+        loader = _EvalDL(
+            self_cb.eval_dataset,
+            batch_size=self_cb.batch_size,
+            shuffle=False,
+            collate_fn=self_cb.collate_fn,
+        )
+
+        all_q_np: List[np.ndarray] = []  # (n_q, horizon) each
+        all_mean_np: List[np.ndarray] = []  # (horizon,) each
+        all_act_np: List[np.ndarray] = []  # (horizon,) each
+
+        with torch.no_grad():
+            # HF Trainer wraps training steps in autocast(bfloat16), but
+            # on_epoch_end runs outside that context.  Without autocast here,
+            # float32 DataLoader tensors hit bfloat16 model weights and matmul
+            # raises a dtype mismatch.  Mirror the Trainer's dtype setting.
+            amp_dtype = (
+                torch.bfloat16
+                if getattr(args, "bf16", False)
+                else (torch.float16 if getattr(args, "fp16", False) else None)
+            )
+            amp_ctx = (
+                torch.autocast("cuda", dtype=amp_dtype)
+                if amp_dtype is not None and self_cb.device != "cpu"
+                else contextlib.nullcontext()
+            )
+            with amp_ctx:
+                for batch in loader:
+                    past = [pv.to(self_cb.device) for pv in batch["past_values"]]
+                    freq = batch["freq"].to(self_cb.device)
+                    targets = batch["future_values"].float().cpu().numpy()
+
+                    outputs = model.prediction_model(past_values=past, freq=freq)
+                    # full_predictions: (B, model_horizon, 1+n_q)
+                    # index 0 = mean, indices 1.. = quantiles
+                    q_preds = (
+                        outputs.full_predictions[:, : self_cb.horizon, 1:]
+                        .float()
+                        .cpu()
+                        .numpy()
+                    )  # (B, horizon, n_q)
+                    mean_preds = (
+                        outputs.mean_predictions[:, : self_cb.horizon]
+                        .float()
+                        .cpu()
+                        .numpy()
+                    )  # (B, horizon)
+
+                    for i in range(targets.shape[0]):
+                        all_q_np.append(q_preds[i].T)  # (n_q, horizon)
+                        all_mean_np.append(mean_preds[i])  # (horizon,)
+                        all_act_np.append(targets[i])  # (horizon,)
+
+        model.train()
+
+        if not all_q_np:
+            return
+
+        q_arr = np.stack(all_q_np)  # (N, n_q, horizon)
+        mean_arr = np.stack(all_mean_np)  # (N, horizon)
+        act_arr = np.stack(all_act_np)  # (N, horizon)
+
+        n_q = len(self_cb.quantile_levels)
+        # Flatten across windows: (n_q, N*horizon) and (N*horizon,)
+        q_flat = q_arr.transpose(1, 0, 2).reshape(n_q, -1)
+        act_flat = act_arr.reshape(-1)
+
+        wql = compute_wql(q_flat, act_flat, self_cb.quantile_levels)
+        cov50 = compute_coverage(q_flat, act_flat, self_cb.quantile_levels, level=0.5)
+        cov80 = compute_coverage(q_flat, act_flat, self_cb.quantile_levels, level=0.8)
+        cov95 = compute_coverage(q_flat, act_flat, self_cb.quantile_levels, level=0.95)
+        mace = compute_mace(q_flat, act_flat, self_cb.quantile_levels)
+        rmse = float(np.sqrt(np.mean((mean_arr.reshape(-1) - act_flat) ** 2)))
+
+        epoch = round(state.epoch) if state.epoch is not None else "?"
+        with open(self_cb.csv_path, "a") as f:
+            f.write(
+                f"{epoch},{train_loss:.6f},{wql:.6f},"
+                f"{cov50:.4f},{cov80:.4f},{cov95:.4f},"
+                f"{mace:.6f},{rmse:.6f}\n"
+            )
+
+        info_print(
+            f"[Epoch {epoch}] Eval — "
+            f"WQL: {wql:.4f}, Cov50: {cov50:.3f}, Cov80: {cov80:.3f}, "
+            f"Cov95: {cov95:.3f}, MACE: {mace:.4f}, RMSE: {rmse:.4f}"
+        )
 
 
 @ModelRegistry.register("timesfm")
@@ -653,9 +806,37 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         val_pids = set(shuffled[:n_val])
         train_pids = set(shuffled[n_val:])
 
-        # Flatten segment arrays per split
-        train_arrays = [arr for pid in train_pids for arr in patient_to_segments[pid]]
-        val_arrays = [arr for pid in val_pids for arr in patient_to_segments[pid]]
+        # Flatten segment arrays per split.
+        # When in-training temporal eval is active, truncate each segment at the
+        # eval cutoff so that training/validation windows never overlap with the
+        # eval forecast targets (last eval_temporal_frac of each series).
+        if self.config.eval_during_training and self.config.eval_temporal_frac > 0:
+
+            def _truncate_to_train(arr: np.ndarray) -> np.ndarray:
+                n = len(arr)
+                eval_samples = max(
+                    self.config.horizon_length,
+                    int(n * self.config.eval_temporal_frac),
+                )
+                return arr[: n - eval_samples]
+
+            train_arrays = [
+                t
+                for pid in train_pids
+                for arr in patient_to_segments[pid]
+                if len(t := _truncate_to_train(arr)) >= min_seg_length
+            ]
+            val_arrays = [
+                t
+                for pid in val_pids
+                for arr in patient_to_segments[pid]
+                if len(t := _truncate_to_train(arr)) >= min_seg_length
+            ]
+        else:
+            train_arrays = [
+                arr for pid in train_pids for arr in patient_to_segments[pid]
+            ]
+            val_arrays = [arr for pid in val_pids for arr in patient_to_segments[pid]]
 
         stride = self.config.window_stride or self.config.horizon_length
 
@@ -767,161 +948,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         self, train_data: Any, output_dir: str, **kwargs
     ) -> Dict[str, Any]:
         """Fine-tune TimesFM using HF Trainer with per-window normalized loss."""
-        from transformers import Trainer, TrainerCallback, TrainingArguments
-
-        class MidTrainingEvalCallback(TrainerCallback):
-            """Writes per-epoch WQL / coverage / MACE / RMSE to epoch_metrics.csv.
-
-            The eval set is the temporal eval slice built in _prepare_training_data:
-            last eval_temporal_frac of each patient series (split at raw-series
-            level before windowing, so forecast targets never overlap with
-            training targets).
-            """
-
-            def __init__(
-                self_cb,
-                eval_dataset,
-                output_dir: str,
-                horizon: int,
-                quantile_levels: list,
-                collate_fn,
-                batch_size: int = 64,
-                device: str = "cuda",
-            ):
-                self_cb.eval_dataset = eval_dataset
-                self_cb.csv_path = os.path.join(output_dir, "epoch_metrics.csv")
-                self_cb.horizon = horizon
-                self_cb.quantile_levels = quantile_levels
-                self_cb.collate_fn = collate_fn
-                self_cb.batch_size = batch_size
-                self_cb.device = device
-                # Write header only when the file does not yet exist or is empty,
-                # so that resuming from a checkpoint preserves earlier epoch rows.
-                if (
-                    not os.path.exists(self_cb.csv_path)
-                    or os.path.getsize(self_cb.csv_path) == 0
-                ):
-                    with open(self_cb.csv_path, "w") as f:
-                        f.write(
-                            "epoch,train_loss,wql,coverage_50,coverage_80,coverage_95,mace,rmse\n"
-                        )
-
-            def on_epoch_end(self_cb, args, state, control, model=None, **kw):
-                from torch.utils.data import DataLoader as _EvalDL
-                from src.evaluation.metrics.probabilistic import (
-                    compute_coverage,
-                    compute_mace,
-                    compute_wql,
-                )
-
-                if model is None or self_cb.eval_dataset is None:
-                    return
-
-                # Last logged train loss for this epoch.
-                train_loss = float("nan")
-                for entry in reversed(state.log_history):
-                    if "loss" in entry:
-                        train_loss = entry["loss"]
-                        break
-
-                model.eval()
-                loader = _EvalDL(
-                    self_cb.eval_dataset,
-                    batch_size=self_cb.batch_size,
-                    shuffle=False,
-                    collate_fn=self_cb.collate_fn,
-                )
-
-                all_q_np: List[np.ndarray] = []  # (n_q, horizon) each
-                all_mean_np: List[np.ndarray] = []  # (horizon,) each
-                all_act_np: List[np.ndarray] = []  # (horizon,) each
-
-                with torch.no_grad():
-                    # HF Trainer wraps training steps in autocast(bfloat16), but
-                    # on_epoch_end runs outside that context.  Without autocast here,
-                    # float32 DataLoader tensors hit bfloat16 model weights and matmul
-                    # raises a dtype mismatch.  Mirror the Trainer's dtype setting.
-                    amp_dtype = (
-                        torch.bfloat16
-                        if getattr(args, "bf16", False)
-                        else (torch.float16 if getattr(args, "fp16", False) else None)
-                    )
-                    amp_ctx = (
-                        torch.autocast("cuda", dtype=amp_dtype)
-                        if amp_dtype is not None and self_cb.device != "cpu"
-                        else contextlib.nullcontext()
-                    )
-                    with amp_ctx:
-                        for batch in loader:
-                            past = [
-                                pv.to(self_cb.device) for pv in batch["past_values"]
-                            ]
-                            freq = batch["freq"].to(self_cb.device)
-                            targets = batch["future_values"].float().cpu().numpy()
-
-                            outputs = model.prediction_model(
-                                past_values=past, freq=freq
-                            )
-                            # full_predictions: (B, model_horizon, 1+n_q)
-                            # index 0 = mean, indices 1.. = quantiles
-                            q_preds = (
-                                outputs.full_predictions[:, : self_cb.horizon, 1:]
-                                .float()
-                                .cpu()
-                                .numpy()
-                            )  # (B, horizon, n_q)
-                            mean_preds = (
-                                outputs.mean_predictions[:, : self_cb.horizon]
-                                .float()
-                                .cpu()
-                                .numpy()
-                            )  # (B, horizon)
-
-                            for i in range(targets.shape[0]):
-                                all_q_np.append(q_preds[i].T)  # (n_q, horizon)
-                                all_mean_np.append(mean_preds[i])  # (horizon,)
-                                all_act_np.append(targets[i])  # (horizon,)
-
-                model.train()
-
-                if not all_q_np:
-                    return
-
-                q_arr = np.stack(all_q_np)  # (N, n_q, horizon)
-                mean_arr = np.stack(all_mean_np)  # (N, horizon)
-                act_arr = np.stack(all_act_np)  # (N, horizon)
-
-                n_q = len(self_cb.quantile_levels)
-                # Flatten across windows: (n_q, N*horizon) and (N*horizon,)
-                q_flat = q_arr.transpose(1, 0, 2).reshape(n_q, -1)
-                act_flat = act_arr.reshape(-1)
-
-                wql = compute_wql(q_flat, act_flat, self_cb.quantile_levels)
-                cov50 = compute_coverage(
-                    q_flat, act_flat, self_cb.quantile_levels, level=0.5
-                )
-                cov80 = compute_coverage(
-                    q_flat, act_flat, self_cb.quantile_levels, level=0.8
-                )
-                cov95 = compute_coverage(
-                    q_flat, act_flat, self_cb.quantile_levels, level=0.95
-                )
-                mace = compute_mace(q_flat, act_flat, self_cb.quantile_levels)
-                rmse = float(np.sqrt(np.mean((mean_arr.reshape(-1) - act_flat) ** 2)))
-
-                epoch = round(state.epoch) if state.epoch is not None else "?"
-                with open(self_cb.csv_path, "a") as f:
-                    f.write(
-                        f"{epoch},{train_loss:.6f},{wql:.6f},"
-                        f"{cov50:.4f},{cov80:.4f},{cov95:.4f},"
-                        f"{mace:.6f},{rmse:.6f}\n"
-                    )
-
-                info_print(
-                    f"[Epoch {epoch}] Eval — "
-                    f"WQL: {wql:.4f}, Cov50: {cov50:.3f}, Cov80: {cov80:.3f}, "
-                    f"Cov95: {cov95:.3f}, MACE: {mace:.4f}, RMSE: {rmse:.4f}"
-                )
+        from transformers import Trainer, TrainingArguments
 
         info_print("Starting TimesFM finetuning with HF Trainer...")
 

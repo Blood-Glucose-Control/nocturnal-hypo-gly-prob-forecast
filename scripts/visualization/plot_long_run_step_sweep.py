@@ -3,8 +3,8 @@
 
 Reads results from:
   experiments/nocturnal_forecasting_long_run_step_sweep/512ctx_96fh/chronos2/
-    cfg16_step_5000_aleppo_2017/results_summary.json ...
-    cfg17_step_5000_aleppo_2017/results_summary.json ...
+    16_bg_iob_ia_high_lr_100k_step_5000_aleppo_2017/results_summary.json ...
+    17_bg_iob_ia_high_lr_100k_ensemble_step_5000_aleppo_2017/results_summary.json ...
 
 Zero-shot (step 0) results are re-used from:
   experiments/nocturnal_forecasting_ctx_ablation/
@@ -16,7 +16,7 @@ Produces an (8 metrics) × (3 datasets) grid with two lines per sub-plot:
 X-axis: training steps 0 → 100 000.
 
 Output:
-    notes/chronos2/figures/step_sweep_grid_long_run.png
+    results/figures/step_sweep_grid_long_run.png
 
 Usage:
     python scripts/visualization/plot_long_run_step_sweep.py
@@ -372,13 +372,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         default=str(
-            PROJECT_ROOT
-            / "notes"
-            / "chronos2"
-            / "figures"
-            / "step_sweep_grid_long_run.png"
+            PROJECT_ROOT / "results" / "figures" / "step_sweep_grid_long_run.png"
         ),
-        help="Output PNG path (default: notes/chronos2/figures/step_sweep_grid_long_run.png)",
+        help="Output PNG path (default: results/figures/step_sweep_grid_long_run.png)",
     )
     return parser.parse_args()
 
