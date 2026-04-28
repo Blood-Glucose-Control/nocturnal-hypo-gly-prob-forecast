@@ -27,17 +27,18 @@ class PatchTSTConfig(ModelConfig):
     training_mode: str = "from_scratch"
     training_backend: TrainingBackend = TrainingBackend.CUSTOM
 
-    # Patch Transformer architecture
+    # Patch Transformer architecture (only fields exposed by AutoGluon's
+    # PatchTSTModel API are passed through; ffn_dim_multiplier and dropout
+    # are not part of the AG signature and are silently ignored).
     patch_len: int = 16  # Length of each input patch (in time steps)
     stride: int = 8  # Hop between consecutive patches
     d_model: int = 128  # Transformer hidden dimension
     nhead: int = 16  # Number of attention heads (must divide d_model)
     num_encoder_layers: int = 3  # Transformer encoder depth
-    ffn_dim_multiplier: int = 4  # Feed-forward expansion ratio (d_model × this)
-    dropout: float = 0.1
 
     # Training
     lr: float = 1e-4
+    weight_decay: float = 1e-8
     num_batches_per_epoch: int = 100
     batch_size: int = 256
     max_epochs: int = 100
@@ -78,9 +79,8 @@ class PatchTSTConfig(ModelConfig):
                 "d_model": self.d_model,
                 "nhead": self.nhead,
                 "num_encoder_layers": self.num_encoder_layers,
-                "ffn_dim_multiplier": self.ffn_dim_multiplier,
-                "dropout": self.dropout,
                 "lr": self.lr,
+                "weight_decay": self.weight_decay,
                 "num_batches_per_epoch": self.num_batches_per_epoch,
                 "batch_size": self.batch_size,
                 "max_epochs": self.max_epochs,

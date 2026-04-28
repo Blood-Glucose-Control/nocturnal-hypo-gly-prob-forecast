@@ -4,18 +4,18 @@
 # Trains all TFT sweep configs in parallel, JOBS_PER_GPU workers per GPU.
 # Configs are distributed round-robin across all GPU slots.
 #
-# Dataset assignment by covariate class:
-#   ALL: configs without covariates (00_bg_only) — aleppo_2017, brown_2019, lynch_2022, tamborlane_2008
-#   IOB: configs with iob covariate (01–03)      — aleppo_2017, brown_2019, lynch_2022
+# Sweep: 12 configs total — 6 BG-only (00–05, all four datasets) and
+# 6 BG+IOB (06–11, IOB datasets only). TFT is the only deep model in the
+# stack that can consume past covariates.
 #
 # Manifest: trained_models/artifacts/tft/sweep_manifest.txt
 #
-# GPU memory: ~8 GB peak at defaults → 2 workers per 96 GB Blackwell GPU is safe.
+# GPU memory: ~8 GB peak at defaults → 6 workers per 96 GB Blackwell GPU is safe.
 #
 # Usage:
 #   bash scripts/experiments/tft_sweep_train.sh
-#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/tft_sweep_train.sh
-#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/tft_sweep_train.sh 2>&1 | tee tft_sweep_train.log
+#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/tft_sweep_train.sh
+#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/tft_sweep_train.sh 2>&1 | tee tft_sweep_train.log
 
 set -euo pipefail
 
@@ -61,10 +61,18 @@ DATASETS_ALL="aleppo_2017 brown_2019 lynch_2022 tamborlane_2008"
 DATASETS_WITH_IOB="aleppo_2017 brown_2019 lynch_2022"
 
 CONFIGS=(
-    "configs/models/tft/00_bg_only.yaml|ALL"
-    "configs/models/tft/01_bg_iob.yaml|IOB"
-    "configs/models/tft/02_bg_iob_high_lr.yaml|IOB"
-    "configs/models/tft/03_bg_iob_short_ctx.yaml|IOB"
+    "configs/models/tft/00_bg_baseline.yaml|ALL"
+    "configs/models/tft/01_bg_wide.yaml|ALL"
+    "configs/models/tft/02_bg_long_ctx.yaml|ALL"
+    "configs/models/tft/03_bg_high_dropout.yaml|ALL"
+    "configs/models/tft/04_bg_more_heads.yaml|ALL"
+    "configs/models/tft/05_bg_high_lr.yaml|ALL"
+    "configs/models/tft/06_iob_baseline.yaml|IOB"
+    "configs/models/tft/07_iob_wide.yaml|IOB"
+    "configs/models/tft/08_iob_long_ctx.yaml|IOB"
+    "configs/models/tft/09_iob_high_dropout.yaml|IOB"
+    "configs/models/tft/10_iob_more_heads.yaml|IOB"
+    "configs/models/tft/11_iob_high_lr.yaml|IOB"
 )
 
 CONFIG_DIR="configs/data/holdout_10pct"
@@ -80,7 +88,7 @@ touch "$MANIFEST"
 # ---------------------------------------------------------------------------
 # Distribute configs round-robin across slots
 # ---------------------------------------------------------------------------
-JOBS_PER_GPU="${JOBS_PER_GPU:-2}"
+JOBS_PER_GPU="${JOBS_PER_GPU:-6}"
 N_SLOTS=$(( N_GPUS * JOBS_PER_GPU ))
 echo "  Jobs per GPU: ${JOBS_PER_GPU}  (${N_SLOTS} total slots)"
 echo ""
@@ -154,6 +162,7 @@ run_gpu_worker() {
 
         if CUDA_VISIBLE_DEVICES="$gpu" \
            MODEL_TYPE="tft" \
+           VENV_NAME="chronos2" \
            MODEL_CONFIG="$config" \
            CONFIG_DIR="$CONFIG_DIR" \
            DATASETS="$datasets" \

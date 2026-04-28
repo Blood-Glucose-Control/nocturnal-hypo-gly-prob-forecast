@@ -19,9 +19,9 @@ class TestDeepARConfig:
     def test_model_type_field(self):
         assert DeepARConfig().model_type == "deepar"
 
-    def test_default_distr_output(self):
+    def test_default_dropout_rate(self):
         cfg = DeepARConfig()
-        assert cfg.distr_output == "StudentTOutput"
+        assert cfg.dropout_rate == 0.1
 
     def test_hyperparameters_contain_deepar_key(self):
         cfg = DeepARConfig()

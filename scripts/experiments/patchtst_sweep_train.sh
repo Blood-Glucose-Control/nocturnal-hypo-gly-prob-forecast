@@ -4,18 +4,17 @@
 # Trains all PatchTST sweep configs in parallel, JOBS_PER_GPU workers per GPU.
 # Configs are distributed round-robin across all GPU slots.
 #
-# Dataset assignment by covariate class:
-#   ALL: configs without covariates (00_bg_only) — aleppo_2017, brown_2019, lynch_2022, tamborlane_2008
-#   IOB: configs with iob covariate (01–03)      — aleppo_2017, brown_2019, lynch_2022
+# Sweep: 12 BG-only configs (PatchTST cannot consume past covariates in AG).
+# Datasets per config: aleppo_2017, brown_2019, lynch_2022, tamborlane_2008.
 #
 # Manifest: trained_models/artifacts/patchtst/sweep_manifest.txt
 #
-# GPU memory: ~6 GB peak at defaults → 2 workers per 96 GB Blackwell GPU is safe.
+# GPU memory: ~6 GB peak at defaults → 6 workers per 96 GB Blackwell GPU is safe.
 #
 # Usage:
 #   bash scripts/experiments/patchtst_sweep_train.sh
-#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/patchtst_sweep_train.sh
-#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/patchtst_sweep_train.sh 2>&1 | tee patchtst_sweep_train.log
+#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/patchtst_sweep_train.sh
+#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/patchtst_sweep_train.sh 2>&1 | tee patchtst_sweep_train.log
 
 set -euo pipefail
 
@@ -61,10 +60,18 @@ DATASETS_ALL="aleppo_2017 brown_2019 lynch_2022 tamborlane_2008"
 DATASETS_WITH_IOB="aleppo_2017 brown_2019 lynch_2022"
 
 CONFIGS=(
-    "configs/models/patchtst/00_bg_only.yaml|ALL"
-    "configs/models/patchtst/01_bg_iob.yaml|IOB"
-    "configs/models/patchtst/02_bg_iob_high_lr.yaml|IOB"
-    "configs/models/patchtst/03_bg_iob_short_ctx.yaml|IOB"
+    "configs/models/patchtst/00_baseline.yaml|ALL"
+    "configs/models/patchtst/01_short_patch.yaml|ALL"
+    "configs/models/patchtst/02_long_patch.yaml|ALL"
+    "configs/models/patchtst/03_short_ctx.yaml|ALL"
+    "configs/models/patchtst/04_long_ctx.yaml|ALL"
+    "configs/models/patchtst/05_narrow_d.yaml|ALL"
+    "configs/models/patchtst/06_wide_d.yaml|ALL"
+    "configs/models/patchtst/07_deep.yaml|ALL"
+    "configs/models/patchtst/08_shallow.yaml|ALL"
+    "configs/models/patchtst/09_high_lr.yaml|ALL"
+    "configs/models/patchtst/10_low_lr.yaml|ALL"
+    "configs/models/patchtst/11_weight_decay.yaml|ALL"
 )
 
 CONFIG_DIR="configs/data/holdout_10pct"
@@ -80,7 +87,7 @@ touch "$MANIFEST"
 # ---------------------------------------------------------------------------
 # Distribute configs round-robin across slots
 # ---------------------------------------------------------------------------
-JOBS_PER_GPU="${JOBS_PER_GPU:-2}"
+JOBS_PER_GPU="${JOBS_PER_GPU:-6}"
 N_SLOTS=$(( N_GPUS * JOBS_PER_GPU ))
 echo "  Jobs per GPU: ${JOBS_PER_GPU}  (${N_SLOTS} total slots)"
 echo ""
@@ -154,6 +161,7 @@ run_gpu_worker() {
 
         if CUDA_VISIBLE_DEVICES="$gpu" \
            MODEL_TYPE="patchtst" \
+           VENV_NAME="chronos2" \
            MODEL_CONFIG="$config" \
            CONFIG_DIR="$CONFIG_DIR" \
            DATASETS="$datasets" \

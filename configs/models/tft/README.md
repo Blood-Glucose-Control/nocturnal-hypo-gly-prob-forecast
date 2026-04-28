@@ -1,25 +1,35 @@
 # TFT Configs
 
 Temporal Fusion Transformer baseline via AutoGluon (quantile regression).
-GPU: ~8 GB peak → 2 workers per 96 GB Blackwell GPU is safe.
+TFT is the **only deep model in this stack that consumes past covariates**, so
+the sweep is split: BG-only (00–05) on all four datasets, and BG+IOB (06–11)
+on the IOB-bearing datasets only (`aleppo_2017 brown_2019 lynch_2022`).
 
-| Config | Covariates | Context | Notes |
-|--------|-----------|---------|-------|
-| `00_bg_only.yaml` | none | 512 | all 4 datasets |
-| `01_bg_iob.yaml` | iob | 512 | aleppo, brown, lynch |
-| `02_bg_iob_high_lr.yaml` | iob | 512 | lr 1e-3 → 3e-3 |
-| `03_bg_iob_short_ctx.yaml` | iob | 256 | ctx ablation |
+GPU: ~8 GB peak → 6 workers per 96 GB Blackwell GPU is safe.
+
+| Config | covariates | ctx | hidden_dim | var_dim | heads | dropout | lr | Notes |
+|--------|------------|-----|------------|---------|-------|---------|------|-------|
+| `00_bg_baseline.yaml`     | none  | 512 | 32 | 32 | 4 | 0.1 | 1e-3 | BG default |
+| `01_bg_wide.yaml`         | none  | 512 | 64 | 32 | 4 | 0.1 | 1e-3 | width ablation |
+| `02_bg_long_ctx.yaml`     | none  | 768 | 32 | 32 | 4 | 0.1 | 1e-3 | history ablation |
+| `03_bg_high_dropout.yaml` | none  | 512 | 32 | 32 | 4 | 0.3 | 1e-3 | regularisation |
+| `04_bg_more_heads.yaml`   | none  | 512 | 32 | 32 | 8 | 0.1 | 1e-3 | attention ablation |
+| `05_bg_high_lr.yaml`      | none  | 512 | 32 | 32 | 4 | 0.1 | 3e-3 | optimiser |
+| `06_iob_baseline.yaml`     | iob  | 512 | 32 | 32 | 4 | 0.1 | 1e-3 | IOB default |
+| `07_iob_wide.yaml`         | iob  | 512 | 64 | 32 | 4 | 0.1 | 1e-3 | width ablation |
+| `08_iob_long_ctx.yaml`     | iob  | 768 | 32 | 32 | 4 | 0.1 | 1e-3 | history ablation |
+| `09_iob_high_dropout.yaml` | iob  | 512 | 32 | 32 | 4 | 0.3 | 1e-3 | regularisation |
+| `10_iob_more_heads.yaml`   | iob  | 512 | 32 | 32 | 8 | 0.1 | 1e-3 | attention ablation |
+| `11_iob_high_lr.yaml`      | iob  | 512 | 32 | 32 | 4 | 0.1 | 3e-3 | optimiser |
+
+All configs use `forecast_length=96`, `batch_size=256`,
+`num_batches_per_epoch=50`, `max_epochs=100`, `early_stopping_patience=20`,
+`gradient_clip_val=1.0`.
 
 ## Run
 
 ```bash
-# 1. Train
-GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/tft_sweep_train.sh
-
-# 2. Evaluate
-GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/tft_sweep_eval.sh
-
-# Log to file
-GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/tft_sweep_train.sh 2>&1 | tee logs/tft_sweep_train.log
-GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/tft_sweep_eval.sh  2>&1 | tee logs/tft_sweep_eval.log
+bash scripts/experiments/tft_sweep_train.sh
+GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/tft_sweep_train.sh 2>&1 | tee logs/tft_sweep_train.log
+GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/tft_sweep_eval.sh  2>&1 | tee logs/tft_sweep_eval.log
 ```

@@ -53,7 +53,7 @@ class TFTForecaster(AutoGluonBaseModel):
         info_print(
             f"Starting TFTForecaster training: "
             f"context={config.context_length}, "
-            f"hidden={config.hidden_size}, heads={config.num_heads}, "
+            f"hidden={config.hidden_dim}, heads={config.num_heads}, "
             f"batch={config.batch_size}, lr={config.lr}"
             f"{cov_str}"
         )

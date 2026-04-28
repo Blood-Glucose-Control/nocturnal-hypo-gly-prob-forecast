@@ -24,11 +24,11 @@ class TestTFTConfig:
         hp = cfg.get_autogluon_hyperparameters()
         assert "TemporalFusionTransformer" in hp
 
-    def test_hidden_size_and_heads_propagated(self):
-        cfg = TFTConfig(hidden_size=128, num_heads=8)
+    def test_hidden_dim_and_heads_propagated(self):
+        cfg = TFTConfig(hidden_dim=128, num_heads=8)
         hp = cfg.get_autogluon_hyperparameters()
         tft = hp["TemporalFusionTransformer"]
-        assert tft["hidden_size"] == 128
+        assert tft["hidden_dim"] == 128
         assert tft["num_heads"] == 8
 
     def test_context_length_propagated(self):

@@ -32,14 +32,11 @@ class DeepARConfig(ModelConfig):
     training_mode: str = "from_scratch"
     training_backend: TrainingBackend = TrainingBackend.CUSTOM
 
-    # RNN architecture
-    hidden_size: int = 64  # LSTM/GRU hidden state dimension
-    num_layers: int = 2  # Number of stacked RNN layers
-    dropout: float = 0.1
-    cell_type: str = "lstm"  # "lstm" or "gru"
-
-    # Distribution head
-    distr_output: str = "StudentTOutput"  # natively probabilistic
+    # RNN architecture (AutoGluon's PyTorch DeepAR is LSTM-only;
+    # cell_type and distr_output (as a string) are not exposed by the API).
+    hidden_size: int = 64  # LSTM hidden state dimension
+    num_layers: int = 2  # Number of stacked LSTM layers
+    dropout_rate: float = 0.1
 
     # Training
     lr: float = 1e-3
@@ -81,8 +78,7 @@ class DeepARConfig(ModelConfig):
                 "context_length": self.context_length,
                 "hidden_size": self.hidden_size,
                 "num_layers": self.num_layers,
-                "dropout_rate": self.dropout,
-                "cell_type": self.cell_type,
+                "dropout_rate": self.dropout_rate,
                 "lr": self.lr,
                 "num_batches_per_epoch": self.num_batches_per_epoch,
                 "batch_size": self.batch_size,

@@ -96,6 +96,7 @@ for entry in "${CONFIGS[@]}"; do
     echo "============================================================"
 
     if MODEL_TYPE="statistical" \
+       VENV_NAME="chronos2" \
        MODEL_CONFIG="$config" \
        CONFIG_DIR="$CONFIG_DIR" \
        DATASETS="$datasets" \
@@ -106,6 +107,48 @@ for entry in "${CONFIGS[@]}"; do
        "$WORKFLOW"; then
         echo "[OK] statistical / ${stem}"
         echo "${stem}"$'\t'"${out_dir}" >> "$MANIFEST"
+
+        # Print leaderboard + per-series fallback count
+        "$PYTHON" - "$out_dir" <<'PYEOF'
+import sys, pathlib
+try:
+    from autogluon.timeseries import TimeSeriesPredictor
+    predictor_dir = pathlib.Path(sys.argv[1])
+    p = TimeSeriesPredictor.load(str(predictor_dir))
+    print("\n--- AutoGluon leaderboard ---")
+    print(p.leaderboard().to_string(index=False))
+    info = p.info()
+    print(f"\n--- Fit info ---")
+    print(f"  num_train_rows : {info.get('num_train_rows', 'n/a')}")
+    train_time = info.get('train_time')
+    print(f"  train_time_s   : {train_time:.1f}" if isinstance(train_time, float) else f"  train_time_s   : {train_time}")
+
+    # Per-series fallback count: AutoGluon local models (AutoARIMA, Theta, NPTS)
+    # store one fitted object per item_id in model.local_models. Items that
+    # timed out are replaced with a SimpleExpSmoothing/Naive fallback whose
+    # class name differs from the primary model class.
+    try:
+        trainer = p._learner.load_trainer()
+        for model_name in trainer.get_model_names():
+            m = trainer.load_model(model_name)
+            local = getattr(m, "local_models", None)
+            if local:
+                primary_cls = type(next(iter(local.values()))).__name__
+                fallback_count = sum(
+                    1 for v in local.values() if type(v).__name__ != primary_cls
+                )
+                total = len(local)
+                print(f"\n  {model_name}: {total - fallback_count}/{total} series fit successfully "
+                      f"({fallback_count} fell back to a simpler model)")
+    except Exception as inner:
+        print(f"  [fallback count unavailable: {inner}]")
+        print("  (check the training log above for 'fallback' or 'time limit' messages)")
+
+    print("-----------------------------\n")
+except Exception as e:
+    print(f"[WARN] Could not print leaderboard: {e}")
+PYEOF
+
         PASS=$(( PASS + 1 ))
     else
         echo "[FAIL] statistical / ${stem}"

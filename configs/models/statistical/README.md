@@ -23,7 +23,7 @@ bash scripts/experiments/statistical_sweep_train.sh
 bash scripts/experiments/statistical_sweep_eval.sh
 
 # Control CPU parallelism for eval
-JOBS_PER_CPU=4 bash scripts/experiments/statistical_sweep_eval.sh
+JOBS_PER_CPU=2 bash scripts/experiments/statistical_sweep_eval.sh
 
 # Log both to file
 bash scripts/experiments/statistical_sweep_train.sh 2>&1 | tee logs/statistical_sweep_train.log

@@ -51,7 +51,7 @@ class DeepARForecaster(AutoGluonBaseModel):
         info_print(
             f"Starting DeepARForecaster training: "
             f"context={config.context_length}, "
-            f"hidden={config.hidden_size}×{config.num_layers} ({config.cell_type.upper()}), "
+            f"hidden={config.hidden_size}×{config.num_layers} (LSTM), "
             f"batch={config.batch_size}, lr={config.lr}"
             f"{cov_str}"
         )

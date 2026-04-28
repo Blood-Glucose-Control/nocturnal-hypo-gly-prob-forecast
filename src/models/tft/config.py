@@ -30,10 +30,11 @@ class TFTConfig(ModelConfig):
     training_mode: str = "from_scratch"
     training_backend: TrainingBackend = TrainingBackend.CUSTOM
 
-    # TFT architecture
-    hidden_size: int = 64  # LSTM encoder/decoder hidden dimension
+    # TFT architecture (AG TFT API uses hidden_dim, variable_dim, dropout_rate)
+    hidden_dim: int = 32  # LSTM encoder/decoder + transformer hidden dimension
+    variable_dim: int = 32  # Feature embedding size
     num_heads: int = 4  # Attention heads in interpretable multi-head attention
-    dropout: float = 0.1
+    dropout_rate: float = 0.1
     num_outputs: int = 1  # Target channels (BG only)
 
     # Training
@@ -75,9 +76,10 @@ class TFTConfig(ModelConfig):
         return {
             "TemporalFusionTransformer": {
                 "context_length": self.context_length,
-                "hidden_size": self.hidden_size,
+                "hidden_dim": self.hidden_dim,
+                "variable_dim": self.variable_dim,
                 "num_heads": self.num_heads,
-                "dropout_rate": self.dropout,
+                "dropout_rate": self.dropout_rate,
                 "lr": self.lr,
                 "num_batches_per_epoch": self.num_batches_per_epoch,
                 "batch_size": self.batch_size,

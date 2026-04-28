@@ -91,7 +91,7 @@ echo ""
 # Parallelism (CPU-only)
 # ---------------------------------------------------------------------------
 N_CPUS=$(nproc 2>/dev/null || echo 4)
-JOBS_PER_CPU="${JOBS_PER_CPU:-$(( N_CPUS / 2 ))}"
+JOBS_PER_CPU="${JOBS_PER_CPU:-$(( N_CPUS > 8 ? N_CPUS - 8 : 1 ))}"
 [[ $JOBS_PER_CPU -lt 1 ]] && JOBS_PER_CPU=1
 echo "  CPUs available: ${N_CPUS},  parallel workers: ${JOBS_PER_CPU}"
 echo ""
