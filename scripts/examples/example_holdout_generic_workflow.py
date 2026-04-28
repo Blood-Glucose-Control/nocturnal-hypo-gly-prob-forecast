@@ -174,6 +174,11 @@ class ModelFactory:
             "tide": "",  # Trains from scratch, no pretrained path
             "toto": "Datadog/Toto-Open-Base-1.0",
             "moirai": "Salesforce/moirai-1.0-R-small",
+            "naive_baseline": "",  # No pretrained weights
+            "statistical": "",  # No pretrained weights
+            "deepar": "",  # Trains from scratch
+            "patchtst": "",  # Trains from scratch
+            "tft": "",  # Trains from scratch
         }
         return defaults.get(model_type, "")
 
@@ -214,10 +219,21 @@ class ModelFactory:
             return ModelFactory._create_toto_model(config, distributed_config)
         elif model_type == "moirai":
             return ModelFactory._create_moirai_model(config, distributed_config)
+        elif model_type == "naive_baseline":
+            return ModelFactory._create_naive_baseline_model(config, distributed_config)
+        elif model_type == "statistical":
+            return ModelFactory._create_statistical_model(config, distributed_config)
+        elif model_type == "deepar":
+            return ModelFactory._create_deepar_model(config, distributed_config)
+        elif model_type == "patchtst":
+            return ModelFactory._create_patchtst_model(config, distributed_config)
+        elif model_type == "tft":
+            return ModelFactory._create_tft_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
+                f"naive_baseline, statistical, deepar, patchtst, tft"
             )
 
     @staticmethod
@@ -482,6 +498,96 @@ class ModelFactory:
                 f"Moirai model not available. Install with: "
                 f"pip install 'nocturnal-hypo-gly-prob-forecast[moirai]'\n{e}"
             )
+
+    @staticmethod
+    def _create_naive_baseline_model(
+        config: "GenericModelConfig",
+        distributed_config=None,
+    ):
+        """Create a NaiveBaseline model instance (Naive or Average)."""
+        from src.models.naive_baseline import (
+            NaiveBaselineForecaster,
+            NaiveBaselineConfig,
+        )
+
+        extra = dict(config.extra_config) if config.extra_config else {}
+        naive_config = NaiveBaselineConfig(
+            context_length=config.context_length,
+            forecast_length=config.forecast_length,
+            model_name=extra.pop("model_name", "Naive"),
+            covariate_cols=extra.pop("covariate_cols", []),
+            **extra,
+        )
+        return NaiveBaselineForecaster(naive_config)
+
+    @staticmethod
+    def _create_statistical_model(
+        config: "GenericModelConfig",
+        distributed_config=None,
+    ):
+        """Create a Statistical model instance (AutoARIMA, Theta, or NPTS)."""
+        from src.models.statistical import StatisticalForecaster, StatisticalConfig
+
+        extra = dict(config.extra_config) if config.extra_config else {}
+        stat_config = StatisticalConfig(
+            context_length=config.context_length,
+            forecast_length=config.forecast_length,
+            model_name=extra.pop("model_name", "AutoARIMA"),
+            covariate_cols=extra.pop("covariate_cols", []),
+            **extra,
+        )
+        return StatisticalForecaster(stat_config)
+
+    @staticmethod
+    def _create_deepar_model(
+        config: "GenericModelConfig",
+        distributed_config=None,
+    ):
+        """Create a DeepAR model instance."""
+        from src.models.deepar import DeepARForecaster, DeepARConfig
+
+        extra = dict(config.extra_config) if config.extra_config else {}
+        deepar_config = DeepARConfig(
+            context_length=config.context_length,
+            forecast_length=config.forecast_length,
+            covariate_cols=extra.pop("covariate_cols", []),
+            **extra,
+        )
+        return DeepARForecaster(deepar_config)
+
+    @staticmethod
+    def _create_patchtst_model(
+        config: "GenericModelConfig",
+        distributed_config=None,
+    ):
+        """Create a PatchTST model instance."""
+        from src.models.patchtst import PatchTSTForecaster, PatchTSTConfig
+
+        extra = dict(config.extra_config) if config.extra_config else {}
+        patchtst_config = PatchTSTConfig(
+            context_length=config.context_length,
+            forecast_length=config.forecast_length,
+            covariate_cols=extra.pop("covariate_cols", []),
+            **extra,
+        )
+        return PatchTSTForecaster(patchtst_config)
+
+    @staticmethod
+    def _create_tft_model(
+        config: "GenericModelConfig",
+        distributed_config=None,
+    ):
+        """Create a TFT (TemporalFusionTransformer) model instance."""
+        from src.models.tft import TFTForecaster, TFTConfig
+
+        extra = dict(config.extra_config) if config.extra_config else {}
+        tft_config = TFTConfig(
+            context_length=config.context_length,
+            forecast_length=config.forecast_length,
+            covariate_cols=extra.pop("covariate_cols", []),
+            **extra,
+        )
+        return TFTForecaster(tft_config)
 
     @staticmethod
     def create_zero_shot_config(
@@ -1995,6 +2101,11 @@ stored in separate subdirectories for comparison.
             "tide",
             "toto",
             "moirai",
+            "naive_baseline",
+            "statistical",
+            "deepar",
+            "patchtst",
+            "tft",
         ],
         help="Type of model to use (default: ttm)",
     )

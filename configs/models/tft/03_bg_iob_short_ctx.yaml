@@ -1,0 +1,32 @@
+# =============================================================================
+# TFT Config 03: BG + IOB, short context (ctx ablation)
+# =============================================================================
+# Ablation: context 512 → 256.
+# Only run on datasets with IOB: aleppo_2017, brown_2019, lynch_2022.
+# =============================================================================
+
+model_type: "tft"
+training_mode: "from_scratch"
+context_length: 256
+forecast_length: 96
+
+hidden_size: 64
+num_heads: 4
+dropout: 0.1
+
+lr: 0.001
+num_batches_per_epoch: 50
+batch_size: 256
+max_epochs: 100
+early_stopping_patience: 20
+gradient_clip_val: 1.0
+
+covariate_cols: ["iob"]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

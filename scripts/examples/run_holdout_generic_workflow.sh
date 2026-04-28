@@ -63,6 +63,10 @@ RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 : ${BATCH_SIZE:=""}      # Leave empty to use YAML config value; set to override (e.g., BATCH_SIZE=4096)
 : ${MODEL_TYPE:="ttm"}  # Model type: ttm, chronos, moment, etc.
 : ${MODEL_CONFIG:=""}   # Path to model YAML config (e.g., configs/models/ttm/default.yaml)
+# VENV_NAME: override the venv used for this run (default: same as MODEL_TYPE).
+# Set this when the model shares a venv with another type, e.g.
+#   VENV_NAME=chronos2 for naive_baseline / statistical / deepar / patchtst / tft
+: ${VENV_NAME:="$MODEL_TYPE"}
 
 # =============================================================================
 # ENVIRONMENT SETUP
@@ -101,11 +105,11 @@ echo "Current directory: $(pwd)"
 # Activate virtual environment
 # Prefer model-specific environment for training (see CONTRIBUTING.md)
 echo "Activating environment..."
-if [ -f ".venvs/${MODEL_TYPE}/bin/activate" ]; then
-    source ".venvs/${MODEL_TYPE}/bin/activate"
-    echo "✓ Activated model-specific environment: .venvs/${MODEL_TYPE}"
+if [ -f ".venvs/${VENV_NAME}/bin/activate" ]; then
+    source ".venvs/${VENV_NAME}/bin/activate"
+    echo "✓ Activated model-specific environment: .venvs/${VENV_NAME}"
 elif [ -f ".noctprob-venv/bin/activate" ]; then
-    echo "⚠️  Model-specific env .venvs/${MODEL_TYPE} not found, using general dev environment"
+    echo "⚠️  Model-specific env .venvs/${VENV_NAME} not found, using general dev environment"
     echo "   Consider running: source scripts/setup_model_env.sh ${MODEL_TYPE}"
     source .noctprob-venv/bin/activate
     echo "✓ Activated .noctprob-venv"

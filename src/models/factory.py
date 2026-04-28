@@ -509,8 +509,135 @@ def create_model_and_config(
             model = TimesFMForecaster(config)
         return model, config
 
+    elif model_type == "naive_baseline":
+        from src.models.naive_baseline import (
+            NaiveBaselineForecaster,
+            NaiveBaselineConfig,
+        )
+
+        if checkpoint:
+            model = NaiveBaselineForecaster.load(checkpoint)
+            config = model.config
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = NaiveBaselineConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                model_name=kwargs.get("model_name", "Naive"),
+                covariate_cols=kwargs.get("covariate_cols", []),
+            )
+            model = NaiveBaselineForecaster(config)
+        return model, config
+
+    elif model_type == "statistical":
+        from src.models.statistical import StatisticalForecaster, StatisticalConfig
+
+        if checkpoint:
+            model = StatisticalForecaster.load(checkpoint)
+            config = model.config
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = StatisticalConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                model_name=kwargs.get("model_name", "AutoARIMA"),
+                covariate_cols=kwargs.get("covariate_cols", []),
+                time_limit=kwargs.get("time_limit", 7200),
+            )
+            model = StatisticalForecaster(config)
+        return model, config
+
+    elif model_type == "deepar":
+        from src.models.deepar import DeepARForecaster, DeepARConfig
+
+        if checkpoint:
+            model = DeepARForecaster.load(checkpoint)
+            config = model.config
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = DeepARConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                covariate_cols=kwargs.get("covariate_cols", []),
+            )
+            model = DeepARForecaster(config)
+        return model, config
+
+    elif model_type == "patchtst":
+        from src.models.patchtst import PatchTSTForecaster, PatchTSTConfig
+
+        if checkpoint:
+            model = PatchTSTForecaster.load(checkpoint)
+            config = model.config
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = PatchTSTConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                covariate_cols=kwargs.get("covariate_cols", []),
+            )
+            model = PatchTSTForecaster(config)
+        return model, config
+
+    elif model_type == "tft":
+        from src.models.tft import TFTForecaster, TFTConfig
+
+        if checkpoint:
+            model = TFTForecaster.load(checkpoint)
+            config = model.config
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = TFTConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                covariate_cols=kwargs.get("covariate_cols", []),
+            )
+            model = TFTForecaster(config)
+        return model, config
+
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, tide, moment"
+            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, "
+            f"tide, moment, naive_baseline, statistical, deepar, patchtst, tft"
         )

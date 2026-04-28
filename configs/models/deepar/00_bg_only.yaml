@@ -1,0 +1,38 @@
+# =============================================================================
+# DeepAR Config 00: BG-only, default hyperparameters
+# =============================================================================
+# DeepAR is an RNN-based natively probabilistic model (StudentT output).
+# Context: 512 steps (42.7h). Forecast: 96 steps (8h).
+# GPU: ~4 GB peak at these defaults → 2 workers per 96 GB Blackwell GPU.
+# =============================================================================
+
+model_type: "deepar"
+training_mode: "from_scratch"
+context_length: 512
+forecast_length: 96
+
+# Architecture
+hidden_size: 64
+num_layers: 2
+dropout: 0.1
+cell_type: "lstm"
+distr_output: "StudentTOutput"
+
+# Training
+lr: 0.001
+num_batches_per_epoch: 50
+batch_size: 128
+max_epochs: 100
+early_stopping_patience: 20
+gradient_clip_val: 10.0
+
+# No covariates (BG-only)
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

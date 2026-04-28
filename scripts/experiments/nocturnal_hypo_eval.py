@@ -155,6 +155,11 @@ def parse_arguments() -> argparse.Namespace:
             "timesfm",
             "tide",
             "toto",
+            "naive_baseline",
+            "statistical",
+            "deepar",
+            "patchtst",
+            "tft",
         ],
         help="Model type to use for evaluation",
     )

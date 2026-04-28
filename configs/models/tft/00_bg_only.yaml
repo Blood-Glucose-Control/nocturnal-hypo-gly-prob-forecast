@@ -1,0 +1,37 @@
+# =============================================================================
+# TFT Config 00: BG-only, default hyperparameters
+# =============================================================================
+# TemporalFusionTransformer with gated residual networks, LSTM encoder/decoder,
+# and interpretable multi-head attention. Natively probabilistic via quantile
+# regression. We omit known future covariates — future IOB/COB is unknowable.
+# GPU: ~8 GB peak at these defaults → 2 workers per 96 GB Blackwell GPU.
+# =============================================================================
+
+model_type: "tft"
+training_mode: "from_scratch"
+context_length: 512
+forecast_length: 96
+
+# Architecture
+hidden_size: 64
+num_heads: 4
+dropout: 0.1
+
+# Training
+lr: 0.001
+num_batches_per_epoch: 50
+batch_size: 256
+max_epochs: 100
+early_stopping_patience: 20
+gradient_clip_val: 1.0
+
+# No covariates (BG-only)
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45
