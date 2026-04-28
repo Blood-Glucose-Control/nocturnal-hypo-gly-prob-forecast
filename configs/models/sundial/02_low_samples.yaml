@@ -1,0 +1,5 @@
+# Sundial Sweep Config 02 — Low sample count
+# Fewer samples for faster inference (quality-speed tradeoff)
+num_samples: 20
+context_length: 512
+forecast_length: 96
