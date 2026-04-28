@@ -427,3 +427,17 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
         self.predictor = TimeSeriesPredictor.load(predictor_path)
         self.is_fitted = True
         self.logger.info("Predictor loaded from %s", predictor_path)
+
+    @classmethod
+    def load(cls, model_path: str, config=None):
+        """Load a saved AutoGluon-backed model from *model_path*.
+
+        A default config is used when none is provided because the predictor
+        state is stored entirely inside the AutoGluon predictor directory; the
+        config values are not needed to reconstruct inference capability.
+        """
+        if config is None:
+            config = cls.config_class()
+        instance = cls(config)
+        instance._load_checkpoint(model_path)
+        return instance

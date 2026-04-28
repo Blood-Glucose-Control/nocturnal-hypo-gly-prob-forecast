@@ -21,5 +21,5 @@ bash scripts/experiments/naive_baseline_sweep_train.sh 2>&1 | tee logs/naive_tra
 bash scripts/experiments/naive_baseline_sweep_eval.sh 2>&1 | tee logs/naive_eval.log
 
 # Control eval parallelism
-JOBS_PER_CPU=4 bash scripts/experiments/naive_baseline_sweep_eval.sh
+JOBS_PER_CPU=4 bash scripts/experiments/naive_baseline_sweep_eval.sh | tee logs/naive_eval.log
 ```

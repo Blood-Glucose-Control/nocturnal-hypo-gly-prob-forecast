@@ -173,18 +173,22 @@ run_gpu_worker() {
         echo "[${label}] ============================================"
 
         eval_args=(
-            --probabilistic
+            --model tft
             --model-config "$model_config"
-            --data-config "$data_config"
+            --dataset "$dataset"
+            --config-dir "$CONFIG_DIR"
             --checkpoint "$checkpoint"
+            --context-length "$ctx_len"
+            --forecast-length 96
+            --cuda-device "$gpu"
+            --probabilistic
         )
         if [[ -n "$cov_cols" ]]; then
             # shellcheck disable=SC2206
             eval_args+=(--covariate-cols $cov_cols)
         fi
 
-        if CUDA_VISIBLE_DEVICES="$gpu" \
-           "$PYTHON" scripts/experiments/nocturnal_hypo_eval.py "${eval_args[@]}"; then
+        if "$PYTHON" scripts/experiments/nocturnal_hypo_eval.py "${eval_args[@]}"; then
             echo "[${label}] [OK] ${done_key}"
             echo "$done_key" >> "$DONE_FILE"
             pass=$(( pass + 1 ))

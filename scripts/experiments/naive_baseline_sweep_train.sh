@@ -67,7 +67,7 @@ for config in "${CONFIGS[@]}"; do
        CONFIG_DIR="$CONFIG_DIR" \
        DATASETS="$ALL_DATASETS" \
        SKIP_TRAINING="false" \
-       SKIP_STEPS="4 7" \
+       SKIP_STEPS="1 2 4 7" \
        OUTPUT_BASE_DIR="$out_dir" \
        RUN_ID="$RUN_ID" \
        "$WORKFLOW"; then

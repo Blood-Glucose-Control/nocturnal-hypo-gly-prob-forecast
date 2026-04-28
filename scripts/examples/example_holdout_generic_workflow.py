@@ -873,10 +873,31 @@ class ModelFactory:
                 **moirai_kwargs,
             )
             return MoiraiForecaster.load(model_path, moirai_config)
+        elif model_type_lower == "naive_baseline":
+            from src.models.naive_baseline import NaiveBaselineForecaster
+
+            return NaiveBaselineForecaster.load(model_path)
+        elif model_type_lower == "statistical":
+            from src.models.statistical import StatisticalForecaster
+
+            return StatisticalForecaster.load(model_path)
+        elif model_type_lower == "deepar":
+            from src.models.deepar import DeepARForecaster
+
+            return DeepARForecaster.load(model_path)
+        elif model_type_lower == "patchtst":
+            from src.models.patchtst import PatchTSTForecaster
+
+            return PatchTSTForecaster.load(model_path)
+        elif model_type_lower == "tft":
+            from src.models.tft import TFTForecaster
+
+            return TFTForecaster.load(model_path)
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
+                f"naive_baseline, statistical, deepar, patchtst, tft"
             )
 
 

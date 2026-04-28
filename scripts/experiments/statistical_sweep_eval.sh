@@ -152,10 +152,14 @@ run_cpu_worker() {
         echo "[${label}] ============================================"
 
         eval_args=(
-            --probabilistic
+            --model statistical
             --model-config "$model_config"
-            --data-config "$data_config"
+            --dataset "$dataset"
+            --config-dir "$CONFIG_DIR"
             --checkpoint "$checkpoint"
+            --context-length "$ctx_len"
+            --forecast-length 96
+            --probabilistic
         )
         if [[ -n "$cov_cols" ]]; then
             # shellcheck disable=SC2206
