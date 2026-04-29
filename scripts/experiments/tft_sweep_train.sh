@@ -49,7 +49,7 @@ fi
 
 # Smoke-test imports
 "$PYTHON" - <<'EOF'
-from autogluon.timeseries.models import TFTModel
+from autogluon.timeseries.models import TemporalFusionTransformerModel
 print("AutoGluon TFT import OK")
 EOF
 echo ""

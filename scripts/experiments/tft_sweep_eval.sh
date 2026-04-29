@@ -54,10 +54,18 @@ fi
 
 # Format: "stem|ctx_len|cov_cols|datasets_key"
 CONFIG_META=(
-    "00_bg_only|512||ALL"
-    "01_bg_iob|512|iob|IOB"
-    "02_bg_iob_high_lr|512|iob|IOB"
-    "03_bg_iob_short_ctx|256|iob|IOB"
+    "00_bg_baseline|512||ALL"
+    "01_bg_wide|512||ALL"
+    "02_bg_long_ctx|768||ALL"
+    "03_bg_high_dropout|512||ALL"
+    "04_bg_more_heads|512||ALL"
+    "05_bg_high_lr|512||ALL"
+    "06_iob_baseline|512|iob|IOB"
+    "07_iob_wide|512|iob|IOB"
+    "08_iob_long_ctx|768|iob|IOB"
+    "09_iob_high_dropout|512|iob|IOB"
+    "10_iob_more_heads|512|iob|IOB"
+    "11_iob_high_lr|512|iob|IOB"
 )
 
 mkdir -p "$LOG_DIR"

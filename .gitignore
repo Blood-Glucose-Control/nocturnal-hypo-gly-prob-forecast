@@ -89,6 +89,7 @@ results/
 # Local-only research notes and scratch scripts
 notes/
 scripts/scratch/
+logs/
 
 # Cache directory (symlinked to shared location)
 cache
