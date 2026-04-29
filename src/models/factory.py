@@ -569,6 +569,7 @@ def create_model_and_config(
         if checkpoint:
             model = DeepARForecaster.load(checkpoint)
             config = model.config
+            config.context_length = kwargs.get("context_length", config.context_length)
             if "forecast_length" in kwargs:
                 requested = kwargs["forecast_length"]
                 if requested <= config.forecast_length:
@@ -593,6 +594,7 @@ def create_model_and_config(
         if checkpoint:
             model = PatchTSTForecaster.load(checkpoint)
             config = model.config
+            config.context_length = kwargs.get("context_length", config.context_length)
             if "forecast_length" in kwargs:
                 requested = kwargs["forecast_length"]
                 if requested <= config.forecast_length:
@@ -617,6 +619,7 @@ def create_model_and_config(
         if checkpoint:
             model = TFTForecaster.load(checkpoint)
             config = model.config
+            config.context_length = kwargs.get("context_length", config.context_length)
             if "forecast_length" in kwargs:
                 requested = kwargs["forecast_length"]
                 if requested <= config.forecast_length:

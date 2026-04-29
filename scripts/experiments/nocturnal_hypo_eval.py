@@ -278,8 +278,8 @@ def main():
         )
         raise ValueError("Model does not support probabilistic forecasting")
 
-    context_length = config.context_length
-    forecast_length = config.forecast_length
+    context_length = args.context_length
+    forecast_length = args.forecast_length
     mode = "Fine-tuned" if args.checkpoint else "Zero-shot"
 
     # Setup output directory and file logging BEFORE logging config,
