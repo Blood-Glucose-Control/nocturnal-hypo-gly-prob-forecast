@@ -30,6 +30,7 @@ dependencies = [
     "orjson",
     "pandas",
     "pyarrow>=14.0.0",
+    "psycopg2-binary",
     "pydantic",
     "pyreadstat",
     "python-dotenv",

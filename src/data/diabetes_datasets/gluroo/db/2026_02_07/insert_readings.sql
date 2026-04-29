@@ -1,0 +1,1 @@
+-- Use insert_readings_month_by_month.sh to insert readings data month by month
