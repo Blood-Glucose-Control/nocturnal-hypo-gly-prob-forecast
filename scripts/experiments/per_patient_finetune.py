@@ -58,6 +58,43 @@ from src.models import create_model_and_config
 from src.models.base.base_model import LoRAConfig
 from src.utils import get_git_commit_hash, setup_file_logging
 
+
+# ---------------------------------------------------------------------------
+# Monkey-patch: inject EarlyStoppingCallback into AutoGluon's Chronos trainer.
+# AutoGluon uses load_best_model_at_end but has NO patience-based early stopping.
+# Without this, training runs for all allocated steps even when val loss plateaus.
+# ---------------------------------------------------------------------------
+def _patch_chronos_early_stopping(patience: int = 5):
+    """Patch ChronosModel._fit to add EarlyStoppingCallback to the HF Trainer."""
+    from autogluon.timeseries.models.chronos import ChronosModel
+    from transformers import EarlyStoppingCallback
+
+    _original_fit = ChronosModel._fit
+
+    def _patched_fit(self, *args, **kwargs):
+        # Temporarily patch Trainer.__init__ to inject the callback
+        from transformers import Trainer
+
+        _orig_trainer_init = Trainer.__init__
+
+        def _patched_trainer_init(trainer_self, *t_args, **t_kwargs):
+            callbacks = t_kwargs.get("callbacks", []) or []
+            callbacks.append(EarlyStoppingCallback(early_stopping_patience=patience))
+            t_kwargs["callbacks"] = callbacks
+            return _orig_trainer_init(trainer_self, *t_args, **t_kwargs)
+
+        Trainer.__init__ = _patched_trainer_init
+        try:
+            return _original_fit(self, *args, **kwargs)
+        finally:
+            Trainer.__init__ = _orig_trainer_init
+
+    ChronosModel._fit = _patched_fit
+    logger.info(
+        "Patched ChronosModel._fit with EarlyStoppingCallback(patience=%d)", patience
+    )
+
+
 # Constants
 STEPS_PER_DAY = 288  # 5-min intervals × 24h
 SAMPLING_INTERVAL_MINUTES = 5
@@ -362,6 +399,8 @@ def run_single_patient(
 
     # ── Filter to target patient ────────────────────────────────────────────
     patient_df = holdout_data[holdout_data[patient_col] == patient_id].copy()
+    if len(patient_df) == 0:
+        raise ValueError(f"Patient '{patient_id}' not found in data")
 
     time_col = "datetime" if "datetime" in patient_df.columns else patient_df.columns[0]
     total_days = (
@@ -398,7 +437,7 @@ def run_single_patient(
         "test": 0.0,
     }
     logger.info(
-        "Stage 2 split config: train=%.3f (%.0f rows), val=%.3f (%.0f rows), test excluded",
+        "Stage 2 split config: train=%.3f (%d rows), val=%.3f (%d rows), test excluded",
         train_frac,
         len(finetune_df),
         val_frac,
@@ -509,22 +548,27 @@ def run_single_patient(
         logger.info("Stage 2 LR:     %g", args.learning_rate)
         logger.info("Stage 2 epochs: %d (with early stopping)", args.num_epochs)
 
-    if hasattr(model.config, "split_config"):
-        model.config.split_config = stage2_split_config
-        logger.info("Updated split_config: %s", stage2_split_config)
-    else:
-        logger.info(
-            "Model does not use split_config; backend handles validation internally"
-        )
-
     # ── Stage 2 fine-tuning ────────────────────────────────────────────────
+    # Models handle validation differently (see GitHub issue #396):
+    # - TTM: expects all data in one blob, splits internally via split_config
+    #   (coupled with scaler fitting + context overlap in TSFM's get_datasets)
+    # - Chronos2: no internal split; val_data must be passed separately
     logger.info("\n--- Stage 2 Fine-Tuning ---")
     finetune_checkpoint_dir = str(output_path / "stage2_checkpoint")
 
-    finetune_metrics = model.fit(
-        train_data=training_input,
-        output_dir=finetune_checkpoint_dir,
-    )
+    if hasattr(model.config, "split_config"):
+        model.config.split_config = stage2_split_config
+        logger.info("Updated split_config: %s", stage2_split_config)
+        finetune_metrics = model.fit(
+            train_data=training_input,
+            output_dir=finetune_checkpoint_dir,
+        )
+    else:
+        finetune_metrics = model.fit(
+            train_data=finetune_df,
+            output_dir=finetune_checkpoint_dir,
+            val_data=val_df,
+        )
     logger.info(
         "Fine-tuning complete. Train metrics: %s",
         finetune_metrics.get("train_metrics", {}),
@@ -670,7 +714,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         required=True,
-        choices=["ttm", "sundial", "chronos2"],
+        choices=["ttm", "sundial", "chronos2", "timesfm"],
         help="Model type (must match checkpoint)",
     )
     parser.add_argument(
@@ -767,6 +811,12 @@ def parse_arguments() -> argparse.Namespace:
         default=None,
         help="Covariate column names for nocturnal eval (e.g. iob cob)",
     )
+    parser.add_argument(
+        "--early-stopping-patience",
+        type=int,
+        default=5,
+        help="Early stopping patience for Chronos2 (0 to disable, default: 5)",
+    )
     return parser.parse_args()
 
 
@@ -777,6 +827,10 @@ def parse_arguments() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_arguments()
+
+    # ── Apply early stopping patch for Chronos2 ────────────────────────────
+    if args.model == "chronos2" and args.early_stopping_patience > 0:
+        _patch_chronos_early_stopping(patience=args.early_stopping_patience)
 
     # ── Load holdout data (shared across all patients) ──────────────────────
     logger.info("\n--- Loading Holdout Data ---")

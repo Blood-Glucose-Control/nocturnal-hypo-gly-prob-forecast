@@ -92,6 +92,9 @@ class Chronos2Config(ModelConfig):
     # AutoGluon training settings
     eval_metric: str = "WQL"
     enable_ensemble: bool = False
+    # When True and tuning_data is provided, AutoGluon evaluates on the
+    # validation set during fine-tuning and loads the best checkpoint.
+    eval_during_fine_tune: bool = True
     # min_past=1 is AutoGluon's default. It controls the minimum number of past
     # steps required when AutoGluon creates sliding windows from each segment.
     # With gap-handled segments (each >= context_length + forecast_length rows),
@@ -139,6 +142,7 @@ class Chronos2Config(ModelConfig):
                 "fine_tune_steps": self.fine_tune_steps,
                 "fine_tune_lr": self.fine_tune_lr,
                 "context_length": self.context_length,
+                "eval_during_fine_tune": self.eval_during_fine_tune,
                 # Disable cross_learning so each time series is predicted
                 # independently.  Our episodes are unrelated patient-nights;
                 # joint prediction across items is wrong.
