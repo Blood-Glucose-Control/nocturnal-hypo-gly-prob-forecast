@@ -7,7 +7,7 @@ VENVS_DIR := $(ROOT_DIR)/.venvs
 # Each model has its own venv due to conflicting dependency versions.
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: test-ttm test-sundial test-timesfm test-chronos2 test-models test lint help
+.PHONY: test-ttm test-sundial test-timesfm test-chronos2 test-models test lint summary grand-summary help
 
 test-ttm:
 	$(VENVS_DIR)/ttm/bin/python -m pytest tests/models/ -v -k ttm
@@ -35,6 +35,23 @@ test:
 test-all: test test-models
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Analysis
+# ─────────────────────────────────────────────────────────────────────────────
+
+.PHONY: summary grand-summary
+
+## Summarize nocturnal forecasting experiments
+summary-rmse:
+	.noctprob-venv/bin/python scripts/analysis/summarize_experiments.py --metric rmse
+
+summary-wql:
+	.noctprob-venv/bin/python scripts/analysis/summarize_experiments.py --metric wql
+
+## Rebuild grand summary table (results/grand_summary/)
+grand-summary:
+	.noctprob-venv/bin/python scripts/analysis/build_grand_summary.py
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Linting
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -53,3 +70,6 @@ help:
 	@echo "  test           Run non-model tests (main venv)"
 	@echo "  test-all       Run all tests"
 	@echo "  lint           Run ruff linter"
+	@echo "  summary-rmse   Summarize nocturnal forecasting experiments (RMSE)"
+	@echo "  summary-wql    Summarize nocturnal forecasting experiments (WQL)"
+	@echo "  grand-summary  Rebuild grand summary table"

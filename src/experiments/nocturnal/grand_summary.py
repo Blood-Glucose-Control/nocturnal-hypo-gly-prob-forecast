@@ -46,6 +46,8 @@ DEFAULT_METRICS: tuple[str, ...] = (
     "wql",
     "sharpness_50",
     "coverage_50",
+    "sharpness_80",
+    "coverage_80",
     "brier_3_9",
     "dilate_g001",
     "shape_g001",
@@ -393,6 +395,11 @@ def read_covariate_cols(run_path: str | Path) -> list[str] | None:
         return None
     cli = cfg.get("cli_args", {}) or {}
     cols = cli.get("covariate_cols")
+    if cols is None:
+        # Fall back to model_config.covariate_cols (populated when covariates
+        # are specified in the model YAML rather than as CLI args).
+        model_cfg = cfg.get("model_config", {}) or {}
+        cols = model_cfg.get("covariate_cols")
     if cols is None:
         return []
     if isinstance(cols, list):
