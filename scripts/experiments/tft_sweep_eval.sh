@@ -21,6 +21,7 @@ PYTHON="${PROJECT_ROOT}/.venvs/chronos2/bin/python"
 CONFIG_DIR="configs/data/holdout_10pct"
 ALL_DATASETS=(lynch_2022 aleppo_2017 brown_2019 tamborlane_2008)
 DATASETS_WITH_IOB=(lynch_2022 aleppo_2017 brown_2019)
+DATASETS_IOB_COB=(aleppo_2017)
 MANIFEST="trained_models/artifacts/tft/sweep_manifest.txt"
 LOG_DIR="logs"
 
@@ -66,6 +67,11 @@ CONFIG_META=(
     "09_iob_high_dropout|512|iob|IOB"
     "10_iob_more_heads|512|iob|IOB"
     "11_iob_high_lr|512|iob|IOB"
+    "12_iob_cob_baseline|512|iob cob|ALEPPO"
+    "13_iob_cob_wide|512|iob cob|ALEPPO"
+    "14_iob_cob_high_dropout|512|iob cob|ALEPPO"
+    "15_iob_cob_more_heads|512|iob cob|ALEPPO"
+    "16_iob_cob_high_lr|512|iob cob|ALEPPO"
 )
 
 mkdir -p "$LOG_DIR"
@@ -81,6 +87,8 @@ for entry in "${CONFIG_META[@]}"; do
 
     if [[ "$datasets_key" == "IOB" ]]; then
         ft_datasets=("${DATASETS_WITH_IOB[@]}")
+    elif [[ "$datasets_key" == "ALEPPO" ]]; then
+        ft_datasets=("${DATASETS_IOB_COB[@]}")
     else
         ft_datasets=("${ALL_DATASETS[@]}")
     fi

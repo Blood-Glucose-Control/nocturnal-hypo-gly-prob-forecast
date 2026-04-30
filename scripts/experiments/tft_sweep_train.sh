@@ -59,6 +59,7 @@ echo ""
 # ---------------------------------------------------------------------------
 DATASETS_ALL="aleppo_2017 brown_2019 lynch_2022 tamborlane_2008"
 DATASETS_WITH_IOB="aleppo_2017 brown_2019 lynch_2022"
+DATASETS_IOB_COB="aleppo_2017"
 
 CONFIGS=(
     "configs/models/tft/00_bg_baseline.yaml|ALL"
@@ -73,6 +74,11 @@ CONFIGS=(
     "configs/models/tft/09_iob_high_dropout.yaml|IOB"
     "configs/models/tft/10_iob_more_heads.yaml|IOB"
     "configs/models/tft/11_iob_high_lr.yaml|IOB"
+    "configs/models/tft/12_iob_cob_baseline.yaml|ALEPPO"
+    "configs/models/tft/13_iob_cob_wide.yaml|ALEPPO"
+    "configs/models/tft/14_iob_cob_high_dropout.yaml|ALEPPO"
+    "configs/models/tft/15_iob_cob_more_heads.yaml|ALEPPO"
+    "configs/models/tft/16_iob_cob_high_lr.yaml|ALEPPO"
 )
 
 CONFIG_DIR="configs/data/holdout_10pct"
@@ -144,6 +150,8 @@ run_gpu_worker() {
         local datasets
         if [[ "$datasets_key" == "IOB" ]]; then
             datasets="$DATASETS_WITH_IOB"
+        elif [[ "$datasets_key" == "ALEPPO" ]]; then
+            datasets="$DATASETS_IOB_COB"
         else
             datasets="$DATASETS_ALL"
         fi

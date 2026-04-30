@@ -47,6 +47,10 @@ from src.evaluation.nocturnal import (
     STEPS_PER_HOUR,
 )
 from src.evaluation.storage import write_nocturnal_results
+from src.experiments.nocturnal.grand_summary import (
+    bucket_from_covariates,
+    model_supports_past_covariates,
+)
 from src.models import create_model_and_config
 from src.utils import get_git_commit_hash, setup_file_logging, load_yaml_config
 
@@ -262,6 +266,21 @@ def main():
     }
     model_kwargs.pop("model_type", None)
 
+    # Early check: covariate columns were passed for a model that cannot use them.
+    # Fail immediately before loading weights to prevent silent data leakage bugs.
+    requested_covariates = config_dict.get("covariate_cols") or args.covariate_cols
+    if requested_covariates and not model_supports_past_covariates(args.model):
+        logger.error(
+            "%s does not support past covariates but --covariate-cols %s was "
+            "passed. Remove --covariate-cols or use a model that accepts "
+            "past covariates (e.g., chronos2, tft, tide).",
+            args.model,
+            requested_covariates,
+        )
+        raise ValueError(
+            f"{args.model} does not support past covariates: {requested_covariates}"
+        )
+
     # Initialize model
     logger.info(f"\n--- Initializing {args.model.upper()} ---")
     model, config = create_model_and_config(
@@ -409,6 +428,9 @@ def main():
         "dataset": args.dataset,
         "timestamp": datetime.now().isoformat(),
         "config": resolved_config,
+        "cov_bucket": bucket_from_covariates(
+            mode.lower().replace("-", ""), covariate_cols
+        ),
     }
     written = write_nocturnal_results(results, output_path, tier_metadata)
     for tier_name, tier_path in written.items():

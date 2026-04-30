@@ -47,6 +47,7 @@ Usage:
 import argparse
 import json
 import logging
+import os
 import shutil
 import sys
 import traceback
@@ -2202,9 +2203,18 @@ stored in separate subdirectories for comparison.
         skip_steps.add(4)
 
     # Set output directory
+    # Always create a unique timestamped RID subdirectory so that:
+    #   - repeated runs never clobber each other, and
+    #   - the artifacts root (e.g. trained_models/artifacts/ttm) is not polluted.
+    _now = datetime.now()
+    _ts_short = _now.strftime("%Y-%m-%d_%H:%M")
+    _ts_long = _now.strftime("%Y%m%d_%H%M%S")
+    _pid = os.getpid()
+    _run_subdir = f"{_ts_short}_RID{_ts_long}_{_pid}_holdout_workflow"
     if args.output_dir is None:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
-        args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_{args.model_type}_holdout_workflow"
+        args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{_run_subdir}"
+    else:
+        args.output_dir = str(Path(args.output_dir) / _run_subdir)
 
     logger.info("=" * 80)
     logger.info("GENERIC FORECASTER WORKFLOW DEMONSTRATION")

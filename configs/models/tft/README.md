@@ -2,8 +2,10 @@
 
 Temporal Fusion Transformer baseline via AutoGluon (quantile regression).
 TFT is the **only deep model in this stack that consumes past covariates**, so
-the sweep is split: BG-only (00–05) on all four datasets, and BG+IOB (06–11)
-on the IOB-bearing datasets only (`aleppo_2017 brown_2019 lynch_2022`).
+the sweep is split: BG-only (00–05) on all four datasets, BG+IOB (06–11)
+on the IOB-bearing datasets only (`aleppo_2017 brown_2019 lynch_2022`), and
+BG+IOB+COB (12–17) on `aleppo_2017` only (the sole dataset with both insulin
+and carb covariates).
 
 GPU: ~8 GB peak → 6 workers per 96 GB Blackwell GPU is safe.
 
@@ -21,6 +23,11 @@ GPU: ~8 GB peak → 6 workers per 96 GB Blackwell GPU is safe.
 | `09_iob_high_dropout.yaml` | iob  | 512 | 32 | 32 | 4 | 0.3 | 1e-3 | regularisation |
 | `10_iob_more_heads.yaml`   | iob  | 512 | 32 | 32 | 8 | 0.1 | 1e-3 | attention ablation |
 | `11_iob_high_lr.yaml`      | iob  | 512 | 32 | 32 | 4 | 0.1 | 3e-3 | optimiser |
+| `12_iob_cob_baseline.yaml`    | iob, cob  | 512 | 32 | 32 | 4 | 0.1 | 1e-3 | IOB+COB default |
+| `13_iob_cob_wide.yaml`        | iob, cob  | 512 | 64 | 32 | 4 | 0.1 | 1e-3 | width ablation |
+| `14_iob_cob_high_dropout.yaml`| iob, cob  | 512 | 32 | 32 | 4 | 0.3 | 1e-3 | regularisation |
+| `15_iob_cob_more_heads.yaml`  | iob, cob  | 512 | 32 | 32 | 8 | 0.1 | 1e-3 | attention ablation |
+| `16_iob_cob_high_lr.yaml`     | iob, cob  | 512 | 32 | 32 | 4 | 0.1 | 3e-3 | optimiser |
 
 All configs use `forecast_length=96`, `batch_size=256`,
 `num_batches_per_epoch=50`, `max_epochs=100`, `early_stopping_patience=20`,

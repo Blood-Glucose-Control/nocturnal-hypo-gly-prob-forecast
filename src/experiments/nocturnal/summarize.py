@@ -30,6 +30,10 @@ from typing import Any
 
 # Local imports
 from src.experiments.base.experiment import ExperimentSummarizer
+from src.experiments.nocturnal.grand_summary import (
+    bucket_from_covariates,
+    read_covariate_cols,
+)
 
 log = logging.getLogger(__name__)
 
@@ -130,6 +134,14 @@ class NocturnalSummarizer(ExperimentSummarizer):
         git_commit = _read_git_commit(run_dir)
         checkpoint = data.get("checkpoint") or _read_checkpoint(run_dir)
 
+        # Covariate bucket: prefer value baked into results_summary.json (new
+        # runs); fall back to deriving it from experiment_config.json for old
+        # runs that pre-date the tier_metadata change.
+        cov_bucket = data.get("cov_bucket")
+        if cov_bucket is None:
+            cov_cols = read_covariate_cols(run_dir)
+            cov_bucket = bucket_from_covariates(mode, cov_cols)
+
         model_str = data.get("model", model)
         if model_str in _MULTI_VARIANT_MODELS:
             variant = _read_model_variant(checkpoint)
@@ -145,6 +157,7 @@ class NocturnalSummarizer(ExperimentSummarizer):
             "model": model_str,
             "dataset": data.get("dataset", ""),
             "mode": mode,
+            "cov_bucket": cov_bucket,
             "timestamp": data.get("timestamp", ""),
             "context_length": cfg.get("context_length"),
             "forecast_length": cfg.get("forecast_length"),
