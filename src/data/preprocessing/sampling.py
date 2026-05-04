@@ -1,0 +1,232 @@
+"""
+Time series sampling and resampling utilities for continuous glucose monitoring data.
+
+This module provides functions for handling irregular sampling in time series data,
+particularly focused on glucose monitoring applications. It includes functionality for:
+
+1. Detecting and fixing irregular time intervals
+2. Resampling data to standard frequencies
+3. Handling missing values during resampling operations
+4. Ensuring consistent sampling across patient datasets
+
+These utilities help prepare time-series data for analysis by standardizing sampling
+frequencies, which is essential for many time series algorithms and cross-patient
+comparisons.
+
+Functions:
+    ensure_regular_time_intervals: Normalize data to have consistent time intervals
+    resample_to_frequency: Resample time series data to a specified frequency
+"""
+
+from typing_extensions import deprecated
+import pandas as pd
+from typing import Literal, Tuple
+from src.data.models import ColumnNames
+from src.data.preprocessing.time_processing import get_most_common_time_interval
+import logging
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+
+@deprecated("Use ensure_regular_time_intervals_with_aggregation instead")
+def ensure_regular_time_intervals(
+    df: pd.DataFrame, direction: Literal["backward", "forward", "nearest"] = "forward"
+) -> Tuple[pd.DataFrame, int]:
+    """Ensures regular time intervals exist in the dataframe by adding rows with NaN values
+    where timestamps are missing, and maps shifted timestamps to the nearest regular interval.
+
+    Args:
+        df (pd.DataFrame): Input dataframe with datetime index
+
+    Returns:
+        pd.DataFrame: DataFrame with regular time intervals, missing times filled with NaN,
+                     and shifted data mapped to nearest regular intervals
+    """
+    logger.info("ensure_regular_time_intervals(): Ensuring regular time intervals...")
+    # Validate inputs
+    if df.empty:
+        return df.copy(), 0  # Return empty DataFrame with same structure
+
+    if df.shape[0] <= 1:
+        raise ValueError("DataFrame must contain more than 1 row")
+
+    if "p_num" not in df.columns:
+        raise ValueError("DataFrame must contain 'p_num' column")
+
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame must have datetime index")
+
+    original_data = df.copy()
+    freq = get_most_common_time_interval(df)
+    logger.info(f"\tMost common time interval: {freq} minutes")
+
+    # This is possible when there are only a few rows (new users who start and quit. They would only have system messages that are very close to each other)
+    if freq == 0:
+        gid = df[ColumnNames.P_NUM.value].iloc[0]
+        raise ValueError(
+            f"Time interval is 0 minutes. This may indicate duplicate timestamps or insufficient data. gid: {gid}"
+        )
+
+    # Create complete time range for this patient
+    full_time_range = pd.date_range(
+        start=df.index.min(),
+        end=df.index.max(),
+        freq=f"{freq}min",
+    )
+
+    # Create a DataFrame with the complete time range
+    full_df = pd.DataFrame(index=full_time_range)
+    full_df.index.name = "datetime"
+
+    # For each data point, find the nearest regular timestamp
+    tolerance = pd.Timedelta(
+        minutes=freq * (2 / 3)
+    )  # Allow up to two-thirds of the interval as tolerance
+
+    # Use merge_asof to match each original timestamp to the nearest regular timestamp
+    # First, prepare the data
+    # original_data = result_df.reset_index()
+    regular_times = pd.DataFrame({"datetime": full_time_range})
+
+    # Use merge_asof with tolerance to map shifted timestamps to regular intervals
+    mapped_data = pd.merge_asof(
+        regular_times,  # left
+        original_data,  # right
+        on="datetime",
+        tolerance=tolerance,
+        direction=direction,
+    )
+
+    # Set datetime back as index
+    mapped_data = mapped_data.set_index("datetime")
+    mapped_data.index.name = "datetime"
+
+    # For any regular timestamps that didn't get matched, we'll have NaN values
+    # This preserves the regular time grid while capturing shifted data
+
+    logger.info(
+        f"Post-ensure_regular_time_intervals(): \n\t\t\tPatient {df['p_num'].iloc[0]} \n\t\t\t - old index length: {len(df.index)}, \n\t\t\t - new index length: {len(mapped_data.index)}"
+    )
+
+    return mapped_data, freq
+
+
+def ensure_regular_time_intervals_with_aggregation(
+    df: pd.DataFrame,
+) -> Tuple[pd.DataFrame, int]:
+    """
+    Ensures regular time intervals by aggregating all data points within each interval.
+    We first round each row's timestamp to the nearest interval as "_bin" (round to the nearest multiple of the detected interval).
+    This function also resamples the DataFrame to multiples of the detected frequency.
+
+    Unlike ensure_regular_time_intervals which only takes one row, this function
+    aggregates multiple rows that fall within the same "_bin" (regular interval window).
+
+    - Blood glucose (ColumnNames.BG.value) and other "rate of changes" columns (ColumnNames.RATE.value, ColumnNames.HR_BPM.value) are averaged
+    - All other numerical columns are summed
+    - Categorical columns take the first value
+
+    Args:
+        df: Input dataframe with datetime index
+
+    Returns:
+        Tuple[pd.DataFrame, int]: (DataFrame with regular intervals, frequency in minutes)
+    """
+    logger.info(
+        "ensure_regular_time_intervals_with_aggregation(): Ensuring regular time intervals with aggregation..."
+    )
+
+    # Validate inputs
+    if df.empty:
+        return df.copy(), 0
+
+    if df.shape[0] <= 1:
+        raise ValueError("DataFrame must contain more than 1 row")
+
+    if "p_num" not in df.columns:
+        raise ValueError("DataFrame must contain 'p_num' column")
+
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError("DataFrame must have datetime index")
+
+    freq = get_most_common_time_interval(df)
+    # This is possible when there are only a few rows (new users who start and quit. They would only have system messages that are very close to each other)
+    if freq == 0:
+        gid = df[ColumnNames.P_NUM.value].iloc[0]
+        raise ValueError(
+            f"Time interval is 0 minutes. This may indicate duplicate timestamps or insufficient data. Skipping gid: {gid}"
+        )
+    logger.info(f"\tMost common time interval: {freq} minutes")
+
+    datetime_col = ColumnNames.DATETIME.value
+
+    # Identify numerical vs non-numerical columns
+    numerical_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+
+    # Remove columns that are not needed for aggregation
+    # bgInput is the finger prick. Not used for now.
+    for col in [ColumnNames.P_NUM.value, "isf", "cr", "iob", "bgInput"]:
+        if col in numerical_cols:
+            numerical_cols.remove(col)
+
+    # Rate of change columns we use mean aggregation.
+    mean_cols = [ColumnNames.BG.value, ColumnNames.RATE.value, ColumnNames.HR_BPM.value]
+
+    # Columns where zero is a legitimate value and must NOT be replaced with NaN.
+    # rate=0 means pump suspension (zero insulin delivery) — converting to NaN
+    # would cause forward-fill to create phantom insulin during basal rollover.
+    zero_preserving_cols = {ColumnNames.RATE.value}
+
+    # Prepare aggregation dict
+    agg_dict = {}
+    for col in df.columns:
+        if col in numerical_cols:
+            if col in mean_cols:
+                # Convert numerical zeros to NaN to avoid skewing the aggregation,
+                # but skip columns where zero is a legitimate measurement.
+                if col not in zero_preserving_cols:
+                    df[col] = df[col].replace(0, np.nan)
+                agg_dict[col] = "mean"
+            else:
+                agg_dict[col] = "sum"
+        else:
+            agg_dict[col] = "first"
+
+    logger.info(f"\tAggregation strategy: {agg_dict}")
+
+    # Vectorized binning: round timestamps to nearest interval (≈ ± freq/2 window)
+    tmp = df.copy()
+    # See: https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DatetimeIndex.round.html
+    # Honestly in real life we rarely have equal distance between bins
+    tmp["_bin"] = tmp.index.round(f"{freq}min")
+
+    # Aggregate in one pass
+    grouped = tmp.groupby("_bin", sort=True).agg(agg_dict)
+    grouped.index.name = datetime_col
+
+    # Round start and end to match the same grid as the rounded bins
+    start_rounded = df.index.min().round(f"{freq}min")
+    end_rounded = df.index.max().round(f"{freq}min")
+    full_time_range = pd.date_range(
+        start=start_rounded,
+        end=end_rounded,
+        freq=f"{freq}min",
+    )
+
+    # Reindex to full grid; ensure p_num retained for empty bins
+    result_df = grouped.reindex(full_time_range)
+    result_df.index.name = datetime_col
+    if ColumnNames.P_NUM.value in result_df.columns:
+        result_df[ColumnNames.P_NUM.value] = result_df[ColumnNames.P_NUM.value].fillna(
+            df[ColumnNames.P_NUM.value].iloc[0]
+        )
+
+    logger.info(
+        f"Post-ensure_regular_time_intervals_with_aggregation(): \n\t\t\t"
+        f"Patient {df['p_num'].iloc[0]} \n\t\t\t "
+        f"- old index length: {len(df.index)}, \n\t\t\t "
+        f"- new index length: {len(result_df.index)}"
+    )
+
+    return result_df, freq

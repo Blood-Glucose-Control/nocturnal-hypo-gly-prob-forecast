@@ -1,0 +1,95 @@
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anon-nocturnal"
+version = "0.1.0"
+description = "Probabilistic nocturnal hypoglycemia forecasting from CGM data"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    # Development tools
+    "accelerate>=0.26.0",
+    "pre-commit",
+    "pytest",
+    "pytest-mock",
+    "ruff>=0.3.0",
+
+    # Data Science & ML
+    "datasets",
+    "ipynb",
+    "ipython",
+    "ipywidgets",
+    "jupyterlab",
+    "loguru",
+    "notebook",
+    "numba",
+    "numpy",
+    "orjson",
+    "pandas",
+    "pyarrow>=14.0.0",
+    "pydantic",
+    "pyreadstat",
+    "python-dotenv",
+    "PyWavelets",
+    "scikit-learn",
+    "skchange",
+    "sktime",
+    "tabulate",
+    "torch",
+    "transformers",
+    "tqdm",
+    "pyyaml",
+
+    # Visualization
+    "matplotlib",
+    "seaborn",
+
+    # Utilities
+    "typer",
+]
+
+[project.optional-dependencies]
+ttm = [
+    "granite-tsfm[notebooks] @ git+https://github.com/ibm-granite/granite-tsfm.git@v0.3.3",
+    "transformers[torch]==4.56.0",
+]
+sundial = [
+    "transformers==4.40.1",
+]
+chronos2 = [
+    "autogluon.timeseries==1.5.0",
+    "transformers==4.56.0",
+]
+timegrad = [
+    "pytorchts",
+    "gluonts>=0.9.0,<0.10.0",
+]
+moment = [
+    "momentfm",
+]
+timesfm = [
+    "transformers>=5.2.0",
+]
+tide = [
+    "autogluon.timeseries==1.5.0",
+]
+moirai = [
+    "uni2ts @ git+https://github.com/SalesforceAIResearch/uni2ts.git",
+    "gluonts>=0.14.0",
+    "lightning>=2.0",
+    "transformers>=4.56.0",
+]
+toto = [
+    "toto-ts",
+]
+dev = [
+    "babelbetes>=0.2.3",
+]
+
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

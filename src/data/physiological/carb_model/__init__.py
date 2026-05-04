@@ -1,0 +1,1 @@
+"""Carbohydrate absorption model."""

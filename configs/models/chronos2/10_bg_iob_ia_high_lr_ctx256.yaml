@@ -1,0 +1,46 @@
+# =============================================================================
+# Chronos-2  10 — CGM + IOB + insulin_availability  |  LR = 5e-5  |  ctx = 256
+# =============================================================================
+# Context window ablation of 04_bg_iob_ia_high_lr at 256 steps (~21.3h).
+# uses the same high-LR covariate set as the sweep winner (04) to isolate
+# the effect of context window length with LR held at 5e-5.
+#
+# Context ablation ladder (high-LR IOB):
+#   04_bg_iob_ia_high_lr.yaml          → ctx=512 (~42.7h)   [baseline]
+#   THIS config                         → ctx=256 (~21.3h)
+#   11_bg_iob_ia_high_lr_ctx128.yaml   → ctx=128 (~10.7h)
+#   12_bg_iob_ia_high_lr_ctx64.yaml    → ctx=64  (~5.3h)
+#
+# Note: 256/128/64 are powers of 2, more natural for transformer positional
+# encoding than the previous 288 (~24h, calendar-aligned but not 2^n).
+#
+# Datasets: aleppo_2017, brown_2019, lynch_2022
+#
+# Usage:
+#   MODEL_TYPE="chronos2" \
+#   MODEL_CONFIG="configs/models/chronos2/10_bg_iob_ia_high_lr_ctx256.yaml" \
+#   DATASETS="aleppo_2017 brown_2019 lynch_2022" \
+#   SKIP_TRAINING="false" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+model_path: "autogluon/chronos-2"
+context_length: 256  # ~21.3h at 5-min intervals (2^8)
+forecast_length: 96  # 8 hours at 5-min intervals
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+fine_tune_steps: 10000
+fine_tune_lr: 5.0e-5
+fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB; T5-small 256→~45GB (verified safe)
+checkpoint_save_steps: 2000
+
+covariate_cols: [iob, insulin_availability]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false

@@ -1,0 +1,5 @@
+# Sundial Sweep Config 01 — High sample count
+# More samples for better probabilistic calibration
+num_samples: 100
+context_length: 512
+forecast_length: 96

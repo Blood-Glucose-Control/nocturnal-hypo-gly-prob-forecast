@@ -1,0 +1,6 @@
+model,dataset,cov_bucket,cov_variant,model_class,run_path
+tide,lynch_2022,iob_cob,"cob,insulin_availability,iob",deep_learning,experiments/nocturnal_forecasting/512ctx_96fh/tide/2026-04-23_2005_lynch_2022_finetuned
+moirai,lynch_2022,iob_cob,"cob,iob",foundation,experiments/nocturnal_forecasting/512ctx_96fh/moirai/2026-04-23_0521_lynch_2022_finetuned
+moment,lynch_2022,iob_cob,"carb_availability,cob,insulin_availability,iob",foundation,experiments/nocturnal_forecasting/512ctx_96fh/moment/2026-04-23_2158_lynch_2022_finetuned
+toto,lynch_2022,iob_cob,"cob,iob",foundation,experiments/nocturnal_forecasting/512ctx_96fh/toto/2026-04-23_0453_lynch_2022_finetuned
+ttm,lynch_2022,iob_cob,"cob,iob",foundation,experiments/nocturnal_forecasting/512ctx_96fh/ttm/2026-04-23_0141_lynch_2022_finetuned

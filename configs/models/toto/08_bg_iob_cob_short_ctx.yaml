@@ -1,0 +1,32 @@
+# =============================================================================
+# Toto — BG + IOB + COB  |  lr=1e-4  |  ctx=256
+# =============================================================================
+# Same covariates as 05, but shorter context window (256 vs 512).
+# Compare against 05 to check context length sensitivity with carbs.
+#
+# Usage:
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="toto" \
+#   MODEL_CONFIG="configs/models/toto/08_bg_iob_cob_short_ctx.yaml" \
+#   CONFIG_DIR="configs/data/holdout_10pct" \
+#   DATASETS="aleppo_2017 lynch_2022" \
+#   SKIP_TRAINING="false" SKIP_STEPS="7" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+context_length: 256
+forecast_length: 96
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+max_steps: 3000
+lr: 1.0e-4
+min_lr: 1.0e-5
+warmup_steps: 200
+stable_steps: 1000
+decay_steps: 1000
+
+train_batch_size: 4
+val_batch_size: 1
+
+covariate_cols: [iob, cob]

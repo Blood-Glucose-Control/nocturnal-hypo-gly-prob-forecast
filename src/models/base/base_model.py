@@ -1,0 +1,1157 @@
+"""
+Base model framework for Time Series Foundation Models (TSFMs).
+
+This module provides the abstract base classes and utilities for implementing
+different time series foundation models in a unified framework.
+"""
+
+import json
+import logging
+import os
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+import torch
+from torch.utils.data import DataLoader
+from enum import Enum
+
+# Local imports - adapt these to your existing structure
+from src.utils.logging_helper import info_print, error_print
+
+
+class TrainingBackend(Enum):
+    """Training strategy options for different model architectures."""
+
+    TRANSFORMERS = "transformers"  # Uses transformers.Trainer
+    PYTORCH = "pytorch"  # Custom PyTorch training loop
+    CUSTOM = "custom"  # Model-specific training implementation
+
+
+@dataclass
+class ModelConfig:
+    """Configuration class for model architecture and training parameters.
+
+    This dataclass holds all configuration parameters needed to initialize,
+    train, and evaluate a time series foundation model.
+
+    Attributes:
+        model_type: Identifier for the model type (e.g., "ttm", "chronos").
+        model_path: Path to pre-trained model weights or HuggingFace model ID.
+        context_length: Number of historical time steps used as input.
+        forecast_length: Number of future time steps to predict.
+        d_model: Dimension of the model's hidden representations.
+        n_heads: Number of attention heads (for transformer-based models).
+        n_layers: Number of transformer/encoder layers.
+        dropout: Dropout probability for regularization.
+        training_mode: Training approach - "zero_shot", "fine_tune", or "from_scratch".
+        freeze_backbone: Whether to freeze pre-trained weights during fine-tuning.
+        learning_rate: Learning rate for the optimizer.
+        batch_size: Number of samples per training batch.
+        num_epochs: Number of training epochs.
+        warmup_steps: Number of warmup steps for learning rate scheduler.
+        weight_decay: L2 regularization coefficient.
+        gradient_clip_val: Maximum gradient norm for clipping.
+        eval_strategy: When to evaluate - "steps" or "epoch".
+        eval_steps: Number of steps between evaluations (if eval_strategy="steps").
+        save_steps: Number of steps between checkpoint saves.
+        logging_steps: Number of steps between logging updates.
+        early_stopping_patience: Epochs without improvement before stopping.
+        metric_for_best_model: Metric to monitor for best model selection.
+        greater_is_better: Whether higher metric values are better.
+        fp16: Whether to use mixed precision (FP16) training.
+        dataloader_num_workers: Number of worker processes for data loading.
+        use_cpu: Force CPU usage even if GPU is available.
+        training_backend: The training framework to use (Transformers, PyTorch, etc.).
+        loss_function: Loss function for training - "mse", "mae", "huber", or "pinball".
+    """
+
+    # Model architecture
+    model_type: str = "base"
+    model_path: Optional[str] = None  # Path to pre-trained model
+    context_length: int = 512
+    forecast_length: int = 96
+    d_model: int = 512
+    n_heads: int = 8
+    n_layers: int = 6
+    dropout: float = 0.1
+
+    # Model behavior
+    training_mode: str = "fine_tune"  # "zero_shot", "fine_tune", "from_scratch"
+    freeze_backbone: bool = False
+
+    # Training configuration
+    learning_rate: float = 1e-4
+    batch_size: int = 64
+    num_epochs: int = 10
+    warmup_steps: int = 1000
+    weight_decay: float = 0.01
+    gradient_clip_val: float = 1.0
+
+    # Evaluation
+    eval_strategy: str = "steps"
+    eval_steps: int = 1000
+    save_steps: int = 2000
+    logging_steps: int = 100
+    early_stopping_patience: int = 10
+    metric_for_best_model: str = "eval_loss"
+    greater_is_better: bool = False
+
+    # Hardware/Performance
+    fp16: bool = True
+    dataloader_num_workers: int = 2
+    use_cpu: bool = False
+
+    # Training strategy
+    training_backend: TrainingBackend = TrainingBackend.TRANSFORMERS
+
+    # Loss function
+    loss_function: str = "mse"  # "mse", "mae", "huber", "pinball"
+
+    # Probabilistic forecasting — quantile levels to produce at inference time.
+    # None means each model uses its own default (e.g. AutoGluon uses [0.1..0.9]).
+    # Set explicitly (e.g. [0.1, 0.2, ..., 0.9]) to control which quantiles are
+    # registered at training time and returned by predict_quantiles().
+    quantile_levels: Optional[List[float]] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert configuration to a dictionary.
+
+        Converts all configuration attributes to a dictionary format suitable
+        for JSON serialization. Enum values are converted to their string
+        representations.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing all configuration parameters.
+        """
+        result = {}
+        for k, v in self.__dict__.items():
+            # Handle enum values by converting to their string representation
+            if hasattr(v, "value"):  # Enum objects have a 'value' attribute
+                result[k] = v.value
+            else:
+                result[k] = v
+        return result
+
+    @classmethod
+    def from_dict(cls, config_dict: Dict[str, Any]) -> "ModelConfig":
+        """Create a configuration instance from a dictionary.
+
+        Args:
+            config_dict: Dictionary containing configuration parameters.
+                Keys should match the attribute names of ModelConfig.
+
+        Returns:
+            ModelConfig: New configuration instance with values from the dictionary.
+
+        Raises:
+            TypeError: If config_dict contains keys that are not valid attributes.
+        """
+        d = dict(config_dict)
+        if "training_backend" in d and isinstance(d["training_backend"], str):
+            d["training_backend"] = TrainingBackend(d["training_backend"])
+        return cls(**d)
+
+
+@dataclass
+class LoRAConfig:
+    """Configuration for LoRA (Low-Rank Adaptation) fine-tuning.
+
+    LoRA enables memory-efficient fine-tuning by adding trainable low-rank
+    decomposition matrices to transformer layers while keeping the original
+    weights frozen.
+
+    Attributes:
+        enabled: Whether to enable LoRA fine-tuning.
+        rank: Rank of the low-rank decomposition matrices. Lower values use
+            less memory but may reduce model capacity.
+        alpha: Scaling factor for LoRA updates. Higher values increase the
+            influence of LoRA adaptations.
+        dropout: Dropout probability applied to LoRA layers.
+        target_modules: List of module names to apply LoRA to (e.g., ["q_proj", "v_proj"]).
+        bias: How to handle bias terms - "none", "all", or "lora_only".
+        auto_detect_modules: Whether to automatically detect suitable target modules
+            based on the model architecture.
+    """
+
+    enabled: bool = False
+    rank: int = 16
+    alpha: int = 32
+    dropout: float = 0.1
+    target_modules: List[str] = field(default_factory=lambda: ["q_proj", "v_proj"])
+    bias: str = "none"  # "none", "all", "lora_only"
+
+    # Architecture compatibility
+    auto_detect_modules: bool = True  # Automatically detect target modules
+
+
+@dataclass
+class DistributedConfig:
+    """Configuration for distributed training across multiple GPUs or nodes.
+
+    Supports various distributed training strategies including DDP (Distributed
+    Data Parallel), DeepSpeed, and FSDP (Fully Sharded Data Parallel).
+
+    Attributes:
+        enabled: Whether to enable distributed training.
+        strategy: Distributed training strategy - "ddp", "deepspeed", or "fsdp".
+        world_size: Total number of processes participating in training.
+        local_rank: Rank of this process on the local node (0-indexed).
+        backend: Communication backend - "nccl" (GPU) or "gloo" (CPU).
+        find_unused_parameters: Whether DDP should find unused parameters. Set to
+            False for better performance with static computation graphs.
+        gradient_as_bucket_view: Enable memory-efficient gradient bucketing in DDP.
+        deepspeed_config: DeepSpeed configuration dictionary for ZeRO optimization,
+            mixed precision, and other DeepSpeed-specific settings.
+        fsdp_config: FSDP configuration dictionary for sharding policy,
+            CPU offloading, and other FSDP-specific settings.
+    """
+
+    enabled: bool = False
+    strategy: str = "ddp"  # "ddp", "deepspeed", "fsdp"
+    world_size: int = 1
+    local_rank: int = 0
+    backend: str = "nccl"
+
+    # DDP specific optimizations
+    find_unused_parameters: bool = (
+        False  # Set to False for better performance with static models like TTM
+    )
+    gradient_as_bucket_view: bool = True  # Enable for memory efficiency
+
+    # DeepSpeed specific
+    deepspeed_config: Optional[Dict[str, Any]] = None
+
+    # FSDP specific
+    fsdp_config: Optional[Dict[str, Any]] = None
+
+
+class BaseTimeSeriesFoundationModel(ABC):
+    """
+    Abstract base class for all Time Series Foundation Models.
+
+    This class provides the common interface and functionality that all
+    time series foundation models should implement, including:
+    - Model initialization and configuration
+    - Training pipeline management
+    - Distributed training setup
+    - LoRA integration for memory-efficient fine-tuning
+    - Model saving/loading with metadata
+    - Evaluation and metrics computation
+    """
+
+    # Subclasses override this to point at their config class so that
+    # the base load() can deserialize config.json correctly without
+    # each model needing its own load() override.
+    config_class: type = ModelConfig
+    # Default quantile levels used by predict_quantiles() when neither the caller
+    # nor config.quantile_levels specifies a value. Matches the decile grid
+    # supported by most pretrained models (e.g. TimesFM's fixed output head).
+    DEFAULT_QUANTILE_LEVELS: List[float] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
+    def __init__(
+        self,
+        config: ModelConfig,
+        lora_config: Optional[LoRAConfig] = None,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """
+        Initialize the base TSFM.
+
+        Args:
+            config: Model configuration
+            lora_config: LoRA configuration for efficient fine-tuning
+            distributed_config: Distributed training configuration
+        """
+        self.config = config
+        self.lora_config = lora_config or LoRAConfig()
+        self.distributed_config = distributed_config or DistributedConfig()
+
+        # Model and training components
+        self.model: Optional[torch.nn.Module] = None
+        self.tokenizer = None  # For models that need tokenization
+
+        # Training state
+        self.is_fitted = False
+        self.training_history = {}
+        self.best_metrics = {}
+
+        # Distributed training
+        self._distributed_setup_done = False
+
+        # Logging
+        self.logger = logging.getLogger(self.__class__.__name__)
+
+        # Initialize model
+        self._initialize_model()
+
+    # Properties
+    @property
+    @abstractmethod
+    def training_backend(self) -> TrainingBackend:
+        """
+        Return the training strategy this model uses.
+
+        Returns:
+            TrainingBackend: The training approach for this model
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def supports_lora(self) -> bool:
+        """
+        Check if this model architecture supports LoRA fine-tuning.
+
+        Returns:
+            bool: True if the model supports LoRA, False otherwise
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def supports_zero_shot(self) -> bool:
+        """
+        Check if this model can predict without training (pretrained weights).
+
+        Returns:
+            bool: True if the model supports zero-shot prediction, False otherwise
+        """
+        pass
+
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        """Check if this model can produce calibrated quantile forecasts.
+
+        Returns False by default. Models that handle quantile_levels in
+        _predict() should override this to return True.
+
+        Returns:
+            bool: True if the model supports quantile_levels parameter, False otherwise
+        """
+        return False
+
+    # Public API methods
+    def predict(
+        self,
+        data: pd.DataFrame,
+        quantile_levels: Optional[List[float]] = None,
+        **kwargs,
+    ) -> np.ndarray:
+        """Make predictions on new data using configured forecast_length.
+
+        Validates that the model is ready for inference, then delegates
+        to the model-specific _predict() implementation. Following the
+        sktime BaseForecaster pattern (predict -> _predict).
+
+        When quantile_levels is provided, returns probabilistic forecasts
+        as quantile trajectories instead of point forecasts. Quantile level
+        resolution priority (first non-None wins):
+          1. quantile_levels argument passed by the caller
+          2. self.config.quantile_levels (set in model config)
+          3. self.DEFAULT_QUANTILE_LEVELS ([0.1, 0.2, ..., 0.9])
+
+        Args:
+            data: DataFrame with 'bg_mM' column containing the context window.
+                  May include additional columns for multivariate models.
+            quantile_levels: Quantile levels to return, e.g. [0.1, 0.5, 0.9].
+                When None (default), returns point forecasts. When set, returns
+                quantile forecasts. For AutoGluon-backed models (Chronos2, TiDE)
+                these must be a subset of the levels registered at training time.
+            **kwargs: Model-specific options (e.g., batch_size, inverse_scale).
+
+        Returns:
+            When quantile_levels is None: np.ndarray of shape (forecast_length,).
+            When quantile_levels is set: np.ndarray of shape
+                (len(quantile_levels), forecast_length).
+
+        Raises:
+            RuntimeError: If the model has not been fitted and does not
+                support zero-shot prediction.
+            NotImplementedError: If quantile_levels is set but the model does
+                not support probabilistic forecasting.
+            ValueError: If data contains multiple episode IDs. Use
+                predict_batch() for multi-episode panels.
+        """
+        if not self.is_fitted and not self.supports_zero_shot:
+            raise RuntimeError(
+                f"{self.__class__.__name__} requires training before prediction. "
+                f"Call fit() or load() first."
+            )
+        if "episode_id" in data.columns and data["episode_id"].nunique() > 1:
+            raise ValueError(
+                "predict() handles a single episode. "
+                "Use predict_batch() for multi-episode panels."
+            )
+        if quantile_levels is not None:
+            if not self.supports_probabilistic_forecast:
+                raise NotImplementedError(
+                    f"{self.__class__.__name__} does not support probabilistic "
+                    f"forecasting. Use predict() without quantile_levels for "
+                    f"point forecasts."
+                )
+            resolved_levels = (
+                quantile_levels
+                or self.config.quantile_levels
+                or self.DEFAULT_QUANTILE_LEVELS
+            )
+            return self._predict(data, quantile_levels=resolved_levels, **kwargs)
+        return self._predict(data, **kwargs)
+
+    # Abstract methods that child classes must implement
+    ## Abstract public API methods
+    @abstractmethod
+    def _predict(
+        self,
+        data: pd.DataFrame,
+        quantile_levels: Optional[List[float]] = None,
+        **kwargs,
+    ) -> np.ndarray:
+        """Model-specific prediction logic.
+
+        Subclasses implement this instead of predict(). Inputs are
+        guaranteed to be valid (model is either fitted or supports
+        zero-shot inference).
+
+        Args:
+            data: DataFrame with 'bg_mM' column containing the context window.
+                  May include additional columns for multivariate models.
+            quantile_levels: When None, return point forecasts as shape
+                (forecast_length,). When set, return quantile forecasts as
+                shape (len(quantile_levels), forecast_length). Models that
+                don't support probabilistic forecasting can ignore this
+                parameter — the base class guards against it being set on
+                unsupported models.
+            **kwargs: Model-specific options (e.g., batch_size, inverse_scale).
+
+        Returns:
+            When quantile_levels is None: np.ndarray of shape (forecast_length,).
+            When quantile_levels is set: np.ndarray of shape
+                (len(quantile_levels), forecast_length).
+        """
+        pass
+
+    def predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str = "episode_id",
+        quantile_levels: Optional[List[float]] = None,
+    ) -> Dict[str, np.ndarray]:
+        """Make predictions for multiple episodes in a panel DataFrame.
+
+        Dispatches to _predict_batch(), which models can override for
+        GPU-efficient native batching. The default implementation loops
+        sequentially over episodes using predict().
+
+        When quantile_levels is provided, returns probabilistic forecasts.
+        Quantile level resolution follows the same priority as predict().
+
+        Args:
+            data: Flat DataFrame with an ``episode_col`` column identifying
+                episodes. Each episode's rows should match what predict()
+                accepts (same columns, same format).
+            episode_col: Column name identifying episodes. Defaults to
+                "episode_id" (the project's standard episode identifier).
+            quantile_levels: Quantile levels to return, e.g. [0.1, 0.5, 0.9].
+                When None (default), returns point forecasts. When set,
+                returns quantile forecasts per episode.
+
+        Returns:
+            Dict mapping episode ID (as str) to numpy forecast array.
+            When quantile_levels is None: each value has shape (forecast_length,).
+            When quantile_levels is set: each value has shape
+                (len(quantile_levels), forecast_length).
+        """
+        if not self.is_fitted and not self.supports_zero_shot:
+            raise RuntimeError(
+                f"{self.__class__.__name__} requires training before prediction. "
+                f"Call fit() or load() first."
+            )
+
+        if episode_col not in data.columns:
+            raise ValueError(
+                f"Column '{episode_col}' not found in data. "
+                f"Available columns: {list(data.columns)}"
+            )
+
+        if quantile_levels is not None:
+            if not self.supports_probabilistic_forecast:
+                raise NotImplementedError(
+                    f"{self.__class__.__name__} does not support probabilistic "
+                    f"forecasting. Use predict_batch() without quantile_levels "
+                    f"for point forecasts."
+                )
+            quantile_levels = (
+                quantile_levels
+                or self.config.quantile_levels
+                or self.DEFAULT_QUANTILE_LEVELS
+            )
+
+        input_ids = {str(eid) for eid in data[episode_col].unique()}
+        if not input_ids:
+            return {}
+
+        if quantile_levels is None:
+            # Backward-compatible dispatch for model overrides that implement
+            # _predict_batch(self, data, episode_col) without quantile_levels.
+            results = self._predict_batch(data, episode_col)
+        else:
+            results = self._predict_batch(data, episode_col, quantile_levels)
+
+        missing = input_ids - set(results.keys())
+        if missing:
+            self.logger.warning(
+                "%d episode(s) produced no predictions: %s",
+                len(missing),
+                sorted(missing)[:10],
+            )
+
+        return results
+
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+        quantile_levels: Optional[List[float]] = None,
+    ) -> Dict[str, np.ndarray]:
+        """Default sequential loop for multi-episode prediction.
+
+        Iterates over grouped episodes and calls predict() for each one.
+        Models that support native GPU batching (e.g. Chronos2, TTM) should
+        override this method for more efficient inference.
+
+        Args:
+            data: Panel DataFrame with an episode_col column.
+            episode_col: Column name identifying episodes.
+            quantile_levels: When set, passed through to predict() for
+                quantile forecasts.
+
+        Returns:
+            Dict mapping episode ID (as str) to numpy forecast array.
+        """
+        results: Dict[str, np.ndarray] = {}
+        for ep_id, ep_data in data.groupby(episode_col):
+            results[str(ep_id)] = self.predict(ep_data, quantile_levels=quantile_levels)
+        return results
+
+    ## Abstract Protected Methods
+    @abstractmethod
+    def _initialize_model(self) -> None:
+        """Initialize the specific model architecture."""
+        pass
+
+    @abstractmethod
+    def _prepare_training_data(
+        self,
+        train_data: Any,
+    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
+        """
+        Prepare data loaders for training, validation, and testing.
+
+        Data splitting is controlled by model configuration.
+
+        Args:
+            train_data: Training dataset (will be split based on config)
+
+        Returns:
+            Tuple of (train_loader, val_loader, test_loader)
+        """
+        pass
+
+    @abstractmethod
+    def _save_checkpoint(self, output_dir: str) -> None:
+        """Save model checkpoint files (weights, optimizer state, etc.) to directory.
+
+        This method should ONLY handle writing checkpoint files. The base class
+        save() handles config.json and metadata.json.
+        """
+        pass
+
+    @abstractmethod
+    def _load_checkpoint(self, model_dir: str) -> None:
+        """Load model checkpoint files (weights, optimizer state, etc.) from directory.
+
+        This method should ONLY handle reading checkpoint files. The base class
+        load() handles config.json and metadata.json.
+        """
+        pass
+
+    @abstractmethod
+    def _train_model(
+        self,
+        train_data: Any,
+        output_dir: str,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Model-specific training implementation.
+
+        Data splitting for train/val/test is controlled by model configuration.
+
+        Args:
+            train_data: Training dataset (will be split based on config)
+            output_dir: Directory to save outputs
+            **kwargs: Additional arguments
+        """
+        pass
+
+    # Public API (fit, predict, evaluate, save_model, load_model, get_model_info...)
+    def fit(
+        self,
+        train_data: Any,
+        output_dir: str = "./output",
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """Fit the model to training data.
+
+        This method orchestrates the complete training pipeline including:
+        - Setting up distributed training (if configured)
+        - Enabling LoRA adapters (if configured)
+        - Calling the model-specific training implementation
+        - Saving training metadata
+        - Cleaning up distributed resources
+
+        Data splitting for train/val/test is controlled by model configuration.
+
+        Args:
+            train_data: Training dataset. Format depends on the specific model
+                implementation (e.g., DataFrame, Dataset, or data source name).
+                Will be split into train/val/test based on model config.
+            output_dir: Directory path where model checkpoints, logs, and
+                metadata will be saved.
+            **kwargs: Additional keyword arguments passed to the model-specific
+                training implementation (e.g., resume_from_checkpoint).
+
+        Returns:
+            Dict[str, Any]: Dictionary containing training metrics, including
+                'train_metrics' and optionally 'test_metrics'.
+
+        Raises:
+            Exception: If training fails. Distributed cleanup is guaranteed
+                to run even if training raises an exception.
+        """
+        info_print(f"Starting training for {self.__class__.__name__}")
+        info_print(f"Training Backend: {self.training_backend.value}")
+
+        # Setup distributed training if configured
+        self._setup_distributed()
+
+        # Enable LoRA if configured and supported
+        self._enable_lora()
+
+        try:
+            # Let each model handle its own training
+            metrics = self._train_model(train_data, output_dir, **kwargs)
+
+            # Post-training state updates
+            self.is_fitted = True
+            # Use training_history if provided, otherwise fall back to train_metrics
+            self.training_history = metrics.get(
+                "training_history", metrics.get("train_metrics", metrics)
+            )
+            self._save_training_metadata(output_dir, metrics)
+
+            info_print("🏁 Training complete!")
+            return metrics
+
+        finally:
+            # Common cleanup that must happen in distributed training scenarios
+            # This can causes serious issues causes GPUs to be locked if not run.
+            self._cleanup_distributed()
+
+    def save(
+        self, model_path: str, save_config: bool = True, save_metadata: bool = True
+    ) -> None:
+        """Save the model and associated metadata to disk.
+
+        Saves configuration and training metadata to JSON files. Child classes
+        must override this method to implement actual model weight saving.
+
+        Args:
+            model_path: Directory path where the model will be saved.
+            save_config: Whether to save the model configuration to config.json.
+            save_metadata: Whether to save training metadata to metadata.json.
+
+        Note:
+            Child classes should call super().save() first to save
+            configuration and metadata, then save model-specific weights
+            via _save_checkpoint().
+        """
+        os.makedirs(model_path, exist_ok=True)
+
+        # Save configuration
+        if save_config:
+            config_path = os.path.join(model_path, "config.json")
+            with open(config_path, "w") as f:
+                json.dump(self.config.to_dict(), f, indent=2)
+
+        # Save metadata
+        if save_metadata:
+            metadata = {
+                "model_type": self.__class__.__name__,
+                "is_fitted": self.is_fitted,
+                "training_history": self.training_history,
+                "best_metrics": self.best_metrics,
+                "config": self.config.to_dict(),
+                "lora_config": self.lora_config.__dict__,
+                "distributed_config": self.distributed_config.__dict__,
+                "training_backend": self.training_backend.value,
+            }
+
+            metadata_path = os.path.join(model_path, "metadata.json")
+            with open(metadata_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+        # Save model-specific checkpoint files (weights, optimizer state, etc.)
+        self._save_checkpoint(model_path)
+
+        info_print(f"Model saved to {model_path}")
+
+    @classmethod
+    def load(
+        cls, model_path: str, config: Optional[ModelConfig] = None
+    ) -> "BaseTimeSeriesFoundationModel":
+        """
+        Load a saved model.
+
+        Args:
+            model_path: Directory containing the saved model
+            config: Optional config override
+
+        Returns:
+            Loaded model instance
+        """
+        # Load config if not provided
+        if config is None:
+            config_path = os.path.join(model_path, "config.json")
+            if os.path.exists(config_path):
+                with open(config_path, "r") as f:
+                    config_dict = json.load(f)
+                config = cls.config_class.from_dict(config_dict)
+            else:
+                raise ValueError(f"No config found at {config_path}")
+
+        # Create instance
+        instance = cls(config)
+
+        # Load model-specific checkpoint files (weights, optimizer state, etc.)
+        info_print(f"Loading model from {model_path}...")
+        instance._load_checkpoint(model_path)
+
+        # Load metadata - check both metadata.json (from save_model) and
+        # training_metadata.json (from fit) for backward compatibility
+        metadata_path = os.path.join(model_path, "metadata.json")
+        training_metadata_path = os.path.join(model_path, "training_metadata.json")
+
+        metadata = {}
+        if os.path.exists(metadata_path):
+            with open(metadata_path, "r") as f:
+                metadata = json.load(f)
+            info_print(f"Loaded metadata from {metadata_path}")
+        elif os.path.exists(training_metadata_path):
+            with open(training_metadata_path, "r") as f:
+                metadata = json.load(f)
+            info_print(f"Loaded metadata from {training_metadata_path}")
+            # Extract training_history from metrics if present
+            if "metrics" in metadata and "training_history" in metadata["metrics"]:
+                metadata["training_history"] = metadata["metrics"]["training_history"]
+
+        if metadata:
+            instance.training_history = metadata.get("training_history", {})
+            instance.best_metrics = metadata.get("best_metrics", {})
+            instance.is_fitted = metadata.get("is_fitted", False)
+
+        info_print(f"Model loaded from {model_path}")
+        return instance
+
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get comprehensive information about the model.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing:
+                - model_type: Name of the model class.
+                - config: Full model configuration as dictionary.
+                - is_fitted: Whether the model has been trained.
+                - lora_enabled: Whether LoRA is enabled.
+                - distributed_enabled: Whether distributed training is enabled.
+                - training_backend: The training framework being used.
+                - total_parameters: Total number of model parameters (if model exists).
+                - trainable_parameters: Number of trainable parameters (if model exists).
+                - trainable_percentage: Percentage of parameters that are trainable.
+        """
+        info = {
+            "model_type": self.__class__.__name__,
+            "config": self.config.to_dict(),
+            "is_fitted": self.is_fitted,
+            "lora_enabled": self.lora_config.enabled,
+            "distributed_enabled": self.distributed_config.enabled,
+            "training_backend": self.training_backend.value,
+        }
+
+        if self.model is not None:
+            # Count parameters
+            total_params = sum(p.numel() for p in self.model.parameters())
+            trainable_params = sum(
+                p.numel() for p in self.model.parameters() if p.requires_grad
+            )
+
+            info.update(
+                {
+                    "total_parameters": total_params,
+                    "trainable_parameters": trainable_params,
+                    "trainable_percentage": 100 * trainable_params / total_params
+                    if total_params > 0
+                    else 0,
+                }
+            )
+
+        return info
+
+    # Protected Helpers
+    ## Distributed Training Setup
+    def _setup_distributed(self) -> None:
+        """Set up distributed training environment if configured.
+
+        Initializes the appropriate distributed training backend based on the
+        configured strategy (DDP, DeepSpeed, or FSDP). This method is idempotent
+        and will skip setup if already initialized.
+
+        Raises:
+            ValueError: If an unknown distributed strategy is specified.
+        """
+        if not self.distributed_config.enabled or self._distributed_setup_done:
+            return
+
+        if self.distributed_config.strategy == "ddp":
+            self._setup_ddp()
+        elif self.distributed_config.strategy == "deepspeed":
+            self._setup_deepspeed()
+        elif self.distributed_config.strategy == "fsdp":
+            self._setup_fsdp()
+        else:
+            raise ValueError(
+                f"Unknown distributed strategy: {self.distributed_config.strategy}"
+            )
+
+        self._distributed_setup_done = True
+
+    def _cleanup_distributed(self) -> None:
+        """Clean up distributed training resources properly."""
+        if (
+            self.distributed_config.enabled
+            and self.distributed_config.strategy == "ddp"
+            and torch.distributed.is_initialized()
+        ):
+            info_print("🧹 Cleaning up distributed training resources...")
+            try:
+                # Synchronize all processes before cleanup
+                torch.distributed.barrier()
+                # Properly destroy the process group
+                torch.distributed.destroy_process_group()
+                info_print(
+                    f"✅ Distributed training cleanup complete for {self.distributed_config.local_rank}"
+                )
+            except Exception as e:
+                # Don't crash if cleanup fails, but warn about it
+                info_print(f"⚠️  Warning: Distributed cleanup failed: {e}")
+
+    def _setup_ddp(self) -> None:
+        """Set up PyTorch Distributed Data Parallel (DDP).
+
+        Initializes the distributed process group for DDP training. Requires
+        MASTER_ADDR environment variable to be set. This method is typically
+        called via _setup_distributed() rather than directly.
+
+        Raises:
+            ValueError: If MASTER_ADDR environment variable is not set.
+        """
+        if torch.distributed.is_initialized():
+            return  # Already initialized
+
+        # Check if we have required environment variables
+        master_addr = os.environ.get("MASTER_ADDR")
+        master_port = os.environ.get("MASTER_PORT", "29500")
+
+        if not master_addr:
+            error_print(
+                "MASTER_ADDR environment variable not set for distributed training!"
+            )
+            error_print("Run with: torchrun --nproc_per_node=N --nnodes=1 script.py")
+            raise ValueError(
+                "Distributed training requires MASTER_ADDR environment variable"
+            )
+
+        info_print(f"Initializing DDP with MASTER_ADDR={master_addr}:{master_port}")
+
+        # Set the device for this process
+        device_id = None
+        if torch.cuda.is_available() and not self.config.use_cpu:
+            device_id = self.distributed_config.local_rank
+            torch.cuda.set_device(device_id)
+            info_print(f"Set CUDA device to GPU {device_id}")
+
+        torch.distributed.init_process_group(
+            backend=self.distributed_config.backend,
+            world_size=self.distributed_config.world_size,
+            rank=self.distributed_config.local_rank,
+            device_id=device_id,
+        )
+        info_print(
+            f"✅ Initialized DDP process group: rank {self.distributed_config.local_rank}/{self.distributed_config.world_size}"
+        )
+
+        # NOTE: Don't wrap model with DDP here for Transformers-based models
+        # The Trainer handles that automatically
+
+    def _setup_deepspeed(self) -> None:
+        """Set up DeepSpeed for large model training."""
+        # DeepSpeed configuration is handled entirely by the Trainer through TrainingArguments
+        # We just validate that the config exists if needed
+        if self.distributed_config.deepspeed_config is None:
+            info_print(
+                "DeepSpeed enabled but no config provided - using Trainer defaults"
+            )
+        else:
+            info_print(
+                "DeepSpeed will be configured in TrainingArguments with provided config"
+            )
+
+    def _setup_fsdp(self) -> None:
+        """Set up Fully Sharded Data Parallel."""
+        info_print("FSDP will be configured in TrainingArguments")
+
+    ## LoRA Integration
+    def _enable_lora(self) -> None:
+        """Enable LoRA (Low-Rank Adaptation) for memory-efficient fine-tuning.
+
+        Applies LoRA adapters to the model's target modules, freezing the original
+        weights and adding trainable low-rank matrices. This significantly reduces
+        memory requirements for fine-tuning large models.
+
+        The method will skip LoRA setup if:
+        - LoRA is not enabled in the configuration
+        - The model is None
+        - The model architecture doesn't support LoRA
+
+        Note:
+            Requires the PEFT library to be installed.
+        """
+        if not self.lora_config.enabled or self.model is None:
+            return
+
+        # Check if this model supports LoRA
+        if not self.supports_lora:
+            info_print(
+                f"LoRA is not supported for {self.__class__.__name__} architecture"
+            )
+            info_print("LoRA requires transformer-based models with attention layers")
+            return
+
+        try:
+            from peft import LoraConfig, get_peft_model, TaskType
+        except ImportError:
+            error_print("PEFT is not installed. Please install with: pip install peft")
+            return
+
+        # Create LoRA config
+        peft_config = LoraConfig(
+            task_type=TaskType.FEATURE_EXTRACTION,  # Adjust based on your task
+            inference_mode=False,
+            r=self.lora_config.rank,
+            lora_alpha=self.lora_config.alpha,
+            lora_dropout=self.lora_config.dropout,
+            target_modules=self.lora_config.target_modules,
+            bias=self.lora_config.bias,
+        )
+
+        # Auto-detect target modules if enabled
+        if self.lora_config.auto_detect_modules:
+            detected_modules = self._detect_lora_target_modules()
+            if detected_modules:
+                peft_config.target_modules = detected_modules
+                info_print(f"Auto-detected LoRA target modules: {detected_modules}")
+            else:
+                info_print(
+                    f"Using configured target modules: {self.lora_config.target_modules}"
+                )
+
+        # Apply LoRA to model
+        self.model = get_peft_model(self.model, peft_config)
+        info_print(f"LoRA enabled with rank {self.lora_config.rank}")
+        info_print(f"Target modules: {peft_config.target_modules}")
+
+        # Print trainable parameters
+        trainable_params = sum(
+            p.numel() for p in self.model.parameters() if p.requires_grad
+        )
+        total_params = sum(p.numel() for p in self.model.parameters())
+        info_print(f"Trainable parameters: {trainable_params:,}")
+        info_print(f"Total parameters: {total_params:,}")
+        info_print(f"Trainable %: {100 * trainable_params / total_params:.2f}%")
+
+    def _detect_lora_target_modules(self) -> List[str]:
+        """
+        Automatically detect suitable target modules for LoRA.
+
+        Returns:
+            List[str]: List of module names suitable for LoRA adaptation
+        """
+        if self.model is None:
+            return []
+
+        target_modules = []
+
+        # Common transformer module patterns
+        transformer_patterns = [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",  # Attention projections
+            "gate_proj",
+            "up_proj",
+            "down_proj",  # Feed-forward layers
+            "query",
+            "key",
+            "value",
+            "output",  # Alternative naming
+            "dense",
+            "linear",  # Generic linear layers
+        ]
+
+        # Scan model modules
+        for name, module in self.model.named_modules():
+            module_name = name.split(".")[-1]  # Get the last part of the name
+
+            # Check if it's a linear layer and matches patterns
+            if hasattr(module, "weight") and hasattr(module, "bias"):
+                if any(
+                    pattern in module_name.lower() for pattern in transformer_patterns
+                ):
+                    if module_name not in target_modules:
+                        target_modules.append(module_name)
+
+        # Remove duplicates and sort
+        target_modules = sorted(list(set(target_modules)))
+
+        return target_modules
+
+    ## Training Metadata
+    def _get_early_stopping_config(self) -> Dict[str, Any]:
+        """Get early stopping configuration for models that support it.
+
+        Returns:
+            Dict[str, Any]: Dictionary containing early stopping parameters:
+                - patience: Number of epochs without improvement before stopping.
+                - threshold: Minimum change to qualify as an improvement.
+                - metric: The metric to monitor for improvements.
+                - greater_is_better: Whether higher metric values are better.
+        """
+        return {
+            "patience": self.config.early_stopping_patience,
+            "threshold": 0.0,
+            "metric": self.config.metric_for_best_model,
+            "greater_is_better": self.config.greater_is_better,
+        }
+
+    def _save_training_metadata(self, output_dir: str, metrics: Dict[str, Any]) -> None:
+        """Save comprehensive training metadata to a JSON file.
+
+        Captures detailed information about the training run to support:
+        - Experiment tracking and comparison
+        - Model registry with rich metadata
+        - Reproducibility via configuration and git state capture
+        - Debugging with complete environment details
+
+        Args:
+            output_dir: Directory where training_metadata.json will be saved.
+            metrics: Dictionary of training and evaluation metrics to record.
+
+        Note:
+            Git information (commit, branch, dirty state) is captured if
+            GitPython is installed and the code is in a git repository.
+        """
+        metadata_file = os.path.join(output_dir, "training_metadata.json")
+
+        # Add additional metadata
+        metadata = {
+            "model_type": self.__class__.__name__,
+            "timestamp": pd.Timestamp.now().isoformat(),
+            "metrics": metrics,
+            "config": self.config.to_dict(),
+            "lora_enabled": self.lora_config.enabled,
+            "distributed_enabled": self.distributed_config.enabled,
+        }
+
+        # Add git information if available
+        try:
+            import git
+
+            repo = git.Repo(search_parent_directories=True)
+            metadata["git_commit"] = repo.head.commit.hexsha
+            metadata["git_branch"] = repo.active_branch.name
+            metadata["git_dirty"] = repo.is_dirty()
+        except (ImportError, Exception):
+            # Git info not critical - continue without it
+            # This catches ImportError (GitPython not installed) and any git-related errors
+            pass
+
+        with open(metadata_file, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        info_print(f"Training metadata saved to {metadata_file}")
+
+    # Dunder methods
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(config={self.config.model_type}, fitted={self.is_fitted})"
+
+    def __del__(self):
+        """Ensure cleanup happens even if not called explicitly."""
+        try:
+            self._cleanup_distributed()
+        except Exception:
+            # Don't raise exceptions in destructor
+            pass
+
+
+# Utility functions for model management
+def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
+    """
+    Factory function to create a model from a configuration file.
+
+    Args:
+        config_path: Path to configuration file
+
+    Returns:
+        Model instance
+    """
+    with open(config_path, "r") as f:
+        config_dict = json.load(f)
+
+    model_type = config_dict.pop("model_type", "base")
+
+    # Import and create the appropriate model class
+    if model_type == "ttm":
+        from src.models.ttm import TTMForecaster, TTMConfig
+
+        config = TTMConfig(**config_dict)
+        return TTMForecaster(config)
+    elif model_type in ("chronos", "chronos2"):
+        from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
+
+        config = Chronos2Config(**config_dict)
+        return Chronos2Forecaster(config)
+    elif model_type == "tide":
+        from src.models.tide import TiDEForecaster, TiDEConfig
+
+        config = TiDEConfig(**config_dict)
+        return TiDEForecaster(config)
+    elif model_type == "tsmixer":
+        from src.models.tsmixer import TSMixerForecaster, TSMixerConfig
+
+        config = TSMixerConfig(**config_dict)
+        return TSMixerForecaster(config)
+    # Add other model types as needed
+    else:
+        raise ValueError(f"Unknown model type: {model_type}")

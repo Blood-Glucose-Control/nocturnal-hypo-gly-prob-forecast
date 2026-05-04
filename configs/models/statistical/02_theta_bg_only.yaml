@@ -1,0 +1,29 @@
+# =============================================================================
+# Statistical Config 02: Theta — BG-only
+# =============================================================================
+# The Theta method decomposes a series into a linear trend + a modified local
+# component. We set season_length=1 to disable any seasonal adjustment, since
+# CGM at 5-minute cadence has no meaningful periodicity within the 8-hour
+# nocturnal window. Quantiles are synthesised from residuals.
+#
+# CPU only.
+# =============================================================================
+
+model_type: "statistical"
+training_mode: "from_scratch"
+model_name: "Theta"
+context_length: 512
+forecast_length: 96
+
+theta_decomposition_type: "additive"
+
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+time_limit: 7200
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

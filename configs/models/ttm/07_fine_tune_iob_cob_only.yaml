@@ -1,0 +1,46 @@
+# =============================================================================
+# TTM (TinyTimeMixer) - Fine-Tuning with IOB + COB only
+# =============================================================================
+# Uses iob and cob directly (no *_availability derived features).
+# Intended for aleppo_2017 iob_cob evaluation where only the clinical summary
+# signals (not the PK-model derivatives) are available.
+#
+# Usage:
+#   python src/train/ttm_runner.py \
+#     --config configs/models/ttm/07_fine_tune_iob_cob_only.yaml \
+#     --run-dir trained_models/artifacts/ttm/<run_dir>
+# =============================================================================
+
+model_path: "ibm-granite/granite-timeseries-ttm-r2"
+context_length: 512
+forecast_length: 96
+
+training_mode: "fine_tune"
+freeze_backbone: false
+learning_rate: 1.0e-4
+batch_size: 8192
+num_epochs: 5
+warmup_steps: 1000
+weight_decay: 0.01
+
+input_features:
+  - iob
+  - cob
+
+target_features:
+  - bg_mM
+
+scaler_type: "standard"
+resolution_min: 5
+
+split_config:
+  train: 0.9
+  val: 0.05
+  test: 0.05
+
+# 1 target (bg_mM) + 2 input features = 3 channels
+num_input_channels: 3
+num_output_channels: 1
+
+fp16: true
+loss_function: "mse"

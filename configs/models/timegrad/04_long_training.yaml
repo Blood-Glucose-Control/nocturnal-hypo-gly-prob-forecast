@@ -1,0 +1,38 @@
+# TimeGrad Sweep Config 04 — Long training
+# 2x epochs for better convergence
+training_mode: "from_scratch"
+context_length: 512
+forecast_length: 96
+num_epochs: 20
+
+input_features: []
+target_features:
+  - bg_mM
+
+scaler_type: "standard"
+resolution_min: 5
+freq: "5T"
+
+# Diffusion
+diff_steps: 100
+beta_end: 0.1
+beta_schedule: "linear"
+loss_type: "l2"
+
+# RNN encoder
+cell_type: "GRU"
+num_cells: 100
+num_layers: 2
+
+# Denoising network
+residual_layers: 8
+residual_channels: 8
+
+# Training
+learning_rate: 1.0e-3
+batch_size: 64
+num_batches_per_epoch: 1000
+scaling: true
+
+# Inference
+num_samples: 50
