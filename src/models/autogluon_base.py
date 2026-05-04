@@ -428,19 +428,28 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
         self.is_fitted = True
         self.logger.info("Predictor loaded from %s", predictor_path)
 
-        # Restore covariate_cols from saved training metadata so that
-        # _predict_batch includes the right columns in the TimeSeriesDataFrame.
+        # Restore context_length and covariate_cols from saved training metadata
+        # so that config accurately reflects the trained model and _predict_batch
+        # includes the right columns in the TimeSeriesDataFrame.
         metadata_path = os.path.join(model_dir, "training_metadata.json")
-        if os.path.exists(metadata_path) and not self.config.covariate_cols:
+        if os.path.exists(metadata_path):
             try:
                 with open(metadata_path) as f:
                     metadata = json.load(f)
-                saved_covs = metadata.get("config", {}).get("covariate_cols", [])
-                if saved_covs:
-                    self.config.covariate_cols = list(saved_covs)
+                saved_cfg = metadata.get("config", {})
+                saved_ctx = saved_cfg.get("context_length")
+                if saved_ctx is not None:
+                    self.config.context_length = int(saved_ctx)
                     self.logger.info(
-                        "Restored covariate_cols from metadata: %s", saved_covs
+                        "Restored context_length from metadata: %d", saved_ctx
                     )
+                if not self.config.covariate_cols:
+                    saved_covs = saved_cfg.get("covariate_cols", [])
+                    if saved_covs:
+                        self.config.covariate_cols = list(saved_covs)
+                        self.logger.info(
+                            "Restored covariate_cols from metadata: %s", saved_covs
+                        )
             except Exception as exc:
                 self.logger.warning("Could not read training_metadata.json: %s", exc)
 

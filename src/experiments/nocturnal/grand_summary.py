@@ -55,13 +55,12 @@ DEFAULT_METRICS: tuple[str, ...] = (
 )
 
 # Buckets for the "best version of each model" rows in the wide table.
-COV_BUCKETS: tuple[str, ...] = ("zero_shot", "bg_only", "iob", "cob", "iob_cob")
+COV_BUCKETS: tuple[str, ...] = ("zero_shot", "bg_only", "iob", "iob_cob")
 
 COV_BUCKET_LABELS: dict[str, str] = {
     "zero_shot": "Best Zero-Shot",
     "bg_only": "Best BG-only",
-    "iob": "Best +IOB",
-    "cob": "Best +COB",
+    "iob": "Best +IOB/InsulinAvail",
     "iob_cob": "Best +IOB+COB",
 }
 
@@ -69,11 +68,15 @@ COV_BUCKET_LABELS: dict[str, str] = {
 # Each dataset only has a subset of clinical covariates available; only the
 # corresponding bucket can be legitimately populated for that dataset.
 # Runs in any other covariate bucket are flagged as MISPLACED.
+# Maximum covariate capability per dataset.  Store only the "highest" bucket
+# the dataset's data can support; `_expand_valid_buckets` derives the full set
+# of valid sub-buckets automatically (iob_cob ⊇ iob ⊇ bg_only).  bg_only and
+# zero_shot are always universally valid and need not be listed here.
 VALID_COVARIATE_BUCKETS_BY_DATASET: dict[str, frozenset[str]] = {
-    "aleppo_2017": frozenset({"iob_cob"}),  # both IOB and COB available
+    "aleppo_2017": frozenset({"iob_cob"}),  # IOB + COB both available
     "brown_2019": frozenset({"iob"}),  # IOB only
     "lynch_2022": frozenset({"iob"}),  # IOB only
-    "tamborlane_2008": frozenset(),  # BG-only; no clinical covariates available
+    "tamborlane_2008": frozenset(),  # BG-only; no clinical covariates
 }
 
 # Model class taxonomy. Order here drives row order in the wide table.
@@ -412,6 +415,26 @@ _CARB_COVARIATES: frozenset[str] = frozenset({"cob", "carb_availability", "carbs
 # Insulin-related (beyond plain IOB) covariates that count as IOB-family signal.
 _INSULIN_COVARIATES: frozenset[str] = frozenset({"iob", "ia", "insulin_availability"})
 
+# Bucket hierarchy: each bucket implies all buckets that are subsets of it.
+# bg_only and zero_shot are always universal so they are NOT listed here.
+_BUCKET_IMPLIES: dict[str, frozenset[str]] = {
+    "iob_cob": frozenset({"iob_cob", "iob"}),
+    "iob": frozenset({"iob"}),
+}
+
+
+def _expand_valid_buckets(native: frozenset[str]) -> frozenset[str]:
+    """Expand a dataset's declared covariate capabilities via the bucket hierarchy.
+
+    The hierarchy is: iob_cob ⊇ iob ⊇ bg_only.
+    bg_only and zero_shot are always universal and are handled separately;
+    they do not appear in the returned set.
+    """
+    expanded: set[str] = set()
+    for b in native:
+        expanded |= _BUCKET_IMPLIES.get(b, frozenset({b}))
+    return frozenset(expanded)
+
 
 def bucket_from_covariates(mode: str, cov_cols: Iterable[str] | None) -> str:
     """Map (mode, covariate_cols) to one of COV_BUCKETS.
@@ -421,10 +444,10 @@ def bucket_from_covariates(mode: str, cov_cols: Iterable[str] | None) -> str:
 
     Buckets:
         zero_shot -- model run in zero-shot mode
-        iob_cob   -- both insulin and carb signals present (e.g. aleppo_2017)
-        iob       -- insulin signal only (e.g. brown_2019, lynch_2022)
-        cob       -- carb signal only (e.g. tamborlane_2008)
-        bg_only   -- no non-BG covariates
+        iob_cob   -- both insulin (IOB / insulin_availability) and carb signals present
+        iob       -- insulin signal only: any of iob, ia, insulin_availability
+        bg_only   -- no non-BG covariates (cob-only configurations are not valid
+                     and are treated as bg_only with a warning)
     """
     if mode == "zeroshot":
         return "zero_shot"
@@ -437,10 +460,16 @@ def bucket_from_covariates(mode: str, cov_cols: Iterable[str] | None) -> str:
     has_insulin = bool(cset & _INSULIN_COVARIATES)
     if has_carb and has_insulin:
         return "iob_cob"
-    if has_carb:
-        return "cob"
     if has_insulin:
         return "iob"
+    if has_carb:
+        # COB-only is not a valid configuration; flag and fall back to bg_only
+        log.warning(
+            "Carb-only covariate set %s — no insulin covariates present. "
+            "COB-only is not a valid bucket; bucketing as bg_only.",
+            sorted(cset),
+        )
+        return "bg_only"
     # Unknown covariate set: treat as BG-only and warn
     log.warning("Unrecognised covariate set %s — bucketing as bg_only", sorted(cset))
     return "bg_only"
@@ -581,6 +610,8 @@ def expected_combinations() -> set[tuple[str, str, str]]:
 
     Dataset-aware: covariate buckets beyond bg_only are only expected where the
     dataset actually has those covariates (see VALID_COVARIATE_BUCKETS_BY_DATASET).
+    The bucket hierarchy (iob_cob ⊇ iob) is applied via _expand_valid_buckets so
+    that, e.g., a dataset declaring {iob_cob} also expects iob runs.
     """
     expected: set[tuple[str, str, str]] = set()
     for model, props in MODEL_PROPERTIES.items():
@@ -593,7 +624,9 @@ def expected_combinations() -> set[tuple[str, str, str]]:
             for b in base_buckets:
                 expected.add((model, ds, b))
             if props["fine_tunable"] and props["supports_past_covariates"]:
-                valid_cov = VALID_COVARIATE_BUCKETS_BY_DATASET.get(ds, frozenset())
+                valid_cov = _expand_valid_buckets(
+                    VALID_COVARIATE_BUCKETS_BY_DATASET.get(ds, frozenset())
+                )
                 for b in valid_cov:
                     expected.add((model, ds, b))
     return expected
@@ -626,9 +659,9 @@ def find_misplaced(df_best: pd.DataFrame) -> pd.DataFrame:
     """Find runs recorded in a covariate bucket that is invalid for their dataset.
 
     A run is *misplaced* when its cov_bucket is not in {zero_shot, bg_only} AND
-    not in VALID_COVARIATE_BUCKETS_BY_DATASET for the run's dataset.  These are
-    genuine errors: either the pipeline was launched with the wrong covariate
-    list, or the bucketing logic needs a fix.
+    not in the hierarchy-expanded valid set for the run's dataset.  The bucket
+    hierarchy (iob_cob ⊇ iob) is respected via _expand_valid_buckets, so a
+    dataset that has iob_cob data is also considered valid for iob runs.
     """
     rows = []
     universal_buckets = frozenset({"zero_shot", "bg_only"})
@@ -637,7 +670,9 @@ def find_misplaced(df_best: pd.DataFrame) -> pd.DataFrame:
         ds = str(r["dataset"])
         if bucket in universal_buckets:
             continue
-        valid = VALID_COVARIATE_BUCKETS_BY_DATASET.get(ds, frozenset())
+        valid = _expand_valid_buckets(
+            VALID_COVARIATE_BUCKETS_BY_DATASET.get(ds, frozenset())
+        )
         if bucket not in valid:
             rows.append(
                 {
@@ -683,8 +718,8 @@ def build_grand_summary(
     raw = load_summary(summary_paths)
     if forecast_filter is not None and "forecast_length" in raw.columns:
         raw = raw[raw["forecast_length"] == forecast_filter]
-    if ctx_filter is not None and "context_length" in raw.columns:
-        raw = raw[raw["context_length"] == ctx_filter]
+    if ctx_filter is not None and "ctx_fh" in raw.columns:
+        raw = raw[raw["ctx_fh"].str.startswith(f"{ctx_filter}ctx_")]
     # Only include models registered in MODEL_PROPERTIES; unrecognised names
     # indicate deprecated or misconfigured runs (e.g. AutoARIMA+IOB which
     # silently ignores IOB due to AutoGluon's known_covariates_names limitation).

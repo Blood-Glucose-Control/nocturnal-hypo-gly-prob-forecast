@@ -248,22 +248,55 @@ def build_best_split_breakdown(
         return pd.DataFrame()
     deduped = dedupe(raw)
     bucketed = attach_covariate_bucket(deduped)
-    best = pick_best(bucketed)
+
+    # Build a ranked list of all candidates per group (same sort as pick_best).
+    # We walk down the ranking until we find a run that has episodes.parquet,
+    # so that old runs missing the file don't silently drop the whole group.
+    # GROUP_COLS = ["model", "dataset", "cov_bucket"]
+    ranked = (
+        pick_best.__wrapped__(bucketed)
+        if hasattr(pick_best, "__wrapped__")
+        else bucketed.copy()
+    )
+    ranked["rmse"] = pd.to_numeric(ranked["rmse"], errors="coerce")
+    ranked["wql"] = pd.to_numeric(ranked["wql"], errors="coerce")
+    ranked["timestamp"] = pd.to_datetime(ranked["timestamp"], errors="coerce")
+    ranked = ranked.dropna(subset=["rmse"]).sort_values(
+        ["rmse", "wql", "timestamp"], ascending=[True, True, False], na_position="last"
+    )
+    candidates: dict[tuple, list] = {}
+    for _, r in ranked.iterrows():
+        key = (str(r["model"]), str(r["dataset"]), str(r["cov_bucket"]))
+        candidates.setdefault(key, []).append(r)
 
     rows: list[dict] = []
-    for _, r in best.iterrows():
-        run_path = str(r["run_path"])
-        try:
-            split_rows = aggregate_run_by_split(
-                run_path,
-                model=str(r["model"]),
-                dataset=str(r["dataset"]),
-                cov_bucket=str(r["cov_bucket"]),
-                config_dir=config_dir,
+    for key, cands in candidates.items():
+        model_name, dataset_name, cov_bucket_name = key
+        split_rows = None
+        for r in cands:
+            run_path = str(r["run_path"])
+            try:
+                split_rows = aggregate_run_by_split(
+                    run_path,
+                    model=model_name,
+                    dataset=dataset_name,
+                    cov_bucket=cov_bucket_name,
+                    config_dir=config_dir,
+                )
+                break  # success — use this run
+            except (FileNotFoundError, ValueError) as exc:
+                log.warning(
+                    "Skipping %s (falling back to next-best): %s", run_path, exc
+                )
+        if split_rows is None:
+            log.warning(
+                "No usable run found for (%s, %s, %s) — all candidates missing episodes.parquet",
+                model_name,
+                dataset_name,
+                cov_bucket_name,
             )
-        except (FileNotFoundError, ValueError) as exc:
-            log.warning("Skipping %s: %s", run_path, exc)
             continue
+        # r is the last successfully used candidate row
         for sr in split_rows:
             sr["model_class"] = _model_class(sr["model"])
             sr["context_length"] = r.get("context_length")
