@@ -206,8 +206,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--forecast-length",
         type=int,
-        default=72,
-        help="Forecast horizon in steps (default: 72 = 6 hours)",
+        default=96,
+        help="Forecast horizon in steps (default: 96 = 8 hours)",
     )
     parser.add_argument(
         "--covariate-cols",

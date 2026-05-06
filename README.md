@@ -136,8 +136,7 @@ The trained checkpoint lands under `trained_models/artifacts/<model>/<timestamp>
     --dataset aleppo_2017 \
     --checkpoint trained_models/artifacts/ttm/<timestamp>_RID..._holdout_workflow/model.pt \
     --context-length 512 \
-    --forecast-length 96 \
-    --probabilistic
+    --forecast-length 96
 ```
 
 ```bash

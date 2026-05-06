@@ -202,7 +202,7 @@ def create_model_and_config(
         else:
             config = Chronos2Config(
                 context_length=kwargs.get("context_length", 512),
-                forecast_length=kwargs.get("forecast_length", 72),
+                forecast_length=kwargs.get("forecast_length", 96),
             )
             model = Chronos2Forecaster(config)
         return model, config
@@ -231,7 +231,7 @@ def create_model_and_config(
         else:
             config = TiDEConfig(
                 context_length=kwargs.get("context_length", 512),
-                forecast_length=kwargs.get("forecast_length", 72),
+                forecast_length=kwargs.get("forecast_length", 96),
             )
             model = TiDEForecaster(config)
         return model, config
@@ -384,7 +384,7 @@ def create_model_and_config(
             config = MomentConfig(
                 model_path=kwargs.get("model_path", "AutonLab/MOMENT-1-small"),
                 context_length=kwargs.get("context_length", 512),
-                forecast_length=kwargs.get("forecast_length", 72),
+                forecast_length=kwargs.get("forecast_length", 96),
                 batch_size=kwargs.get("batch_size", 32),
                 learning_rate=kwargs.get("learning_rate", 1e-4),
                 num_epochs=kwargs.get("num_epochs", 1),
@@ -420,7 +420,7 @@ def create_model_and_config(
                     )
         else:
             toto_kwargs = {**kwargs}
-            toto_kwargs.setdefault("forecast_length", 72)
+            toto_kwargs.setdefault("forecast_length", 96)
             config = TotoConfig(**toto_kwargs)
             model = TotoForecaster(config)
         return model, config

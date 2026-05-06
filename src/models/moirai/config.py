@@ -246,7 +246,7 @@ def create_default_moirai_config(**kwargs) -> MoiraiConfig:
     defaults = {
         "model_path": "Salesforce/moirai-1.0-R-small",
         "context_length": 512,
-        "forecast_length": 72,
+        "forecast_length": 96,
         "batch_size": 8,
         "learning_rate": 1e-4,
         "num_epochs": 1,
@@ -270,7 +270,7 @@ def create_moirai_fine_tuning_config(**kwargs) -> MoiraiConfig:
     defaults = {
         "model_path": "Salesforce/moirai-1.0-R-base",
         "context_length": 512,
-        "forecast_length": 72,
+        "forecast_length": 96,
         "batch_size": 32,
         "learning_rate": 5e-5,
         "num_epochs": 10,
@@ -299,7 +299,7 @@ def create_moirai_zero_shot_config(**kwargs) -> MoiraiConfig:
     defaults = {
         "model_path": "Salesforce/moirai-1.0-R-small",
         "context_length": 512,
-        "forecast_length": 72,
+        "forecast_length": 96,
         "past_covariate_dim": 0,
         "patch_size": "auto",
         "num_samples": 100,
