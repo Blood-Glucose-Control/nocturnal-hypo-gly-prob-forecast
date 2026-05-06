@@ -1,6 +1,6 @@
 # Probabilistic Nocturnal Hypoglycemia Forecasting
 
-Companion code for an anonymous submission on **probabilistic short-horizon CGM forecasting around midnight-anchored nocturnal windows**, evaluated across thirteen forecasting models (classical baselines, statistical methods, deep encoders, and time-series foundation models).
+Companion code for an anonymous submission on **probabilistic short-horizon CGM forecasting around midnight-anchored nocturnal windows**, evaluated across fourteen forecasting models (classical baselines, statistical methods, deep encoders, and time-series foundation models).
 
 The pipeline:
 
@@ -18,10 +18,9 @@ The pipeline:
 configs/                YAML model + data configs (1 dir per model)
 src/
   data/                 dataset registry, cache manager, per-cohort cleaners
-  models/               13 model wrappers behind a single registry/factory
+  models/               14 model wrappers behind a single registry/factory
   evaluation/           midnight-anchored episode builder + metrics
   experiments/          experiment runner used by all CLI entry points
-  training/strategies/  per-model train/predict adapters
 examples/
   end_to_end_workflow.py     reproducible 7-step pipeline
                              (1: generate holdout configs → 2: validate configs → 3: load data
@@ -99,7 +98,8 @@ Holdout splits are deterministic and pre-generated under `configs/data/holdout_1
 ```bash
 ./.venv/bin/python scripts/data_processing_scripts/generate_holdout_configs.py \
     --datasets aleppo_2017 brown_2019 lynch_2022 tamborlane_2008 \
-    --holdout-pct 0.10 \
+    --temporal-pct 0.10 \
+    --patient-pct 0.10 \
     --output-dir configs/data/holdout_10pct
 ```
 
