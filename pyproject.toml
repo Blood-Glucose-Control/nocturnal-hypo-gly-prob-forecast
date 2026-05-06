@@ -72,7 +72,10 @@ moment = [
 timesfm = [
     "transformers>=5.2.0",
 ]
-tide = [
+# Shared env for all AutoGluon-backed models (deepar, patchtst, tft,
+# naive_baseline, statistical, tide). chronos2 stays separate because it
+# pins a specific transformers version that conflicts with this stack.
+autogluon = [
     "autogluon.timeseries==1.5.0",
 ]
 moirai = [
