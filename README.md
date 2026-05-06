@@ -91,7 +91,7 @@ cache/data/
   tamborlane_2008/raw/<unzipped study files>/
 ```
 
-The first time a dataset is requested, `src.data.cache_manager.CacheManager` reads the raw files, runs the per-cohort cleaner in `src/data/diabetes_datasets/<name>/`, and writes a normalized parquet cache under `cache/data/<name>/processed/`.
+The first time a dataset is requested, `src.data.cache_manager.CacheManager` reads the raw files, runs the per-cohort cleaner in `src/data/diabetes_datasets/<name>/`, and writes one CSV per patient (`<prefix>_<id>_full.csv`) to `cache/data/<name>/processed/`. Subsequent requests reuse the cached CSVs.
 
 Holdout splits are deterministic and pre-generated under `configs/data/holdout_10pct/<dataset>.yaml`. To regenerate (or to make a different split):
 
@@ -186,7 +186,7 @@ Outputs go to `results/grand_summary/`. The `results/grand_summary/` directory i
 
 ## Adding a new dataset
 
-1. Implement a cleaner under `src/data/diabetes_datasets/<your_dataset>/<your_dataset>.py` mirroring `lynch_2022/lynch_2022.py`. It must produce a long-format DataFrame with columns `patient_id, time, glucose` (and optional covariates).
+1. Implement a cleaner under `src/data/diabetes_datasets/<your_dataset>/<your_dataset>.py` mirroring `lynch_2022/lynch_2022.py`. It must produce a long-format DataFrame with columns `p_num, datetime, bg_mM` (and optional covariates such as `iob`, `dose_units`, `food_g`).
 2. Add a `DatasetSourceType` member in `src/data/models.py` and a `DatasetConfig` entry in `src/data/dataset_configs.py`.
 3. Register the loader branch in `src/data/diabetes_datasets/data_loader.py::get_loader`.
 4. Add an entry in `src/data/utils/patient_id.py::DATASET_PREFIXES` for compact patient IDs.
@@ -198,10 +198,9 @@ Outputs go to `results/grand_summary/`. The `results/grand_summary/` directory i
 ## Adding a new model
 
 1. Create `src/models/<your_model>/{model.py, config.py, __init__.py}` following any existing model (e.g. `src/models/ttm/`) — implement `predict()` and (if probabilistic) `predict_quantiles()`.
-2. Register the class in `src/models/registry.py`.
-3. If it has unique deps, add a `[project.optional-dependencies].<your_model>` entry in `pyproject.toml`, and add the name to `MODEL_VENVS` in the `Makefile`.
+2. Register the class with `@ModelRegistry.register("<your_model>")` in `src/models/base/registry.py`, and add a dispatch branch in `src/models/factory.py::create_model_and_config()`.
+3. If it has unique deps, add a `[project.optional-dependencies].<your_model>` entry in `pyproject.toml` and the name to `MODEL_VENVS` in the `Makefile`. AutoGluon-backed models can reuse the existing shared `[autogluon]` extra and `.venvs/autogluon/` env instead of creating their own.
 4. Add at least one numbered YAML under `configs/models/<your_model>/00_<variant>.yaml` (see existing model directories for naming conventions).
-5. Add a per-model branch in `src/training/strategies/` if its training loop differs from the existing ones.
 
 ---
 
