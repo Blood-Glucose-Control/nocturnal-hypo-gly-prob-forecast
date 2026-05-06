@@ -1147,11 +1147,6 @@ def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
 
         config = TiDEConfig(**config_dict)
         return TiDEForecaster(config)
-    elif model_type == "tsmixer":
-        from src.models.tsmixer import TSMixerForecaster, TSMixerConfig
-
-        config = TSMixerConfig(**config_dict)
-        return TSMixerForecaster(config)
     # Add other model types as needed
     else:
         raise ValueError(f"Unknown model type: {model_type}")

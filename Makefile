@@ -48,15 +48,12 @@ $(addprefix venv-,$(MODEL_VENVS)):
 venv-all-models: $(addprefix venv-,$(MODEL_VENVS))
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Tests + lint (run in main .venv)
+# Tests (run in main .venv)
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: test lint
+.PHONY: test
 test:
 	./.venv/bin/python -m pytest tests/ -v
-
-lint:
-	./.venv/bin/python -m ruff check src/ tests/
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Analysis

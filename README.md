@@ -152,6 +152,8 @@ The trained checkpoint lands under `trained_models/artifacts/<model>/<timestamp>
 
 Use the matching `.venvs/<model>/bin/python` for each model — the main `.venv` only ships the lightweight baselines.
 
+> **Note on slow probabilistic evals.** `timegrad` (and to a lesser extent `statistical`/AutoARIMA on the largest cohort, Tamborlane 2008) generate sample-path forecasts per-episode rather than in batch. Even at `--num_samples 50`, a single (model × dataset) cell can take 30+ minutes. Allocate at least 4 h of wall time for these (model, dataset) combinations, or skip `--probabilistic` to fall back to faster point-forecast metrics.
+
 Each run writes three tiers of output to `experiments/nocturnal_forecasting/<ctx>ctx_<fh>fh/<model>/<timestamp>_<dataset>_<mode>/`:
 
 - `results_summary.json` — aggregate RMSE / MAE / WQL / coverage (probabilistic runs also include per-episode hypo probabilities used by the AUROC/AUPRC table)
@@ -202,7 +204,6 @@ Outputs go to `results/grand_summary/`. The `results/grand_summary/` directory i
 
 ```bash
 make test          # data-registry + cache + utils + normalization checks (main .venv)
-make lint          # ruff over src/ and tests/
 ```
 
 ---

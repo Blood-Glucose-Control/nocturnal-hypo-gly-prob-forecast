@@ -226,8 +226,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--cuda-device",
         type=int,
-        default=1,
-        help="CUDA device ID to use (default: 1)",
+        default=0,
+        help="CUDA device ID to use (default: 0)",
     )
     parser.add_argument(
         "--probabilistic",
