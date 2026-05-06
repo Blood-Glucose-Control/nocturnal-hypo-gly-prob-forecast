@@ -180,9 +180,13 @@ def process_single_patient_tamborlane(
             start=generic_patient_start_date, periods=len(data_copy), freq="5min"
         )
 
-    # Set datetime as index
+    # Set datetime as index. drop=True so it lives only in the index — keeping
+    # it as both index and column triggers a 'datetime is both an index level
+    # and a column label' error in preprocessing_pipeline. The to_csv path
+    # below preserves the index name, so the cache reload still sees a
+    # 'datetime' column.
     if "datetime" in data_copy.columns:
-        data_copy = data_copy.set_index("datetime", drop=False)  # Keep datetime column
+        data_copy = data_copy.set_index("datetime", drop=True)
 
     # Store intermediate data if requested
     if store_intermediate_data:
@@ -196,14 +200,9 @@ def process_single_patient_tamborlane(
         dir_path.mkdir(parents=True, exist_ok=True)
         data_copy.to_csv(dir_path / f"{p_num}.csv", index=True)
 
-    # Run preprocessing pipeline if available
-    try:
-        from src.data.preprocessing.preprocessing_pipeline import preprocessing_pipeline
+    from src.data.preprocessing.pipeline import preprocessing_pipeline
 
-        processed_data = preprocessing_pipeline(p_num, data_copy)
-    except ImportError:
-        logger.warning("Preprocessing pipeline not available, returning data as-is")
-        processed_data = data_copy
+    processed_data = preprocessing_pipeline(p_num, data_copy)
 
     return p_num, processed_data
 

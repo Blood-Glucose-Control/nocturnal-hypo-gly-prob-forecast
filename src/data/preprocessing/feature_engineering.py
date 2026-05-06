@@ -238,7 +238,10 @@ def create_physiological_features(
         "This may take a while depending on the size of the data."
     )
 
-    # Conditionally compute COB (requires food_g column with at least some data)
+    # Conditionally compute COB (requires food_g column with at least some data).
+    # If absent, do NOT emit all-NaN cob / carb_availability columns — covariate
+    # configs that expect those columns should fail loudly with KeyError rather
+    # than silently train on zero-information features.
     if (
         ColumnNames.FOOD_G.value in df.columns
         and df[ColumnNames.FOOD_G.value].notna().any()
@@ -246,9 +249,10 @@ def create_physiological_features(
         logger.info("\tCreating COB and carb availability columns...")
         df = create_cob_and_carb_availability_cols(df, freq)
     else:
-        logger.info("\tSkipping COB (no food_g column or all NaN) - setting to NaN")
-        df[ColumnNames.COB.value] = np.nan
-        df[ColumnNames.CARB_AVAILABILITY.value] = np.nan
+        logger.info(
+            "\tSkipping COB (no food_g column or all NaN) - "
+            "cob / carb_availability columns will be ABSENT in output"
+        )
 
     # Conditionally compute IOB (requires dose_units column with at least some data)
     if (

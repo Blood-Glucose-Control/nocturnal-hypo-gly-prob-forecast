@@ -723,6 +723,17 @@ class BaseTimeSeriesFoundationModel(ABC):
         Returns:
             Loaded model instance
         """
+        # Some models (chronos2, moirai, timegrad, toto, tide) save config.json
+        # inside a `model.pt/` subdir rather than at the RID root. Detect this
+        # nesting so callers can pass the bare RID directory and have it work.
+        nested_model_pt = os.path.join(model_path, "model.pt")
+        if (
+            not os.path.exists(os.path.join(model_path, "config.json"))
+            and os.path.isdir(nested_model_pt)
+            and os.path.exists(os.path.join(nested_model_pt, "config.json"))
+        ):
+            model_path = nested_model_pt
+
         # Load config if not provided
         if config is None:
             config_path = os.path.join(model_path, "config.json")
