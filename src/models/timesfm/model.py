@@ -1028,6 +1028,18 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         self.model = self.hf_model
         self.is_fitted = True
 
+        # Refuse to save NaN-poisoned weights — see nan-collapse failure mode
+        # observed on small single-dataset fine-tunes.
+        for name, p in self.hf_model.named_parameters():
+            if torch.isnan(p).any() or torch.isinf(p).any():
+                raise RuntimeError(
+                    f"NaN/Inf detected in parameter '{name}' after training; "
+                    "aborting checkpoint save. This typically indicates a "
+                    "gradient-instability collapse during fine-tuning on "
+                    "small datasets — try a smaller learning rate, more "
+                    "warmup steps, or a larger combined-dataset training set."
+                )
+
         # Save checkpoint
         os.makedirs(output_dir, exist_ok=True)
         self._save_checkpoint(output_dir)

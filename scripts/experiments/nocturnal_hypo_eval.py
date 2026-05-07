@@ -206,8 +206,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--forecast-length",
         type=int,
-        default=72,
-        help="Forecast horizon in steps (default: 72 = 6 hours)",
+        default=96,
+        help="Forecast horizon in steps (default: 96 = 8 hours)",
     )
     parser.add_argument(
         "--covariate-cols",
@@ -226,8 +226,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--cuda-device",
         type=int,
-        default=1,
-        help="CUDA device ID to use (default: 1)",
+        default=0,
+        help="CUDA device ID to use (default: 0)",
     )
     parser.add_argument(
         "--probabilistic",

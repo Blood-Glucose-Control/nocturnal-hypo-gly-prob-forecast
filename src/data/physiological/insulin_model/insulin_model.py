@@ -185,7 +185,7 @@ def _deprecated_create_iob_and_ins_availability_cols(df: pd.DataFrame) -> pd.Dat
     timestep_count = 0
 
     # Process each patient separately
-    # TODO:TONY - This is a bottleneck. We should parallelize this.
+    # TODO: This is a bottleneck. We should parallelize this.
     logger.info("Processing insulin dynamics")
     for _, patient_df in result_df.groupby("p_num"):
         for ins_time in patient_df.index[

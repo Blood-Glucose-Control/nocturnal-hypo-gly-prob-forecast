@@ -26,7 +26,7 @@ class TiDEConfig(ModelConfig):
 
     # Override parent defaults
     model_type: str = "tide"
-    forecast_length: int = 72  # 6 hours at 5-min intervals
+    forecast_length: int = 96  # 8 hours at 5-min intervals
     context_length: int = 512  # ~42.7 hours at 5-min intervals
     training_backend: TrainingBackend = TrainingBackend.CUSTOM
     training_mode: str = "from_scratch"
@@ -125,7 +125,7 @@ def create_default_tide_config(**overrides) -> TiDEConfig:
     """
     defaults = {
         "context_length": 512,
-        "forecast_length": 72,
+        "forecast_length": 96,
     }
     defaults.update(overrides)
     return TiDEConfig(**defaults)

@@ -2098,6 +2098,7 @@ its own subdirectory for comparison.
             "tide",
             "toto",
             "moirai",
+            "sundial",
             "naive_baseline",
             "statistical",
             "deepar",

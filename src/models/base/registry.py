@@ -9,7 +9,6 @@ _MODEL_MODULES: Dict[str, str] = {
     "chronos2": "src.models.chronos2",
     "tide": "src.models.tide",
     "sundial": "src.models.sundial",
-    "tsmixer": "src.models.tsmixer",
     "timesfm": "src.models.timesfm",
     "timegrad": "src.models.timegrad",
     "toto": "src.models.toto",

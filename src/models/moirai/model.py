@@ -1050,7 +1050,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 def create_moirai_model(
     model_path: str = "Salesforce/moirai-1.0-R-base",
     context_length: int = 512,
-    forecast_length: int = 72,
+    forecast_length: int = 96,
     past_covariate_dim: int = 0,
     covariate_cols: Optional[List[str]] = None,
     checkpoint_path: Optional[str] = None,
@@ -1073,7 +1073,7 @@ def create_moirai_model(
               for zero-shot; it had RMSE ~365 in the notebook)
 
         context_length: Historical steps (~42 hrs at 5-min intervals = 512).
-        forecast_length: Horizon steps (6 hrs at 5-min intervals = 72).
+        forecast_length: Horizon steps (8 hrs at 5-min intervals = 96).
         past_covariate_dim: Number of past covariates (0 = BG-only, 2 = IOB+COB).
         covariate_cols: Column names matching ``past_covariate_dim``.
         checkpoint_path: Path to a ``.ckpt`` fine-tuned checkpoint, or ``None``

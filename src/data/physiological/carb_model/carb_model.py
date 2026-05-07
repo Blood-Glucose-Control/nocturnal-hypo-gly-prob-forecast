@@ -232,7 +232,7 @@ def _deprecated_create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.Da
 
     if n_patients > 1:
         # Process each patient separately
-        # TODO:TONY - This is a bottleneck. We should parallelize this.
+        # TODO: This is a bottleneck. We should parallelize this.
 
         for _, patient_df in result_df.groupby("p_num"):
             # Calculate for this patient
