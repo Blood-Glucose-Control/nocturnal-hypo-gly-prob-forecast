@@ -2,26 +2,26 @@
 # Licensed under Custom Research License (see LICENSE file)
 
 """
-4×5 grid of Chronos-2 probabilistic forecast episodes.
+4×5 grid of Moirai probabilistic forecast episodes.
 
 Rows    : aleppo_2017, brown_2019, lynch_2022, tamborlane_2008
 Columns : 10th, 25th, 50th, 75th, 90th percentile of per-episode median RMSE
            (P10 = best quality / lowest RMSE → P90 = worst quality / highest RMSE)
 
 Episode quality is judged by the RMSE of the median quantile forecast (q=0.5)
-against the actual BG trace.  The best Chronos-2 checkpoint for each dataset
+against the actual BG trace.  The best Moirai checkpoint for each dataset
 is used.
 
 Each panel shows:
   - Actual BG trace (black)
-  - Median forecast (q=0.5, dark pink)
-  - 80 % PI band  (q=0.1 – q=0.9, lightest pink filled)
-  - 50 % PI band  (q=0.25 – q=0.75 via linear interp, medium pink filled)
+  - Median forecast (q=0.5, dark blue)
+  - 80 % PI band  (q=0.1 – q=0.9, lightest blue filled)
+  - 50 % PI band  (q=0.25 – q=0.75 via linear interp, medium blue filled)
   - 3.9 mmol/L hypoglycaemia threshold (dashed red)
 
 Usage:
-    python scripts/visualization/plot_chronos2_forecast_grid.py
-    python scripts/visualization/plot_chronos2_forecast_grid.py --out results/my_grid.png
+    python scripts/visualization/plot_moirai_forecast_grid.py
+    python scripts/visualization/plot_moirai_forecast_grid.py --out results/my_grid.png
 """
 
 from __future__ import annotations
@@ -69,12 +69,12 @@ INTERVAL_MINS = 5
 YLIM_MIN = 0
 YLIM_MAX = 22
 
-# Best Chronos-2 run dirs (relative to REPO_ROOT)
+# Best Moirai run dirs (relative to REPO_ROOT)
 BEST_RUNS: dict[str, str] = {
-    "aleppo_2017": "experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-04-25_183908_aleppo_2017_finetuned",
-    "brown_2019": "experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-04-30_042011_brown_2019_finetuned_rerun01",
-    "lynch_2022": "experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-04-30_041451_lynch_2022_finetuned_rerun01",
-    "tamborlane_2008": "experiments/nocturnal_forecasting/512ctx_96fh/chronos2/2026-04-25_183555_tamborlane_2008_finetuned",
+    "aleppo_2017": "experiments/nocturnal_forecasting/512ctx_96fh/moirai/2026-04-19_2045_aleppo_2017_finetuned_rerun01",
+    "brown_2019": "experiments/nocturnal_forecasting/512ctx_96fh/moirai/2026-04-19_0653_brown_2019_finetuned_rerun01",
+    "lynch_2022": "experiments/nocturnal_forecasting/512ctx_96fh/moirai/2026-04-23_0620_lynch_2022_finetuned_rerun01",
+    "tamborlane_2008": "experiments/nocturnal_forecasting/512ctx_96fh/moirai/2026-04-23_0541_tamborlane_2008_finetuned",
 }
 
 DATASET_LABELS: dict[str, str] = {
@@ -84,9 +84,6 @@ DATASET_LABELS: dict[str, str] = {
     "tamborlane_2008": "Tamborlane",
 }
 
-# Pre-sampled interesting episodes (idx → episode from forecasts.npz)
-# Columns: 10th / 25th / 50th / 75th / 90th percentile of per-episode median RMSE
-# (P10 = lowest RMSE = best quality; P90 = highest RMSE = worst quality)
 PERCENTILE_COLS: list[tuple[int, str, str]] = [
     (10, r"$\hat{Q}$P10", "Percentile 10"),
     (25, r"$\hat{Q}$P25", "Percentile 25"),
@@ -97,13 +94,13 @@ PERCENTILE_COLS: list[tuple[int, str, str]] = [
 
 DATASETS = ["aleppo_2017", "brown_2019", "lynch_2022", "tamborlane_2008"]
 
-PINK_DARK = "#c5449a"
-PINK_MED = "#e377c2"
-PINK_LIGHT = "#f2c6e8"
-PINK_LIGHTER = "#f9e5f5"
+BLUE_DARK = "#1565c0"
+BLUE_MED = "#5e97f6"
+BLUE_LIGHT = "#90caf9"
+BLUE_LIGHTER = "#e3f2fd"
 
-DEFAULT_OUT_PNG = "results/chronos2_forecast_grid.png"
-DEFAULT_OUT_PDF = "results/chronos2_forecast_grid.pdf"
+DEFAULT_OUT_PNG = "results/moirai_forecast_grid.png"
+DEFAULT_OUT_PDF = "results/moirai_forecast_grid.pdf"
 
 # ── Figure size ──────────────────────────────────────────────────────────────
 # NeurIPS 2025: textwidth = 5.5 in (single-column, letter paper, 1.5in margins)
@@ -180,7 +177,7 @@ def interpolate_quantile(
 
 def load_percentile_episodes(dataset: str) -> list[dict]:
     """
-    Load the best Chronos-2 forecasts.npz for *dataset*, compute per-episode
+    Load the best Moirai forecasts.npz for *dataset*, compute per-episode
     RMSE of the median forecast, and return one episode dict per percentile
     defined in PERCENTILE_COLS.
     """
@@ -231,7 +228,6 @@ def plot_panel(
     q_fc = ep["q_forecasts"]
     q_levels = ep["q_levels"]
 
-    # Quantile traces
     q01 = q_fc[0]  # 0.1
     q09 = q_fc[8]  # 0.9
     q05 = q_fc[4]  # 0.5 (median)
@@ -239,11 +235,11 @@ def plot_panel(
     q075 = interpolate_quantile(q_fc, q_levels, 0.75)
 
     # 80 % PI
-    ax.fill_between(t, q01, q09, color=PINK_LIGHTER, alpha=ALPHA_80PI, label="80 % PI")
+    ax.fill_between(t, q01, q09, color=BLUE_LIGHTER, alpha=ALPHA_80PI, label="80 % PI")
     # 50 % PI
-    ax.fill_between(t, q025, q075, color=PINK_LIGHT, alpha=ALPHA_50PI, label="50 % PI")
+    ax.fill_between(t, q025, q075, color=BLUE_LIGHT, alpha=ALPHA_50PI, label="50 % PI")
     # Median forecast
-    ax.plot(t, q05, color=PINK_DARK, lw=MEDIAN_LW, label="Forecast (median)", zorder=3)
+    ax.plot(t, q05, color=BLUE_DARK, lw=MEDIAN_LW, label="Forecast (median)", zorder=3)
     # Actual trace
     ax.plot(t, actuals, color="black", lw=ACTUAL_LW, label="Actual BG", zorder=4)
     # Clinical thresholds
@@ -265,7 +261,7 @@ def plot_panel(
     )
 
     min_bg = float(actuals.min())
-    # ep_label = ep["episode_id"].split("::")[-1]  # e.g. ep005
+    # ep_label = ep["episode_id"].split("::")[-1]
     ax.set_title(
         f"RMSE:{ep['rmse']:.2f} · min(BG):{min_bg:.1f}",
         fontsize=PANEL_TITLE_FONTSIZE,
@@ -307,7 +303,7 @@ def build_grid(out_png: str, out_pdf: str) -> None:
 
     for row, dataset in enumerate(DATASETS):
         print(f"  Loading {dataset}…")
-        episodes = load_percentile_episodes(dataset)  # list of 5 episode dicts
+        episodes = load_percentile_episodes(dataset)
 
         for col, ep in enumerate(episodes):
             ax = axes[row, col]
@@ -320,7 +316,6 @@ def build_grid(out_png: str, out_pdf: str) -> None:
                 show_xtick_labels=(row == 3),
             )
 
-        # Row label on the left margin
         axes[row, 0].annotate(
             DATASET_LABELS[dataset],
             xy=(ROW_LABEL_X, 0.5),
@@ -332,7 +327,6 @@ def build_grid(out_png: str, out_pdf: str) -> None:
             rotation=90,
         )
 
-    # Column headers
     for col, (_, _, long_label) in enumerate(PERCENTILE_COLS):
         axes[0, col].annotate(
             long_label,
@@ -345,7 +339,6 @@ def build_grid(out_png: str, out_pdf: str) -> None:
             fontsize=COL_HEADER_FONTSIZE,
         )
 
-    # Shared legend (bottom of figure)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(
         handles,
@@ -358,7 +351,7 @@ def build_grid(out_png: str, out_pdf: str) -> None:
     )
 
     fig.suptitle(
-        "Chronos-2 Probabilistic Forecasts — episode quality by RMSE percentile",
+        "Moirai Probabilistic Forecasts — episode quality by RMSE percentile",
         fontsize=SUPTITLE_FONTSIZE,
     )
 

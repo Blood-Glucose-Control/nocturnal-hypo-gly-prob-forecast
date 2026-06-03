@@ -1,0 +1,9 @@
+ablation,dataset,split_type,n_patients,n_episodes,n_episodes_with_hypo,hypo_rate,source_run
+holdout_10pct,aleppo_2017,patient,22,2263,585,0.25850640742377373,experiments/nocturnal_forecasting/768ctx_96fh/patchtst/2026-04-29_001903_aleppo_2017_finetuned
+holdout_10pct,aleppo_2017,temporal,199,1980,462,0.23333333333333334,experiments/nocturnal_forecasting/768ctx_96fh/patchtst/2026-04-29_001903_aleppo_2017_finetuned
+holdout_10pct,brown_2019,patient,16,2031,211,0.10388970950270802,experiments/nocturnal_forecasting/768ctx_96fh/patchtst/2026-04-29_001614_brown_2019_finetuned
+holdout_10pct,brown_2019,temporal,151,1778,252,0.14173228346456693,experiments/nocturnal_forecasting/768ctx_96fh/patchtst/2026-04-29_001614_brown_2019_finetuned
+holdout_10pct,lynch_2022,patient,34,1711,321,0.18760958503798947,experiments/nocturnal_forecasting/768ctx_96fh/patchtst/2026-04-29_001647_lynch_2022_finetuned
+holdout_10pct,lynch_2022,temporal,273,1217,276,0.22678718159408381,experiments/nocturnal_forecasting/768ctx_96fh/patchtst/2026-04-29_001647_lynch_2022_finetuned
+holdout_10pct,tamborlane_2008,patient,45,5916,2261,0.382183908045977,experiments/nocturnal_forecasting/768ctx_96fh/patchtst/2026-04-29_005411_tamborlane_2008_finetuned
+holdout_10pct,tamborlane_2008,temporal,385,4866,1891,0.38861487875051376,experiments/nocturnal_forecasting/768ctx_96fh/patchtst/2026-04-29_005411_tamborlane_2008_finetuned
