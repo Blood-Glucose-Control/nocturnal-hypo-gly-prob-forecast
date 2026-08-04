@@ -41,6 +41,7 @@ def clean_tamborlane_2008_data(df: pd.DataFrame) -> pd.DataFrame:
         # Map from actual column names to standardized names
         "RecID": "record_id",
         "PtID": "p_num",
+        "DeviceDtTm": "datetime",  # Combined datetime column from device
         "DeviceDate": "device_date",
         "DeviceTime": "device_time",
         "GlucoseValue": "bg_mg_dl",
@@ -65,8 +66,13 @@ def clean_tamborlane_2008_data(df: pd.DataFrame) -> pd.DataFrame:
     # Apply column name mapping
     data.rename(columns=column_mapping, inplace=True)
 
-    # Create datetime column from DeviceDate and DeviceTime if available
-    if "device_date" in data.columns and "device_time" in data.columns:
+    # Create datetime column from available sources
+    if "datetime" in data.columns:
+        # DeviceDtTm was already mapped to datetime, just ensure proper type
+        if not pd.api.types.is_datetime64_any_dtype(data["datetime"]):
+            data["datetime"] = pd.to_datetime(data["datetime"], errors="coerce")
+            logger.info("Converted datetime column from DeviceDtTm to datetime type")
+    elif "device_date" in data.columns and "device_time" in data.columns:
         # Combine date and time - use infer_datetime_format for flexibility
         # errors="coerce" ensures unparseable values become NaT instead of raising
         datetime_str = (

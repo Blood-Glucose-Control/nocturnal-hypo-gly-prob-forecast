@@ -1,0 +1,12 @@
+2a3e9979a2f04b96f52f8f0a2281ede9  ./configs/data/data_config_registry.json
+1ffd9917530da25103ff5136b0494311  ./experiments/nocturnal_forecasting_ctx_ablation/best_by_model.csv
+0602d22d4f1922dfc8421d77657e7be1  ./experiments/nocturnal_forecasting_ctx_ablation/best_by_model_dataset.csv
+5f2bf2d0eeb342f4def3c0c4632ad68e  ./experiments/nocturnal_forecasting_ctx_ablation/summary.csv
+42ba4526b723db1cd728abfd5302cd30  ./experiments/standard_forecasting/best_by_model_dataset.csv
+cfd2a3354242d57234bd396a323a4b0c  ./experiments/standard_forecasting/summary.csv
+c9c74fdda6170bf000ab324429bd83be  ./experiments/standard_forecasting/best_by_model.csv
+b0409a9b6f7a45d57c569db4cb27d578  ./experiments/nocturnal_forecasting/summary.csv
+bf79ecfd8b059176d9d8df665c764e40  ./experiments/nocturnal_forecasting/best_by_model.csv
+75ac2354b07218195a5cab284425c9b4  ./experiments/nocturnal_forecasting/best_by_model_dataset.csv
+d41d8cd98f00b204e9800998ecf8427e  ./trained_models/registry.csv
+06c574ecfe42666038618467f3eac808  ./MANIFEST.md5

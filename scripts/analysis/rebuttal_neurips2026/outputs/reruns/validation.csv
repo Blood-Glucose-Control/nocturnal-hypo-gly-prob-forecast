@@ -1,0 +1,11 @@
+job,model,ds,kind,got,exp,delta,n_ep,status
+ze_moment_aleppo_2017,moment,aleppo_2017,zeroshot_ci,3.7710674260365344,3.771,0.0001,4243,OK
+ze_moment_brown_2019,moment,brown_2019,zeroshot_ci,3.5561096840633604,3.556,0.0001,3809,OK
+ze_moment_lynch_2022,moment,lynch_2022,zeroshot_ci,3.482677551443768,3.483,-0.0003,2928,OK
+ze_moment_tamborlane_2008,moment,tamborlane_2008,zeroshot_ci,3.9553240089648463,3.955,0.0003,10782,OK
+ze_ttm_aleppo_2017,ttm,aleppo_2017,zeroshot_ci,2.9212297786160777,2.921,0.0002,4243,OK
+ze_ttm_brown_2019,ttm,brown_2019,zeroshot_ci,2.8434992703837807,2.843,0.0005,3809,OK
+ze_ttm_lynch_2022,ttm,lynch_2022,zeroshot_ci,3.001452511792359,3.001,0.0005,2928,OK
+ze_ttm_tamborlane_2008,ttm,tamborlane_2008,zeroshot_ci,3.4240822095304138,3.424,0.0001,10782,OK
+a4_ttm_brown_2019,ttm,brown_2019,a4_bgonly,2.5661627299927448,2.566,0.0002,3809,OK
+a4_ttm_lynch_2022,ttm,lynch_2022,a4_bgonly,2.5195334632001485,2.52,-0.0005,2928,OK

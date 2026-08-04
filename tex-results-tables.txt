@@ -1,0 +1,390 @@
+\newcommand{\rbf}[1]{\textcolor{red}{\textbf{#1}}}
+\newcommand{\bbf}[1]{\textcolor{blue}{\textbf{#1}}}
+
+% -----------------------------------------------------------------
+% TABLE 3 --- Point Forecast Evaluations
+% Best covariate condition per model
+% Lower is better for all metrics.
+%
+% -----------------------------------------------------------------
+\begin{table*}[!t]
+\centering
+\caption{Point forecast and shape evaluations, with covariate ablations. Chronos2, TFT, and PatchTST stand out for the RMSE, while Moirai and Toto stand out for the shape metric.}
+\label{tab:point_forecast_results}
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.9}
+\tiny
+% Columns: [class rotated] [model] [Replace-BG: RMSE-T RMSE-P RMSE-Ov Shp-T Shp-P] [same ×3 for DCLP3, IOBP2, Tamborlane]
+\begin{tabular}{>{\centering\arraybackslash}p{4mm} l *{4}{rrrrr}}
+\toprule
+& & \multicolumn{5}{c}{\textbf{Replace-BG}}
+   & \multicolumn{5}{c}{\textbf{DCLP3}}
+   & \multicolumn{5}{c}{\textbf{IOBP2}}
+   & \multicolumn{5}{c}{\textbf{Tamborlane}} \\
+\cmidrule(lr){3-7}\cmidrule(lr){8-12}\cmidrule(lr){13-17}\cmidrule(lr){18-22}
+& & \multicolumn{3}{c}{RMSE $\downarrow$} & \multicolumn{2}{c}{Shp $\downarrow$}
+  & \multicolumn{3}{c}{RMSE $\downarrow$} & \multicolumn{2}{c}{Shp $\downarrow$}
+  & \multicolumn{3}{c}{RMSE $\downarrow$} & \multicolumn{2}{c}{Shp $\downarrow$}
+  & \multicolumn{3}{c}{RMSE $\downarrow$} & \multicolumn{2}{c}{Shp $\downarrow$} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-7}\cmidrule(lr){8-10}\cmidrule(lr){11-12}%
+\cmidrule(lr){13-15}\cmidrule(lr){16-17}\cmidrule(lr){18-20}\cmidrule(lr){21-22}
+& \textbf{Model} & Tmp & Pat & Ov & Tmp & Pat & Tmp & Pat & Ov & Tmp & Pat & Tmp & Pat & Ov & Tmp & Pat & Tmp & Pat & Ov & Tmp & Pat \\
+\midrule
+\multirow{2}{*}{\rotatebox{90}{\tiny\textit{Naive}}}
+ & Average          & 3.416 & 3.374 & 3.394 & 1120 & 1092 & 3.096 & 3.017 & 3.054 & 920 & 873 & 2.941 & 2.878 & 2.904 & 830 & 795 & 3.609 & 3.499 & 3.549 & 1250 & 1175 \\ %naive_baseline/Average bg_only
+ & Last Value       & 3.610 & 3.392 & 3.495 & 1251 & 1104 & 3.675 & 3.707 & 3.692 & 1296 & 1319 & 4.097 & 3.917 & 3.993 & 1611 & 1473 & 4.266 & 4.177 & 4.217 & 1747 & 1674 \\ %naive_baseline/Naive bg_only
+\cmidrule(lr){2-22}
+\multirow{2}{*}{\rotatebox{90}{\tiny\textit{Stat.}}}
+ & ARIMA        & 3.569 & 3.326 & 3.442 & 1135 & 954 & 3.559 & 3.464 & 3.509 & 1128 & 1072 & 3.663 & 3.501 & 3.569 & 1181 & 1070 & 3.994 & 3.880 & 3.932 & 1439 & 1349 \\ %statistical/AutoARIMA bg_only
+ & NPTS             & 3.442 & 3.394 & 3.416 & 848 & 835 & 3.138 & 3.082 & 3.108 & 671 & 644 & 3.016 & 2.939 & 2.972 & 600 & 561 & 3.629 & 3.518 & 3.569 & 879 & 822 \\ %statistical/NPTS bg_only
+\cmidrule(lr){2-22}
+\multirow{7}{*}{\rotatebox{90}{\tiny\textit{Deep L.}}}
+ & DeepAR                   & 3.009       & 2.727       & 2.862       & 471       & 353       & 2.750       & 2.682       & 2.714       & 415       & 401       & 2.502       & 2.483       & 2.491       & 369       & 342       & 3.476       & 3.352       & 3.409       & 820       & 767 \\ %deepar bg_only
+ & PatchTST                 & 2.742       & 2.623       & 2.679       & 467       & 398       & \bbf{2.506} & \bbf{2.451} & \bbf{2.477} & 387       & 370       & 2.495       & 2.419       & 2.451       & 400       & 364       & \rbf{3.295} & \rbf{3.195} & \rbf{3.240} & 772       & 731 \\ %patchtst bg_only
+ \cmidrule(lr){4-20}
+ & TFT$_{\mathrm{G}}$       & 2.844       & 2.646       & 2.740       & 509       & 414       & 2.540       & 2.478       & 2.507       & 403       & 385       & 2.470       & 2.410       & 2.435       & 396       & 366       & 3.374       & 3.267       & 3.316       & 845       & 802 \\ %tft bg_only
+ & TFT$_{\mathrm{I}}$       & 2.765       & 2.555       & 2.655       & 468       & 382       & 2.511       & 2.472       & 2.490       & 373       & 364       & 2.422       & \bbf{2.358} & \bbf{2.385} & 356       & 323       &    --       &    --       &    --       &  --       &  -- \\ %tft iob
+ & TFT$_{\mathrm{IC}}$      & 2.711       & \rbf{2.534} & \bbf{2.618} & 455       & 380       &   --        &    --       &    --       &  --       &  --       &    --       &    --       &    --       &  --       &  --       &    --       &    --       &    --       &  --       &  -- \\ %tft iob_cob
+ \cmidrule(lr){4-20}
+ & TiDE                     & 2.805       & 2.674       & 2.736       & 474       & 408       & 2.549       & 2.475       & 2.510       & 387       & 367       & 2.555       & 2.485       & 2.514       & 405       & 372       & 3.364       & 3.251       & 3.302       & 789       & 747 \\ %tide bg_only
+ & TimeGrad                 & 3.744       & 3.664       & 3.702       & 650       & 561       & 3.214       & 3.196       & 3.204       & 439       & 437       & 3.014       & 2.992       & 3.001       & 376       & 349       & 3.970       & 3.811       & 3.883       & 886       & 807 \\ %timegrad bg_only
+\cmidrule(lr){2-22}
+\multirow{23}{*}{\rotatebox{90}{\tiny\textit{Foundation}}}
+ & Chronos2$_{\mathrm{ZS}}$ & 2.836       & 2.701       & 2.765       & 537       & 471       & 2.673       & 2.629       & 2.650       & 495       & 480       & 2.741       & 2.622       & 2.672       & 528       & 478       & 3.417       & 3.301       & 3.354       & 862       & 798 \\ %chronos2 zero_shot
+ & Chronos2$_{\mathrm{G}}$  & 2.813       & 2.696       & 2.751       & 481       & 420       & 2.555       & 2.492       & 2.522       & 417       & 390       & 2.483       & 2.390       & 2.429       & 398       & 355       & 3.325       & 3.224       & 3.270       & 806       & 748 \\ %chronos2 bg_only
+ & Chronos2$_{\mathrm{I}}$  & \bbf{2.710} & \bbf{2.536} & 2.619       & 421       & 357       & \rbf{2.480} & \rbf{2.390} & \rbf{2.432} & 363       & 330       & \rbf{2.279} & \rbf{2.226} & \rbf{2.248} & 291       & 260       &    --       &    --       &    --       &  --       &  -- \\ %chronos2 iob
+ & Chronos2$_{\mathrm{IC}}$ & \rbf{2.688} & 2.538       & \rbf{2.609} & 420       & 365       &   --        &   --        &    --       &  --       &  --       &    --       &    --       &    --       &  --       &  --       &    --       &    --       &    --       &  --       &  -- \\ %chronos2 iob_cob
+ \cmidrule(lr){4-20}
+ & Moirai$_{\mathrm{ZS}}$   & 3.235       & 3.061       & 3.143       & 581       & 520       & 3.166       & 3.150       & 3.158       & 538       & 528       & 3.372       & 3.260       & 3.307       & 619       & 555       & 3.710       & 3.626       & 3.664       & 797       & 772 \\ %moirai zero_shot
+ & Moirai$_{\mathrm{G}}$    & 2.849       & 2.718       & 2.780       & 376       & 326       & 2.606       & 2.552       & 2.577       & 305       & 289       & 2.553       & 2.495       & 2.519       & 286       & 265       & 3.390       & 3.300       & 3.341       & \bbf{566} & \bbf{547} \\ %moirai bg_only
+ & Moirai$_{\mathrm{I}}$    & 2.793       & 2.629       & 2.707       & \bbf{363} & \rbf{316} & 2.549       & 2.496       & 2.521       & \rbf{295} & \rbf{281} & 2.464       & 2.415       & 2.435       & \rbf{276} & \bbf{258} &    --       &    --       &    --       &  --       &  -- \\ %moirai iob
+ & Moirai$_{\mathrm{IC}}$   & 2.857       & 2.690       & 2.769       & 366       & 320       &    --       &    --       &    --       &  --       &  --       &    --       &    --       &    --       &  --       &  --       &    --       &    --       &    --       &  --       &  -- \\ %moirai iob_cob
+ \cmidrule(lr){4-20}
+ & Moment$_{\mathrm{ZS}}$   & 3.797       & 3.748       & 3.771       & 716       & 700       & 3.598       & 3.519       & 3.556       & 610       & 567       & 3.544       & 3.438       & 3.483       & 562       & 509       & 4.019       & 3.902       & 3.955       & 707       & 661 \\ %moment zero_shot
+ & Moment$_{\mathrm{G}}$    & 3.335       & 3.298       & 3.315       & 793       & 764       & 3.052       & 2.994       & 3.021       & 634       & 601       & 2.972       & 2.882       & 2.920       & 580       & 533       & 3.563       & 3.460       & 3.507       & 832       & 783 \\ %moment bg_only
+ & Moment$_{\mathrm{I}}$    & 3.362       & 3.321       & 3.340       & 804       & 777       & 3.080       & 3.021       & 3.049       & 641       & 607       & 3.002       & 2.910       & 2.948       & 585       & 539       &    --       &    --       &    --       &  --       &  -- \\ %moment iob
+ & Moment$_{\mathrm{IC}}$   & 3.361       & 3.321       & 3.340       & 802       & 776       &    --       &    --       &    --       &  --       &  --       &    --       &    --       &    --       &  --       &  --       &    --       &    --       &    --       &  --       &  -- \\ %moment iob_cob
+ \cmidrule(lr){4-20}
+ & Sundial$_{\mathrm{ZS}}$  & 2.900       & 2.794       & 2.844       & 485       & 432       & 2.732       & 2.705       & 2.718       & 450       & 445       & 2.724       & 2.633       & 2.671       & 435       & 389       & 3.391       & 3.282       & 3.332       & 738       & 694 \\ %sundial zero_shot
+ \cmidrule(lr){4-20}
+ & TimesFM$_{\mathrm{ZS}}$  & 2.834       & 2.707       & 2.767       & 537       & 466       & 2.680       & 2.644       & 2.661       & 498       & 485       & 2.684       & 2.654       & 2.666       & 502       & 486       & 3.411       & 3.306       & 3.354       & 854       & 818 \\ %timesfm zero_shot
+ & TimesFM$_{\mathrm{G}}$   & 2.772       & 2.653       & 2.709       & 448       & 390       & 2.530       & 2.452       & 2.488       & 401       & 371       & \bbf{2.409} & 2.434       & 2.423       & 353       & 350       & 3.305       & 3.222       & 3.260       & 804       & 768 \\ %timesfm bg_only
+ \cmidrule(lr){4-20}
+ & TTM$_{\mathrm{ZS}}$      & 3.021       & 2.831       & 2.921       & 605       & 515       & 2.864       & 2.826       & 2.843       & 528       & 509       & 3.043       & 2.971       & 3.001       & 589       & 566       & 3.476       & 3.381       & 3.424       & 863       & 811 \\ %ttm zero_shot
+ & TTM$_{\mathrm{G}}$       & 2.820       & 2.724       & 2.769       & 501       & 440       & 2.604       & 2.532       & 2.566       & 443       & 424       & 2.558       & 2.492       & 2.520       & 452       & 416       & \bbf{3.304} & \bbf{3.219} & \bbf{3.258} & 801       & 766 \\ %ttm bg_only
+ & TTM$_{\mathrm{I}}$       & 2.854       & 2.744       & 2.796       & 502       & 437       & 2.599       & 2.499       & 2.546       & 425       & 395       & 2.555       & 2.493       & 2.519       & 428       & 396       &    --       &    --       &    --       &  --       &  -- \\ %ttm iob
+ & TTM$_{\mathrm{IC}}$      & 2.906       & 2.782       & 2.840       & 520       & 452       &    --       &    --       &    --       &  --       &  --       &    --       &    --       &    --       &  --       &  --       &    --       &    --       &    --       &  --       &  -- \\ %ttm iob_cob
+ \cmidrule(lr){4-20}
+ & Toto$_{\mathrm{ZS}}$     & 2.960       & 2.782       & 2.866       & 419       & 359       & 2.900       & 2.912       & 2.907       & 394       & 400       & 3.020       & 2.934       & 2.970       & 406       & 375       & 3.514       & 3.439       & 3.473       & 623       & 597 \\ %toto zero_shot
+ & Toto$_{\mathrm{G}}$      & 2.975       & 2.885       & 2.928       & 372       & 327       & 2.701       & 2.655       & 2.676       & \bbf{302} & \bbf{288} & 2.593       & 2.554       & 2.570       & \bbf{281} & \rbf{250} & 3.403       & 3.287       & 3.340       & \rbf{524} & \rbf{497} \\ %toto bg_only
+ & Toto$_{\mathrm{I}}$      & 2.932       & 2.823       & 2.875       & 363       & 330       & 2.761       & 2.669       & 2.713       & 322       & 290       & 2.782       & 2.692       & 2.730       & 308       & 284       &    --       &    --       &    --       &  --       &  -- \\ %toto iob
+ & Toto$_{\mathrm{IC}}$     & 2.933       & 2.838       & 2.883       & \rbf{356} & \bbf{316} &    --       &    --       &    --       &  --       &  --       &    --       &    --       &  --         &  --       &    --     &    --       &    --       &    --       &  --       &  -- \\ %toto iob_cob
+\bottomrule
+\end{tabular}
+\renewcommand{\arraystretch}{1}
+\\[0.2em]
+\scriptsize\textit{%
+  RMSE in mmol/L;\@ Shp = DILATE-Shape (unitless). \rbf{best}, \bbf{second-best}. DILATE-Temporal omitted; values available in the repository.\\
+  \textbf{Tmp} = temporal holdout; \textbf{Pat} = patient holdout; \textbf{Ov} = pooled overall.\\
+  \textbf{Subscripts:} $\mathrm{ZS}$ = zero-shot; $\mathrm{G}$ = Glucose Only. $\mathrm{I}$ = Glucose + Insulin; $\mathrm{IC}$ = Glucose + Insulin + Carbohydrates.
+}
+\end{table*}
+
+% -----------------------------------------------------------------
+% TABLE 4 --- Distributional Calibration
+% Probabilistic models only (point-only models show "---" in all cells).
+% Best covariate condition per model; ZS + FT for Foundation models.
+% -----------------------------------------------------------------
+\begin{table*}[!t]
+\centering
+\caption{Distributional calibration for models producing quantile outputs
+  ($q \in \{0.1,\ldots,0.9\}$).}
+\label{tab:calibration}
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.9}
+\tiny
+% Columns: [class rotated] [model] [Replace-BG: WQL-T WQL-P WQL-Ov Cover50 Cover80] [same ×3]
+\begin{tabular}{>{\centering\arraybackslash}p{4mm} l *{5}{rrrrr}}
+\toprule
+& & \multicolumn{5}{c}{\textbf{Replace-BG}}
+   & \multicolumn{5}{c}{\textbf{DCLP3}}
+   & \multicolumn{5}{c}{\textbf{IOBP2}}
+   & \multicolumn{5}{c}{\textbf{Tamborlane}} \\
+\cmidrule(lr){3-7}\cmidrule(lr){8-12}\cmidrule(lr){13-17}\cmidrule(lr){18-22}
+& & \multicolumn{1}{r}{WQL} & \multicolumn{4}{c}{Calibration}
+  & \multicolumn{1}{r}{WQL} & \multicolumn{4}{c}{Calibration}
+  & \multicolumn{1}{r}{WQL} & \multicolumn{4}{c}{Calibration}
+  & \multicolumn{1}{r}{WQL} & \multicolumn{4}{c}{Calibration} \\
+\cmidrule(lr){3-3}\cmidrule(lr){4-7}\cmidrule(lr){8-8}\cmidrule(lr){9-12}\cmidrule(lr){13-13}\cmidrule(lr){14-17}\cmidrule(lr){18-18}\cmidrule(lr){19-22}
+& \textbf{Model}            & $\downarrow$ & $\text{C}_{.5}$  & $\text{S}_{.5}$       & $\text{C}_{.8}$        & $\text{S}_{.8}$       &$\downarrow$& $\text{C}_{.5}$      & $\text{S}_{.5}$      & $\text{C}_{.8}$        & $\text{S}_{.8}$       &$\downarrow$& $\text{C}_{.5}$        & $\text{S}_{.5}$       & $\text{C}_{.8}$        & $\text{S}_{.8}$       &$\downarrow$& $\text{C}_{.5}$        & $\text{S}_{.5}$       & $\text{C}_{.8}$        & $\text{S}_{.8}$ \\
+\midrule
+\multirow{2}{*}{\rotatebox{90}{\tiny\textit{Naive}}}
+ & Average                  & 1.017      & 0.465      & 4.16      & 0.747      & 7.61      & 0.902      & \rbf{0.493}& 4.07      & 0.784      & 7.42      & 0.854      & 0.537      & 4.10      & 0.812      & 7.62      & 1.043      & 0.474      & 4.34      & 0.760      & 7.99     \\ %naive_baseline/Average bg_only
+ & Last Value               & 1.035      & 0.348      & 2.64      & 0.584      & 4.96      & 1.101      & 0.341      & 2.75      & 0.571      & 5.15      & 1.200      & 0.337      & 3.12      & 0.575      & 5.86      & 1.448      & 0.572      & 8.26      & 0.779      & 15.49     \\ %naive_baseline/Naive bg_only
+\cmidrule(lr){2-22}
+\multirow{2}{*}{\rotatebox{90}{\tiny\textit{Stat.}}}
+ & ARIMA                    & 1.004      & 0.616      & 5.52      & 0.859      & 10.35     & 1.003      & 0.582      & 5.24      & 0.846      & 9.83      & 1.015      & 0.574      & 5.16      & 0.844      & 9.68      & 1.166      & 0.578      & 6.02      & 0.829      & 11.30     \\ %statistical/AutoARIMA bg_only
+ & NPTS                     & 1.026      & 0.455      & 4.08      & 0.734      & 7.47      & 0.918      & 0.480      & 4.00      & 0.769      & 7.30      & 0.876      & 0.518      & 4.06      & 0.797      & 7.50      & 1.053      & 0.463      & 4.22      & 0.744      & 7.77     \\ %statistical/NPTS bg_only
+\cmidrule(lr){2-22}
+\multirow{7}{*}{\rotatebox{90}{\tiny\textit{Deep L.}}}
+ & DeepAR                   & 0.847      & 0.686      & 5.25      & 0.923      & 10.10     & 0.815      & 0.737      & 5.32      & 0.937      & 10.27     & 0.780      & 0.624      & 4.32      & 0.893      & 8.61      & 1.017      & 0.544      & 4.76      & 0.845      & 9.34     \\ %deepar bg_only
+ & PatchTST                 & 0.770      & 0.511      & 3.43      & 0.836      & 6.68      & 0.709      & 0.584      & 3.51      & 0.885      & 6.81      & 0.705      & 0.589      & 3.56      & 0.888      & 6.91      & 0.938      & 0.488      & 3.86      & \bbf{0.807}& 7.48     \\ %patchtst bg_only
+  \cmidrule(lr){4-20}
+ & TFT$_{\mathrm{G}}$       & 0.773      & 0.477      & 3.03      & 0.777      & 5.96      & 0.694      & 0.526      & 2.98      & 0.818      & 5.86      & 0.680      & 0.545      & 3.10      & 0.836      & 6.09      & 0.944      & 0.468      & 3.72      & 0.770      & 7.21     \\ %tft bg_only
+ & TFT$_{\mathrm{I}}$       & 0.752      & 0.477      & 3.03      & 0.774      & 5.90      & \bbf{0.681}& 0.512      & 2.83      & \bbf{0.793}& 5.48      & \bbf{0.655}& 0.519      & 2.78      & 0.805      & 5.43      &    --      &    --      &   --      &    --      &   --      \\ %tft iob
+ & TFT$_{\mathrm{IC}}$      & \bbf{0.742}& 0.518      & 3.33      & 0.808      & 6.30      &    --      &    --      &   --      &    --      &   --      &    --      &    --      &   --      &    --      &   --      &    --      &    --      &   --      &    --      &   --     \\ %tft iob_cob
+  \cmidrule(lr){4-20}
+ & TiDE                     & 0.787      & 0.482      & 3.15      & \bbf{0.796}& 6.19      & 0.712      & 0.535      & 3.13      & 0.837      & 6.15      & 0.720      & 0.522      & 3.14      & 0.829      & 6.17      & 0.962      & 0.434      & 3.41      & 0.739      & 6.68     \\ %tide bg_only
+ & TimeGrad                 & 1.135      & 0.252      & 1.97      & 0.430      & 3.53      & 0.938      & 0.337      & 2.07      & 0.541      & 3.72      & 0.862      & 0.325      & 1.95      & 0.533      & 3.51      & 1.200      & 0.233      & 1.86      & 0.400      & 3.37     \\ %timegrad bg_only
+\cmidrule(lr){2-22}
+\multirow{15}{*}{\rotatebox{90}{\tiny\textit{Foundation}}}
+ & Chronos2$_{\mathrm{ZS}}$ & 0.795      & 0.525      & 3.68      & 0.829      & 7.02      & 0.759      & 0.554      & 3.78      & 0.859      & 7.16      & 0.768      & 0.574      & 3.98      & 0.873      & 7.56      & 0.955      & 0.497      & 4.12      & 0.791      & 7.73     \\ %chronos2 zero_shot
+ & Chronos2$_{\mathrm{G}}$  & 0.784      & 0.511      & 3.50      & \rbf{0.803}& 6.66      & 0.716      & 0.539      & 3.44      & 0.832      & 6.57      & 0.697      & 0.580      & 3.62      & 0.857      & 6.91      & \rbf{0.931}& \rbf{0.499}& 4.07      & 0.788      & 7.63     \\ %chronos2 bg_only
+ & Chronos2$_{\mathrm{I}}$  & 0.744      & 0.489      & 3.20      & 0.787      & 6.14      & \rbf{0.669}& 0.514      & 2.92      & 0.809      & 5.66      & \rbf{0.614}& \bbf{0.497}& 2.54      & 0.793      & 4.99      &    --      &    --      &   --      &    --      &   --     \\ %chronos2 iob
+ & Chronos2$_{\mathrm{IC}}$ & \rbf{0.738}& \rbf{0.499}& 3.22      & 0.793      & 6.13      &    --      &    --      &   --      &    --      &   --      &    --      &    --      &   --      &    --      &   --      &    --      &    --      &   --      &    --      &   --     \\ %chronos2 iob_cob
+  \cmidrule(lr){4-20}      % chronos2 iob_cob
+ & Moirai$_{\mathrm{ZS}}$   & 0.908      & \bbf{0.502}& 3.93      & 0.794      & 7.63      & 0.905      & \bbf{0.507}& 3.96      & \rbf{0.798}& 7.67      & 0.957      & \rbf{0.502}& 4.19      & \bbf{0.795}& 8.13      & 1.061      & 0.465      & 4.17      & 0.761      & 8.28     \\ %moirai zero_shot
+ & Moirai$_{\mathrm{G}}$    & 0.805      & 0.497      & 3.47      & 0.782      & 6.60      & 0.732      & 0.483      & 3.06      & 0.769      & 5.86      & 0.721      & 0.504      & 3.19      & 0.785      & 6.09      & 0.972      & 0.482      & 4.12      & 0.764      & 7.72     \\ %moirai bg_only
+ & Moirai$_{\mathrm{I}}$    & 0.778      & 0.451      & 2.99      & 0.750      & 5.87      & 0.713      & 0.481      & 2.88      & 0.780      & 5.66      & 0.679      & 0.492      & 2.73      & 0.776      & 5.30      &    --      &    --      &   --      &    --      &   --     \\ %moirai iob
+ & Moirai$_{\mathrm{IC}}$   & 0.797      & 0.489      & 3.35      & 0.782      & 6.53      &    --      &    --      &   --      &    --      &   --      &    --      &    --      &   --      &    --      &   --      &    --      &    --      &   --      &    --      &   --     \\ %moirai iob_cob
+  \cmidrule(lr){4-20}
+ & Sundial$_{\mathrm{ZS}}$  & 0.855      & 0.304      & 2.14      & 0.518      & 3.87      & 0.817      & 0.296      & 2.10      & 0.520      & 3.82      & 0.793      & 0.337      & 2.26      & 0.564      & 4.09      & 1.013      & 0.274      & 2.22      & 0.472      & 4.04     \\ %sundial zero_shot
+  \cmidrule(lr){4-20}
+ & TimesFM$_{\mathrm{ZS}}$  & 0.797      & 0.538      & 3.77      & 0.838      & 7.16      & 0.762      & 0.547      & 3.73      & 0.848      & 7.02      & 0.768      & 0.581      & 3.98      & 0.868      & 7.54      & 0.955      & \bbf{0.502}& 4.15      & \rbf{0.797}& 7.78     \\ %timesfm zero_shot
+ & TimesFM$_{\mathrm{G}}$   & 0.770      & 0.489      & 3.22      & 0.785      & 6.21      & 0.710      & 0.527      & 3.29      & 0.824      & 6.40      & 0.681      & 0.563      & 3.31      & 0.843      & 6.38      & \bbf{0.937}& 0.481      & 4.01      & 0.768      & 7.62     \\ %timesfm bg_only
+  \cmidrule(lr){4-20}
+ & Toto$_{\mathrm{ZS}}$     & 0.821      & 0.472      & 3.33      & 0.750      & 6.32      & 0.831      & 0.473      & 3.38      & 0.752      & 6.41      & 0.848      & 0.491      & 3.64      & 0.769      & 6.88      & 0.994      & 0.446      & 3.74      & 0.722      & 7.08     \\ %toto zero_shot
+ & Toto$_{\mathrm{G}}$      & 0.851      & 0.502      & 3.70      & 0.792      & 7.16      & 0.781      & 0.533      & 3.75      & 0.832      & 7.27      & 0.758      & 0.578      & 3.97      & 0.856      & 7.69      & 0.968      & 0.490      & 4.14      & 0.782      & 8.02     \\ %toto bg_only
+ & Toto$_{\mathrm{I}}$      & 0.840      & 0.472      & 3.59      & 0.759      & 6.86      & 0.791      & 0.491      & 3.62      & 0.791      & 6.91      & 0.805      & 0.519      & 3.86      & \rbf{0.802}& 7.35      &    --      &    --      &   --      &    --      &   --      \\ %toto iob
+ & Toto$_{\mathrm{IC}}$     & 0.835      & 0.524      & 3.88      & 0.807      & 7.38      &    --      &    --      &   --      &    --      &   --      &    --      &    --      &   --      &    --      &   --      &    --      &    --      &   --      &    --      &   --    \\ %toto iob_cob
+\bottomrule
+\end{tabular}
+\renewcommand{\arraystretch}{1}
+\\[0.4em]
+\scriptsize\textit{%
+ \rbf{Best}, \bbf{second-best} fonts indicate best in column.
+  Coverage: $\mathrm{Cov}_{\rho=0.5} = \mathrm{C}_{.5}$ and Sharpness: $\mathrm{Sharp}_{\rho=0.5} = \mathrm{S}_{.5}$.\\
+  Distributional results for Tmp and Pat have been combined due to space constraints, they are reported in supplementary material and do not show notable deviations that would change conclusions.
+}
+\end{table*}
+
+% -----------------------------------------------------------------
+% TABLE 5a --- Episode-Level Triage Utility (Score a)
+% All models using min-point-forecast score: s_i = -min_t hat{mu}_t
+% -----------------------------------------------------------------
+\begin{table*}[!t]
+\centering
+\caption{Episode-level nocturnal hypoglycemia detection (any-step BG~$<3.9$~mmol/L)
+  across all four datasets. Moirai, Toto, and PatchTST stand out, better than top RMSE and WQL models.}
+\label{tab:noct_detection}
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.9}
+\scriptsize
+% Columns: [class rotated] [model] [Replace-BG: AUROC-T AUROC-P AUPRC-T AUPRC-P] [same ×3]
+\begin{tabular}{>{\centering\arraybackslash}p{4mm} l *{4}{rrrr}}
+\toprule
+& & \multicolumn{4}{c}{\textbf{Replace-BG}}
+   & \multicolumn{4}{c}{\textbf{DCLP3}}
+   & \multicolumn{4}{c}{\textbf{IOBP2}}
+   & \multicolumn{4}{c}{\textbf{Tamborlane}} \\
+\cmidrule(lr){3-6}\cmidrule(lr){7-10}\cmidrule(lr){11-14}\cmidrule(lr){15-18}
+& & \multicolumn{2}{c}{AUROC $\uparrow$} & \multicolumn{2}{c}{AUPRC $\uparrow$}
+  & \multicolumn{2}{c}{AUROC $\uparrow$} & \multicolumn{2}{c}{AUPRC $\uparrow$}
+  & \multicolumn{2}{c}{AUROC $\uparrow$} & \multicolumn{2}{c}{AUPRC $\uparrow$}
+  & \multicolumn{2}{c}{AUROC $\uparrow$} & \multicolumn{2}{c}{AUPRC $\uparrow$}\\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}%
+\cmidrule(lr){7-8}\cmidrule(lr){9-10}%
+\cmidrule(lr){11-12}\cmidrule(lr){13-14}%
+\cmidrule(lr){15-16}\cmidrule(lr){17-18}
+& \textbf{Model}            & Tmp           & Pat           & Tmp           & Pat           & Tmp           & Pat           & Tmp           & P           & Tmp           & Pat           & Tmp           & Pat          & Tmp           & Pat           & Tmp           & Pat     \\
+\midrule
+\multirow{2}{*}{\rotatebox{90}{\tiny\textit{Naive}}}
+ & Average                  & 0.557       & 0.545       & 0.280       & 0.307       & 0.499       & 0.534       & 0.143       & 0.162       & 0.500       & 0.514       & 0.230       & 0.207       & 0.577       & 0.538       & 0.457       & 0.410 \\ % naive_baseline/Average bg_only
+ & Last Value               & 0.690       & 0.705       & 0.478       & 0.544       & 0.631       & 0.655       & 0.343       & 0.317       & 0.571       & 0.572       & 0.380       & 0.328       & 0.691       & \rbf{0.693} & 0.628       & \rbf{0.618} \\ % naive_baseline/Naive bg_only
+ \cmidrule(lr){2-18}
+ \multirow{2}{*}{\rotatebox{90}{\tiny\textit{Stat.}}}
+ & ARIMA                    & 0.680       & 0.700       & 0.482       & 0.562       & 0.664       & 0.644       & 0.389       & 0.311       & 0.584       & 0.603       & 0.385       & 0.340       & 0.619       & 0.571       & 0.554       & 0.513 \\ % statistical/AutoARIMA bg_only
+ & NPTS                     & 0.601       & 0.623       & 0.322       & 0.372       & 0.558       & 0.579       & 0.161       & 0.197       & 0.561       & 0.580       & 0.255       & 0.253       & 0.678       & 0.649       & 0.558       & 0.497 \\ % statistical/NPTS bg_only
+ \cmidrule(lr){2-18}
+ \multirow{7}{*}{\rotatebox{90}{\tiny\textit{Deep L.}}}
+ & DeepAR                   & 0.711       & 0.726       & 0.507       & 0.580       & 0.673       & 0.690       & 0.388       & 0.321       & 0.603       & 0.609       & 0.403       & 0.354       & 0.669       & 0.645       & 0.600       & 0.571 \\ % deepar bg_only
+ & PatchTST                 & 0.721       & \rbf{0.751} & \bbf{0.530} & \rbf{0.604} & 0.695       & \bbf{0.716} & \bbf{0.406} & 0.345       & 0.672       & 0.670       & 0.452       & 0.393       & 0.701       & \bbf{0.672} & 0.629       & \bbf{0.589} \\ % patchtst bg_only
+ \cmidrule(lr){4-16}
+ & TFT$_{\mathrm{G}}$       & 0.686       & 0.687       & 0.483       & 0.528       & 0.643       & 0.629       & 0.348       & 0.310       & 0.622       & 0.606       & 0.411       & 0.337       & 0.652       & 0.612       & 0.573       & 0.530 \\ % tft bg_only
+ & TFT$_{\mathrm{I}}$       & 0.703       & 0.695       & 0.500       & 0.529       & 0.658       & 0.629       & 0.378       & 0.298       & 0.629       & 0.603       & 0.413       & 0.339       &    --       &   --        &    --       &    -- \\ % tft iob
+ & TFT$_{\mathrm{IC}}$      & 0.710       & 0.702       & 0.519       & 0.546       &    --       &    --       &   --        &    --       &    --       &    --       &    --       &   --        &    --       &   --        &    --       &    -- \\ % tft iob_cob
+ \cmidrule(lr){4-16}
+ & TiDE                     & 0.681       & 0.717       & 0.475       & 0.557       & 0.655       & 0.668       & 0.354       & 0.316       & 0.620       & 0.592       & 0.397       & 0.327       & 0.671       & 0.628       & 0.593       & 0.550 \\ % tide bg_only
+ & TimeGrad                 & 0.640       & 0.650       & 0.441       & 0.474       & 0.601       & 0.642       & 0.306       & 0.292       & 0.624       & 0.621       & 0.398       & 0.352       & 0.635       & 0.575       & 0.575       & 0.511 \\ % timegrad bg_only
+ \cmidrule(lr){2-18}
+ \multirow{17}{*}{\rotatebox{90}{\tiny\textit{Foundation}}}
+ & Chronos2$_{\mathrm{ZS}}$ & 0.718       & 0.708       & 0.516       & 0.551       & 0.670       & 0.674       & 0.378       & 0.338       & 0.632       & 0.640       & 0.428       & 0.373       & 0.698       & 0.647       & 0.619       & 0.567 \\ % chronos2 zero_shot
+ & Chronos2$_{\mathrm{G}}$  & 0.698       & 0.686       & 0.498       & 0.522       & 0.626       & 0.627       & 0.341       & 0.310       & 0.625       & 0.607       & 0.420       & 0.348       & 0.673       & 0.632       & 0.591       & 0.551 \\ % chronos2 bg_only
+ & Chronos2$_{\mathrm{I}}$  & 0.691       & 0.704       & 0.494       & 0.543       & 0.667       & 0.633       & 0.384       & 0.312       & 0.659       & 0.643       & 0.460       & 0.387       &    --       &   --        &    --       &    -- \\ % chronos2 iob
+ & Chronos2$_{\mathrm{IC}}$ & 0.712       & 0.712       & 0.509       & 0.556       &    --       &    --       &   --        &    --       &    --       &    --       &    --       &   --        &    --       &   --        &    --       &    -- \\ % chronos2 iob_cob
+ \cmidrule(lr){4-16}
+ & Moirai$_{\mathrm{ZS}}$   & 0.710       & 0.709       & 0.497       & 0.542       & 0.679       & 0.675       & 0.326       & 0.296       & 0.619       & 0.620       & 0.407       & 0.353       & 0.684       & 0.628       & 0.597       & 0.541 \\ % moirai zero_shot
+ & Moirai$_{\mathrm{G}}$    & 0.705       & 0.711       & 0.492       & 0.555       & 0.694       & 0.667       & 0.372       & 0.336       & 0.697       & 0.663       & 0.473       & 0.366       & \bbf{0.711} & 0.668       & \bbf{0.630} & 0.583 \\ % moirai bg_only
+ & Moirai$_{\mathrm{I}}$    & \rbf{0.728} & 0.731       & \rbf{0.530} & 0.580       & \rbf{0.722} & \rbf{0.718} & 0.394       & \bbf{0.354} & \bbf{0.709} & \rbf{0.704} & \bbf{0.507} & \rbf{0.433} &    --       &   --        &    --       &    -- \\ % moirai iob
+ & Moirai$_{\mathrm{IC}}$   & 0.719       & \bbf{0.742} & 0.509       & \bbf{0.586} &    --       &    --       &   --        &    --       &    --       &    --       &    --       &   --        &    --       &   --        &    --       &    -- \\ % moirai iob_cob
+ \cmidrule(lr){4-16}
+ & Sundial$_{\mathrm{ZS}}$  & 0.602       & 0.610       & 0.381       & 0.429       & 0.592       & 0.610       & 0.299       & 0.285       & 0.572       & 0.576       & 0.342       & 0.311       & 0.586       & 0.570       & 0.495       & 0.474 \\ % sundial zero_shot
+ \cmidrule(lr){4-16}
+ & TimesFM$_{\mathrm{ZS}}$  & 0.707       & 0.709       & 0.503       & 0.551       & 0.660       & 0.654       & 0.374       & 0.333       & 0.629       & 0.621       & 0.420       & 0.360       & 0.695       & 0.643       & 0.616       & 0.558 \\ % timesfm zero_shot
+ & TimesFM$_{\mathrm{G}}$   & 0.698       & 0.702       & 0.498       & 0.550       & 0.646       & 0.660       & 0.355       & 0.315       & 0.646       & 0.614       & 0.447       & 0.348       & 0.633       & 0.605       & 0.553       & 0.519 \\ % timesfm bg_only
+ \cmidrule(lr){4-16}
+ & Toto$_{\mathrm{ZS}}$     & \bbf{0.721} & 0.727       & 0.519       & 0.586       & 0.672       & 0.693       & 0.394       & \rbf{0.357} & 0.639       & 0.595       & 0.447       & 0.361       & \rbf{0.714} & 0.662       & \rbf{0.638} & 0.579 \\ % toto zero_shot
+ & Toto$_{\mathrm{G}}$      & 0.710       & 0.706       & 0.511       & 0.538       & 0.693       & 0.713       & 0.381       & 0.349       & \rbf{0.716} & \bbf{0.694} & \rbf{0.511} & \bbf{0.417} & 0.698       & 0.656       & 0.630       & 0.575 \\ % toto bg_only
+ & Toto$_{\mathrm{I}}$      & 0.698       & 0.694       & 0.490       & 0.534       & \bbf{0.705} & 0.692       & \rbf{0.412} & 0.349       & 0.645       & 0.669       & 0.450       & 0.396       &    --       &   --        &    --       &    -- \\ % toto iob
+ & Toto$_{\mathrm{IC}}$     & 0.706       & 0.702       & 0.508       & 0.542       &    --       &    --       &   --        &    --       &    --       &    --       &    --       &   --        &    --       &   --        &    --       &    -- \\ % toto iob_cob
+\bottomrule
+\end{tabular}
+\renewcommand{\arraystretch}{1}
+\\[0.4em]
+\scriptsize\textit{%
+  Hypoglycemia base rates by dataset (tmp/pat):
+  Replace-BG (0.233/0.259), DCLP3 (0.142/0.104), IOBP2 (0.227/0.188), Tamborlane (0.389/0.382), see Table~\ref{tab:data_summary}.
+}
+\end{table*}
+
+% APPENDIX TABLES:
+\newpage
+\section{Episodic RMSE by Forecast Horizon}\label{app:episodicrmse-tables}
+
+Episodic RMSE at horizon $k$ (steps of 5\,min) is:
+
+$$\mathrm{RMSE}_i(k) = \sqrt{\frac{1}{k}\sum_{t=1}^{k}(y_{i,t}-\hat{y}_{i,t})^2}$$
+
+Each table cell represents:
+
+$$\frac{1}{N}\sum_{i=1}^{N}\mathrm{RMSE}_i(k)\pm\,\mathrm{std}$$
+
+across $k$ time steps using the best-performing configuration.
+
+% --- Replace-BG ---
+\begin{table*}[!ht]
+\centering
+\caption{Episodic RMSE by forecast horizon --- Replace-BG (mmol/L, mean\,$\pm$\,std).}
+\label{tab:episodicrmse_replacebg}
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.9}
+  \footnotesize
+\begin{tabular}{>{\centering\arraybackslash}p{4mm} l r *{7}{c}}
+\toprule
+& \textbf{Model} & $N$ & \textbf{15 min} & \textbf{30 min} & \textbf{60 min} & \textbf{120 min} & \textbf{240 min} & \textbf{360 min} & \textbf{480 min} \\
+\midrule
+\multirow{5}{*}{\rotatebox{90}{\tiny\textit{Deep L.}}}
+ & DeepAR    & 4243 & 0.282 $\pm$ 0.32 & 0.489 $\pm$ 0.50 & 0.851 $\pm$ 0.79 & 1.395 $\pm$ 1.18 & 2.031 $\pm$ 1.48 & 2.324 $\pm$ 1.58 & 2.428 $\pm$ 1.52 \\ %aleppo_2017deepar
+ & PatchTST  & 4243 & 0.331 $\pm$ 0.32 & 0.511 $\pm$ 0.48 & 0.839 $\pm$ 0.75 & 1.316 $\pm$ 1.05 & 1.901 $\pm$ 1.31 & 2.180 $\pm$ 1.41 & 2.311 $\pm$ 1.36 \\ %aleppo_2017patchtst
+ & TFT       & 4243 & 0.306 $\pm$ 0.33 & 0.486 $\pm$ 0.48 & 0.791 $\pm$ 0.72 & 1.244 $\pm$ 1.02 & 1.801 $\pm$ 1.30 & 2.079 $\pm$ 1.41 & 2.224 $\pm$ 1.38 \\ %aleppo_2017tft
+ & TiDE      & 4243 & 0.399 $\pm$ 0.38 & 0.591 $\pm$ 0.53 & 0.920 $\pm$ 0.78 & 1.400 $\pm$ 1.11 & 1.957 $\pm$ 1.38 & 2.216 $\pm$ 1.48 & 2.335 $\pm$ 1.43 \\ %aleppo_2017tide
+ & TimeGrad  & 4243 & 0.455 $\pm$ 1.05 & 0.894 $\pm$ 1.55 & 1.544 $\pm$ 2.01 & 2.290 $\pm$ 2.28 & 2.878 $\pm$ 2.33 & 3.030 $\pm$ 2.25 & 3.035 $\pm$ 2.07 \\ %aleppo_2017timegrad
+%\cmidrule(lr){2-10}
+\multirow{7}{*}{\rotatebox{90}{\tiny\textit{Foundation}}}
+ & Chronos2  & 4243 & 0.282 $\pm$ 0.30 & 0.460 $\pm$ 0.45 & 0.763 $\pm$ 0.69 & 1.219 $\pm$ 1.00 & 1.786 $\pm$ 1.29 & 2.071 $\pm$ 1.41 & 2.213 $\pm$ 1.38 \\ %aleppo_2017chronos2
+ & Moirai    & 4243 & 0.453 $\pm$ 0.39 & 0.604 $\pm$ 0.51 & 0.895 $\pm$ 0.73 & 1.345 $\pm$ 1.03 & 1.920 $\pm$ 1.32 & 2.190 $\pm$ 1.44 & 2.321 $\pm$ 1.39 \\ %aleppo_2017moirai
+ & Moment    & 4243 & 2.210 $\pm$ 1.76 & 2.338 $\pm$ 1.76 & 2.454 $\pm$ 1.76 & 2.664 $\pm$ 1.82 & 2.844 $\pm$ 1.81 & 2.897 $\pm$ 1.73 & 2.900 $\pm$ 1.61 \\ %aleppo_2017moment
+ & Sundial   & 4243 & 0.281 $\pm$ 0.32 & 0.481 $\pm$ 0.47 & 0.834 $\pm$ 0.73 & 1.370 $\pm$ 1.08 & 1.992 $\pm$ 1.39 & 2.275 $\pm$ 1.49 & 2.413 $\pm$ 1.44 \\ %aleppo_2017sundial
+ & TimesFM   & 4243 & 0.304 $\pm$ 0.30 & 0.486 $\pm$ 0.46 & 0.803 $\pm$ 0.71 & 1.291 $\pm$ 1.04 & 1.887 $\pm$ 1.34 & 2.173 $\pm$ 1.47 & 2.302 $\pm$ 1.43 \\ %aleppo_2017timesfm
+ & Toto      & 4243 & 0.284 $\pm$ 0.32 & 0.487 $\pm$ 0.48 & 0.832 $\pm$ 0.75 & 1.344 $\pm$ 1.09 & 1.972 $\pm$ 1.39 & 2.282 $\pm$ 1.49 & 2.463 $\pm$ 1.46 \\ %aleppo_2017toto
+ & TTM       & 4243 & 0.341 $\pm$ 0.33 & 0.529 $\pm$ 0.48 & 0.866 $\pm$ 0.72 & 1.389 $\pm$ 1.05 & 1.995 $\pm$ 1.36 & 2.266 $\pm$ 1.46 & 2.387 $\pm$ 1.40 \\ %aleppo_2017ttm
+\bottomrule
+\end{tabular}
+\renewcommand{\arraystretch}{1}
+\end{table*}
+
+% --- DCLP3 ---
+\begin{table*}[!ht]
+\centering
+\caption{Episodic RMSE by forecast horizon --- DCLP3 (mmol/L, mean\,$\pm$\,std).}
+\label{tab:episodicrmse_dclp3}
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.9}
+\footnotesize
+\begin{tabular}{>{\centering\arraybackslash}p{4mm} l r *{7}{c}}
+\toprule
+& \textbf{Model} & $N$ & \textbf{15 min} & \textbf{30 min} & \textbf{60 min} & \textbf{120 min} & \textbf{240 min} & \textbf{360 min} & \textbf{480 min} \\
+\midrule
+\multirow{5}{*}{\rotatebox{90}{\tiny\textit{Deep L.}}}
+ & DeepAR    & 3809 & 0.283 $\pm$ 0.29 & 0.532 $\pm$ 0.53 & 0.950 $\pm$ 0.89 & 1.538 $\pm$ 1.31 & 2.074 $\pm$ 1.55 & 2.224 $\pm$ 1.57 & 2.275 $\pm$ 1.51 \\ %brown_2019deepar
+ & PatchTST  & 3809 & 0.312 $\pm$ 0.31 & 0.537 $\pm$ 0.52 & 0.895 $\pm$ 0.80 & 1.366 $\pm$ 1.11 & 1.835 $\pm$ 1.28 & 2.022 $\pm$ 1.31 & 2.134 $\pm$ 1.26 \\ %brown_2019patchtst
+ & TFT       & 3809 & 0.287 $\pm$ 0.29 & 0.514 $\pm$ 0.51 & 0.872 $\pm$ 0.80 & 1.340 $\pm$ 1.12 & 1.798 $\pm$ 1.34 & 1.962 $\pm$ 1.42 & 2.055 $\pm$ 1.41 \\ %brown_2019tft
+ & TiDE      & 3809 & 0.453 $\pm$ 0.42 & 0.668 $\pm$ 0.61 & 1.011 $\pm$ 0.85 & 1.450 $\pm$ 1.16 & 1.880 $\pm$ 1.33 & 2.047 $\pm$ 1.37 & 2.127 $\pm$ 1.33 \\ %brown_2019tide
+ & TimeGrad  & 3809 & 0.422 $\pm$ 0.94 & 0.895 $\pm$ 1.39 & 1.560 $\pm$ 1.78 & 2.221 $\pm$ 2.02 & 2.556 $\pm$ 2.01 & 2.591 $\pm$ 1.93 & 2.592 $\pm$ 1.81 \\ %brown_2019timegrad
+%\cmidrule(lr){2-10}
+\multirow{7}{*}{\rotatebox{90}{\tiny\textit{Foundation}}}
+ & Chronos2  & 3809 & 0.288 $\pm$ 0.28 & 0.501 $\pm$ 0.49 & 0.852 $\pm$ 0.77 & 1.322 $\pm$ 1.08 & 1.784 $\pm$ 1.29 & 1.945 $\pm$ 1.36 & 2.026 $\pm$ 1.35 \\ %brown_2019chronos2
+ & Moirai    & 3809 & 0.466 $\pm$ 0.38 & 0.659 $\pm$ 0.56 & 1.000 $\pm$ 0.81 & 1.456 $\pm$ 1.12 & 1.907 $\pm$ 1.31 & 2.065 $\pm$ 1.36 & 2.149 $\pm$ 1.32 \\ %brown_2019moirai
+ & Moment    & 3809 & 2.156 $\pm$ 1.72 & 2.251 $\pm$ 1.69 & 2.348 $\pm$ 1.66 & 2.507 $\pm$ 1.68 & 2.607 $\pm$ 1.57 & 2.659 $\pm$ 1.48 & 2.675 $\pm$ 1.40 \\ %brown_2019moment
+ & Sundial   & 3809 & 0.265 $\pm$ 0.26 & 0.506 $\pm$ 0.48 & 0.897 $\pm$ 0.76 & 1.426 $\pm$ 1.11 & 1.965 $\pm$ 1.32 & 2.203 $\pm$ 1.36 & 2.326 $\pm$ 1.33 \\ %brown_2019sundial
+ & TimesFM   & 3809 & 0.302 $\pm$ 0.27 & 0.518 $\pm$ 0.48 & 0.868 $\pm$ 0.76 & 1.344 $\pm$ 1.09 & 1.822 $\pm$ 1.29 & 2.018 $\pm$ 1.34 & 2.123 $\pm$ 1.30 \\ %brown_2019timesfm
+ & Toto      & 3809 & 0.320 $\pm$ 0.28 & 0.564 $\pm$ 0.49 & 0.959 $\pm$ 0.76 & 1.489 $\pm$ 1.06 & 2.012 $\pm$ 1.27 & 2.202 $\pm$ 1.35 & 2.354 $\pm$ 1.28 \\ %brown_2019toto
+ & TTM       & 3809 & 0.403 $\pm$ 0.34 & 0.620 $\pm$ 0.54 & 0.976 $\pm$ 0.80 & 1.459 $\pm$ 1.11 & 1.931 $\pm$ 1.29 & 2.111 $\pm$ 1.32 & 2.198 $\pm$ 1.28 \\ %brown_2019ttm
+\bottomrule
+\end{tabular}
+\renewcommand{\arraystretch}{1}
+\end{table*}
+
+% --- IOBP2 ---
+\begin{table*}[!ht]
+\centering
+\caption{Episodic RMSE by forecast horizon --- IOBP2 (mmol/L, mean\,$\pm$\,std).}
+\label{tab:episodicrmse_iobp2}
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.9}
+\footnotesize
+\begin{tabular}{>{\centering\arraybackslash}p{4mm} l r *{7}{c}}
+\toprule
+& \textbf{Model} & $N$ & \textbf{15 min} & \textbf{30 min} & \textbf{60 min} & \textbf{120 min} & \textbf{240 min} & \textbf{360 min} & \textbf{480 min} \\
+\midrule
+\multirow{5}{*}{\rotatebox{90}{\tiny\textit{Deep L.}}}
+ & DeepAR   & 2928 & 0.371 $\pm$ 0.36 & 0.643 $\pm$ 0.59 & 1.069 $\pm$ 0.92 & 1.649 $\pm$ 1.24 & 2.123 $\pm$ 1.42 & 2.264 $\pm$ 1.38 & 2.281 $\pm$ 1.31 \\ %lynch_2022deepar
+ & PatchTST & 2928 & 0.374 $\pm$ 0.37 & 0.623 $\pm$ 0.57 & 1.007 $\pm$ 0.86 & 1.517 $\pm$ 1.15 & 1.955 $\pm$ 1.30 & 2.070 $\pm$ 1.27 & 2.139 $\pm$ 1.20 \\ %lynch_2022patchtst
+ & TFT      & 2928 & 0.351 $\pm$ 0.34 & 0.595 $\pm$ 0.54 & 0.969 $\pm$ 0.84 & 1.464 $\pm$ 1.14 & 1.866 $\pm$ 1.35 & 1.954 $\pm$ 1.35 & 1.993 $\pm$ 1.31 \\ %lynch_2022tft
+ & TiDE     & 2928 & 0.511 $\pm$ 0.48 & 0.760 $\pm$ 0.68 & 1.146 $\pm$ 0.93 & 1.624 $\pm$ 1.21 & 2.034 $\pm$ 1.36 & 2.139 $\pm$ 1.33 & 2.175 $\pm$ 1.26 \\ %lynch_2022tide
+ & TimeGrad & 2928 & 0.484 $\pm$ 0.96 & 0.926 $\pm$ 1.46 & 1.551 $\pm$ 1.89 & 2.196 $\pm$ 2.11 & 2.510 $\pm$ 2.02 & 2.491 $\pm$ 1.82 & 2.467 $\pm$ 1.65 \\ %lynch_2022timegrad
+%\cmidrule(lr){2-10}
+\multirow{7}{*}{\rotatebox{90}{\tiny\textit{Foundation}}}
+ & Chronos2 & 2928 & 0.349 $\pm$ 0.33 & 0.573 $\pm$ 0.52 & 0.920 $\pm$ 0.78 & 1.378 $\pm$ 1.06 & 1.761 $\pm$ 1.25 & 1.838 $\pm$ 1.27 & 1.874 $\pm$ 1.24 \\ %lynch_2022chronos2
+ & Moirai   & 2928 & 0.410 $\pm$ 0.37 & 0.657 $\pm$ 0.56 & 1.040 $\pm$ 0.84 & 1.534 $\pm$ 1.14 & 1.945 $\pm$ 1.36 & 2.020 $\pm$ 1.35 & 2.057 $\pm$ 1.30 \\ %lynch_2022moirai
+ & Moment   & 2928 & 2.071 $\pm$ 1.68 & 2.181 $\pm$ 1.67 & 2.306 $\pm$ 1.67 & 2.489 $\pm$ 1.67 & 2.600 $\pm$ 1.55 & 2.612 $\pm$ 1.42 & 2.599 $\pm$ 1.33 \\ %lynch_2022moment
+ & Sundial  & 2928 & 0.343 $\pm$ 0.34 & 0.602 $\pm$ 0.55 & 1.009 $\pm$ 0.86 & 1.565 $\pm$ 1.18 & 2.068 $\pm$ 1.37 & 2.228 $\pm$ 1.34 & 2.302 $\pm$ 1.27 \\ %lynch_2022sundial
+ & TimesFM  & 2928 & 0.359 $\pm$ 0.36 & 0.599 $\pm$ 0.56 & 0.981 $\pm$ 0.87 & 1.493 $\pm$ 1.18 & 1.910 $\pm$ 1.35 & 2.001 $\pm$ 1.34 & 2.047 $\pm$ 1.30 \\ %lynch_2022timesfm
+ & Toto     & 2928 & 0.382 $\pm$ 0.34 & 0.644 $\pm$ 0.53 & 1.062 $\pm$ 0.82 & 1.613 $\pm$ 1.11 & 2.055 $\pm$ 1.29 & 2.146 $\pm$ 1.26 & 2.279 $\pm$ 1.19 \\ %lynch_2022toto
+ & TTM      & 2928 & 0.461 $\pm$ 0.39 & 0.706 $\pm$ 0.59 & 1.099 $\pm$ 0.87 & 1.616 $\pm$ 1.16 & 2.050 $\pm$ 1.32 & 2.159 $\pm$ 1.28 & 2.202 $\pm$ 1.22 \\ %lynch_2022ttm
+\bottomrule
+\end{tabular}
+\renewcommand{\arraystretch}{1}
+\end{table*}
+
+% --- Tamborlane ---
+\begin{table*}[h]
+\centering
+\caption{Episodic RMSE by forecast horizon --- Tamborlane (mmol/L, mean\,$\pm$\,std).}
+\label{tab:episodicrmse_tamborlane}
+\setlength{\tabcolsep}{2pt}
+\renewcommand{\arraystretch}{0.9}
+\footnotesize
+\begin{tabular}{>{\centering\arraybackslash}p{4mm} l r *{7}{c}}
+\toprule
+& \textbf{Model} & $N$ & \textbf{15 min} & \textbf{30 min} & \textbf{60 min} & \textbf{120 min} & \textbf{240 min} & \textbf{360 min} & \textbf{480 min} \\
+\midrule
+\multirow{5}{*}{\rotatebox{90}{\tiny\textit{Deep L.}}}
+ & DeepAR    & 10782 & 0.882 $\pm$ 1.47 & 1.262 $\pm$ 1.62 & 1.782 $\pm$ 1.74 & 2.388 $\pm$ 1.80 & 2.880 $\pm$ 1.76 & 3.061 $\pm$ 1.65 & 3.162 $\pm$ 1.59 \\ %tamborlane_2008deepar
+ & PatchTST  & 10782 & 0.814 $\pm$ 1.24 & 1.126 $\pm$ 1.35 & 1.577 $\pm$ 1.45 & 2.130 $\pm$ 1.54 & 2.610 $\pm$ 1.52 & 2.813 $\pm$ 1.45 & 2.926 $\pm$ 1.39 \\ %tamborlane_2008patchtst
+ & TFT       & 10782 & 0.775 $\pm$ 1.20 & 1.090 $\pm$ 1.32 & 1.545 $\pm$ 1.44 & 2.106 $\pm$ 1.58 & 2.611 $\pm$ 1.60 & 2.833 $\pm$ 1.55 & 2.959 $\pm$ 1.50 \\ %tamborlane_2008tft
+ & TiDE      & 10782 & 0.926 $\pm$ 1.27 & 1.230 $\pm$ 1.38 & 1.666 $\pm$ 1.50 & 2.188 $\pm$ 1.60 & 2.658 $\pm$ 1.59 & 2.858 $\pm$ 1.51 & 2.971 $\pm$ 1.44 \\ %tamborlane_2008tide
+ & TimeGrad  & 10782 & 0.839 $\pm$ 1.51 & 1.303 $\pm$ 1.80 & 1.918 $\pm$ 2.03 & 2.573 $\pm$ 2.16 & 3.082 $\pm$ 2.08 & 3.284 $\pm$ 1.95 & 3.395 $\pm$ 1.84 \\ %tamborlane_2008timegrad
+%\cmidrule(lr){2-10}
+\multirow{7}{*}{\rotatebox{90}{\tiny\textit{Foundation}}}
+ & Chronos2  & 10782 & 0.715 $\pm$ 1.11 & 1.039 $\pm$ 1.28 & 1.500 $\pm$ 1.42 & 2.073 $\pm$ 1.56 & 2.584 $\pm$ 1.59 & 2.804 $\pm$ 1.52 & 2.926 $\pm$ 1.46 \\ %tamborlane_2008chronos2
+ & Moirai    & 10782 & 0.838 $\pm$ 1.17 & 1.161 $\pm$ 1.32 & 1.623 $\pm$ 1.45 & 2.194 $\pm$ 1.56 & 2.693 $\pm$ 1.55 & 2.907 $\pm$ 1.48 & 3.026 $\pm$ 1.42 \\ %tamborlane_2008moirai
+ & Moment    & 10782 & 2.339 $\pm$ 1.82 & 2.490 $\pm$ 1.78 & 2.632 $\pm$ 1.74 & 2.846 $\pm$ 1.72 & 3.044 $\pm$ 1.62 & 3.139 $\pm$ 1.52 & 3.196 $\pm$ 1.44 \\ %tamborlane_2008moment
+ & Sundial   & 10782 & 0.712 $\pm$ 1.11 & 1.047 $\pm$ 1.26 & 1.522 $\pm$ 1.40 & 2.099 $\pm$ 1.54 & 2.618 $\pm$ 1.57 & 2.840 $\pm$ 1.51 & 2.965 $\pm$ 1.45 \\ %tamborlane_2008sundial
+ & TimesFM   & 10782 & 0.746 $\pm$ 1.12 & 1.063 $\pm$ 1.27 & 1.519 $\pm$ 1.42 & 2.084 $\pm$ 1.56 & 2.592 $\pm$ 1.56 & 2.808 $\pm$ 1.50 & 2.929 $\pm$ 1.43 \\ %tamborlane_2008timesfm
+ & Toto      & 10782 & 0.753 $\pm$ 1.12 & 1.092 $\pm$ 1.27 & 1.572 $\pm$ 1.38 & 2.159 $\pm$ 1.50 & 2.676 $\pm$ 1.52 & 2.898 $\pm$ 1.49 & 3.022 $\pm$ 1.42 \\ %tamborlane_2008toto
+ & TTM       & 10782 & 0.843 $\pm$ 1.18 & 1.147 $\pm$ 1.29 & 1.587 $\pm$ 1.40 & 2.133 $\pm$ 1.51 & 2.621 $\pm$ 1.51 & 2.830 $\pm$ 1.44 & 2.947 $\pm$ 1.39 \\ %tamborlane_2008ttm
+\bottomrule
+\end{tabular}
+\renewcommand{\arraystretch}{1}
+\end{table*}

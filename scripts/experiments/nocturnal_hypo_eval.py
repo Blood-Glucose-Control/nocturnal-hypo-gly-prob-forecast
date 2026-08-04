@@ -155,6 +155,7 @@ def parse_arguments() -> argparse.Namespace:
             "timesfm",
             "tide",
             "toto",
+            "tft",
         ],
         help="Model type to use for evaluation",
     )

@@ -509,8 +509,33 @@ def create_model_and_config(
             model = TimesFMForecaster(config)
         return model, config
 
+    elif model_type == "tft":
+        from src.models.tft import TFTForecaster, TFTConfig
+
+        if checkpoint:
+            model = TFTForecaster.load(checkpoint)
+            config = model.config
+            config.context_length = kwargs.get("context_length", config.context_length)
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+        else:
+            config = TFTConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                covariate_cols=kwargs.get("covariate_cols", []),
+            )
+            model = TFTForecaster(config)
+        return model, config
+
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, tide, moment"
+            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, tide, moment, tft"
         )

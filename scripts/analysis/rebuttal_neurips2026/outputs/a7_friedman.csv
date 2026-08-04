@@ -1,0 +1,5 @@
+dataset,dataset_label,chi2,p,n_patients,k_models,cd,avg_ranks
+aleppo_2017,Replace-BG,693.131303990127,2.072288517190522e-143,221,10,0.9112993392245995,chronos2:3.33;tft:3.62;patchtst:4.51;timesfm:4.52;tide:5.11;moirai:5.18;ttm:5.96;deepar:6.64;toto:6.71;moment:9.42
+brown_2019,DCLP3,697.7144256940664,2.1440095472813656e-144,167,10,1.0483322750360382,chronos2:2.86;tft:3.31;timesfm:4.50;patchtst:4.51;tide:4.51;moirai:5.11;ttm:6.20;deepar:6.59;toto:7.92;moment:9.49
+lynch_2022,IOBP2,1046.3532721350311,1.7370342377508142e-219,307,10,0.7731931618818744,chronos2:2.66;tft:3.44;timesfm:4.26;moirai:4.54;patchtst:5.40;tide:6.05;ttm:6.21;deepar:6.36;toto:7.07;moment:9.03
+tamborlane_2008,Tamborlane,1386.821479915432,5.439501979313046e-293,430,10,0.6533155036326795,patchtst:3.53;timesfm:3.66;chronos2:3.80;ttm:4.16;tft:4.80;tide:5.31;toto:6.74;moirai:6.84;deepar:7.63;moment:8.53
