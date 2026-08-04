@@ -45,9 +45,9 @@ Revisit D3/D4/D5 during execution if constraints change (e.g., W&B credits becom
 
 ---
 
-## 4. Prioritized todo list (SQL-tracked)
+## 4. Prioritized todo list (CSV-tracked)
 
-Todos are stored in the SQL `todos` table with dependencies in `todo_deps`. See §5 for status tracking guidance. The IDs below match SQL rows.
+Todos are tracked in `project_tracking.csv` at the repo root. See §5 for status tracking guidance. The task IDs below match CSV rows.
 
 ### P0 — This week (safety + governance)
 - `paper-tag-immutable`: Tag `paper-v1` on `neurips-rebuttal`, push to backup remote(s), verify tag SHA is preserved outside the repo (e.g., cluster README, external doc).
@@ -88,7 +88,7 @@ Todos are stored in the SQL `todos` table with dependencies in `todo_deps`. See 
 
 ## 5. Execution notes
 
-- Todos are tracked in the SQL `todos` table; deps in `todo_deps`. Update `status` (`pending` → `in_progress` → `done`/`blocked`) as work progresses.
+- Todos are tracked in `project_tracking.csv`. Update `status` column (`pending` → `in_progress` → `done`/`blocked`) as work progresses.
 - P0 todos are strict-order because of data-loss risk: `paper-tag-immutable` → `pii-secrets-audit` → `data-inventory` → `data-mirror-plan` → everything else.
 - Any todo that touches history (secrets scrub, license migration) requires a signed-off migration doc before execution.
 - Weekly review: reconcile plan against reality; move items between priorities as needed.
