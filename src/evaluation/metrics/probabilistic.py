@@ -683,4 +683,9 @@ def compute_ece(
     nominal, empirical = compute_reliability_curve(
         quantile_forecasts_batch, actuals_batch, quantile_levels
     )
-    return float(np.trapz(np.abs(empirical - nominal), nominal))
+    # NumPy 2 removed np.trapz in favor of np.trapezoid.
+    if hasattr(np, "trapezoid"):
+        area = np.trapezoid(np.abs(empirical - nominal), nominal)
+    else:
+        area = np.trapz(np.abs(empirical - nominal), nominal)
+    return float(area)
