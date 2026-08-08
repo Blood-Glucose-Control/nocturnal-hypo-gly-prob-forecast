@@ -42,6 +42,14 @@ import pandas as pd
 
 from src.evaluation.metrics.probabilistic import compute_reliability_curve, compute_ece
 
+
+# NumPy 2 removed np.trapz in favor of np.trapezoid.
+def _trapezoid_area(y: np.ndarray, x: np.ndarray) -> float:
+    if hasattr(np, "trapezoid"):
+        return float(np.trapezoid(y, x))
+    return float(np.trapz(y, x))
+
+
 # ---------------------------------------------------------------------------
 # Aesthetics — consistent with other visualisation scripts
 # ---------------------------------------------------------------------------
@@ -257,7 +265,7 @@ def plot_main_body(
         agg_empirical = weighted_emp / total_n
 
         # ECE from the aggregated curve
-        agg_ece = float(np.trapz(np.abs(agg_empirical - nominal_ref), nominal_ref))
+        agg_ece = _trapezoid_area(np.abs(agg_empirical - nominal_ref), nominal_ref)
 
         datasets_used = ", ".join(
             DATASET_LABELS.get(d, d) for d in sorted(model_data.keys())
