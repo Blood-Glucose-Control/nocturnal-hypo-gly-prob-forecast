@@ -1,0 +1,34 @@
+# TimesFM Sweep Config 01 — Higher LR probe A (LR=2e-5, 15 epochs)
+#
+# The first sweep established LR=1e-5 as safe and LR=1e-4 as catastrophically
+# unstable (gradient explosions).  This config probes whether there is
+# exploitable headroom in between.
+#
+# LR=2e-5 is 2× the baseline — conservative enough that divergence is unlikely
+# but fast enough to meaningfully change the loss landscape trajectory.
+#
+# 15 epochs matches the duration of 00_long_run at the epoch-15 mark so the
+# epoch_metrics.csv from config 00 provides a direct calibration-matched
+# baseline.  No need to run config 00 twice.
+model_type: "timesfm"
+training_mode: "fine_tune"
+context_length: 512
+forecast_length: 96
+
+# Training
+learning_rate: 2.0e-5
+num_epochs: 15
+batch_size: 256
+gradient_accumulation_steps: 4
+weight_decay: 0.01
+torch_dtype: "bfloat16"
+
+# In-training eval callback (writes epoch_metrics.csv each epoch)
+eval_during_training: true
+eval_temporal_frac: 0.10
+
+# Data
+target_col: "bg_mM"
+interval_mins: 5
+imputation_threshold_mins: 45
+freq_type: 0

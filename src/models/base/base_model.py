@@ -153,7 +153,10 @@ class ModelConfig:
         Raises:
             TypeError: If config_dict contains keys that are not valid attributes.
         """
-        return cls(**config_dict)
+        d = dict(config_dict)
+        if "training_backend" in d and isinstance(d["training_backend"], str):
+            d["training_backend"] = TrainingBackend(d["training_backend"])
+        return cls(**d)
 
 
 @dataclass
@@ -243,8 +246,13 @@ class BaseTimeSeriesFoundationModel(ABC):
     - Evaluation and metrics computation
     """
 
+    # Subclasses override this to point at their config class so that
+    # the base load() can deserialize config.json correctly without
+    # each model needing its own load() override.
+    config_class: type = ModelConfig
     # Default quantile levels used by predict_quantiles() when neither the caller
-    # nor config.quantile_levels specifies a value. Matches AutoGluon's default.
+    # nor config.quantile_levels specifies a value. Matches the decile grid
+    # supported by most pretrained models (e.g. TimesFM's fixed output head).
     DEFAULT_QUANTILE_LEVELS: List[float] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
     def __init__(
@@ -489,7 +497,12 @@ class BaseTimeSeriesFoundationModel(ABC):
         if not input_ids:
             return {}
 
-        results = self._predict_batch(data, episode_col, quantile_levels)
+        if quantile_levels is None:
+            # Backward-compatible dispatch for model overrides that implement
+            # _predict_batch(self, data, episode_col) without quantile_levels.
+            results = self._predict_batch(data, episode_col)
+        else:
+            results = self._predict_batch(data, episode_col, quantile_levels)
 
         missing = input_ids - set(results.keys())
         if missing:
@@ -720,7 +733,7 @@ class BaseTimeSeriesFoundationModel(ABC):
             if os.path.exists(config_path):
                 with open(config_path, "r") as f:
                     config_dict = json.load(f)
-                config = ModelConfig.from_dict(config_dict)
+                config = cls.config_class.from_dict(config_dict)
             else:
                 raise ValueError(f"No config found at {config_path}")
 

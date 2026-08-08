@@ -1,0 +1,38 @@
+# =============================================================================
+# Toto — Blood Glucose Only Baseline
+# =============================================================================
+# Fine-tunes Toto on BG (bg_mM) as the sole input — no covariates.
+# This is the BG-only baseline for comparison against covariate models.
+#
+# Toto trains by gradient steps (max_steps) via PyTorch Lightning.
+# Default 3000 steps is a production run. Use max_steps=100 for smoke tests.
+#
+# Usage:
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="toto" \
+#   MODEL_CONFIG="configs/models/toto/00_bg_only.yaml" \
+#   CONFIG_DIR="configs/data/holdout_10pct" \
+#   DATASETS="aleppo_2017 brown_2019 lynch_2022 tamborlane_2008" \
+#   SKIP_TRAINING="false" SKIP_STEPS="7" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+context_length: 512
+forecast_length: 96  # 8 hours at 5-min intervals
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+# Step-based training (PyTorch Lightning).
+max_steps: 10000
+lr: 1.0e-4
+min_lr: 1.0e-5
+warmup_steps: 200
+stable_steps: 1000
+decay_steps: 1000
+
+# Batch sizes
+train_batch_size: 4
+val_batch_size: 1
+
+# BG only — no covariates
+covariate_cols: []

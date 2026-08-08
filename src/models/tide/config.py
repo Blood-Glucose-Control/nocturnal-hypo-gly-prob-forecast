@@ -55,15 +55,23 @@ class TiDEConfig(ModelConfig):
     imputation_threshold_mins: int = 45
     min_segment_length: Optional[int] = None
 
+    # Additional TiDE architecture params
+    layer_norm: bool = True
+    decoder_output_dim: int = 16
+
+    # Training limits
+    early_stopping_patience: int = 20
+    max_epochs: int = 100
+
     # Covariates
-    covariate_cols: List[str] = field(default_factory=lambda: ["iob"])
+    covariate_cols: List[str] = field(default_factory=list)
     target_col: str = "bg_mM"
     patient_col: str = "p_num"
     time_col: str = "datetime"
     interval_mins: int = 5
 
     # AutoGluon settings
-    eval_metric: str = "RMSE"
+    eval_metric: str = "WQL"
     enable_ensemble: bool = False
     time_limit: Optional[int] = None
 
@@ -92,11 +100,15 @@ class TiDEConfig(ModelConfig):
                 "num_layers_encoder": self.num_layers_encoder,
                 "num_layers_decoder": self.num_layers_decoder,
                 "distr_hidden_dim": self.distr_hidden_dim,
+                "layer_norm": self.layer_norm,
+                "decoder_output_dim": self.decoder_output_dim,
                 "dropout": self.dropout,
                 "lr": self.lr,
                 "num_batches_per_epoch": self.num_batches_per_epoch,
                 "batch_size": self.batch_size,
                 "scaling": self.scaling,
+                "early_stopping_patience": self.early_stopping_patience,
+                "max_epochs": self.max_epochs,
                 "trainer_kwargs": {
                     "gradient_clip_val": self.gradient_clip_val,
                     "precision": self.precision,

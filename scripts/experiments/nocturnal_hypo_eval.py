@@ -46,6 +46,7 @@ from src.evaluation.nocturnal import (
     plot_best_worst_episodes,
     STEPS_PER_HOUR,
 )
+from src.evaluation.storage import write_nocturnal_results
 from src.models import create_model_and_config
 from src.utils import get_git_commit_hash, setup_file_logging, load_yaml_config
 
@@ -66,7 +67,7 @@ def setup_output_directory(
 ) -> Path:
     """Create and return output directory path."""
     if output_dir is None:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M")
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
         mode = "finetuned" if checkpoint else "zeroshot"
         output_dir = (
             f"./experiments/nocturnal_forecasting/"
@@ -75,8 +76,40 @@ def setup_output_directory(
         )
 
     output_path = Path(output_dir)
+    output_path = _resolve_output_dir_collision(output_path)
     output_path.mkdir(parents=True, exist_ok=True)
     return output_path
+
+
+def _resolve_output_dir_collision(output_path: Path) -> Path:
+    """Avoid overwriting previous eval artifacts.
+
+    If *output_path* already contains nocturnal evaluation outputs, append a
+    deterministic ``_rerunNN`` suffix and return the first available path.
+    """
+    marker_files = (
+        "nocturnal_results.json",
+        "experiment_config.json",
+        "nocturnal_evaluation.log",
+    )
+
+    if not output_path.exists():
+        return output_path
+
+    if not any((output_path / marker).exists() for marker in marker_files):
+        return output_path
+
+    idx = 1
+    while True:
+        candidate = Path(f"{output_path}_rerun{idx:02d}")
+        if not candidate.exists():
+            logger.warning(
+                "Output directory %s already contains results; writing to %s",
+                output_path,
+                candidate,
+            )
+            return candidate
+        idx += 1
 
 
 def save_experiment_config(
@@ -103,14 +136,6 @@ def save_experiment_config(
     logger.info(f"Experiment config saved to: {config_file}")
 
 
-def save_results(results: Dict[str, Any], output_path: Path) -> None:
-    """Save evaluation results to JSON file."""
-    results_file = output_path / "nocturnal_results.json"
-    with open(results_file, "w") as f:
-        json.dump(results, f, indent=2, default=str)
-    logger.info(f"Results saved to: {results_file}")
-
-
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
@@ -120,7 +145,17 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="ttm",
-        choices=["sundial", "ttm", "chronos2", "moirai", "timegrad", "timesfm", "tide"],
+        choices=[
+            "sundial",
+            "ttm",
+            "chronos2",
+            "moirai",
+            "moment",
+            "timegrad",
+            "timesfm",
+            "tide",
+            "toto",
+        ],
         help="Model type to use for evaluation",
     )
     parser.add_argument(
@@ -173,6 +208,13 @@ def parse_arguments() -> argparse.Namespace:
         help="Covariate column names (e.g., iob cob)",
     )
     parser.add_argument(
+        "--patients",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Subset of patient IDs to evaluate (default: all holdout patients)",
+    )
+    parser.add_argument(
         "--cuda-device",
         type=int,
         default=1,
@@ -184,6 +226,13 @@ def parse_arguments() -> argparse.Namespace:
         default=False,
         help="Use predict_quantiles() and compute WQL + Brier@3.9 "
         "(model must support probabilistic forecasting)",
+    )
+    parser.add_argument(
+        "--no-dilate",
+        action="store_true",
+        default=False,
+        help="Skip DILATE (Soft-DTW shape) metrics. Useful for large runs "
+        "where the O(n_episodes * forecast_length^2) cost is prohibitive.",
     )
     return parser.parse_args()
 
@@ -199,18 +248,30 @@ def main():
     # Load config from file if provided
     config_dict = load_yaml_config(args.model_config) if args.model_config else {}
 
-    # Prepare model kwargs
+    # Prepare model kwargs — pop model_type to avoid collision with the
+    # positional argument in create_model_and_config()
     model_kwargs = {
         **config_dict,
         "context_length": args.context_length,
         "forecast_length": args.forecast_length,
     }
+    model_kwargs.pop("model_type", None)
 
     # Initialize model
     logger.info(f"\n--- Initializing {args.model.upper()} ---")
     model, config = create_model_and_config(
         args.model, checkpoint=args.checkpoint, **model_kwargs
     )
+
+    # Early check: ensure model supports probabilistic forecasting if requested
+    if args.probabilistic and not model.supports_probabilistic_forecast:
+        logger.error(
+            "%s does not support probabilistic forecasting. "
+            "Remove --probabilistic or use a model that supports it "
+            "(e.g., chronos2).",
+            args.model,
+        )
+        raise ValueError("Model does not support probabilistic forecasting")
 
     context_length = config.context_length
     forecast_length = config.forecast_length
@@ -250,15 +311,41 @@ def main():
     holdout_data = registry.load_holdout_data_only(args.dataset)
 
     patient_col = get_patient_column(holdout_data)
+    if args.patients:
+        requested = set(args.patients)
+        available = set(holdout_data[patient_col].unique())
+        missing = requested - available
+        if missing:
+            logger.warning(
+                f"Requested patients not found in holdout data: {sorted(missing)}"
+            )
+        holdout_data = holdout_data[holdout_data[patient_col].isin(args.patients)]
     patients = holdout_data[patient_col].unique()
-    logger.info(f"Holdout patients: {list(patients)}")
+    if args.patients:
+        logger.info(
+            f"Filtered to {len(patients)} of {len(args.patients)} requested patients: {list(patients)}"
+        )
+    logger.info(f"Evaluating patients: {list(patients)}")
     logger.info(f"Total samples: {len(holdout_data):,}")
+
+    # Auto-detect covariates from model config if not explicitly specified.
+    # Fine-tuned models (e.g., Chronos-2 with IOB) need the same columns at
+    # predict time as were present during training.
+    covariate_cols = args.covariate_cols
+    if (
+        covariate_cols is None
+        and hasattr(config, "covariate_cols")
+        and config.covariate_cols
+    ):
+        covariate_cols = config.covariate_cols
+        logger.info("Using covariates from model config: %s", covariate_cols)
 
     # Build resolved config dict once (used in experiment_config.json and results)
     resolved_config = {
+        **config_dict,
         "context_length": context_length,
         "forecast_length": forecast_length,
-        **config_dict,
+        "covariate_cols": covariate_cols,
     }
 
     # Save experiment configuration
@@ -294,6 +381,7 @@ def main():
         forecast_length=forecast_length,
         covariate_cols=covariate_cols,
         probabilistic=args.probabilistic,
+        compute_dilate=not args.no_dilate,
     )
 
     # Log overall results
@@ -305,10 +393,19 @@ def main():
     if "overall_wql" in results:
         logger.info(f"Overall WQL:  {results['overall_wql']:.4f}")
         logger.info(f"Overall Brier@3.9: {results['overall_brier']:.4f}")
+        logger.info(f"Overall MACE: {results['overall_mace']:.4f}")
+        for lvl in (50, 80, 90, 95):
+            key = f"overall_coverage_{lvl}"
+            if key in results:
+                logger.info(f"Coverage {lvl}%%: {results[key]:.3f}")
+        for lvl in (50, 80, 90, 95):
+            key = f"overall_sharpness_{lvl}"
+            if key in results:
+                logger.info(f"Sharpness {lvl}%%: {results[key]:.3f}")
     logger.info(f"Total midnight episodes: {results['total_episodes']}")
 
-    # Prepare full results
-    full_results = {
+    # Save results (3-tier storage)
+    tier_metadata = {
         "evaluation_type": "nocturnal_hypoglycemia",
         "model": args.model,
         "mode": mode.lower(),
@@ -316,11 +413,10 @@ def main():
         "dataset": args.dataset,
         "timestamp": datetime.now().isoformat(),
         "config": resolved_config,
-        **results,
     }
-
-    # Save results
-    save_results(full_results, output_path)
+    written = write_nocturnal_results(results, output_path, tier_metadata)
+    for tier_name, tier_path in written.items():
+        logger.info(f"  {tier_name}: {tier_path}")
 
     # Generate best/worst episode plots
     logger.info("\n--- Generating Plots ---")

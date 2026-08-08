@@ -22,4 +22,4 @@ class SundialConfig(ModelConfig):
         # Set Sundial-specific defaults
         self.model_type = "sundial"
         self.training_backend = TrainingBackend.TRANSFORMERS
-        self.num_samples = kwargs.get("num_samples", 100)
+        self.num_samples = kwargs.get("num_samples", 50)

@@ -32,9 +32,14 @@ _MODEL_VENV_MAP: dict[str, tuple[str, str]] = {
 
 
 def _is_inside_venv(venv_rel_path: str) -> bool:
-    """Return True if the current Python interpreter lives inside the given venv."""
+    """Return True if the current Python interpreter lives inside the given venv.
+
+    Uses realpath for the venv directory (to follow repo-level symlinks) but
+    abspath for the executable, because venv/bin/python itself symlinks to the
+    system Python binary and realpath would resolve it out of the venv tree.
+    """
     venv_abs = os.path.realpath(os.path.join(_REPO_ROOT, venv_rel_path))
-    current = os.path.realpath(sys.executable)
+    current = os.path.abspath(sys.executable)
     return current.startswith(venv_abs + os.sep) or current == venv_abs
 
 

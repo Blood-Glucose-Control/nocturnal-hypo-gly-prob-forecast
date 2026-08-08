@@ -1,0 +1,56 @@
+# =============================================================================
+# TiDE Config 06: BG + IOB + insulin_availability  |  ctx=288  (short context)
+# =============================================================================
+# Same covariates and architecture as 02, but context_length reduced from
+# 512 (42h) → 288 (24h). Compare against 02 to check context sensitivity.
+# Shorter context also reduces training time and memory for TiDE's MLP layers.
+#
+# Gauntlet usage:
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="tide" \
+#     MODEL_CONFIG="configs/models/tide/06_bg_iob_ia_short_ctx.yaml" \
+#     CONFIG_DIR="configs/data/holdout_10pct" \
+#     DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" \
+#     SKIP_TRAINING="false" \
+#     ./scripts/examples/run_holdout_generic_workflow.sh
+# =============================================================================
+
+model_type: "tide"
+training_mode: "from_scratch"
+context_length: 288
+forecast_length: 96
+
+# TiDE architecture
+encoder_hidden_dim: 256
+decoder_hidden_dim: 256
+temporal_hidden_dim: 256
+num_layers_encoder: 2
+num_layers_decoder: 2
+distr_hidden_dim: 8
+layer_norm: true
+decoder_output_dim: 16
+dropout: 0.1
+scaling: "mean"
+
+# Training
+lr: 9.31e-4
+num_batches_per_epoch: 300
+batch_size: 256
+gradient_clip_val: 1.0
+precision: "16-mixed"
+early_stopping_patience: 20
+max_epochs: 100
+
+# Gap handling
+imputation_threshold_mins: 45
+
+# Covariates
+covariate_cols: ["iob", "insulin_availability"]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+# AutoGluon
+eval_metric: "WQL"
+enable_ensemble: false
+time_limit: 1800

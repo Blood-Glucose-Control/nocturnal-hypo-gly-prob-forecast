@@ -5,8 +5,8 @@ This module provides configuration classes specific to Moment models,
 extending the base model configuration with Moment-specific parameters.
 """
 
-from typing import Dict, List, Optional
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, asdict, fields
 
 from src.models.base import ModelConfig, TrainingBackend
 
@@ -102,6 +102,11 @@ class MomentConfig(ModelConfig):
         n_layers: Number of transformer layers.
         dropout: Dropout rate.
         mask_ratio: Ratio of time steps to mask during pre-training.
+        covariate_cols: Optional list of covariate columns to stack with
+            target as additional input channels.
+        use_wrapper_normalization: Whether to apply legacy wrapper-side
+            per-window normalization before calling MOMENT. Defaults to
+            False so MOMENT internal normalization is used directly.
         training_config: Moment-specific training parameters.
         data_config: Moment-specific data configuration.
     """
@@ -131,14 +136,23 @@ class MomentConfig(ModelConfig):
             "n_layers",
             "dropout",
             "mask_ratio",
+            "covariate_cols",
+            "use_wrapper_normalization",
             "training_config",
             "data_config",
+            "target_col",
+            "interval_mins",
         }
 
         # Filter out Moment-specific params from kwargs for parent class
+        valid_base_fields = {f.name for f in fields(ModelConfig)}
         base_kwargs = {
-            k: v for k, v in kwargs.items() if k not in moment_specific_params
+            k
+            for k in kwargs.keys()
+            if k not in moment_specific_params and k in valid_base_fields
         }
+
+        base_kwargs = {k: kwargs[k] for k in base_kwargs}
 
         # Call parent with filtered kwargs
         super().__init__(**base_kwargs)
@@ -152,10 +166,21 @@ class MomentConfig(ModelConfig):
         self.n_layers = kwargs.get("n_layers", 6)
         self.dropout = kwargs.get("dropout", 0.1)
         self.mask_ratio = kwargs.get("mask_ratio", 0.15)
+        self.covariate_cols = kwargs.get("covariate_cols", [])
+        self.use_wrapper_normalization = kwargs.get("use_wrapper_normalization", False)
+        self.target_col: Optional[str] = kwargs.get("target_col", None)
+        self.interval_mins: Optional[int] = kwargs.get("interval_mins", None)
 
-        # Initialize Moment-specific configs
-        self.training_config = kwargs.get("training_config", MomentTrainingConfig())
-        self.data_config = kwargs.get("data_config", MomentDataConfig())
+        # Initialize Moment-specific configs (support dicts from checkpoint JSON)
+        training_cfg = kwargs.get("training_config", MomentTrainingConfig())
+        if isinstance(training_cfg, dict):
+            training_cfg = MomentTrainingConfig(**training_cfg)
+        data_cfg = kwargs.get("data_config", MomentDataConfig())
+        if isinstance(data_cfg, dict):
+            data_cfg = MomentDataConfig(**data_cfg)
+
+        self.training_config = training_cfg
+        self.data_config = data_cfg
 
     def supports_lora(self) -> bool:
         """Check if Moment supports LoRA fine-tuning.
@@ -165,8 +190,8 @@ class MomentConfig(ModelConfig):
         """
         return True
 
-    def to_dict(self) -> Dict:
-        """Convert configuration to dictionary.
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert configuration to dictionary (JSON-serializable).
 
         Returns:
             Dictionary representation of the configuration.
@@ -179,6 +204,12 @@ class MomentConfig(ModelConfig):
                 "n_layers": self.n_layers,
                 "dropout": self.dropout,
                 "mask_ratio": self.mask_ratio,
+                "covariate_cols": list(self.covariate_cols or []),
+                "use_wrapper_normalization": self.use_wrapper_normalization,
+                "target_col": self.target_col,
+                "interval_mins": self.interval_mins,
+                "training_config": asdict(self.training_config),
+                "data_config": asdict(self.data_config),
             }
         )
         return base_dict
@@ -221,10 +252,7 @@ def create_moment_fine_tuning_config(**kwargs) -> MomentConfig:
         "model_path": "AutonLab/MOMENT-1-large",
         "context_length": 512,
         "forecast_length": 96,
-        "training_backend": TrainingBackend.FINE_TUNE,
-        "use_lora": True,
-        "lora_r": 8,
-        "lora_alpha": 16,
+        "training_backend": TrainingBackend.PYTORCH,  # Fine-tuning uses custom PyTorch training loop (not HF Trainer)
         "learning_rate": 5e-5,
         "batch_size": 16,
         "num_epochs": 20,
@@ -248,7 +276,8 @@ def create_moment_zero_shot_config(**kwargs) -> MomentConfig:
         "model_path": "AutonLab/MOMENT-1-large",
         "context_length": 512,
         "forecast_length": 96,
-        "training_backend": TrainingBackend.ZERO_SHOT,
+        "training_mode": "zero_shot",  # Use training_mode string like TTM
+        "training_backend": TrainingBackend.TRANSFORMERS,
         "batch_size": 64,
     }
     defaults.update(kwargs)

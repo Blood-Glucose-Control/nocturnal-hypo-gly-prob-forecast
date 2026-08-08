@@ -116,6 +116,10 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
     def supports_zero_shot(self) -> bool:
         return False
 
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        return True
+
     def _initialize_model(self) -> None:
         """Build the TimeGradEstimator (predictor is set after training or loading)."""
         info_print("Initializing TimeGrad estimator...")
@@ -158,15 +162,21 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
             f"device={self.device})"
         )
 
-    def _predict(self, data: pd.DataFrame, **kwargs) -> np.ndarray:
+    def _predict(
+        self, data: pd.DataFrame, quantile_levels=None, **kwargs
+    ) -> np.ndarray:
         """Make predictions given context data.
 
         Args:
             data: DataFrame with 'bg_mM' column containing context window.
+            quantile_levels: When set, return quantile forecasts as shape
+                (len(quantile_levels), forecast_length) derived from samples.
             **kwargs: Optional overrides (num_samples).
 
         Returns:
-            Forecast as 1D numpy array of shape (forecast_length,).
+            Forecast as 1D numpy array of shape (forecast_length,), or
+            shape (len(quantile_levels), forecast_length) when quantile_levels
+            is set.
         """
         if self.predictor is None:
             raise ValueError(
@@ -197,6 +207,11 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
 
         # samples shape: (num_samples, prediction_length, target_dim)
         samples = forecast.samples.squeeze(-1)  # -> (num_samples, prediction_length)
+
+        if quantile_levels is not None:
+            # shape: (len(quantile_levels), forecast_length)
+            return np.quantile(samples, quantile_levels, axis=0)
+
         return np.median(samples, axis=0)
 
     def _train_model(

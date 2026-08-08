@@ -17,6 +17,7 @@ import unittest.mock as mock
 import numpy as np
 import pandas as pd
 import pytest
+import torch  # noqa: F401  # pre-import so mock.patch.dict(sys.modules) doesn't evict the C extension
 
 # Patch heavy optional deps before importing the base module.
 _mocks = {

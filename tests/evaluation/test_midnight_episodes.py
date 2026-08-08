@@ -6,8 +6,13 @@
 
 import numpy as np
 import pandas as pd
+import pytest
 
-from src.evaluation.episode_builders import build_midnight_episodes
+from src.evaluation.episode_builders import (
+    build_midnight_episodes,
+    build_patient_episodes,
+    select_episodes_stratified,
+)
 
 
 def _make_patient_df(
@@ -229,3 +234,154 @@ class TestBuildMidnightEpisodes:
 
         with pytest.raises(ValueError, match="Target column 'bg_mM' not found"):
             build_midnight_episodes(df, context_length=144, forecast_length=72)
+
+
+# ---------------------------------------------------------------------------
+# Helpers for multi-patient tests
+# ---------------------------------------------------------------------------
+
+
+def _make_holdout_df(
+    patient_ids: list,
+    n_days: int = 5,
+    interval_mins: int = 5,
+    start: str = "2024-01-01",
+    bg_value: float = 7.0,
+    patient_col: str = "p_num",
+) -> pd.DataFrame:
+    """Create a combined holdout DataFrame with multiple patients."""
+    frames = []
+    for pid in patient_ids:
+        freq = f"{interval_mins}min"
+        index = pd.date_range(
+            start, periods=n_days * 24 * 60 // interval_mins, freq=freq
+        )
+        df = pd.DataFrame(
+            {
+                "datetime": index,
+                patient_col: pid,
+                "bg_mM": np.full(len(index), bg_value),
+            }
+        )
+        frames.append(df)
+    return pd.concat(frames, ignore_index=True)
+
+
+# ---------------------------------------------------------------------------
+# Tests for build_patient_episodes
+# ---------------------------------------------------------------------------
+
+
+class TestBuildPatientEpisodes:
+    """Test build_patient_episodes function."""
+
+    def test_basic_multi_patient(self):
+        """Episodes are built and grouped by patient ID."""
+        holdout = _make_holdout_df(["pat_A", "pat_B"], n_days=5)
+        result = build_patient_episodes(
+            holdout, ["pat_A", "pat_B"], context_length=144, forecast_length=72
+        )
+        assert "pat_A" in result
+        assert "pat_B" in result
+        for pid, eps in result.items():
+            assert len(eps) > 0
+            for ep in eps:
+                assert ep["patient_id"] == pid
+
+    def test_patient_id_column_p_num(self):
+        """Detects p_num as the patient column."""
+        holdout = _make_holdout_df(["p1", "p2"], patient_col="p_num")
+        result = build_patient_episodes(
+            holdout, ["p1"], context_length=144, forecast_length=72
+        )
+        assert "p1" in result
+
+    def test_patient_id_column_id(self):
+        """Detects id as the patient column."""
+        holdout = _make_holdout_df(["p1", "p2"], patient_col="id")
+        result = build_patient_episodes(
+            holdout, ["p1"], context_length=144, forecast_length=72
+        )
+        assert "p1" in result
+
+    def test_missing_patient_column_raises(self):
+        """Raises ValueError when neither p_num nor id column exists."""
+        holdout = _make_holdout_df(["p1"], patient_col="subject")
+        with pytest.raises(ValueError, match="Expected patient column"):
+            build_patient_episodes(
+                holdout, ["p1"], context_length=144, forecast_length=72
+            )
+
+    def test_datetime_column_set_as_index(self):
+        """DataFrame with a 'datetime' column is correctly indexed."""
+        holdout = _make_holdout_df(["pat_A"], n_days=5)
+        assert "datetime" in holdout.columns
+        result = build_patient_episodes(
+            holdout, ["pat_A"], context_length=144, forecast_length=72
+        )
+        assert "pat_A" in result
+        for ep in result["pat_A"]:
+            assert isinstance(ep["context_df"].index, pd.DatetimeIndex)
+
+    def test_unknown_patient_returns_empty(self):
+        """Requesting a patient not in the data yields no episodes for that patient."""
+        holdout = _make_holdout_df(["pat_A"])
+        result = build_patient_episodes(
+            holdout, ["pat_MISSING"], context_length=144, forecast_length=72
+        )
+        assert "pat_MISSING" not in result
+
+
+# ---------------------------------------------------------------------------
+# Tests for select_episodes_stratified
+# ---------------------------------------------------------------------------
+
+
+class TestSelectEpisodesStratified:
+    """Test select_episodes_stratified function."""
+
+    def test_selects_correct_count_per_patient(self):
+        """Picks exactly per_patient episodes from each patient."""
+        holdout = _make_holdout_df(["pat_A", "pat_B"], n_days=5)
+        by_patient = build_patient_episodes(
+            holdout, ["pat_A", "pat_B"], context_length=144, forecast_length=72
+        )
+        selected = select_episodes_stratified(by_patient, per_patient=2, seed=42)
+        from_a = [ep for ep in selected if ep["patient_id"] == "pat_A"]
+        from_b = [ep for ep in selected if ep["patient_id"] == "pat_B"]
+        assert len(from_a) == 2
+        assert len(from_b) == 2
+
+    def test_deterministic_with_same_seed(self):
+        """Same seed produces identical episode selection."""
+        holdout = _make_holdout_df(["pat_A", "pat_B"], n_days=5)
+        by_patient = build_patient_episodes(
+            holdout, ["pat_A", "pat_B"], context_length=144, forecast_length=72
+        )
+        sel1 = select_episodes_stratified(by_patient, per_patient=2, seed=99)
+        sel2 = select_episodes_stratified(by_patient, per_patient=2, seed=99)
+        anchors1 = [(ep["patient_id"], ep["anchor"]) for ep in sel1]
+        anchors2 = [(ep["patient_id"], ep["anchor"]) for ep in sel2]
+        assert anchors1 == anchors2
+
+    def test_different_seed_different_selection(self):
+        """Different seeds produce different selections (with enough episodes)."""
+        holdout = _make_holdout_df(["pat_A"], n_days=10)
+        by_patient = build_patient_episodes(
+            holdout, ["pat_A"], context_length=144, forecast_length=72
+        )
+        sel1 = select_episodes_stratified(by_patient, per_patient=2, seed=1)
+        sel2 = select_episodes_stratified(by_patient, per_patient=2, seed=999)
+        anchors1 = [ep["anchor"] for ep in sel1]
+        anchors2 = [ep["anchor"] for ep in sel2]
+        assert anchors1 != anchors2
+
+    def test_caps_at_available_episodes(self):
+        """If per_patient exceeds available episodes, returns all of them."""
+        holdout = _make_holdout_df(["pat_A"], n_days=5)
+        by_patient = build_patient_episodes(
+            holdout, ["pat_A"], context_length=144, forecast_length=72
+        )
+        n_available = len(by_patient["pat_A"])
+        selected = select_episodes_stratified(by_patient, per_patient=9999, seed=42)
+        assert len(selected) == n_available

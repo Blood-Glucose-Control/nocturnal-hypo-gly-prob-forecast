@@ -13,7 +13,7 @@ test-ttm:
 	$(VENVS_DIR)/ttm/bin/python -m pytest tests/models/ -v -k ttm
 
 test-sundial:
-	$(VENVS_DIR)/sundial/bin/python -m pytest tests/models/ -v -k sundial
+	$(VENVS_DIR)/sundial/bin/python -m pytest tests/models/ -v -k "not ttm and not timesfm and not chronos2"
 
 test-timesfm:
 	$(VENVS_DIR)/timesfm/bin/python -m pytest tests/models/ -v -k timesfm

@@ -1,0 +1,36 @@
+# TimesFM Sweep Config 00 — Single long run for duration ablation (35 epochs)
+#
+# Replaces the old 00_3ep–05_35ep configs.  Instead of 6 separate training runs
+# that each start from scratch at different epoch budgets, this single run trains
+# to convergence while the MidTrainingEvalCallback writes per-epoch WQL / coverage
+# / MACE / RMSE to epoch_metrics.csv.  The best epoch can be read from that CSV
+# without running any additional training.
+#
+# HF Trainer retains the last save_total_limit=3 epoch checkpoints (default) so
+# the best-epoch checkpoint (within the last 3) can be loaded directly if needed.
+model_type: "timesfm"
+training_mode: "fine_tune"
+context_length: 512
+forecast_length: 96
+
+# Loss
+loss_fn: "pinball"
+
+# Training
+learning_rate: 1.0e-5
+num_epochs: 35
+batch_size: 256
+gradient_accumulation_steps: 4
+weight_decay: 0.01
+torch_dtype: "bfloat16"
+
+# In-training eval callback (writes epoch_metrics.csv each epoch)
+eval_during_training: true
+eval_temporal_frac: 0.10
+# eval_subsample: null   # use all temporal eval windows (default)
+
+# Data
+target_col: "bg_mM"
+interval_mins: 5
+imputation_threshold_mins: 45
+freq_type: 0

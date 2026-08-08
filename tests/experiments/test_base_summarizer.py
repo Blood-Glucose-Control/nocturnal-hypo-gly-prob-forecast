@@ -101,14 +101,14 @@ class TestIterRunDirs:
         assert models == {"ttm", "sundial"}
 
     def test_ignores_non_run_directories(self, tmp_path):
-        """Directories not matching the YYYY-MM-DD_HHMM_* pattern are skipped."""
+        """All subdirectories are yielded (non-standard names are logged but not skipped)."""
         exp_dir = tmp_path / "dummy_experiment" / "512ctx_96fh" / "ttm"
         (exp_dir / "not_a_run_dir").mkdir(parents=True)
         (exp_dir / "2026-02-16_1808_aleppo_finetuned").mkdir()
 
         summarizer = _DummySummarizer(tmp_path, [])
         found = list(summarizer._iter_run_dirs())
-        assert len(found) == 1
+        assert len(found) == 2
 
     def test_missing_experiment_dir_returns_empty(self, tmp_path):
         summarizer = _DummySummarizer(tmp_path / "nonexistent", [])

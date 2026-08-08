@@ -346,7 +346,16 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="ttm",
-        choices=["sundial", "ttm", "chronos2", "moirai", "timegrad", "timesfm", "tide"],
+        choices=[
+            "sundial",
+            "ttm",
+            "chronos2",
+            "moirai",
+            "timegrad",
+            "timesfm",
+            "tide",
+            "toto",
+        ],
     )
     parser.add_argument(
         "--model-config", type=str, default=None, help="Path to model config YAML file"

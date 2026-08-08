@@ -48,6 +48,7 @@ import argparse
 import json
 import logging
 import shutil
+import sys
 import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -171,6 +172,8 @@ class ModelFactory:
             "timesfm": "google/timesfm-2.0-500m-pytorch",
             "timegrad": "",  # Trains from scratch, no pretrained path
             "tide": "",  # Trains from scratch, no pretrained path
+            "toto": "Datadog/Toto-Open-Base-1.0",
+            "moirai": "Salesforce/moirai-1.0-R-small",
         }
         return defaults.get(model_type, "")
 
@@ -207,10 +210,14 @@ class ModelFactory:
             return ModelFactory._create_timegrad_model(config, distributed_config)
         elif model_type == "tide":
             return ModelFactory._create_tide_model(config, distributed_config)
+        elif model_type == "toto":
+            return ModelFactory._create_toto_model(config, distributed_config)
+        elif model_type == "moirai":
+            return ModelFactory._create_moirai_model(config, distributed_config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai"
             )
 
     @staticmethod
@@ -314,8 +321,10 @@ class ModelFactory:
                 batch_size=config.batch_size,
                 num_epochs=config.num_epochs,
                 training_mode=config.training_mode,
+                freeze_backbone=config.freeze_backbone,
                 use_cpu=config.use_cpu,
                 fp16=config.fp16,
+                learning_rate=config.learning_rate,
                 **config.extra_config,
             )
 
@@ -336,8 +345,10 @@ class ModelFactory:
         try:
             from src.models.timesfm import TimesFMForecaster, TimesFMConfig
 
+            extra = dict(config.extra_config)
+            checkpoint_path = extra.pop("checkpoint_path", None) or config.model_path
             timesfm_config = TimesFMConfig(
-                checkpoint_path=config.model_path,
+                checkpoint_path=checkpoint_path,
                 context_length=config.context_length,
                 forecast_length=config.forecast_length,
                 horizon_length=config.forecast_length,
@@ -345,7 +356,7 @@ class ModelFactory:
                 num_epochs=config.num_epochs,
                 use_cpu=config.use_cpu,
                 learning_rate=config.learning_rate,
-                **config.extra_config,
+                **extra,
             )
 
             return TimesFMForecaster(
@@ -408,6 +419,68 @@ class ModelFactory:
             raise ImportError(
                 f"TiDE model not available. Install with: "
                 f"pip install 'nocturnal-hypo-gly-prob-forecast[tide]': {e}"
+            )
+
+    @staticmethod
+    def _create_toto_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a Toto model instance."""
+        try:
+            from src.models.toto import TotoForecaster, TotoConfig
+
+            # Build kwargs from extra_config, letting YAML values take
+            # precedence for Toto-specific params (lr, max_steps, etc.)
+            toto_kwargs = dict(config.extra_config) if config.extra_config else {}
+
+            # Set explicit args only if not already provided by YAML
+            toto_kwargs.setdefault("context_length", config.context_length)
+            toto_kwargs.setdefault("forecast_length", config.forecast_length)
+            toto_kwargs.setdefault("batch_size", config.batch_size)
+            if config.num_epochs is not None:
+                toto_kwargs.setdefault("num_epochs", config.num_epochs)
+            if config.learning_rate is not None and "lr" not in toto_kwargs:
+                toto_kwargs["lr"] = config.learning_rate
+            toto_kwargs.setdefault("use_cpu", config.use_cpu)
+
+            toto_config = TotoConfig(**toto_kwargs)
+
+            return TotoForecaster(toto_config, distributed_config=distributed_config)
+        except ImportError as e:
+            raise ImportError(
+                f"Toto model not available. Install with: "
+                f"source scripts/setup_model_env.sh toto\n{e}"
+            )
+
+    @staticmethod
+    def _create_moirai_model(
+        config: GenericModelConfig,
+        distributed_config: Optional[DistributedConfig] = None,
+    ):
+        """Create a Moirai model instance."""
+        try:
+            from src.models.moirai import MoiraiForecaster, MoiraiConfig
+
+            moirai_kwargs = dict(config.extra_config) if config.extra_config else {}
+
+            moirai_config = MoiraiConfig(
+                model_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                learning_rate=config.learning_rate,
+                **moirai_kwargs,
+            )
+
+            return MoiraiForecaster(
+                moirai_config, distributed_config=distributed_config
+            )
+        except ImportError as e:
+            raise ImportError(
+                f"Moirai model not available. Install with: "
+                f"pip install 'nocturnal-hypo-gly-prob-forecast[moirai]'\n{e}"
             )
 
     @staticmethod
@@ -644,8 +717,10 @@ class ModelFactory:
         elif model_type_lower == "timesfm":
             from src.models.timesfm import TimesFMForecaster, TimesFMConfig
 
+            extra = dict(config.extra_config)
+            checkpoint_path = extra.pop("checkpoint_path", None) or config.model_path
             timesfm_config = TimesFMConfig(
-                checkpoint_path=config.model_path,
+                checkpoint_path=checkpoint_path,
                 context_length=config.context_length,
                 forecast_length=config.forecast_length,
                 horizon_length=config.forecast_length,
@@ -653,7 +728,7 @@ class ModelFactory:
                 num_epochs=config.num_epochs,
                 use_cpu=config.use_cpu,
                 learning_rate=config.learning_rate,
-                **config.extra_config,
+                **extra,
             )
             return TimesFMForecaster.load(model_path, timesfm_config)
         elif model_type_lower == "timegrad":
@@ -674,10 +749,28 @@ class ModelFactory:
             from src.models.tide import TiDEForecaster
 
             return TiDEForecaster.load(model_path)
+        elif model_type_lower == "toto":
+            from src.models.toto import TotoForecaster
+
+            return TotoForecaster.load(model_path)
+        elif model_type_lower == "moirai":
+            from src.models.moirai import MoiraiForecaster, MoiraiConfig
+
+            moirai_kwargs = dict(config.extra_config) if config.extra_config else {}
+            moirai_config = MoiraiConfig(
+                model_path=config.model_path,
+                context_length=config.context_length,
+                forecast_length=config.forecast_length,
+                batch_size=config.batch_size,
+                num_epochs=config.num_epochs,
+                learning_rate=config.learning_rate,
+                **moirai_kwargs,
+            )
+            return MoiraiForecaster.load(model_path, moirai_config)
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai"
             )
 
 
@@ -1892,7 +1985,17 @@ stored in separate subdirectories for comparison.
         "--model-type",
         type=str,
         default="ttm",
-        choices=["ttm", "chronos", "chronos2", "moment", "timesfm", "timegrad", "tide"],
+        choices=[
+            "ttm",
+            "chronos",
+            "chronos2",
+            "moment",
+            "timesfm",
+            "timegrad",
+            "tide",
+            "toto",
+            "moirai",
+        ],
         help="Type of model to use (default: ttm)",
     )
     parser.add_argument(
@@ -2168,9 +2271,11 @@ stored in separate subdirectories for comparison.
 
     except KeyboardInterrupt:
         logger.info("\n\nWorkflow interrupted by user")
+        sys.exit(1)
     except Exception as e:
         logger.error(f"\n\nWorkflow failed: {e}")
         traceback.print_exc()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
