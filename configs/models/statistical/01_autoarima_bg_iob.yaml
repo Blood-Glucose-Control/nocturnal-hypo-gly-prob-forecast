@@ -1,0 +1,34 @@
+# =============================================================================
+# Statistical Config 01: AutoARIMA — BG + IOB
+# =============================================================================
+# Same as 00_autoarima_bg_only but with IOB added as an exogenous feature.
+# AutoARIMA treats IOB as a past covariate (ARIMAX-style). Future IOB is
+# unknowable at midnight prediction origin — exogenous regression is therefore
+# limited to fitting on historical IOB; the ARIMA component handles the
+# multi-step forecast. Note: AutoARIMA with exogenous variables may be slower —
+# the 2h time_limit cap ensures we still get results.
+#
+# Only run on datasets with IOB: aleppo_2017, brown_2019, lynch_2022.
+# CPU only.
+# =============================================================================
+
+model_type: "statistical"
+training_mode: "from_scratch"
+model_name: "AutoARIMA"
+context_length: 512
+forecast_length: 96
+
+autoarima_max_p: 3
+autoarima_max_q: 3
+
+# IOB past covariate
+covariate_cols: ["iob"]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+time_limit: 7200
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

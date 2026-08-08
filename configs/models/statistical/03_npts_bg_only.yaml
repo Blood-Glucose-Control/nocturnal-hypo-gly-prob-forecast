@@ -1,0 +1,28 @@
+# =============================================================================
+# Statistical Config 03: NPTS — BG-only
+# =============================================================================
+# Non-Parametric Time Series (NPTS) is a simple kernel-smoothing baseline.
+# Unlike AutoARIMA/Theta it is natively probabilistic — sample paths are drawn
+# directly, giving well-calibrated PIT histograms. Good contrast to the
+# synthetic-quantile models (Naive, Average, Theta, AutoARIMA).
+#
+# No hyper-parameters to tune; AutoGluon defaults are used.
+# CPU only.
+# =============================================================================
+
+model_type: "statistical"
+training_mode: "from_scratch"
+model_name: "NPTS"
+context_length: 512
+forecast_length: 96
+
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+time_limit: 7200
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45
