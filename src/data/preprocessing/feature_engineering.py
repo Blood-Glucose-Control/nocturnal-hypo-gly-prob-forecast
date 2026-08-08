@@ -47,7 +47,7 @@ Notes:
 """
 
 import logging
-from typing import Literal
+from typing import List, Literal
 
 import pandas as pd
 import numpy as np
@@ -277,3 +277,56 @@ def create_physiological_features(
 
     logger.info("\tDone deriving features.\n")
     return df
+
+
+def generate_future_known_covariates(
+    last_timestamp: pd.Timestamp,
+    forecast_length: int,
+    known_covariate_cols: List[str],
+    interval_mins: int = 5,
+) -> pd.DataFrame:
+    """Generate deterministic future covariate values for the forecast horizon.
+
+    Computes values from timestamps only — never forward-fills. Currently
+    supports time-of-day features (hour_sin, hour_cos). Extensible to other
+    deterministic features (day_of_week, holiday flags, etc.).
+
+    Args:
+        last_timestamp: Last timestamp in context window (prediction origin).
+        forecast_length: Number of future steps to generate.
+        known_covariate_cols: Column names to generate.
+        interval_mins: Data sampling interval in minutes.
+
+    Returns:
+        DataFrame with DatetimeIndex and one column per known covariate.
+
+    Raises:
+        ValueError: If an unsupported covariate name is requested.
+    """
+    supported = {"hour_sin", "hour_cos"}
+    unsupported = set(known_covariate_cols) - supported
+    if unsupported:
+        raise ValueError(
+            f"Unsupported known covariate(s): {unsupported}. " f"Supported: {supported}"
+        )
+
+    future_times = pd.date_range(
+        start=last_timestamp + pd.Timedelta(minutes=interval_mins),
+        periods=forecast_length,
+        freq=f"{interval_mins}min",
+    )
+
+    result = pd.DataFrame(index=future_times)
+
+    if not known_covariate_cols:
+        return result
+
+    minutes_of_day = future_times.hour * 60 + future_times.minute
+
+    for col in known_covariate_cols:
+        if col == "hour_sin":
+            result[col] = np.sin(2 * np.pi * minutes_of_day / 1440)
+        elif col == "hour_cos":
+            result[col] = np.cos(2 * np.pi * minutes_of_day / 1440)
+
+    return result
