@@ -1,0 +1,37 @@
+# =============================================================================
+# Statistical Config 00: AutoARIMA — BG-only
+# =============================================================================
+# AutoARIMA with seasonal components explicitly disabled (CGM has no fixed
+# seasonal period at 5-minute cadence). Uses AutoGluon's 2h time_limit cap:
+# series that are not fit in time receive Naive fallback forecasts — no work
+# is lost. Quantiles are synthesised from residuals.
+#
+# Covariates: BG only (no IOB/COB).
+# CPU only. No GPU required.
+# =============================================================================
+
+model_type: "statistical"
+training_mode: "from_scratch"
+model_name: "AutoARIMA"
+context_length: 512
+forecast_length: 96
+
+# AutoARIMA hyper-parameters
+autoarima_max_p: 3
+autoarima_max_q: 3
+# autoarima_d and autoarima_D left as null → AutoGluon selects automatically
+# Seasonality explicitly disabled for CGM
+# (set in config.get_autogluon_hyperparameters)
+
+# No covariates (BG-only run)
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+# 2-hour cap; unfit series fall back to Naive
+time_limit: 7200
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

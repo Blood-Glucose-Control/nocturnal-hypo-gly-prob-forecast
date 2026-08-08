@@ -1,0 +1,33 @@
+# =============================================================================
+# TFT Config 17: iob_cob_high_lr
+# =============================================================================
+# BG+IOB+COB higher learning rate (3e-3) — aleppo_2017 only.
+# Mirrors 11_iob_high_lr.yaml with covariate_cols extended to include cob.
+# =============================================================================
+
+model_type: "tft"
+training_mode: "from_scratch"
+context_length: 512
+forecast_length: 96
+
+hidden_dim: 32
+variable_dim: 32
+num_heads: 4
+dropout_rate: 0.1
+
+lr: 0.003
+num_batches_per_epoch: 50
+batch_size: 256
+max_epochs: 100
+early_stopping_patience: 20
+gradient_clip_val: 1.0
+
+covariate_cols: ["iob", "cob"]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

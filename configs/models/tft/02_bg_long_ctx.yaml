@@ -1,0 +1,35 @@
+# =============================================================================
+# TFT Config 02: bg_long_ctx
+# =============================================================================
+# BG-only long context (768).
+# TFT is the only deep model in this stack that supports past covariates;
+# BG-only configs (00-05) train on all four datasets, BG+IOB configs (06-11)
+# train on the IOB-bearing datasets only (aleppo_2017, brown_2019, lynch_2022).
+# =============================================================================
+
+model_type: "tft"
+training_mode: "from_scratch"
+context_length: 768
+forecast_length: 96
+
+hidden_dim: 32
+variable_dim: 32
+num_heads: 4
+dropout_rate: 0.1
+
+lr: 0.001
+num_batches_per_epoch: 50
+batch_size: 256
+max_epochs: 100
+early_stopping_patience: 20
+gradient_clip_val: 1.0
+
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

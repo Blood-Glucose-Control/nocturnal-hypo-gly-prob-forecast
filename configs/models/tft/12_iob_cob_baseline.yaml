@@ -1,0 +1,34 @@
+# =============================================================================
+# TFT Config 12: iob_cob_baseline
+# =============================================================================
+# BG+IOB+COB baseline — aleppo_2017 only (the sole dataset with both insulin
+# and carb covariates available).  Mirrors 06_iob_baseline.yaml with
+# covariate_cols extended to include cob.
+# =============================================================================
+
+model_type: "tft"
+training_mode: "from_scratch"
+context_length: 512
+forecast_length: 96
+
+hidden_dim: 32
+variable_dim: 32
+num_heads: 4
+dropout_rate: 0.1
+
+lr: 0.001
+num_batches_per_epoch: 50
+batch_size: 256
+max_epochs: 100
+early_stopping_patience: 20
+gradient_clip_val: 1.0
+
+covariate_cols: ["iob", "cob"]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

@@ -1,0 +1,25 @@
+# =============================================================================
+# Naive Baseline Config 01: AverageModel (historical mean)
+# =============================================================================
+# Forecasts the empirical mean of the context window as a constant horizon.
+# Slightly better calibrated than Naive for longer horizons on stationary series.
+# Quantiles synthesised from residuals — PIT miscalibration expected.
+#
+# No GPU needed.
+# =============================================================================
+
+model_type: "naive_baseline"
+training_mode: "from_scratch"
+model_name: "Average"
+context_length: 512
+forecast_length: 96
+
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

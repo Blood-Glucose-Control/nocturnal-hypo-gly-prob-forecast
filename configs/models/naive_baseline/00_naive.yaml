@@ -1,0 +1,27 @@
+# =============================================================================
+# Naive Baseline Config 00: NaiveModel (last-value carry-forward)
+# =============================================================================
+# Absolute performance floor. Carries the last observed BG value forward for
+# all forecast steps. Quantiles are synthesised by AutoGluon from residuals —
+# expect miscalibrated PIT histograms (reported in paper as contrast).
+#
+# No GPU needed. Training is instantaneous (residuals computed from context).
+# =============================================================================
+
+model_type: "naive_baseline"
+training_mode: "from_scratch"
+model_name: "Naive"
+context_length: 512
+forecast_length: 96
+
+# No covariates (Naive ignores them)
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+# AutoGluon settings
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

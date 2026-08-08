@@ -1,0 +1,36 @@
+# =============================================================================
+# PatchTST Config 09: high_lr — Context Ablation 64ctx
+# =============================================================================
+# Winner config (09_high_lr) with context_length reduced to 64.
+# All other hyperparameters identical to 09_high_lr.yaml.
+# =============================================================================
+
+model_type: "patchtst"
+training_mode: "from_scratch"
+context_length: 64
+forecast_length: 96
+
+# Patch architecture
+patch_len: 16
+stride: 8
+d_model: 128
+nhead: 16
+num_encoder_layers: 3
+
+# Training
+lr: 0.0003
+weight_decay: 1e-08
+num_batches_per_epoch: 100
+batch_size: 256
+max_epochs: 100
+early_stopping_patience: 20
+
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45
