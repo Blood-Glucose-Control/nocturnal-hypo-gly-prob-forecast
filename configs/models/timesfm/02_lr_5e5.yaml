@@ -1,0 +1,35 @@
+# TimesFM Sweep Config 02 — Higher LR probe B (LR=5e-5, 10 epochs)
+#
+# 5× the baseline LR — still a decade below the 1e-4 threshold that caused
+# catastrophic gradient explosions in the first sweep, but aggressive enough
+# that late-training instability is plausible.
+#
+# Budget is capped at 10 epochs for two reasons:
+#   1. Higher LR means faster convergence — more epochs may simply diverge
+#      without yielding usable information about peak performance.
+#   2. Keeps GPU-1 lane total runtime roughly balanced with config 00 on GPU-0.
+#
+# max_grad_norm=1.0 in TrainingArguments clamps gradients if they do spike.
+# Compare against config 00 epoch_metrics.csv at epoch 10 for the LR effect.
+model_type: "timesfm"
+training_mode: "fine_tune"
+context_length: 512
+forecast_length: 96
+
+# Training
+learning_rate: 5.0e-5
+num_epochs: 10
+batch_size: 256
+gradient_accumulation_steps: 4
+weight_decay: 0.01
+torch_dtype: "bfloat16"
+
+# In-training eval callback (writes epoch_metrics.csv each epoch)
+eval_during_training: true
+eval_temporal_frac: 0.10
+
+# Data
+target_col: "bg_mM"
+interval_mins: 5
+imputation_threshold_mins: 45
+freq_type: 0

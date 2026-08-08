@@ -1,0 +1,5 @@
+# Sundial Sweep Config 00 — Baseline (50 samples)
+# Zero-shot evaluation with moderate sample count
+num_samples: 50
+context_length: 512
+forecast_length: 96

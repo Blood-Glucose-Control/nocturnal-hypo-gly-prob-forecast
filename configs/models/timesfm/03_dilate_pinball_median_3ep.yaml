@@ -1,0 +1,48 @@
+# TimesFM Sweep Config 03 — DILATE+Pinball (median trajectory only), smoke-test 3 epochs
+#
+# Loss: pinball over all 9 quantile heads + DILATE temporal regulariser applied
+# to the 0.5 quantile (median) trajectory only.  This is the cheapest DILATE
+# variant — one soft-DTW call per step instead of nine.
+#
+# Rationale for 3-epoch smoke-test:
+#   Verify that loss_fn="dilate_pinball_median" produces stable gradients and
+#   reasonable WQL/RMSE before committing a full 15+ epoch run.  Once verified,
+#   bump num_epochs to 15 and compare against 00_long_run epoch_metrics.csv.
+#
+# DILATE hyperparameter choices:
+#   dilate_alpha=0.5  — equal weight on shape (soft-DTW) and timing (path-DTW)
+#                       components; the uninformative prior.  Tune post-smoke-test
+#                       if timing matters more than shape (or vice-versa).
+#   dilate_gamma=0.01 — tight smoothing; close to hard DTW, matches the value
+#                       used in the original DILATE paper.  Lower = sharper
+#                       gradients; higher = smoother but less shape-sensitive.
+#   dilate_weight=0.5 — scalar on the DILATE term: total_loss = pinball +
+#                       0.5 * dilate.  Gives roughly equal contribution from
+#                       both terms at typical loss magnitudes.
+#
+# Compare against: 00_long_run epoch_metrics.csv at epoch 3 (pure pinball
+# baseline) and 04_dilate_pinball_all_3ep.yaml (all 9 heads, same budget).
+model_type: "timesfm"
+training_mode: "fine_tune"
+context_length: 512
+forecast_length: 96
+
+# Loss
+loss_fn: "dilate_pinball_median"
+dilate_alpha: 0.5
+dilate_gamma: 0.01
+dilate_weight: 0.5
+
+# Training
+learning_rate: 1.0e-5
+num_epochs: 3
+batch_size: 256
+gradient_accumulation_steps: 4
+weight_decay: 0.01
+torch_dtype: "bfloat16"
+
+# Data
+target_col: "bg_mM"
+interval_mins: 5
+imputation_threshold_mins: 45
+freq_type: 0

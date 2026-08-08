@@ -1,0 +1,30 @@
+# =============================================================================
+# Chronos-2  99 — 250k steps, checkpoint every 5k  (long run for winner config)
+# Train the best-performing config from the 10k sweep here for a full
+# RMSE-vs-steps curve. Snapshots land at snapshots/step_5000/ … step_245000/.
+# Evaluate snapshots with:
+#   MODEL_CONFIG=configs/models/chronos2/99_250k_checkpoints.yaml \
+#   bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh <artifact_dir>
+# =============================================================================
+
+model_path: "autogluon/chronos-2"
+context_length: 512
+forecast_length: 96
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+fine_tune_steps: 250000
+fine_tune_lr: 5.0e-5
+fine_tune_batch_size: 256  # RTX Pro 6000 Blackwell 96GB; kept moderate at lr=5e-5
+
+checkpoint_save_steps: 5000
+
+covariate_cols: [iob, insulin_availability]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false

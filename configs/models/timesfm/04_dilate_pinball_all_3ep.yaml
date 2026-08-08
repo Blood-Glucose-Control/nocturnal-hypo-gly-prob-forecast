@@ -1,0 +1,47 @@
+# TimesFM Sweep Config 04 — DILATE+Pinball (all 9 quantile heads), smoke-test 3 epochs
+#
+# Loss: pinball over all 9 quantile heads + mean(DILATE over each quantile
+# trajectory), mean-pooled across heads.
+#
+# Compared with config 03 (median-only DILATE), this applies the temporal
+# regulariser uniformly to every quantile — including the tails (0.1, 0.9).
+# The hypothesis is that enforcing shape fidelity on tail trajectories may
+# improve coverage at extreme BG excursions (hypo/hyperglycaemia), but it
+# costs ~9× more soft-DTW calls per step.
+#
+# Rationale for 3-epoch smoke-test:
+#   Same as config 03 — verify correctness and check step time before
+#   committing a longer run.  The identical epoch budget makes walltime
+#   directly comparable with 03 to measure the per-step overhead of
+#   applying DILATE to all 9 heads instead of just the median.
+#
+# DILATE hyperparameter choices: see 03_dilate_pinball_median_3ep.yaml for
+# rationale.  Same values used here so the only variable is median-only
+# vs all-heads regularisation.
+#
+# Compare against: 00_long_run epoch_metrics.csv at epoch 3 (pure pinball
+# baseline) and 03_dilate_pinball_median_3ep.yaml (median-only DILATE).
+model_type: "timesfm"
+training_mode: "fine_tune"
+context_length: 512
+forecast_length: 96
+
+# Loss
+loss_fn: "dilate_pinball"
+dilate_alpha: 0.5
+dilate_gamma: 0.01
+dilate_weight: 0.5
+
+# Training
+learning_rate: 1.0e-5
+num_epochs: 3
+batch_size: 256
+gradient_accumulation_steps: 4
+weight_decay: 0.01
+torch_dtype: "bfloat16"
+
+# Data
+target_col: "bg_mM"
+interval_mins: 5
+imputation_threshold_mins: 45
+freq_type: 0

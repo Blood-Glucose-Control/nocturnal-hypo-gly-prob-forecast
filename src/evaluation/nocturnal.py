@@ -57,6 +57,7 @@ def evaluate_nocturnal_forecasting(
     interval_mins: int = SAMPLING_INTERVAL_MINUTES,
     probabilistic: bool = False,
     compute_dilate: bool = True,
+    episode_context_length: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Evaluate model on midnight-anchored nocturnal forecasting task.
 
@@ -83,6 +84,12 @@ def evaluate_nocturnal_forecasting(
             compute WQL/Brier alongside RMSE.
         compute_dilate: If False, skip Soft-DTW/DILATE metrics (saves
             O(n_episodes * forecast_length^2) work on large runs).
+        episode_context_length: When set to a value larger than context_length,
+            episodes are built requiring this many steps of history (stricter
+            filtering). Each episode's context_df is then trimmed to the last
+            context_length rows before model inference. This ensures all context
+            ablation configs (e.g., 64/128/256/512) are evaluated on identical
+            midnight anchors — only those valid for the maximum context window.
 
     Returns:
         Dict with overall_rmse, mean_discontinuity, total_episodes, per_patient,
@@ -121,9 +128,16 @@ def evaluate_nocturnal_forecasting(
             for col in getattr(model.config, "joint_target_cols", []):
                 if col != target_col and col not in effective_covs:
                     effective_covs.append(col)
+        # Use episode_context_length (if larger) so only anchors valid for the
+        # maximum context window are included — fair cross-context comparison.
+        _ep_ctx = (
+            episode_context_length
+            if episode_context_length and episode_context_length > context_length
+            else context_length
+        )
         episodes, _ = build_midnight_episodes(
             patient_df,
-            context_length=context_length,
+            context_length=_ep_ctx,
             forecast_length=forecast_length,
             target_col=target_col,
             covariate_cols=effective_covs or None,
@@ -139,6 +153,10 @@ def evaluate_nocturnal_forecasting(
                 continue
             ep_id = f"{patient_id}::ep{i:03d}"
             ctx = ep["context_df"].copy().reset_index(names="datetime")
+            # Trim to model's actual context length when episode was built
+            # with a longer window for fair multi-context comparison.
+            if _ep_ctx > context_length:
+                ctx = ctx.iloc[-context_length:].reset_index(drop=True)
             ctx["p_num"] = patient_id
             ctx[episode_col] = ep_id
             context_dfs.append(ctx)

@@ -26,6 +26,7 @@ Usage
     brier = compute_brier_score(quantile_forecasts, actuals, quantile_levels)
 """
 
+import warnings
 from typing import List, Optional
 
 import numpy as np
@@ -115,8 +116,9 @@ def compute_brier_score(
     This is conservative — never claims P=0 or P=1 from a finite quantile set.
 
     Args:
-        quantile_forecasts: Shape (n_quantiles, forecast_length). Must be sorted
-            in ascending order along the quantile axis (quantile_levels[0] < ... < [-1]).
+        quantile_forecasts: Shape (n_quantiles, forecast_length). Quantile values
+            are sorted per-timestep before CDF interpolation, so mild crossings
+            (e.g. from TimesFM) are handled correctly.
         actuals: Shape (forecast_length,). Ground-truth BG values.
         quantile_levels: List of quantile levels in ascending order.
         threshold: BG threshold for the binary event (mmol/L). Default 3.9.
@@ -154,16 +156,18 @@ def compute_brier_score(
 
     # For each timestep, interpolate P(BG < threshold) from the quantile CDF.
     # quantile_forecasts[:, t] are the BG values (x-axis of CDF);
-    # quantile_levels are the corresponding probabilities (y-axis).
-    # np.interp(threshold, xp, fp) requires xp to be increasing — valid since
-    # quantile forecasts are non-decreasing by construction. We clamp to
-    # [q_arr[0], q_arr[-1]] to avoid extrapolation to 0/1.
+    # q_arr are the corresponding probabilities (y-axis, always increasing).
+    # np.interp requires xp to be non-decreasing: sort x_vals (BG axis) while
+    # keeping q_arr in its original increasing order. This yields a valid CDF
+    # even when quantile values cross (e.g. TimesFM); q_arr[sort_idx] would be
+    # wrong because reindexing probabilities by BG-sort order can make the CDF
+    # non-monotone. We clamp to [q_arr[0], q_arr[-1]] to avoid extrapolation.
     p_hat = np.empty(forecast_length, dtype=np.float64)
     for t in range(forecast_length):
         x_vals = quantile_forecasts[:, t]
         p_hat[t] = np.interp(
             threshold,
-            x_vals,
+            np.sort(x_vals),
             q_arr,
             left=q_arr[0],  # clamp: threshold below all quantiles → P = q_min
             right=q_arr[-1],  # clamp: threshold above all quantiles → P = q_max
@@ -315,6 +319,56 @@ def _validate_batch_quantile_inputs(
     q_arr = np.array(quantile_levels, dtype=np.float64)
     if not np.all(np.diff(q_arr) > 0):
         raise ValueError("quantile_levels must be strictly increasing.")
+
+    # Check that quantile forecasts are non-decreasing along the quantile axis
+    # (axis=1: shape is n_episodes × n_quantiles × forecast_length).
+    # Three thresholds:
+    #   ≤ 0.01 mmol/L  → sub-clinical floating-point noise; warn and pass through.
+    #   0.01–1.0 mmol/L → real but recoverable quantile crossing (e.g. normal TimesFM
+    #                      post-training); sort in-place and warn so metrics remain valid.
+    #   > 1.0 mmol/L   → catastrophic inversion consistent with a broken-head run
+    #                     (e.g. TimesFM high-LR fine-tuning, sharpness_50 ≈ −742 mmol/L);
+    #                     raise ValueError to prevent silently polluted metrics.
+    diffs = np.diff(quantile_forecasts_batch, axis=1)  # (n_eps, n_q-1, fh)
+    violations = diffs[diffs < 0]
+    if violations.size > 0:
+        max_violation = float(
+            -violations.min()
+        )  # most negative diff, as positive magnitude
+        n_inverted = int((diffs < 0).sum())
+        total = diffs.size
+        if max_violation > 1.0:
+            raise ValueError(
+                f"quantile_forecasts_batch has {n_inverted:,} quantile inversions "
+                f"({100.0 * n_inverted / total:.2f}% of adjacent-quantile pairs, "
+                f"max violation = {max_violation:.4f} mmol/L). "
+                "This magnitude indicates a catastrophic calibration failure "
+                "(e.g. TimesFM high-LR fine-tuning). "
+                "Discard or retrain before computing metrics."
+            )
+        elif max_violation > 0.01:
+            # Moderate inversions (e.g. normal TimesFM quantile crossing): sort to
+            # produce a valid monotone CDF, then warn so the caller is aware.
+            quantile_forecasts_batch[:] = np.sort(quantile_forecasts_batch, axis=1)
+            warnings.warn(
+                f"quantile_forecasts_batch had {n_inverted:,} quantile inversions "
+                f"({100.0 * n_inverted / total:.2f}% of adjacent-quantile pairs, "
+                f"max violation = {max_violation:.4f} mmol/L). "
+                "Quantiles have been sorted in-place to produce a valid CDF. "
+                "This is expected for models without a monotone quantile head (e.g. TimesFM).",
+                stacklevel=3,
+            )
+        else:
+            # Sub-clinical fp noise: sort anyway so bracket-finding in
+            # compute_pit_values (which assumes sorted rows) stays correct.
+            quantile_forecasts_batch[:] = np.sort(quantile_forecasts_batch, axis=1)
+            warnings.warn(
+                f"quantile_forecasts_batch has {n_inverted:,} minor quantile inversions "
+                f"(max = {max_violation:.2e} mmol/L, likely floating-point noise). "
+                "Quantiles sorted in-place; results should be unaffected.",
+                stacklevel=3,
+            )
+
     return q_arr
 
 
@@ -394,7 +448,7 @@ def compute_coverage_by_step(
         episodes where the actual value at that step fell within the
         prediction interval.
     """
-    quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
+    quantile_forecasts_batch = np.array(quantile_forecasts_batch, dtype=np.float64)
     actuals_batch = np.asarray(actuals_batch, dtype=np.float64)
     q_arr = _validate_batch_quantile_inputs(
         quantile_forecasts_batch, quantile_levels, actuals_batch
@@ -427,7 +481,7 @@ def compute_sharpness_by_step(
         np.ndarray: Shape (forecast_length,). Each entry is the mean interval
         width (mmol/L) across episodes at that forecast step.
     """
-    quantile_forecasts_batch = np.asarray(quantile_forecasts_batch, dtype=np.float64)
+    quantile_forecasts_batch = np.array(quantile_forecasts_batch, dtype=np.float64)
     q_arr = _validate_batch_quantile_inputs(quantile_forecasts_batch, quantile_levels)
     if not 0.0 < level < 1.0:
         raise ValueError(f"level must be in (0, 1), got {level}")
@@ -467,3 +521,166 @@ def compute_mace(
     # actual <= predicted quantile value.  Shape: (n_quantiles,)
     empirical = np.mean(actuals[np.newaxis, :] <= quantile_forecasts, axis=1)
     return float(np.mean(np.abs(empirical - q_arr)))
+
+
+def compute_pit_values(
+    quantile_forecasts: np.ndarray,
+    actuals: np.ndarray,
+    quantile_levels: List[float],
+) -> np.ndarray:
+    """Compute Probability Integral Transform (PIT) values.
+
+    For each (episode, timestep) pair, evaluates the empirical CDF F̂(y_true)
+    by linearly interpolating through the discrete quantile forecast.
+
+    Values below all predicted quantile values are assigned PIT = 0.0; values
+    above are assigned PIT = 1.0 (hard clamp). Pile-up at the boundaries
+    indicates actuals frequently fall outside the predicted quantile range.
+
+    **Note on the expected PIT distribution**: with a full [0, 1] quantile grid
+    a perfectly calibrated model yields PIT ~ Uniform[0, 1].  In practice,
+    grids are truncated (e.g. 0.1–0.9), so the clamping above creates point
+    masses at 0 and 1 even under perfect calibration; the distribution is
+    uniform only within (q_min, q_max).  PIT histograms should therefore be
+    interpreted relative to the quantile range used, not against a flat
+    Uniform[0, 1] baseline.
+
+    Args:
+        quantile_forecasts: Shape (n_episodes, n_quantiles, forecast_length).
+            Moderate quantile crossings (≤ 1.0 mmol/L per row) are
+            auto-sorted and a warning is issued; inversions larger than
+            1.0 mmol/L raise a ``ValueError``.
+        actuals: Shape (n_episodes, forecast_length).
+        quantile_levels: Strictly increasing list of quantile levels, length
+            matching n_quantiles.
+
+    Returns:
+        np.ndarray: Flat array of PIT values in [0, 1], shape
+            (n_episodes * forecast_length,).
+    """
+    quantile_forecasts = np.array(quantile_forecasts, dtype=np.float64)
+    actuals = np.asarray(actuals, dtype=np.float64)
+    q_arr = _validate_batch_quantile_inputs(
+        quantile_forecasts, quantile_levels, actuals
+    )
+
+    n_episodes, n_quantiles, forecast_length = quantile_forecasts.shape
+
+    # Reshape to (N, n_quantiles) where N = n_episodes * forecast_length.
+    # transpose(0, 2, 1) → (n_episodes, forecast_length, n_quantiles)
+    xp = quantile_forecasts.transpose(0, 2, 1).reshape(-1, n_quantiles)  # (N, n_q)
+    y = actuals.ravel()  # (N,)
+
+    # hi: count of quantile values strictly ≤ y for each sample.
+    # Equivalent to searchsorted(xp[i], y[i], side='right') per row.
+    # Shape: (N,), values in {0, 1, ..., n_quantiles}.
+    hi = (xp <= y[:, np.newaxis]).sum(axis=1)
+
+    pit = np.empty(len(y), dtype=np.float64)
+    # "below": y strictly below every predicted quantile value (y < xp.min()).
+    # "above": y strictly above every predicted quantile value (y > xp.max()).
+    # Equal to the max quantile value (y == xp.max()) is treated as "inside" so
+    # that interpolation yields q_arr[-1], not 1.0. (hi == n_quantiles covers
+    # both y == xp.max() and y > xp.max(), so we need a second check.)
+    below = hi == 0
+    above = (xp < y[:, np.newaxis]).sum(axis=1) == n_quantiles  # strictly > xp.max()
+    inside = ~below & ~above
+
+    pit[below] = 0.0
+    pit[above] = 1.0
+
+    if inside.any():
+        rows = np.where(inside)[0]
+        # hi[rows] can be n_quantiles when y == xp.max(); clamp to n_quantiles-1
+        # so hi_idx stays in-bounds.  Interpolation will yield weight=1 → q_arr[-1].
+        hi_clamped = np.minimum(hi[rows], n_quantiles - 1)
+        lo_idx = hi_clamped - 1
+        hi_idx = hi_clamped
+        xp_lo = xp[rows, lo_idx]
+        xp_hi = xp[rows, hi_idx]
+        q_lo = q_arr[lo_idx]
+        q_hi = q_arr[hi_idx]
+        denom = xp_hi - xp_lo
+        # When xp_lo == xp_hi (flat quantile region), use midpoint of the bin.
+        # safe_denom avoids divide-by-zero in both branches of np.where since
+        # numpy evaluates both sides even when the condition is False.
+        safe_denom = np.where(denom > 0, denom, 1.0)
+        weight = np.where(denom > 0, (y[rows] - xp_lo) / safe_denom, 0.5)
+        pit[inside] = q_lo + np.clip(weight, 0.0, 1.0) * (q_hi - q_lo)
+
+    return pit
+
+
+def compute_reliability_curve(
+    quantile_forecasts_batch: np.ndarray,
+    actuals_batch: np.ndarray,
+    quantile_levels: List[float],
+) -> tuple:
+    """Compute the reliability (quantile calibration) curve.
+
+    For each nominal quantile level q, the empirical exceedance fraction is:
+
+        empirical_q = mean over all (episode, timestep) pairs of
+                          I(actual ≤ forecast_q)
+
+    A perfectly calibrated model satisfies empirical_q == q for every level
+    (points lie on the diagonal). A curve above the diagonal indicates
+    over-forecasting (the model's predicted quantiles are too high); below
+    indicates under-forecasting.
+
+    Args:
+        quantile_forecasts_batch: Shape (n_episodes, n_quantiles, forecast_length).
+        actuals_batch: Shape (n_episodes, forecast_length).
+        quantile_levels: Strictly increasing list of quantile levels, length
+            matching n_quantiles.
+
+    Returns:
+        Tuple[np.ndarray, np.ndarray]: (nominal, empirical) each of shape
+        (n_quantiles,). ``nominal`` is simply ``np.array(quantile_levels)``;
+        ``empirical[i]`` is the fraction of observed values at or below the
+        i-th quantile forecast.
+    """
+    quantile_forecasts_batch = np.array(quantile_forecasts_batch, dtype=np.float64)
+    actuals_batch = np.asarray(actuals_batch, dtype=np.float64)
+    q_arr = _validate_batch_quantile_inputs(
+        quantile_forecasts_batch, quantile_levels, actuals_batch
+    )
+
+    # actuals_batch[:, np.newaxis, :] broadcasts to (n_eps, n_q, fh)
+    # Compare each actual to its corresponding quantile forecast at each step.
+    empirical = np.mean(
+        actuals_batch[:, np.newaxis, :] <= quantile_forecasts_batch,
+        axis=(0, 2),  # average over episodes and timesteps
+    )  # shape: (n_quantiles,)
+
+    return q_arr, empirical
+
+
+def compute_ece(
+    quantile_forecasts_batch: np.ndarray,
+    actuals_batch: np.ndarray,
+    quantile_levels: List[float],
+) -> float:
+    """Compute Expected Calibration Error (ECE) for quantile forecasts.
+
+    ECE is the trapezoidal-integration area between the reliability curve and
+    the perfect-calibration diagonal:
+
+        ECE = ∫₀¹ |empirical(q) − q| dq  ≈  trapz(|empirical − nominal|, nominal)
+
+    This differs from MACE (which uses equal weights 1/n_q) in that it assigns
+    weights proportional to the spacing between consecutive quantile levels,
+    making it invariant to the chosen quantile grid density.
+
+    Args:
+        quantile_forecasts_batch: Shape (n_episodes, n_quantiles, forecast_length).
+        actuals_batch: Shape (n_episodes, forecast_length).
+        quantile_levels: Strictly increasing list of quantile levels.
+
+    Returns:
+        float: ECE in [0, 0.5]. Lower is better; 0 = perfectly calibrated.
+    """
+    nominal, empirical = compute_reliability_curve(
+        quantile_forecasts_batch, actuals_batch, quantile_levels
+    )
+    return float(np.trapz(np.abs(empirical - nominal), nominal))

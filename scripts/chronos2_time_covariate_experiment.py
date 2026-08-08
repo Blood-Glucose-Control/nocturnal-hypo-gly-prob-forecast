@@ -1,19 +1,29 @@
 #!/usr/bin/env python3
 """
-Chronos-2 Time Covariate A/B Experiment.
+Chronos-2 Covariate A/B/C/D Experiment.
 
-Fine-tunes Chronos-2 on Brown 2019 in two matched arms:
+Fine-tunes Chronos-2 on Brown 2019 in matched arms:
   Arm A: BG-only (no covariates)
   Arm B: BG + time-of-day features (hour_sin, hour_cos as known future covariates)
+  Arm C: BG + IOB (past-only context, NOT known future — avoids leakage)
+  Arm D: BG + IOB (past-only) + time-of-day (known future)
 
 Uses DatasetRegistry for holdout splits (patient + temporal holdout).
 Training: gap-handled segments with AutoGluon sliding windows.
 Evaluation: midnight-anchored episodes on holdout patients.
 
+COVARIATE HANDLING:
+  - "known future" covariates (time features): declared in known_covariates_names,
+    provided for the forecast horizon at inference. Legitimate because deterministic.
+  - "past-only" covariates (IOB): included in training data as extra columns but
+    NOT declared as known_covariates_names. The model sees them in context only.
+    This avoids data leakage — on AID (Brown 2019), future IOB is entangled with
+    future BG through the closed-loop controller.
+
 USAGE:
-    python scripts/chronos2_time_covariate_experiment.py
-    python scripts/chronos2_time_covariate_experiment.py --steps 10000
-    python scripts/chronos2_time_covariate_experiment.py --arm B  # Run only Arm B
+    python scripts/chronos2_time_covariate_experiment.py --arm CD
+    python scripts/chronos2_time_covariate_experiment.py --arm all --steps 10000
+    python scripts/chronos2_time_covariate_experiment.py --arm D
 """
 
 import sys
@@ -40,6 +50,7 @@ CONTEXT_LENGTH = 512  # ~42.7 hours
 FORECAST_HORIZON = 72  # 6 hours
 TARGET_COL = ColumnNames.BG.value
 TIME_COLS = ["hour_sin", "hour_cos"]
+IOB_COL = "iob"
 MIN_SEGMENT_LENGTH = CONTEXT_LENGTH + FORECAST_HORIZON  # 584
 
 
@@ -79,54 +90,66 @@ def format_segments_for_autogluon(segments, target_col, covariate_cols=None):
     return TimeSeriesDataFrame(combined)
 
 
-def format_episodes_for_eval(episodes, covariate_cols=None, forecast_horizon=72):
+def format_episodes_for_eval(
+    episodes, all_covariate_cols=None, known_covariate_cols=None, forecast_horizon=72
+):
     """
     Convert midnight episodes to AutoGluon format for evaluation.
 
+    Args:
+        episodes: List of episode dicts from build_midnight_episodes.
+        all_covariate_cols: ALL covariate columns to include in context
+            (both past-only and known-future).
+        known_covariate_cols: Subset of covariates that are known for the
+            future (e.g. time features). Only these get future values.
+            Past-only covariates (e.g. IOB) appear in context only.
+        forecast_horizon: Number of future steps.
+
     Returns:
-        (test_data, known_covariates) or (test_data, None) if no covariates.
+        (test_data, known_covariates) or (test_data, None) if no known covariates.
     """
+    all_covariate_cols = all_covariate_cols or []
+    known_covariate_cols = known_covariate_cols or []
     train_data_list = []
     known_cov_list = []
 
     for i, ep in enumerate(episodes):
         item_id = f"ep_{i:03d}"
 
-        # Context data
+        # Context data — includes ALL covariates (past-only + known-future)
         df = ep["context_df"].copy()
         df["item_id"] = item_id
         df["timestamp"] = df.index
         df["target"] = df[TARGET_COL]
 
         keep_cols = ["item_id", "timestamp", "target"]
-        if covariate_cols:
-            for col in covariate_cols:
-                if col in TIME_COLS:
-                    # Recompute time features from timestamps (don't ffill — sin/cos
-                    # must match the actual timestamp, not be forward-filled from
-                    # the last known value after reindex introduces NaN gaps)
-                    mins = df.index.hour * 60 + df.index.minute
-                    if col == "hour_sin":
-                        df[col] = np.sin(2 * np.pi * mins / 1440)
-                    else:
-                        df[col] = np.cos(2 * np.pi * mins / 1440)
-                elif col in df.columns:
-                    df[col] = df[col].ffill().fillna(0)
+        for col in all_covariate_cols:
+            if col in TIME_COLS:
+                # Recompute time features from timestamps (don't ffill — sin/cos
+                # must match the actual timestamp, not be forward-filled from
+                # the last known value after reindex introduces NaN gaps)
+                mins = df.index.hour * 60 + df.index.minute
+                if col == "hour_sin":
+                    df[col] = np.sin(2 * np.pi * mins / 1440)
                 else:
-                    df[col] = 0.0
-                keep_cols.append(col)
+                    df[col] = np.cos(2 * np.pi * mins / 1440)
+            elif col in df.columns:
+                df[col] = df[col].ffill().fillna(0)
+            else:
+                df[col] = 0.0
+            keep_cols.append(col)
 
         train_data_list.append(df[keep_cols])
 
-        # Future known covariates
-        if covariate_cols:
+        # Future values — ONLY for known-future covariates (not past-only like IOB)
+        if known_covariate_cols:
             anchor = ep["anchor"]
             future_timestamps = pd.date_range(
                 anchor, periods=forecast_horizon, freq=f"{INTERVAL_MINS}min"
             )
 
             future_data = {"item_id": item_id, "timestamp": future_timestamps}
-            for col in covariate_cols:
+            for col in known_covariate_cols:
                 if col in TIME_COLS:
                     # Time features: recompute from timestamps (exact, no approximation)
                     mins = future_timestamps.hour * 60 + future_timestamps.minute
@@ -152,7 +175,7 @@ def format_episodes_for_eval(episodes, covariate_cols=None, forecast_horizon=72)
     test_data = TimeSeriesDataFrame(train_combined)
 
     # Combine known covariates
-    if covariate_cols and known_cov_list:
+    if known_covariate_cols and known_cov_list:
         known_combined = pd.concat(known_cov_list, ignore_index=True)
         known_combined = known_combined.set_index(["item_id", "timestamp"])
         known_covariates = TimeSeriesDataFrame(known_combined)
@@ -187,32 +210,53 @@ def evaluate_arm(predictor, test_data, known_covariates, episodes):
             rmse = np.sqrt(np.mean((pred[valid] - actual[valid]) ** 2))
             rmse_list.append(rmse)
 
-    overall_rmse = float(
-        np.mean(rmse_list)
-    )  # Mean of per-episode RMSEs (consistent with utils.py)
+    overall_rmse = float(np.mean(rmse_list))  # Mean of per-episode RMSEs
     return overall_rmse, rmse_list
 
 
 def run_arm(
-    arm_name, train_segments, val_segments, eval_patient_dict, covariate_cols, args
+    arm_name,
+    train_segments,
+    val_segments,
+    eval_patient_dict,
+    past_covariate_cols,
+    known_covariate_cols,
+    args,
 ):
-    """Run one arm of the experiment (train + evaluate)."""
+    """Run one arm of the experiment (train + evaluate).
+
+    Args:
+        past_covariate_cols: Covariates included in training data as context
+            columns only (e.g. IOB). NOT declared as known_covariates_names,
+            so the model only sees them in the context window, not the future.
+        known_covariate_cols: Covariates declared as known future (e.g. time
+            features). These are deterministic and provided for the forecast
+            horizon at inference time.
+    """
+    all_covariate_cols = past_covariate_cols + known_covariate_cols
+
     print(f"\n{'=' * 70}")
     print(
-        f"ARM {arm_name}: {'BG + ' + ', '.join(covariate_cols) if covariate_cols else 'BG only'}"
+        f"ARM {arm_name}: BG + [{', '.join(all_covariate_cols) if all_covariate_cols else 'none'}]"
     )
+    print(f"  Past-only (context): {past_covariate_cols}")
+    print(f"  Known-future:        {known_covariate_cols}")
     print(f"{'=' * 70}")
 
-    # Format segments for AutoGluon
+    # Format segments for AutoGluon — ALL covariates go into training data
     print("\nFormatting segments for AutoGluon...")
-    ts_train = format_segments_for_autogluon(train_segments, TARGET_COL, covariate_cols)
-    ts_val = format_segments_for_autogluon(val_segments, TARGET_COL, covariate_cols)
+    ts_train = format_segments_for_autogluon(
+        train_segments, TARGET_COL, all_covariate_cols or None
+    )
+    ts_val = format_segments_for_autogluon(
+        val_segments, TARGET_COL, all_covariate_cols or None
+    )
 
     print(f"Training data: {ts_train.shape}, columns={list(ts_train.columns)}")
     print(f"Validation data: {ts_val.shape}")
 
-    # Set up predictor
-    covariates_label = "_".join(covariate_cols) if covariate_cols else "bg_only"
+    # Set up predictor — only KNOWN covariates declared as known_covariates_names
+    covariates_label = "_".join(all_covariate_cols) if all_covariate_cols else "bg_only"
     output_dir = str(
         PROJECT_ROOT
         / f"models/chronos2_time_covariate/arm_{covariates_label}_{args.steps}steps"
@@ -224,8 +268,8 @@ def run_arm(
         "eval_metric": "RMSE",
         "path": output_dir,
     }
-    if covariate_cols:
-        predictor_kwargs["known_covariates_names"] = covariate_cols
+    if known_covariate_cols:
+        predictor_kwargs["known_covariates_names"] = known_covariate_cols
 
     predictor = TimeSeriesPredictor(**predictor_kwargs)
 
@@ -253,14 +297,10 @@ def run_arm(
     print(f"Validation RMSE (sliding windows): {val_rmse:.4f}")
 
     # Evaluate on midnight episodes
-    # NOTE: build_midnight_episodes requires at least one covariate to produce
-    # episodes (it defaults to ["iob"] if None). For Arm A (BG-only), we still
-    # pass covariate_cols=["iob"] to build episodes, but don't pass IOB to the
-    # predictor. For Arm B, we pass time features + IOB for episode building
-    # (IOB is needed to satisfy the function contract), but only time features
-    # go to the predictor via known_covariates_names.
+    # build_midnight_episodes requires at least one covariate (defaults to ["iob"]
+    # if None). We always include IOB for episode building to satisfy its contract.
     print("\nBuilding midnight evaluation episodes...")
-    episode_covs = list(set((covariate_cols or []) + ["iob"]))
+    episode_covs = list(set(all_covariate_cols + [IOB_COL]))
     eval_episodes = []
     for pid, pdf in eval_patient_dict.items():
         eps = build_midnight_episodes(
@@ -278,9 +318,12 @@ def run_arm(
     eval_episodes = eval_episodes[: args.max_eval_episodes]
     print(f"Evaluation episodes: {len(eval_episodes)}")
 
-    # Format for evaluation
+    # Format for evaluation — all covariates in context, only known in future
     ts_eval, known_cov_eval = format_episodes_for_eval(
-        eval_episodes, covariate_cols, FORECAST_HORIZON
+        eval_episodes,
+        all_covariate_cols=all_covariate_cols or None,
+        known_covariate_cols=known_covariate_cols or None,
+        forecast_horizon=FORECAST_HORIZON,
     )
 
     # Load saved predictor and evaluate
@@ -293,7 +336,9 @@ def run_arm(
 
     return {
         "arm": arm_name,
-        "covariates": covariate_cols or [],
+        "past_covariates": past_covariate_cols,
+        "known_covariates": known_covariate_cols,
+        "all_covariates": all_covariate_cols,
         "val_rmse_sliding": val_rmse,
         "midnight_rmse": midnight_rmse,
         "eval_episodes": len(eval_episodes),
@@ -303,9 +348,18 @@ def run_arm(
     }
 
 
+# Arm definitions: (past_covariate_cols, known_covariate_cols)
+ARM_CONFIGS = {
+    "A": ([], []),  # BG-only
+    "B": ([], TIME_COLS),  # BG + time (known future)
+    "C": ([IOB_COL], []),  # BG + IOB (past-only)
+    "D": ([IOB_COL], TIME_COLS),  # BG + IOB (past-only) + time (known future)
+}
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Chronos-2 Time Covariate A/B Experiment",
+        description="Chronos-2 Covariate A/B/C/D Experiment",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -318,23 +372,34 @@ def main():
     parser.add_argument(
         "--arm",
         type=str,
-        default="both",
-        choices=["A", "B", "both"],
-        help="Which arm to run: A (BG-only), B (BG+time), or both",
+        default="CD",
+        choices=["A", "B", "C", "D", "AB", "CD", "all"],
+        help="Which arm(s) to run: A (BG-only), B (BG+time), "
+        "C (BG+IOB past-only), D (BG+IOB+time), AB, CD, or all",
     )
     args = parser.parse_args()
 
+    # Determine which arms to run
+    if args.arm == "all":
+        arms_to_run = ["A", "B", "C", "D"]
+    elif len(args.arm) == 2:
+        arms_to_run = list(args.arm)
+    else:
+        arms_to_run = [args.arm]
+
     print("=" * 70)
-    print("CHRONOS-2 TIME COVARIATE A/B EXPERIMENT")
+    print("CHRONOS-2 COVARIATE A/B/C/D EXPERIMENT")
     print("=" * 70)
     print("\nArm A: BG-only (no covariates)")
-    print("Arm B: BG + time-of-day (hour_sin, hour_cos as known future covariates)")
+    print("Arm B: BG + time-of-day (hour_sin, hour_cos as known future)")
+    print("Arm C: BG + IOB (past-only context, NOT known future)")
+    print("Arm D: BG + IOB (past-only) + time-of-day (known future)")
+    print(f"\nRunning arms: {arms_to_run}")
     print("\nParameters:")
     print(f"  steps: {args.steps}")
     print(f"  lr: {args.lr}")
     print(f"  time_limit: {args.time_limit}s")
     print(f"  max_eval_episodes: {args.max_eval_episodes}")
-    print(f"  arm: {args.arm}")
 
     # =========================================================================
     # LOAD DATA VIA REGISTRY (patient + temporal holdout)
@@ -352,12 +417,14 @@ def main():
         f"Holdout: {len(holdout_flat):,} rows, {holdout_flat['p_num'].nunique()} patients"
     )
 
-    # Verify time features exist
+    # Verify required features exist
     for col in TIME_COLS:
         assert (
             col in train_flat.columns
         ), f"{col} missing! Run: rm -rf cache/data/brown_2019/processed/ && python scripts/verify_time_features.py"
+    assert IOB_COL in train_flat.columns, f"{IOB_COL} missing from training data!"
     print(f"Time features present: {TIME_COLS}")
+    print(f"IOB feature present: {IOB_COL}")
 
     # Convert to patient dicts for gap handling (uses existing utility from utils.py)
     print("\nConverting to patient dicts...")
@@ -367,7 +434,7 @@ def main():
     print(f"Holdout patient dict: {len(holdout_patients)} patients")
 
     # =========================================================================
-    # GAP HANDLING + SEGMENTATION (shared by both arms)
+    # GAP HANDLING + SEGMENTATION (shared by all arms)
     # =========================================================================
 
     print(f"\n{'=' * 70}")
@@ -401,23 +468,15 @@ def main():
 
     results = {}
 
-    if args.arm in ("A", "both"):
-        results["A"] = run_arm(
-            "A",
+    for arm_name in arms_to_run:
+        past_covs, known_covs = ARM_CONFIGS[arm_name]
+        results[arm_name] = run_arm(
+            arm_name,
             train_seg_dict,
             val_seg_dict,
             holdout_patients,
-            covariate_cols=[],
-            args=args,
-        )
-
-    if args.arm in ("B", "both"):
-        results["B"] = run_arm(
-            "B",
-            train_seg_dict,
-            val_seg_dict,
-            holdout_patients,
-            covariate_cols=TIME_COLS,
+            past_covariate_cols=past_covs,
+            known_covariate_cols=known_covs,
             args=args,
         )
 
@@ -430,25 +489,43 @@ def main():
     print("=" * 70)
 
     print(
-        f"\n{'Arm':<6} {'Covariates':<25} {'Val RMSE (sliding)':>20} {'Midnight RMSE':>15}"
+        f"\n{'Arm':<6} {'All Covariates':<30} {'Known Future':<20} "
+        f"{'Val RMSE':>10} {'Midnight RMSE':>15}"
     )
-    print("-" * 70)
+    print("-" * 85)
     for arm_name, r in results.items():
-        cov_str = ", ".join(r["covariates"]) if r["covariates"] else "BG-only"
+        all_str = ", ".join(r["all_covariates"]) if r["all_covariates"] else "BG-only"
+        known_str = (
+            ", ".join(r["known_covariates"]) if r["known_covariates"] else "none"
+        )
         print(
-            f"{arm_name:<6} {cov_str:<25} {r['val_rmse_sliding']:>20.4f} {r['midnight_rmse']:>15.4f}"
+            f"{arm_name:<6} {all_str:<30} {known_str:<20} "
+            f"{r['val_rmse_sliding']:>10.4f} {r['midnight_rmse']:>15.4f}"
         )
 
-    if "A" in results and "B" in results:
-        delta = results["B"]["midnight_rmse"] - results["A"]["midnight_rmse"]
-        pct = delta / results["A"]["midnight_rmse"] * 100
-        print("-" * 70)
-        print(f"{'Delta (B-A)':<31} {'':>20} {delta:>+15.4f} ({pct:+.1f}%)")
+    # Print deltas for paired comparisons
+    pairs = [
+        ("A", "B", "time effect (no IOB)"),
+        ("C", "D", "time effect (with IOB)"),
+        ("A", "C", "IOB effect (no time)"),
+        ("B", "D", "IOB effect (with time)"),
+    ]
+    print("-" * 85)
+    for a, b, label in pairs:
+        if a in results and b in results:
+            delta = results[b]["midnight_rmse"] - results[a]["midnight_rmse"]
+            pct = delta / results[a]["midnight_rmse"] * 100
+            print(f"  Delta ({b}-{a}): {delta:+.4f} ({pct:+.1f}%)  [{label}]")
 
-    print("\nReference baselines:")
-    print("  Chronos-2 zero-shot:         2.555")
-    print("  Chronos-2 FT (past IOB):     2.347")
-    print("  Chronos-2 FT (BG-only):      2.385")
+    print(
+        "\nReference baselines (different eval methodology — not directly comparable):"
+    )
+    print("  Chronos-2 zero-shot:         2.555  (get_loader temporal split)")
+    print("  Chronos-2 FT (past IOB):     2.347  (get_loader temporal split)")
+    print("  Chronos-2 FT (BG-only):      2.385  (get_loader temporal split)")
+    print(
+        "  Arms A/B (this pipeline):    2.026/2.015  (DatasetRegistry patient holdout)"
+    )
 
     # Save results
     results_dir = PROJECT_ROOT / "results" / "chronos2_time_covariate"
@@ -469,6 +546,7 @@ def main():
                     "forecast_horizon": FORECAST_HORIZON,
                     "time_limit": args.time_limit,
                     "max_eval_episodes": args.max_eval_episodes,
+                    "arms_run": arms_to_run,
                 },
                 "timestamp": datetime.now().isoformat(),
             },
