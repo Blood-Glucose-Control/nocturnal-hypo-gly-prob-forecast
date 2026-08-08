@@ -30,6 +30,10 @@ from typing import Any
 
 # Local imports
 from src.experiments.base.experiment import ExperimentSummarizer
+from src.experiments.nocturnal.grand_summary import (
+    bucket_from_covariates,
+    read_covariate_cols,
+)
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +42,12 @@ _RESULTS_FILENAME_OLD = "nocturnal_results.json"
 _CONFIG_FILENAME = "experiment_config.json"  # singular — nocturnal convention
 _CONFIG_FILENAME_ALT = "experiment_configs.json"
 _EXPERIMENT_TYPE = "nocturnal_forecasting"
+
+# Models that have multiple named variants — their model column is enriched
+# with a variant suffix read from training_metadata.json in the checkpoint dir.
+_MULTI_VARIANT_MODELS = frozenset(
+    {"statistical", "naive_baseline", "deepar", "patchtst", "tft"}
+)
 
 
 class NocturnalSummarizer(ExperimentSummarizer):
@@ -124,15 +134,30 @@ class NocturnalSummarizer(ExperimentSummarizer):
         git_commit = _read_git_commit(run_dir)
         checkpoint = data.get("checkpoint") or _read_checkpoint(run_dir)
 
+        # Covariate bucket: prefer value baked into results_summary.json (new
+        # runs); fall back to deriving it from experiment_config.json for old
+        # runs that pre-date the tier_metadata change.
+        cov_bucket = data.get("cov_bucket")
+        if cov_bucket is None:
+            cov_cols = read_covariate_cols(run_dir)
+            cov_bucket = bucket_from_covariates(mode, cov_cols)
+
+        model_str = data.get("model", model)
+        if model_str in _MULTI_VARIANT_MODELS:
+            variant = _read_model_variant(checkpoint)
+            if variant:
+                model_str = f"{model_str}/{variant}"
+
         return {
             "run_id": run_dir.name,
             "run_path": str(run_dir),
             "checkpoint": checkpoint,
             "experiment_type": self.experiment_type,
             "ctx_fh": ctx_fh,
-            "model": data.get("model", model),
+            "model": model_str,
             "dataset": data.get("dataset", ""),
             "mode": mode,
+            "cov_bucket": cov_bucket,
             "timestamp": data.get("timestamp", ""),
             "context_length": cfg.get("context_length"),
             "forecast_length": cfg.get("forecast_length"),
@@ -211,4 +236,39 @@ def _read_checkpoint(run_dir: Path) -> str | None:
                 return checkpoint if checkpoint else None
             except (json.JSONDecodeError, OSError):
                 pass
+    return None
+
+
+def _read_model_variant(checkpoint: str | None) -> str | None:
+    """Read a human-readable variant name from training_metadata.json.
+
+    Looks for ``training_metadata.json`` in the checkpoint directory (or its
+    parent when the checkpoint path points directly to a file such as
+    ``model.pt``).  Returns a string of the form ``"ModelName"`` or
+    ``"ModelName+COV1+COV2"`` when covariate columns are present.
+
+    Returns ``None`` when the metadata file is absent or unreadable.
+    """
+    if not checkpoint:
+        return None
+    cp = Path(checkpoint)
+    # The checkpoint may point to a file (e.g. model.pt) or a directory.
+    candidates = [cp, cp.parent]
+    for candidate in candidates:
+        meta = candidate / "training_metadata.json"
+        if meta.exists():
+            try:
+                with meta.open() as fh:
+                    data = json.load(fh)
+                cfg = data.get("config", {})
+                model_name = cfg.get("model_name", "")
+                if not model_name:
+                    return None
+                cov_cols = cfg.get("covariate_cols") or []
+                if cov_cols:
+                    suffix = "+".join(c.upper() for c in cov_cols)
+                    return f"{model_name}+{suffix}"
+                return model_name
+            except (json.JSONDecodeError, OSError):
+                return None
     return None

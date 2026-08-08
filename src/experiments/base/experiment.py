@@ -96,6 +96,9 @@ class ExperimentSummarizer(ABC):
         for ctx_fh_dir in sorted(self.experiment_dir.iterdir()):
             if not ctx_fh_dir.is_dir():
                 continue
+            if ctx_fh_dir.name.startswith("_"):
+                log.debug("Skipping reserved directory: %s", ctx_fh_dir)
+                continue
             for model_dir in sorted(ctx_fh_dir.iterdir()):
                 if not model_dir.is_dir():
                     continue
