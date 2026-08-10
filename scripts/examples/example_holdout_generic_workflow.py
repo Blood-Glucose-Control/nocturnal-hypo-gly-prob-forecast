@@ -47,6 +47,7 @@ Usage:
 import argparse
 import json
 import logging
+import os
 import shutil
 import sys
 import traceback
@@ -873,10 +874,31 @@ class ModelFactory:
                 **moirai_kwargs,
             )
             return MoiraiForecaster.load(model_path, moirai_config)
+        elif model_type_lower == "naive_baseline":
+            from src.models.naive_baseline import NaiveBaselineForecaster
+
+            return NaiveBaselineForecaster.load(model_path)
+        elif model_type_lower == "statistical":
+            from src.models.statistical import StatisticalForecaster
+
+            return StatisticalForecaster.load(model_path)
+        elif model_type_lower == "deepar":
+            from src.models.deepar import DeepARForecaster
+
+            return DeepARForecaster.load(model_path)
+        elif model_type_lower == "patchtst":
+            from src.models.patchtst import PatchTSTForecaster
+
+            return PatchTSTForecaster.load(model_path)
+        elif model_type_lower == "tft":
+            from src.models.tft import TFTForecaster
+
+            return TFTForecaster.load(model_path)
         else:
             raise ValueError(
                 f"Unsupported model type for loading: {model_type}. "
-                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai"
+                f"Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
+                f"naive_baseline, statistical, deepar, patchtst, tft"
             )
 
 
@@ -2181,9 +2203,18 @@ stored in separate subdirectories for comparison.
         skip_steps.add(4)
 
     # Set output directory
+    # Always create a unique timestamped RID subdirectory so that:
+    #   - repeated runs never clobber each other, and
+    #   - the artifacts root (e.g. trained_models/artifacts/ttm) is not polluted.
+    _now = datetime.now()
+    _ts_short = _now.strftime("%Y-%m-%d_%H:%M")
+    _ts_long = _now.strftime("%Y%m%d_%H%M%S")
+    _pid = os.getpid()
+    _run_subdir = f"{_ts_short}_RID{_ts_long}_{_pid}_holdout_workflow"
     if args.output_dir is None:
-        timestamp = datetime.now().strftime("%Y-%m-%d_%H:%M")
-        args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{timestamp}_{args.model_type}_holdout_workflow"
+        args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{_run_subdir}"
+    else:
+        args.output_dir = str(Path(args.output_dir) / _run_subdir)
 
     logger.info("=" * 80)
     logger.info("GENERIC FORECASTER WORKFLOW DEMONSTRATION")
