@@ -14,14 +14,6 @@ from .base_model import (
 
 from .registry import ModelRegistry
 
-from .distributed import (
-    DistributedManager,
-    setup_deepspeed_config,
-    setup_fsdp_config,
-    GPUManager,
-    distributed_manager,
-)
-
 __all__ = [
     # Base model classes
     "BaseTimeSeriesFoundationModel",
@@ -31,10 +23,4 @@ __all__ = [
     "create_model_from_config",
     # Registry
     "ModelRegistry",
-    # Distributed training
-    "DistributedManager",
-    "setup_deepspeed_config",
-    "setup_fsdp_config",
-    "GPUManager",
-    "distributed_manager",
 ]

@@ -10,26 +10,24 @@ The base model framework provides a production-ready foundation for implementing
 
 1. **`BaseTimeSeriesFoundationModel`** - Abstract base class for all time series foundation models
 2. **`ModelConfig`** - Comprehensive configuration management with 30+ parameters
-3. **`DistributedManager`** - Multi-GPU and multi-node distributed training
-4. **`LoRATrainer`** - Memory-efficient fine-tuning with Low-Rank Adaptation
-5. **`GPUManager`** - Hardware optimization and memory management
+3. **`TrainingBackend`** - Explicit backend contract for model implementations
+4. **`ModelRegistry`** - Registration helper for discoverability and tests
 
 ## Key Features
 
 ### 🚀 **Production-Ready Capabilities**
 
 - **Unified Interface**: All models inherit from `BaseTimeSeriesFoundationModel` for consistent API
-- **Distributed Training**: PyTorch DDP, DeepSpeed, FSDP support
-- **Memory Optimization**: LoRA, gradient checkpointing, mixed precision
+- **Model-specific Training**: Each model owns its training path behind a common lifecycle
 - **Model Management**: Save/load, versioning, metadata tracking
 - **Configuration Management**: YAML-based, hierarchical configurations
 - **Error Handling**: Comprehensive error handling and logging
 - **Metrics & Evaluation**: Extensible metrics framework
 
-### 🔧 **Advanced Training Features**
+### 🔧 **Training Features**
 
 ```python
-# Example: Advanced TTM training with LoRA + Distributed
+# Example: TTM training via unified base lifecycle
 config = TTMConfig(
     model_path="ibm-granite/granite-timeseries-ttm-r2",
     context_length=512,
@@ -41,20 +39,7 @@ config = TTMConfig(
     fp16=True,
 )
 
-lora_config = LoRAConfig(
-    enabled=True,
-    rank=16,
-    alpha=32,
-    target_modules=["q_proj", "v_proj", "mixer"]
-)
-
-distributed_config = DistributedConfig(
-    enabled=True,
-    strategy="ddp",  # or "deepspeed", "fsdp"
-    world_size=4,
-)
-
-model = TTMForecaster(config, lora_config, distributed_config)
+model = TTMForecaster(config)
 results = model.fit(
     train_data="kaggle_brisT1D",
     output_dir="./models/ttm_run_001",
@@ -68,8 +53,7 @@ results = model.fit(
 src/models/base/
 ├── __init__.py           # Exports all framework components
 ├── base_model.py         # Core BaseTimeSeriesFoundationModel class (500+ lines)
-├── distributed.py        # Distributed training utilities (300+ lines)
-└── lora_utils.py         # LoRA implementation (400+ lines)
+└── registry.py           # Model registration helpers
 
 src/models/ttm/
 ├── __init__.py           # TTM package exports
@@ -99,7 +83,7 @@ class BaseTimeSeriesFoundationModel(ABC):
     """1,200+ line comprehensive implementation with:"""
 
     # Configuration management
-    def __init__(self, config, lora_config, distributed_config)
+    def __init__(self, config)
 
     # Abstract methods for model-specific implementation
     def _initialize_model(self) -> None
@@ -117,9 +101,7 @@ class BaseTimeSeriesFoundationModel(ABC):
     def save(self, output_dir, save_config, save_metadata)
     def load(cls, model_dir, config)
 
-    # Advanced features
-    def setup_distributed(self)
-    def enable_lora(self)
+    # Introspection + metadata
     def get_model_info(self)
     def _save_training_metadata(self, output_dir, metrics)
 ```

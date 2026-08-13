@@ -32,7 +32,6 @@ graph LR
     GetInfo --> GetModelInfo[get_model_info - inherited]
 
     Start --> GetTrainingBackend[training_backend property]
-    Start --> SupportsLora[supports_lora property]
 
     %% Base TSFM Public: Inherited public methods from BaseTimeSeriesFoundationModel
     style Fit fill:#0072B2,color:#000
@@ -49,7 +48,6 @@ graph LR
     style Evaluate fill:#F0E442,color:#000
     style GetInfo fill:#F0E442,color:#000
     style GetTrainingBackend fill:#F0E442,color:#000
-    style SupportsLora fill:#F0E442,color:#000
 
     %% TTM Abstract Private: TTM-specific private implementation methods
     style InitModel fill:#CC79A7,color:#000

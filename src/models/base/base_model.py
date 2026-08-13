@@ -620,6 +620,8 @@ class BaseTimeSeriesFoundationModel(ABC):
                 config = cls.config_class.from_dict(config_dict)
             else:
                 raise ValueError(f"No config found at {config_path}")
+        if config is None:
+            raise ValueError(f"Unable to load model config from {model_path}")
 
         # Create instance
         instance = cls(config)
