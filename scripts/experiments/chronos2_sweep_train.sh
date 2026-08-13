@@ -73,7 +73,7 @@ CONFIGS=(
 )
 
 CONFIG_DIR="configs/data/holdout_10pct"
-WORKFLOW="scripts/examples/run_holdout_generic_workflow.sh"
+WORKFLOW="scripts/experiments/run_holdout_generic_workflow.sh"
 MANIFEST_DIR="trained_models/artifacts/chronos2"
 # Skip holdout config generation (step 1) and validation (step 2) — same result
 # every run since the 10pct configs are already committed and unchanged.

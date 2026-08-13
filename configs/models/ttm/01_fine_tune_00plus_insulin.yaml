@@ -5,7 +5,7 @@
 # Uses lower learning rate and moderate epochs.
 #
 # Usage:
-#   MODEL_CONFIG="configs/models/ttm/fine_tune.yaml" ./scripts/examples/run_holdout_generic_workflow.sh
+#   MODEL_CONFIG="configs/models/ttm/fine_tune.yaml" ./scripts/experiments/run_holdout_generic_workflow.sh
 # =============================================================================
 
 model_path: "ibm-granite/granite-timeseries-ttm-r2"

@@ -96,7 +96,7 @@ def example_3_load_both_splits():
     logger.info(f"  Training: {train_data.shape}")
     logger.info(f"  Holdout: {holdout_data.shape}")
     logger.info(
-        f"  Split ratio: {len(train_data)/(len(train_data)+len(holdout_data)):.1%} train"
+        f"  Split ratio: {len(train_data) / (len(train_data) + len(holdout_data)):.1%} train"
     )
 
     # Verify no overlap
@@ -137,7 +137,7 @@ def example_4_get_split_info():
     if "temporal_split" in info:
         ts = info["temporal_split"]
         logger.info("\n  Temporal Split:")
-        logger.info(f"    Holdout %: {ts['holdout_percentage']*100:.1f}%")
+        logger.info(f"    Holdout %: {ts['holdout_percentage'] * 100:.1f}%")
         logger.info(f"    Min train samples: {ts['min_train_samples']}")
         logger.info(f"    Min holdout samples: {ts['min_holdout_samples']}")
 
@@ -299,7 +299,7 @@ def main():
         logger.error(f"\n❌ Error running examples: {e}")
         logger.info("\nMake sure you have:")
         logger.info(
-            "  1. Generated holdout configs: python scripts/data_processing_scripts/generate_holdout_configs.py"
+            "  1. Generated holdout configs: python scripts/data_processing/generate_holdout_configs.py"
         )
         logger.info("  2. Datasets are available in cache/data/")
         raise

@@ -148,8 +148,8 @@ def create_hybrid_holdout_config(
         temporal_config=temporal_config,
         patient_config=patient_config,
         description=(
-            f"Hybrid holdout strategy: {temporal_pct*100:.0f}% temporal split "
-            f"+ {patient_pct*100:.0f}% patient holdout. "
+            f"Hybrid holdout strategy: {temporal_pct * 100:.0f}% temporal split "
+            f"+ {patient_pct * 100:.0f}% patient holdout. "
             f"Holdout patients: {len(holdout_patients)}. "
             f"Fixed seed={seed} for reproducibility."
         ),
@@ -195,9 +195,9 @@ def generate_holdout_configs_for_datasets(
     for dataset_name in datasets:
         try:
             logger.info("\n")
-            logger.info(f"{'='*60}")
+            logger.info(f"{'=' * 60}")
             logger.info(f"Processing dataset: {dataset_name}")
-            logger.info(f"{'='*60}")
+            logger.info(f"{'=' * 60}")
 
             # Get patient IDs
             patient_ids = get_patient_ids_from_dataset(dataset_name)
@@ -272,9 +272,9 @@ def validate_holdout_config(
         - errors: List[str]
     """
     if verbose:
-        logger.info(f"\n{'='*60}")
+        logger.info(f"\n{'=' * 60}")
         logger.info(f"Validating holdout config for: {dataset_name}")
-        logger.info(f"{'='*60}")
+        logger.info(f"{'=' * 60}")
 
     results = {
         "dataset_name": dataset_name,
@@ -486,9 +486,7 @@ def validate_all_datasets(
 
     if not available_datasets:
         logger.error("No datasets with holdout configurations found!")
-        logger.info(
-            "Run: python scripts/data_processing_scripts/generate_holdout_configs.py"
-        )
+        logger.info("Run: python scripts/data_processing/generate_holdout_configs.py")
         return []
 
     if verbose:
@@ -526,9 +524,9 @@ def print_validation_summary(results: List[Dict], verbose: bool = True):
         verbose: If True, print detailed error information
     """
     if verbose:
-        logger.info(f"{'='*80}")
+        logger.info(f"{'=' * 80}")
         logger.info("VALIDATION SUMMARY")
-        logger.info(f"{'='*80}")
+        logger.info(f"{'=' * 80}")
 
     table_data = []
     for r in results:

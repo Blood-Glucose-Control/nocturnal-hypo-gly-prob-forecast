@@ -69,7 +69,7 @@ class DatasetRegistry:
         if not config_path.exists():
             logger.warning(
                 f"No holdout config found for {dataset_name} at {config_path}. "
-                f"Please run scripts/data_processing_scripts/generate_holdout_configs.py"
+                f"Please run scripts/data_processing/generate_holdout_configs.py"
             )
             return None
 
@@ -110,7 +110,7 @@ class DatasetRegistry:
         if config is None:
             raise ValueError(
                 f"No holdout configuration found for {dataset_name}. "
-                f"Run scripts/data_processing_scripts/generate_holdout_configs.py first."
+                f"Run scripts/data_processing/generate_holdout_configs.py first."
             )
 
         # Apply split

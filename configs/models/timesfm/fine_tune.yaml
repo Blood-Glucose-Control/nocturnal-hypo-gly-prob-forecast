@@ -6,11 +6,11 @@
 #
 # Usage:
 #   MODEL_TYPE="timesfm" MODEL_CONFIG="configs/models/timesfm/fine_tune.yaml" \
-#     SKIP_TRAINING="false" ./scripts/examples/run_holdout_generic_workflow.sh
+#     SKIP_TRAINING="false" ./scripts/experiments/run_holdout_generic_workflow.sh
 #
 #   MODEL_TYPE="timesfm" MODEL_CONFIG="configs/models/timesfm/fine_tune.yaml" \
 #     DATASETS="brown_2019" SKIP_TRAINING="false" EPOCHS=5 \
-#     ./scripts/examples/run_holdout_generic_workflow.sh
+#     ./scripts/experiments/run_holdout_generic_workflow.sh
 # =============================================================================
 
 batch_size: 256 # batch_size (32) * gradient_accumulation_steps (4) = 128

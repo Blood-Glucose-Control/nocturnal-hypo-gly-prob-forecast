@@ -45,12 +45,12 @@ A comprehensive data holdout system has been implemented to ensure reproducible 
 
 ### Scripts
 
-5. **`scripts/data_processing_scripts/generate_holdout_configs.py`**
+5. **`scripts/data_processing/generate_holdout_configs.py`**
    - Generates holdout configurations for all datasets
    - Random patient selection with fixed seed
    - Configurable holdout percentages
 
-6. **`scripts/data_processing_scripts/validate_holdout_configs.py`**
+6. **`scripts/data_processing/validate_holdout_configs.py`**
    - Validates all holdout configurations
    - Checks for data leakage
    - Verifies temporal ordering
@@ -86,7 +86,7 @@ A comprehensive data holdout system has been implemented to ensure reproducible 
 ### 1. Generate Configurations
 
 ```bash
-python scripts/data_processing_scripts/generate_holdout_configs.py
+python scripts/data_processing/generate_holdout_configs.py
 ```
 
 This creates configurations for all datasets with:
@@ -97,7 +97,7 @@ This creates configurations for all datasets with:
 ### 2. Validate Configurations
 
 ```bash
-python scripts/data_processing_scripts/validate_holdout_configs.py
+python scripts/data_processing/validate_holdout_configs.py
 ```
 
 This checks:
@@ -288,12 +288,12 @@ VALIDATION SUMMARY
 
 1. **Generate configs for remaining datasets**:
    ```bash
-   python scripts/data_processing_scripts/generate_holdout_configs.py
+   python scripts/data_processing/generate_holdout_configs.py
    ```
 
 2. **Validate all configs**:
    ```bash
-   python scripts/data_processing_scripts/validate_holdout_configs.py
+   python scripts/data_processing/validate_holdout_configs.py
    ```
 
 3. **Run examples**:

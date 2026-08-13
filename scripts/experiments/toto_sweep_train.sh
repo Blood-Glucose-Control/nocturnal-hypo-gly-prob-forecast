@@ -35,7 +35,7 @@ DATASETS_WITH_IOB="lynch_2022 aleppo_2017 brown_2019"
 # Carb covariates (cob, carb_availability): brown has no meal data; tamborlane has no covariates
 DATASETS_WITH_COB="lynch_2022 aleppo_2017"
 CONFIG_DIR="configs/data/holdout_10pct"
-WORKFLOW="scripts/examples/run_holdout_generic_workflow.sh"
+WORKFLOW="scripts/experiments/run_holdout_generic_workflow.sh"
 MANIFEST="trained_models/artifacts/toto/sweep_manifest.txt"
 
 # Format: "config_path|datasets_key"

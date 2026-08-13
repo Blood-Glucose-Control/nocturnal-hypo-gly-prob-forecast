@@ -5,13 +5,13 @@
 ### 1. Generate Configs (Run Once)
 
 ```bash
-python scripts/data_processing_scripts/generate_holdout_configs.py
+python scripts/data_processing/generate_holdout_configs.py
 ```
 
 ### 2. Validate Configs
 
 ```bash
-python scripts/data_processing_scripts/validate_holdout_configs.py
+python scripts/data_processing/validate_holdout_configs.py
 ```
 
 ### 3. Use in Your Code
@@ -85,8 +85,8 @@ print(datasets)  # ['kaggle_brisT1D', 'gluroo', "aleppo_2017", ...]
 | **Config Classes** | `src/data/preprocessing/holdout_config.py` |
 | **Split Manager** | `src/data/preprocessing/holdout_manager.py` |
 | **Dataset Registry** | `src/data/versioning/dataset_registry.py` |
-| **Generation Script** | `scripts/data_processing_scripts/generate_holdout_configs.py` |
-| **Validation Script** | `scripts/data_processing_scripts/validate_holdout_configs.py` |
+| **Generation Script** | `scripts/data_processing/generate_holdout_configs.py` |
+| **Validation Script** | `scripts/data_processing/validate_holdout_configs.py` |
 | **Examples** | `scripts/examples/example_data_holdout_system.py` |
 | **Full Documentation** | `configs/data/holdout/README.md` |
 

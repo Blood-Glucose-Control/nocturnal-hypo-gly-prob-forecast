@@ -29,7 +29,7 @@ cd "$PROJECT_ROOT"
 
 ALL_DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008"
 CONFIG_DIR="configs/data/holdout_10pct"
-WORKFLOW="scripts/examples/run_holdout_generic_workflow.sh"
+WORKFLOW="scripts/experiments/run_holdout_generic_workflow.sh"
 MANIFEST="trained_models/artifacts/naive_baseline/sweep_manifest.txt"
 
 # Configs: "config_path" (all use ALL datasets, BG-only)
