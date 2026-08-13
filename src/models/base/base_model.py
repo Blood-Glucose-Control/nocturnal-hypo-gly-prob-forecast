@@ -22,8 +22,8 @@ import torch
 from torch.utils.data import DataLoader
 from enum import Enum
 
-# Local imports - adapt these to your existing structure
-from src.utils.logging_helper import info_print
+# Local imports
+from ...utils.logging_helper import info_print
 
 
 class TrainingBackend(Enum):
@@ -785,22 +785,22 @@ def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
 
     # Import and create the appropriate model class
     if model_type == "ttm":
-        from src.models.ttm import TTMForecaster, TTMConfig
+        from ..ttm import TTMForecaster, TTMConfig
 
         config = TTMConfig(**config_dict)
         return TTMForecaster(config)
     elif model_type in ("chronos", "chronos2"):
-        from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
+        from ..chronos2 import Chronos2Forecaster, Chronos2Config
 
         config = Chronos2Config(**config_dict)
         return Chronos2Forecaster(config)
     elif model_type == "tide":
-        from src.models.tide import TiDEForecaster, TiDEConfig
+        from ..tide import TiDEForecaster, TiDEConfig
 
         config = TiDEConfig(**config_dict)
         return TiDEForecaster(config)
     elif model_type == "tsmixer":
-        from src.models.tsmixer import TSMixerForecaster, TSMixerConfig
+        from ..tsmixer import TSMixerForecaster, TSMixerConfig
 
         config = TSMixerConfig(**config_dict)
         return TSMixerForecaster(config)

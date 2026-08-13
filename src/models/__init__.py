@@ -1,7 +1,7 @@
 """Model module exports."""
 
-from src.models.adapter import AdapterMetadata, ModelAdapter, assert_model_adapter
-from src.models.factory import create_model_and_config
+from .adapter import AdapterMetadata, ModelAdapter, assert_model_adapter
+from .factory import create_model_and_config
 
 __all__ = [
     "AdapterMetadata",
