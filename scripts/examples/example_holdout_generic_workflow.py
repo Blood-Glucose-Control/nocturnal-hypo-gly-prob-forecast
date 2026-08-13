@@ -68,7 +68,6 @@ from src.data.preprocessing.dataset_combiner import (
     print_dataset_column_table,
 )
 from src.evaluation.episode_builders import build_midnight_episodes
-from src.models.base import GPUManager
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -80,6 +79,26 @@ logging.getLogger("src.data.preprocessing").setLevel(logging.WARNING)
 logging.getLogger("src.data.diabetes_datasets").setLevel(logging.WARNING)
 logging.getLogger("src.models").setLevel(logging.WARNING)
 logging.getLogger("src.utils").setLevel(logging.WARNING)
+
+
+def get_gpu_info() -> Dict[str, Any]:
+    """Return basic CUDA availability metadata for workflow decisions."""
+    info: Dict[str, Any] = {"gpu_available": False, "gpu_count": 0}
+
+    try:
+        import torch
+    except ImportError:
+        logger.warning("PyTorch is not installed; defaulting to CPU execution.")
+        return info
+
+    if not torch.cuda.is_available():
+        return info
+
+    gpu_count = torch.cuda.device_count()
+    info["gpu_available"] = True
+    info["gpu_count"] = gpu_count
+    info["gpu_names"] = [torch.cuda.get_device_name(i) for i in range(gpu_count)]
+    return info
 
 
 # =============================================================================
@@ -1654,7 +1673,7 @@ def step4_zero_shot_evaluation(
     logger.info("=" * 80)
 
     # GPU setup
-    gpu_info = GPUManager.get_gpu_info()
+    gpu_info = get_gpu_info()
     logger.info(f"GPU available: {gpu_info['gpu_available']}")
     logger.info(f"GPU count: {gpu_info['gpu_count']}")
 
@@ -1754,7 +1773,7 @@ def step5_train_model(
     logger.info("=" * 80)
 
     # GPU setup
-    gpu_info = GPUManager.get_gpu_info()
+    gpu_info = get_gpu_info()
     use_cpu = not gpu_info["gpu_available"]
 
     # Create fine-tuning configuration using the factory
