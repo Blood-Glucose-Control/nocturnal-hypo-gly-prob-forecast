@@ -46,7 +46,6 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
 
     Subclasses must implement:
         - training_backend  (should return TrainingBackend.CUSTOM)
-        - supports_lora     (return False; AutoGluon manages this internally)
         - supports_zero_shot
         - config_class      (the Config dataclass for this model)
 
@@ -69,11 +68,11 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
     # without further overrides. E.g. "deepar_predictor.json".
     _PREDICTOR_JSON_NAME: str = "ag_predictor.json"
 
-    def __init__(self, config, lora_config=None, distributed_config=None):
+    def __init__(self, config):
         # AutoGluon predictor — must be set before super().__init__() which
         # calls _initialize_model() (our no-op).
         self.predictor: Optional[Any] = None
-        super().__init__(config, lora_config, distributed_config)
+        super().__init__(config)
 
     # ------------------------------------------------------------------
     # Abstract properties — subclasses must implement
@@ -83,11 +82,6 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.CUSTOM
 
-    @property
-    def supports_lora(self) -> bool:
-        return False
-
-    @property
     def supports_zero_shot(self) -> bool:
         return False
 

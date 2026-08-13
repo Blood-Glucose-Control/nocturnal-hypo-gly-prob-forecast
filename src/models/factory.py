@@ -9,7 +9,7 @@ import logging
 import os
 from typing import Optional, Tuple
 
-from src.models.base import BaseTimeSeriesFoundationModel, ModelConfig
+from .base import BaseTimeSeriesFoundationModel, ModelConfig
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def create_model_and_config(
         - context_length: must match saved value (affects model architecture)
     """
     if model_type == "sundial":
-        from src.models.sundial import SundialForecaster, SundialConfig
+        from .sundial import SundialForecaster, SundialConfig
 
         if checkpoint:
             # Load model with saved config
@@ -66,8 +66,8 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "ttm":
-        from src.models.ttm import TTMForecaster, TTMConfig
-        from src.models.base.base_model import ModelConfig as BaseModelConfig
+        from .ttm import TTMForecaster, TTMConfig
+        from .base.base_model import ModelConfig as BaseModelConfig
         import dataclasses
 
         if checkpoint:
@@ -168,7 +168,7 @@ def create_model_and_config(
         raise NotImplementedError("Chronos model not yet implemented")
 
     elif model_type == "chronos2":
-        from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
+        from .chronos2 import Chronos2Forecaster, Chronos2Config
 
         if checkpoint:
             # Handle checkpoint path: strip /model.pt suffix only when model.pt
@@ -208,7 +208,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "tide":
-        from src.models.tide import TiDEForecaster, TiDEConfig
+        from .tide import TiDEForecaster, TiDEConfig
 
         if checkpoint:
             model = TiDEForecaster.load(checkpoint)
@@ -237,7 +237,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "moirai":
-        from src.models.moirai import MoiraiForecaster, MoiraiConfig
+        from .moirai import MoiraiForecaster, MoiraiConfig
 
         if checkpoint and os.path.isdir(checkpoint):
             # Base-class save format (model.pt/ directory with config.json)
@@ -282,7 +282,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "timegrad":
-        from src.models.timegrad import TimeGradForecaster, TimeGradConfig
+        from .timegrad import TimeGradForecaster, TimeGradConfig
 
         if checkpoint:
             config_path = os.path.join(checkpoint, "config.json")
@@ -330,7 +330,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "moment":
-        from src.models.moment import MomentForecaster, MomentConfig
+        from .moment import MomentForecaster, MomentConfig
 
         if checkpoint:
             config_dict = {}
@@ -396,7 +396,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "toto":
-        from src.models.toto import TotoForecaster, TotoConfig
+        from .toto import TotoForecaster, TotoConfig
 
         if checkpoint:
             model = TotoForecaster.load(checkpoint)
@@ -426,7 +426,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "timesfm":
-        from src.models.timesfm import TimesFMForecaster, TimesFMConfig
+        from .timesfm import TimesFMForecaster, TimesFMConfig
 
         if checkpoint:
             # Handle TimesFM checkpoint structure: if path ends with /model.pt,
@@ -510,7 +510,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "naive_baseline":
-        from src.models.naive_baseline import (
+        from .naive_baseline import (
             NaiveBaselineForecaster,
             NaiveBaselineConfig,
         )
@@ -538,7 +538,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "statistical":
-        from src.models.statistical import StatisticalForecaster, StatisticalConfig
+        from .statistical import StatisticalForecaster, StatisticalConfig
 
         if checkpoint:
             model = StatisticalForecaster.load(checkpoint)
@@ -564,7 +564,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "deepar":
-        from src.models.deepar import DeepARForecaster, DeepARConfig
+        from .deepar import DeepARForecaster, DeepARConfig
 
         if checkpoint:
             model = DeepARForecaster.load(checkpoint)
@@ -589,7 +589,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "patchtst":
-        from src.models.patchtst import PatchTSTForecaster, PatchTSTConfig
+        from .patchtst import PatchTSTForecaster, PatchTSTConfig
 
         if checkpoint:
             model = PatchTSTForecaster.load(checkpoint)
@@ -614,7 +614,7 @@ def create_model_and_config(
         return model, config
 
     elif model_type == "tft":
-        from src.models.tft import TFTForecaster, TFTConfig
+        from .tft import TFTForecaster, TFTConfig
 
         if checkpoint:
             model = TFTForecaster.load(checkpoint)

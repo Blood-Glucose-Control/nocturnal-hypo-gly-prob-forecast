@@ -99,20 +99,13 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
 
     config: TimeGradConfig
 
-    def __init__(
-        self, config: TimeGradConfig, lora_config=None, distributed_config=None
-    ):
-        super().__init__(config, lora_config, distributed_config)
+    def __init__(self, config: TimeGradConfig):
+        super().__init__(config)
 
     @property
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.CUSTOM
 
-    @property
-    def supports_lora(self) -> bool:
-        return False
-
-    @property
     def supports_zero_shot(self) -> bool:
         return False
 

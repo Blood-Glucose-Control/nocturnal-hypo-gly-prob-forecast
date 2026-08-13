@@ -28,17 +28,13 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
 
     config: SundialConfig  # Override base class typing
 
-    def __init__(
-        self, config: SundialConfig, lora_config=None, distributed_config=None
-    ):
+    def __init__(self, config: SundialConfig):
         """Initialize the Sundial forecaster.
         Args:
             config: Sundial configuration object
-            lora_config: LoRA configuration (ignored for Sundial)
-            distributed_config: Configuration for distributed training
         """
         # Call parent (this will call _initialize_model)
-        super().__init__(config, lora_config, distributed_config)
+        super().__init__(config)
 
     def _initialize_model(self) -> None:
         """Load the Sundial model from HuggingFace."""
@@ -69,11 +65,6 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.TRANSFORMERS
 
-    @property
-    def supports_lora(self) -> bool:
-        return False
-
-    @property
     def supports_zero_shot(self) -> bool:
         return True
 

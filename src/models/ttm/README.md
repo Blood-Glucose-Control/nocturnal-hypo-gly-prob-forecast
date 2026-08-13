@@ -155,8 +155,7 @@ Input Data Format
 2. Model Initialization
    ┌────────────────────────────────────────┐
    │  model = TTMForecaster(                │
-   │      config=config,                    │
-   │      distributed_config=dist_config    │
+   │      config=config                     │
    │  )                                     │
    │                                        │
    │  Internal: _initialize_model()         │

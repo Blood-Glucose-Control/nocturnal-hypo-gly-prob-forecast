@@ -2,8 +2,7 @@
 """
 TSMixer model implementation using the base TSFM framework.
 
-TSMixer is an MLP-based architecture that does NOT support LoRA
-since it doesn't have transformer attention mechanisms.
+TSMixer is an MLP-based architecture.
 """
 
 from typing import Any, Dict, Optional, Tuple
@@ -49,29 +48,16 @@ class TSMixerForecaster(BaseTimeSeriesFoundationModel):
     """
     TSMixer forecaster implementation.
 
-    TSMixer is an MLP-based model that does NOT support LoRA fine-tuning
-    since it lacks transformer attention mechanisms.
+    TSMixer is an MLP-based model.
     """
 
-    def __init__(
-        self, config: TSMixerConfig, lora_config=None, distributed_config=None
-    ):
+    def __init__(self, config: TSMixerConfig):
         """Initialize TSMixer forecaster."""
         if not isinstance(config, TSMixerConfig):
             config = TSMixerConfig(**config.to_dict())
 
-        # Warn about LoRA if it's enabled
-        if lora_config and lora_config.enabled:
-            info_print("WARNING: LoRA is not supported for TSMixer architecture")
-            info_print("LoRA requires transformer models with attention mechanisms")
-            lora_config.enabled = False
-
-        super().__init__(config, lora_config, distributed_config)
+        super().__init__(config)
         self.config: TSMixerConfig = self.config
-
-    def supports_lora(self) -> bool:
-        """TSMixer is MLP-based and does NOT support LoRA fine-tuning."""
-        return False
 
     @property
     def supports_zero_shot(self) -> bool:
@@ -173,7 +159,6 @@ class TSMixerForecaster(BaseTimeSeriesFoundationModel):
                     "d_model": self.config.d_model,
                     "n_blocks": self.config.n_blocks,
                     "mixing_hidden_dim": self.config.mixing_hidden_dim,
-                    "supports_lora": False,  # TSMixer does not support LoRA
                     "architecture_type": "MLP-based",
                 }
             }

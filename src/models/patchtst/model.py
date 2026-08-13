@@ -14,9 +14,9 @@ Blackwell GPU is safe.
 
 import logging
 
-from src.models.autogluon_base import AutoGluonBaseModel
-from src.models.base.registry import ModelRegistry
-from src.utils.logging_helper import info_print
+from ..autogluon_base import AutoGluonBaseModel
+from ..base.registry import ModelRegistry
+from ...utils.logging_helper import info_print
 
 from .config import PatchTSTConfig
 
@@ -36,7 +36,6 @@ class PatchTSTForecaster(AutoGluonBaseModel):
 
     _PREDICTOR_JSON_NAME = "patchtst_predictor.json"
 
-    @property
     def supports_zero_shot(self) -> bool:
         return False
 

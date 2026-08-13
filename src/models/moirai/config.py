@@ -183,10 +183,6 @@ class MoiraiConfig(ModelConfig):
             MoiraiDataConfig(**dc) if isinstance(dc, dict) else dc
         )
 
-    def supports_lora(self) -> bool:
-        """Moirai is transformer-based and supports LoRA."""
-        return True
-
     def to_dict(self) -> Dict:
         """Convert configuration to dictionary."""
         base_dict = super().to_dict()

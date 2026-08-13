@@ -33,10 +33,10 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from src.data.preprocessing.gap_handling import segment_all_patients
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.utils.logging_helper import info_print
+from ...data.preprocessing.gap_handling import segment_all_patients
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from ...utils.logging_helper import info_print
 
 from .config import Chronos2Config
 from .utils import (
@@ -71,29 +71,18 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     def __init__(
         self,
         config: Chronos2Config,
-        lora_config=None,
-        distributed_config=None,
     ):
         # AutoGluon predictor — set before super().__init__() which calls
         # _initialize_model() (our no-op)
         self.predictor: Optional[Any] = None
         # Chronos2Pipeline for zero-shot inference (lazily initialized)
         self._zs_pipeline: Optional[Any] = None
-        # lora_config and distributed_config are accepted for base class
-        # compatibility but unused — AutoGluon handles LoRA internally
-        super().__init__(config, lora_config, distributed_config)
+        super().__init__(config)
 
     @property
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.CUSTOM
 
-    @property
-    def supports_lora(self) -> bool:
-        # AutoGluon handles LoRA internally; base class LoRA mechanism
-        # is unused since self.model stays None
-        return False
-
-    @property
     def supports_zero_shot(self) -> bool:
         return True
 
@@ -551,9 +540,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             TimeSeriesDataFrame with item_id/timestamp index and one column
             per known covariate, covering forecast_length steps per episode.
         """
-        from autogluon.timeseries import TimeSeriesDataFrame
+        from autogluon.timeseries import TimeSeriesDataFrame  # pyright: ignore[reportMissingImports]
 
-        from src.data.preprocessing.feature_engineering import (
+        from ...data.preprocessing.feature_engineering import (
             generate_future_known_covariates,
         )
 
@@ -695,6 +684,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             np.ndarray — point forecast or quantile forecasts depending on
             quantile_levels parameter.
         """
+        if kwargs:
+            logger.debug(
+                "Ignoring unsupported Chronos2 predict kwargs: %s", list(kwargs)
+            )
+
         if quantile_levels is not None:
             return self._predict_quantiles_impl(data, quantile_levels)
 

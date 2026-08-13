@@ -7,7 +7,7 @@ import contextlib
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -15,15 +15,11 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.models.timesfm.config import TimesFMConfig
-from src.utils.logging_helper import info_print, error_print
-
-try:
-    from transformers import TrainerCallback as _TrainerCallback
-except ImportError:
-    _TrainerCallback = object  # type: ignore[assignment,misc]
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from .config import TimesFMConfig
+from ...utils.logging_helper import info_print, error_print
+from transformers import TrainerCallback as _TrainerCallbackBase
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -160,11 +156,17 @@ class TimesFMForTrainer(nn.Module):
         future_values=None,
         **kwargs,
     ):
-        outputs = self.prediction_model(
-            past_values=past_values,
-            freq=freq,
+        _ = past_values_padding, kwargs
+        outputs = cast(
+            Any,
+            self.prediction_model(
+                past_values=past_values,
+                freq=freq,
+            ),
         )
-        mean_predictions = outputs.mean_predictions  # (B, model_horizon)
+        mean_predictions = cast(
+            torch.Tensor, outputs.mean_predictions
+        )  # (B, model_horizon)
 
         loss = None
         if future_values is not None:
@@ -194,7 +196,7 @@ class TimesFMForTrainer(nn.Module):
                 # Move the registered buffer to the same device as the activations.
                 # (HF Trainer calls model.to(device) before training, but this guards
                 # against direct calls where only hf_model was explicitly placed.)
-                q_levels = self.quantile_levels.to(residuals.device)
+                q_levels = cast(torch.Tensor, self.quantile_levels).to(residuals.device)
                 loss = torch.max(
                     q_levels * residuals,
                     (q_levels - 1.0) * residuals,
@@ -207,10 +209,10 @@ class TimesFMForTrainer(nn.Module):
                 loss = mse if loss is None else loss + mse
 
             if self.loss_fn == "dilate":
-                # `from src.utils.dilate import dilate_loss` would bind to the
+                # `from ...utils.dilate import dilate_loss` would bind to the
                 # function (not the module) because __init__.py re-exports it by
                 # the same name.  Import from the submodule file directly instead.
-                from src.utils.dilate.dilate_loss import (
+                from ...utils.dilate.dilate_loss import (
                     dilate_loss_normalized as _dilate_norm,
                 )
 
@@ -228,7 +230,7 @@ class TimesFMForTrainer(nn.Module):
             if self.loss_fn in ("dilate_pinball", "dilate_pinball_median"):
                 # See comment in the `dilate` branch above for why we import
                 # from the submodule file rather than from the package.
-                from src.utils.dilate.dilate_loss import (
+                from ...utils.dilate.dilate_loss import (
                     dilate_loss_normalized as _dilate_norm,
                 )
 
@@ -240,7 +242,7 @@ class TimesFMForTrainer(nn.Module):
                 residuals = (
                     target_norm.unsqueeze(-1) - q_preds_norm
                 )  # (B, horizon, n_q)
-                q_levels = self.quantile_levels.to(residuals.device)
+                q_levels = cast(torch.Tensor, self.quantile_levels).to(residuals.device)
                 pinball = torch.max(
                     q_levels * residuals,
                     (q_levels - 1.0) * residuals,
@@ -287,7 +289,7 @@ class TimesFMForTrainer(nn.Module):
         return {"loss": loss, "logits": mean_predictions}
 
 
-class MidTrainingEvalCallback(_TrainerCallback):
+class MidTrainingEvalCallback(_TrainerCallbackBase):
     """Writes per-epoch WQL / coverage / MACE / RMSE to epoch_metrics.csv.
 
     The eval set is the temporal eval slice built in _prepare_training_data:
@@ -300,7 +302,7 @@ class MidTrainingEvalCallback(_TrainerCallback):
     """
 
     def __init__(
-        self_cb,
+        self,
         eval_dataset,
         output_dir: str,
         horizon: int,
@@ -309,33 +311,31 @@ class MidTrainingEvalCallback(_TrainerCallback):
         batch_size: int = 64,
         device: str = "cuda",
     ):
-        self_cb.eval_dataset = eval_dataset
-        self_cb.csv_path = os.path.join(output_dir, "epoch_metrics.csv")
-        self_cb.horizon = horizon
-        self_cb.quantile_levels = quantile_levels
-        self_cb.collate_fn = collate_fn
-        self_cb.batch_size = batch_size
-        self_cb.device = device
+        self.eval_dataset = eval_dataset
+        self.csv_path = os.path.join(output_dir, "epoch_metrics.csv")
+        self.horizon = horizon
+        self.quantile_levels = quantile_levels
+        self.collate_fn = collate_fn
+        self.batch_size = batch_size
+        self.device = device
         # Write header only when the file does not yet exist or is empty,
         # so that resuming from a checkpoint preserves earlier epoch rows.
-        if (
-            not os.path.exists(self_cb.csv_path)
-            or os.path.getsize(self_cb.csv_path) == 0
-        ):
-            with open(self_cb.csv_path, "w") as f:
+        if not os.path.exists(self.csv_path) or os.path.getsize(self.csv_path) == 0:
+            with open(self.csv_path, "w") as f:
                 f.write(
                     "epoch,train_loss,wql,coverage_50,coverage_80,coverage_95,mace,rmse\n"
                 )
 
-    def on_epoch_end(self_cb, args, state, control, model=None, **kw):
+    def on_epoch_end(self, args, state, control, model=None, **kw):
+        _ = control, kw
         from torch.utils.data import DataLoader as _EvalDL
-        from src.evaluation.metrics.probabilistic import (
+        from ...evaluation.metrics.probabilistic import (
             compute_coverage,
             compute_mace,
             compute_wql,
         )
 
-        if model is None or self_cb.eval_dataset is None:
+        if model is None or self.eval_dataset is None:
             return
 
         # Last logged train loss for this epoch.
@@ -347,10 +347,10 @@ class MidTrainingEvalCallback(_TrainerCallback):
 
         model.eval()
         loader = _EvalDL(
-            self_cb.eval_dataset,
-            batch_size=self_cb.batch_size,
+            self.eval_dataset,
+            batch_size=self.batch_size,
             shuffle=False,
-            collate_fn=self_cb.collate_fn,
+            collate_fn=self.collate_fn,
         )
 
         all_q_np: List[np.ndarray] = []  # (n_q, horizon) each
@@ -369,26 +369,26 @@ class MidTrainingEvalCallback(_TrainerCallback):
             )
             amp_ctx = (
                 torch.autocast("cuda", dtype=amp_dtype)
-                if amp_dtype is not None and self_cb.device != "cpu"
+                if amp_dtype is not None and self.device != "cpu"
                 else contextlib.nullcontext()
             )
             with amp_ctx:
                 for batch in loader:
-                    past = [pv.to(self_cb.device) for pv in batch["past_values"]]
-                    freq = batch["freq"].to(self_cb.device)
+                    past = [pv.to(self.device) for pv in batch["past_values"]]
+                    freq = batch["freq"].to(self.device)
                     targets = batch["future_values"].float().cpu().numpy()
 
                     outputs = model.prediction_model(past_values=past, freq=freq)
                     # full_predictions: (B, model_horizon, 1+n_q)
                     # index 0 = mean, indices 1.. = quantiles
                     q_preds = (
-                        outputs.full_predictions[:, : self_cb.horizon, 1:]
+                        outputs.full_predictions[:, : self.horizon, 1:]
                         .float()
                         .cpu()
                         .numpy()
                     )  # (B, horizon, n_q)
                     mean_preds = (
-                        outputs.mean_predictions[:, : self_cb.horizon]
+                        outputs.mean_predictions[:, : self.horizon]
                         .float()
                         .cpu()
                         .numpy()
@@ -408,20 +408,20 @@ class MidTrainingEvalCallback(_TrainerCallback):
         mean_arr = np.stack(all_mean_np)  # (N, horizon)
         act_arr = np.stack(all_act_np)  # (N, horizon)
 
-        n_q = len(self_cb.quantile_levels)
+        n_q = len(self.quantile_levels)
         # Flatten across windows: (n_q, N*horizon) and (N*horizon,)
         q_flat = q_arr.transpose(1, 0, 2).reshape(n_q, -1)
         act_flat = act_arr.reshape(-1)
 
-        wql = compute_wql(q_flat, act_flat, self_cb.quantile_levels)
-        cov50 = compute_coverage(q_flat, act_flat, self_cb.quantile_levels, level=0.5)
-        cov80 = compute_coverage(q_flat, act_flat, self_cb.quantile_levels, level=0.8)
-        cov95 = compute_coverage(q_flat, act_flat, self_cb.quantile_levels, level=0.95)
-        mace = compute_mace(q_flat, act_flat, self_cb.quantile_levels)
+        wql = compute_wql(q_flat, act_flat, self.quantile_levels)
+        cov50 = compute_coverage(q_flat, act_flat, self.quantile_levels, level=0.5)
+        cov80 = compute_coverage(q_flat, act_flat, self.quantile_levels, level=0.8)
+        cov95 = compute_coverage(q_flat, act_flat, self.quantile_levels, level=0.95)
+        mace = compute_mace(q_flat, act_flat, self.quantile_levels)
         rmse = float(np.sqrt(np.mean((mean_arr.reshape(-1) - act_flat) ** 2)))
 
         epoch = round(state.epoch) if state.epoch is not None else "?"
-        with open(self_cb.csv_path, "a") as f:
+        with open(self.csv_path, "a") as f:
             f.write(
                 f"{epoch},{train_loss:.6f},{wql:.6f},"
                 f"{cov50:.4f},{cov80:.4f},{cov95:.4f},"
@@ -442,22 +442,15 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     Uses TimesFmModelForPrediction for inference and HF Trainer for fine-tuning.
     """
 
-    def __init__(
-        self, config: TimesFMConfig, lora_config=None, distributed_config=None
-    ):
-        super().__init__(config, lora_config, distributed_config)
+    def __init__(self, config: TimesFMConfig):
+        super().__init__(config)
         self.config: TimesFMConfig = self.config
-        self.hf_model = self.model  # alias set in _initialize_model
+        self.hf_model: Any = self.model  # alias set in _initialize_model
 
     @property
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.TRANSFORMERS
 
-    @property
-    def supports_lora(self) -> bool:
-        return False
-
-    @property
     def supports_zero_shot(self) -> bool:
         return True
 
@@ -468,8 +461,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def _predict(
         self,
         data: pd.DataFrame,
-        prediction_length: Optional[int] = None,
-        quantile_levels=None,
+        quantile_levels: Optional[List[float]] = None,
         **kwargs,
     ) -> np.ndarray:
         """Make predictions given context data.
@@ -481,7 +473,6 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         Args:
             data: DataFrame with column matching config.target_col (default 'bg_mM')
-            prediction_length: Number of steps to forecast
             quantile_levels: When set, return quantile forecasts as shape
                 (len(quantile_levels), forecast_length). Must be a subset of
                 the model's native quantile levels (config.quantiles).
@@ -493,8 +484,12 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         """
         if self.hf_model is None:
             raise ValueError("Model not initialized.")
+        if kwargs:
+            logger.debug(
+                "Ignoring unsupported TimesFM predict kwargs: %s", list(kwargs)
+            )
 
-        prediction_length = prediction_length or self.config.horizon_length
+        prediction_length = self.config.horizon_length
 
         bg_col = self.config.target_col
         if bg_col not in data.columns:
@@ -533,10 +528,13 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         self.hf_model.eval()
         with torch.no_grad():
-            outputs = self.hf_model(
-                past_values=[context_tensor],
-                freq=freq_tensor,
-                return_dict=True,
+            outputs = cast(
+                Any,
+                self.hf_model(
+                    past_values=[context_tensor],
+                    freq=freq_tensor,
+                    return_dict=True,
+                ),
             )
 
         if quantile_levels is not None:
@@ -569,7 +567,10 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         """Extract ground truth values from the end of the test data."""
         target_col = self.config.target_col
         if isinstance(test_data, pd.DataFrame) and target_col in test_data.columns:
-            values = test_data[target_col].dropna().values.astype(np.float32)
+            values = cast(
+                np.ndarray,
+                test_data[target_col].dropna().values.astype(np.float32),
+            )
             return values[-self.config.horizon_length :]
         raise ValueError(f"test_data must be a DataFrame with '{target_col}' column")
 
@@ -623,7 +624,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                     continue
 
                 context_windows.append(torch.tensor(context, dtype=model_dtype))
-                target_windows.append(target)
+                target_windows.append(cast(np.ndarray, target))
 
         num_patients = len(patients)
         num_windows = len(context_windows)
@@ -667,7 +668,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         y_true = np.concatenate(target_windows)
 
         mse = float(np.mean((y_pred - y_true) ** 2))
-        metrics = {
+        metrics: Dict[str, Any] = {
             "mse": mse,
             "rmse": float(np.sqrt(mse)),
             "mae": float(np.mean(np.abs(y_pred - y_true))),
@@ -732,7 +733,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             callback (not yet wrapped in a DataLoader).
         """
         from collections import defaultdict
-        from src.data.preprocessing.gap_handling import segment_all_patients
+        from ...data.preprocessing.gap_handling import segment_all_patients
 
         info_print("Preparing data for TimesFM finetuning...")
 
@@ -917,7 +918,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                         len(temporal_eval_all) - 1,
                         self.config.eval_subsample,
                         dtype=int,
-                    )
+                    ).tolist()
                     temporal_eval_dataset = Subset(temporal_eval_all, indices)
                 else:
                     temporal_eval_dataset = temporal_eval_all
@@ -950,11 +951,15 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         """Fine-tune TimesFM using HF Trainer with per-window normalized loss."""
         from transformers import Trainer, TrainingArguments
 
+        if kwargs:
+            logger.debug("Ignoring unsupported TimesFM train kwargs: %s", list(kwargs))
         info_print("Starting TimesFM finetuning with HF Trainer...")
 
         train_loader, val_loader, temporal_eval_dataset = self._prepare_training_data(
             train_data
         )
+        if self.hf_model is None:
+            raise RuntimeError("TimesFM model is not initialized before training.")
 
         # Wrap model for normalized-space loss
         trainer_model = TimesFMForTrainer(
@@ -988,7 +993,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         # Register in-training eval callback if temporal eval data was built.
         callbacks = []
         if self.config.eval_during_training and temporal_eval_dataset is not None:
-            q_levels = list(self.hf_model.config.quantiles)
+            q_levels = list(cast(Any, self.hf_model).config.quantiles)
             callbacks.append(
                 MidTrainingEvalCallback(
                     eval_dataset=temporal_eval_dataset,
@@ -1001,7 +1006,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 )
             )
             info_print(
-                f"In-training eval: {len(temporal_eval_dataset)} temporal windows. "
+                f"In-training eval: {len(cast(Any, temporal_eval_dataset))} temporal windows. "
                 f"Metrics → {os.path.join(output_dir, 'epoch_metrics.csv')}"
             )
 

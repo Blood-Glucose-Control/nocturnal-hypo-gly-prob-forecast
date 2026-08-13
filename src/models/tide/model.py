@@ -56,23 +56,16 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     def __init__(
         self,
         config: TiDEConfig,
-        lora_config=None,
-        distributed_config=None,
     ):
         # AutoGluon predictor — set before super().__init__() which calls
         # _initialize_model() (our no-op)
         self.predictor = None
-        super().__init__(config, lora_config, distributed_config)
+        super().__init__(config)
 
     @property
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.CUSTOM
 
-    @property
-    def supports_lora(self) -> bool:
-        return False
-
-    @property
     def supports_zero_shot(self) -> bool:
         return False
 
