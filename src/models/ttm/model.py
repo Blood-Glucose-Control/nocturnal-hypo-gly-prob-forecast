@@ -27,14 +27,14 @@ from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 # Local imports
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.models.ttm.config import TTMConfig
-from src.data.models import ColumnNames
-from src.data.preprocessing.split_or_combine_patients import (
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from .config import TTMConfig
+from ...data.models import ColumnNames
+from ...data.preprocessing.split_or_combine_patients import (
     reduce_features_multi_patient,
 )
-from src.utils.logging_helper import info_print, debug_print, error_print
+from ...utils.logging_helper import info_print, debug_print, error_print
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"

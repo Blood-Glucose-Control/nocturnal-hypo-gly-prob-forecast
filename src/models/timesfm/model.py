@@ -15,10 +15,10 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.models.timesfm.config import TimesFMConfig
-from src.utils.logging_helper import info_print, error_print
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from .config import TimesFMConfig
+from ...utils.logging_helper import info_print, error_print
 
 try:
     from transformers import TrainerCallback as _TrainerCallback
@@ -207,10 +207,10 @@ class TimesFMForTrainer(nn.Module):
                 loss = mse if loss is None else loss + mse
 
             if self.loss_fn == "dilate":
-                # `from src.utils.dilate import dilate_loss` would bind to the
+                # `from ...utils.dilate import dilate_loss` would bind to the
                 # function (not the module) because __init__.py re-exports it by
                 # the same name.  Import from the submodule file directly instead.
-                from src.utils.dilate.dilate_loss import (
+                from ...utils.dilate.dilate_loss import (
                     dilate_loss_normalized as _dilate_norm,
                 )
 
@@ -228,7 +228,7 @@ class TimesFMForTrainer(nn.Module):
             if self.loss_fn in ("dilate_pinball", "dilate_pinball_median"):
                 # See comment in the `dilate` branch above for why we import
                 # from the submodule file rather than from the package.
-                from src.utils.dilate.dilate_loss import (
+                from ...utils.dilate.dilate_loss import (
                     dilate_loss_normalized as _dilate_norm,
                 )
 
@@ -329,7 +329,7 @@ class MidTrainingEvalCallback(_TrainerCallback):
 
     def on_epoch_end(self_cb, args, state, control, model=None, **kw):
         from torch.utils.data import DataLoader as _EvalDL
-        from src.evaluation.metrics.probabilistic import (
+        from ...evaluation.metrics.probabilistic import (
             compute_coverage,
             compute_mace,
             compute_wql,
@@ -725,7 +725,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             callback (not yet wrapped in a DataLoader).
         """
         from collections import defaultdict
-        from src.data.preprocessing.gap_handling import segment_all_patients
+        from ...data.preprocessing.gap_handling import segment_all_patients
 
         info_print("Preparing data for TimesFM finetuning...")
 

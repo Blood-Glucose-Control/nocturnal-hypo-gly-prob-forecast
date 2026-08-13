@@ -33,10 +33,10 @@ from typing import Any, Dict, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from src.data.preprocessing.gap_handling import segment_all_patients
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.utils.logging_helper import info_print
+from ...data.preprocessing.gap_handling import segment_all_patients
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from ...utils.logging_helper import info_print
 
 from .config import Chronos2Config
 from .utils import (
@@ -542,7 +542,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         """
         from autogluon.timeseries import TimeSeriesDataFrame
 
-        from src.data.preprocessing.feature_engineering import (
+        from ...data.preprocessing.feature_engineering import (
             generate_future_known_covariates,
         )
 
