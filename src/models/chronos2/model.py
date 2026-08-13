@@ -71,29 +71,18 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     def __init__(
         self,
         config: Chronos2Config,
-        lora_config=None,
-        distributed_config=None,
     ):
         # AutoGluon predictor — set before super().__init__() which calls
         # _initialize_model() (our no-op)
         self.predictor: Optional[Any] = None
         # Chronos2Pipeline for zero-shot inference (lazily initialized)
         self._zs_pipeline: Optional[Any] = None
-        # lora_config and distributed_config are accepted for base class
-        # compatibility but unused — AutoGluon handles LoRA internally
-        super().__init__(config, lora_config, distributed_config)
+        super().__init__(config)
 
     @property
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.CUSTOM
 
-    @property
-    def supports_lora(self) -> bool:
-        # AutoGluon handles LoRA internally; base class LoRA mechanism
-        # is unused since self.model stays None
-        return False
-
-    @property
     def supports_zero_shot(self) -> bool:
         return True
 

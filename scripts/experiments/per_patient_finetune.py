@@ -29,9 +29,6 @@ Usage:
         --config-dir configs/data/holdout_10pct \\
         --fine-tune-steps 5000
 
-Note on LoRA:
-    Models that do not support LoRA will fall back to full fine-tuning.
-    Transformer-based models (e.g., Chronos-Bolt) will use LoRA as configured.
 """
 
 import argparse
@@ -55,7 +52,6 @@ from src.evaluation import (
     plot_stage_comparison_auto,
 )
 from src.models import create_model_and_config
-from src.models.base.base_model import LoRAConfig
 from src.utils import get_git_commit_hash, setup_file_logging
 
 
@@ -518,24 +514,6 @@ def run_single_patient(
     # ── Configure Stage 2 ──────────────────────────────────────────────────
     logger.info("\n--- Configuring Stage 2 Fine-Tuning ---")
 
-    if model.supports_lora:
-        model.lora_config = LoRAConfig(
-            enabled=True,
-            rank=args.lora_rank,
-            alpha=args.lora_alpha,
-            dropout=0.1,
-            auto_detect_modules=True,
-        )
-        logger.info(
-            "LoRA configured: rank=%d, alpha=%d", args.lora_rank, args.lora_alpha
-        )
-    else:
-        logger.info(
-            "Note: %s does not support LoRA (not a transformer model). "
-            "Proceeding with full fine-tuning of all parameters.",
-            model.__class__.__name__,
-        )
-
     model.config.training_mode = "fine_tune"
     if hasattr(model.config, "fine_tune_lr"):
         model.config.fine_tune_lr = args.learning_rate
@@ -646,8 +624,6 @@ def run_single_patient(
         "config": {
             "context_length": context_length,
             "forecast_length": forecast_length,
-            "lora_rank": args.lora_rank,
-            "lora_alpha": args.lora_alpha,
             "learning_rate": args.learning_rate,
             "num_epochs": args.num_epochs,
             "val_days": args.val_days,
@@ -752,15 +728,6 @@ def parse_arguments() -> argparse.Namespace:
         type=str,
         default="configs/data/holdout_10pct",
         help="Holdout config directory (default: holdout_10pct)",
-    )
-    parser.add_argument(
-        "--lora-rank",
-        type=int,
-        default=8,
-        help="LoRA rank (default: 8; skipped for non-transformer models)",
-    )
-    parser.add_argument(
-        "--lora-alpha", type=int, default=16, help="LoRA alpha (default: 16)"
     )
     parser.add_argument(
         "--learning-rate",

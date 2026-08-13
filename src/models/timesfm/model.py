@@ -442,10 +442,8 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     Uses TimesFmModelForPrediction for inference and HF Trainer for fine-tuning.
     """
 
-    def __init__(
-        self, config: TimesFMConfig, lora_config=None, distributed_config=None
-    ):
-        super().__init__(config, lora_config, distributed_config)
+    def __init__(self, config: TimesFMConfig):
+        super().__init__(config)
         self.config: TimesFMConfig = self.config
         self.hf_model = self.model  # alias set in _initialize_model
 
@@ -453,11 +451,6 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.TRANSFORMERS
 
-    @property
-    def supports_lora(self) -> bool:
-        return False
-
-    @property
     def supports_zero_shot(self) -> bool:
         return True
 

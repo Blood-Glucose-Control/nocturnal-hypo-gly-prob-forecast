@@ -80,13 +80,11 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         TTM does not support LoRA fine-tuning (no transformer attention layers)
     """
 
-    def __init__(self, config: TTMConfig, lora_config=None, distributed_config=None):
+    def __init__(self, config: TTMConfig):
         """Initialize the TTM forecaster.
 
         Args:
             config: TTM configuration object
-            lora_config: LoRA configuration (ignored for TTM)
-            distributed_config: Configuration for distributed training
         """
         # Use the config as-is if it's already a TTMConfig
         # Only convert if we receive a different type
@@ -102,7 +100,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             }
             config = TTMConfig(**essential_params)
 
-        super().__init__(config, lora_config, distributed_config)
+        super().__init__(config)
 
         # Type annotation to help linter understand config type
         self.config: TTMConfig = self.config
@@ -123,16 +121,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         """
         return TrainingBackend.TRANSFORMERS
 
-    @property
-    def supports_lora(self) -> bool:
-        """Check if TTM supports LoRA fine-tuning.
-
-        Returns:
-            False (TTM is MLP-based, lacks attention layers)
-        """
-        return False
-
-    @property
     def supports_zero_shot(self) -> bool:
         return True
 
@@ -881,41 +869,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         return column_specifiers
 
-    def _get_distributed_training_args(self) -> Dict[str, Any]:
-        """Get distributed training arguments.
-
-        Returns:
-            Dictionary of distributed training parameters for TrainingArguments
-        """
-        if not self.distributed_config.enabled:
-            return {}
-
-        args = {}
-
-        if self.distributed_config.strategy == "ddp":
-            # For DDP, TrainingArguments automatically handles distributed training
-            # when torch.distributed is initialized. We just need to ensure
-            # proper configuration is passed.
-            args["ddp_backend"] = self.distributed_config.backend
-
-            # DDP performance optimizations
-            args["ddp_find_unused_parameters"] = (
-                self.distributed_config.find_unused_parameters
-            )
-            args["ddp_bucket_cap_mb"] = (
-                25  # Default bucket size for gradient communication
-            )
-
-            # TrainingArguments will auto-detect distributed environment
-
-        elif self.distributed_config.strategy == "deepspeed":
-            args["deepspeed"] = self.distributed_config.deepspeed_config
-
-        elif self.distributed_config.strategy == "fsdp":
-            args.update(self.distributed_config.fsdp_config or {})
-
-        return args
-
     def _compute_trainer_metrics(self, eval_pred) -> Dict[str, Any]:
         """Compute evaluation metrics for Trainer.
 
@@ -1100,9 +1053,5 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             "logging_first_step": True,
             "logging_nan_inf_filter": False,
         }
-
-        # Add distributed training arguments
-        distributed_args = self._get_distributed_training_args()
-        base_args.update(distributed_args)
 
         return TrainingArguments(**base_args)

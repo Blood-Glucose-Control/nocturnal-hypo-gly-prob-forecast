@@ -85,8 +85,6 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
     def __init__(
         self,
         config: MomentConfig,
-        lora_config=None,
-        distributed_config=None,
     ):
         if not isinstance(config, MomentConfig):
             essential_params = {
@@ -105,7 +103,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             "cuda" if torch.cuda.is_available() and not use_cpu else "cpu"
         )
 
-        super().__init__(config, lora_config, distributed_config)
+        super().__init__(config)
         self.config: MomentConfig = self.config
         self.preprocessor = None
         self.column_specifiers = None
@@ -126,11 +124,6 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             TrainingBackend.PYTORCH,  # Fine-tuning always uses custom PyTorch loop
         )
 
-    @property
-    def supports_lora(self) -> bool:
-        return True
-
-    @property
     def supports_zero_shot(self) -> bool:
         return True
 

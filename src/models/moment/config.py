@@ -182,14 +182,6 @@ class MomentConfig(ModelConfig):
         self.training_config = training_cfg
         self.data_config = data_cfg
 
-    def supports_lora(self) -> bool:
-        """Check if Moment supports LoRA fine-tuning.
-
-        Returns:
-            True, as Moment is transformer-based and supports LoRA.
-        """
-        return True
-
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary (JSON-serializable).
 

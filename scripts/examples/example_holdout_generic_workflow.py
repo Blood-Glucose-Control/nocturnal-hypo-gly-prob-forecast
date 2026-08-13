@@ -68,7 +68,7 @@ from src.data.preprocessing.dataset_combiner import (
     print_dataset_column_table,
 )
 from src.evaluation.episode_builders import build_midnight_episodes
-from src.models.base import DistributedConfig, GPUManager
+from src.models.base import GPUManager
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -184,15 +184,11 @@ class ModelFactory:
         return defaults.get(model_type, "")
 
     @staticmethod
-    def create_model(
-        config: GenericModelConfig,
-        distributed_config: Optional[DistributedConfig] = None,
-    ):
+    def create_model(config: GenericModelConfig):
         """Create a model instance based on the configuration.
 
         Args:
             config: Generic model configuration
-            distributed_config: Optional distributed training configuration
 
         Returns:
             Model instance (type depends on model_type)
@@ -203,33 +199,33 @@ class ModelFactory:
         model_type = config.model_type.lower()
 
         if model_type == "ttm":
-            return ModelFactory._create_ttm_model(config, distributed_config)
+            return ModelFactory._create_ttm_model(config)
         elif model_type == "chronos":
-            return ModelFactory._create_chronos_model(config, distributed_config)
+            return ModelFactory._create_chronos_model(config)
         elif model_type == "chronos2":
-            return ModelFactory._create_chronos2_model(config, distributed_config)
+            return ModelFactory._create_chronos2_model(config)
         elif model_type == "moment":
-            return ModelFactory._create_moment_model(config, distributed_config)
+            return ModelFactory._create_moment_model(config)
         elif model_type == "timesfm":
-            return ModelFactory._create_timesfm_model(config, distributed_config)
+            return ModelFactory._create_timesfm_model(config)
         elif model_type == "timegrad":
-            return ModelFactory._create_timegrad_model(config, distributed_config)
+            return ModelFactory._create_timegrad_model(config)
         elif model_type == "tide":
-            return ModelFactory._create_tide_model(config, distributed_config)
+            return ModelFactory._create_tide_model(config)
         elif model_type == "toto":
-            return ModelFactory._create_toto_model(config, distributed_config)
+            return ModelFactory._create_toto_model(config)
         elif model_type == "moirai":
-            return ModelFactory._create_moirai_model(config, distributed_config)
+            return ModelFactory._create_moirai_model(config)
         elif model_type == "naive_baseline":
-            return ModelFactory._create_naive_baseline_model(config, distributed_config)
+            return ModelFactory._create_naive_baseline_model(config)
         elif model_type == "statistical":
-            return ModelFactory._create_statistical_model(config, distributed_config)
+            return ModelFactory._create_statistical_model(config)
         elif model_type == "deepar":
-            return ModelFactory._create_deepar_model(config, distributed_config)
+            return ModelFactory._create_deepar_model(config)
         elif model_type == "patchtst":
-            return ModelFactory._create_patchtst_model(config, distributed_config)
+            return ModelFactory._create_patchtst_model(config)
         elif model_type == "tft":
-            return ModelFactory._create_tft_model(config, distributed_config)
+            return ModelFactory._create_tft_model(config)
         else:
             raise ValueError(
                 f"Unsupported model type: {model_type}. "
@@ -238,10 +234,7 @@ class ModelFactory:
             )
 
     @staticmethod
-    def _create_ttm_model(
-        config: GenericModelConfig,
-        distributed_config: Optional[DistributedConfig] = None,
-    ):
+    def _create_ttm_model(config: GenericModelConfig):
         """Create a TTM model instance."""
         from src.models.ttm import TTMForecaster, TTMConfig
 
@@ -259,13 +252,10 @@ class ModelFactory:
             **config.extra_config,
         )
 
-        return TTMForecaster(ttm_config, distributed_config=distributed_config)
+        return TTMForecaster(ttm_config)
 
     @staticmethod
-    def _create_chronos_model(
-        config: GenericModelConfig,
-        distributed_config: Optional[DistributedConfig] = None,
-    ):
+    def _create_chronos_model(config: GenericModelConfig):
         """Create a Chronos model instance."""
         # Import when needed to avoid dependency issues
         try:
@@ -283,19 +273,14 @@ class ModelFactory:
                 **config.extra_config,
             )
 
-            return ChronosForecaster(
-                chronos_config, distributed_config=distributed_config
-            )
+            return ChronosForecaster(chronos_config)
         except ImportError as e:
             raise ImportError(
                 f"Chronos model not available. Install chronos dependencies: {e}"
             )
 
     @staticmethod
-    def _create_chronos2_model(
-        config: GenericModelConfig,
-        distributed_config: Optional[DistributedConfig] = None,
-    ):
+    def _create_chronos2_model(config: GenericModelConfig):
         """Create a Chronos-2 model instance."""
         try:
             from src.models.chronos2 import Chronos2Forecaster, Chronos2Config
@@ -313,9 +298,7 @@ class ModelFactory:
                 **config.extra_config,
             )
 
-            return Chronos2Forecaster(
-                chronos2_config, distributed_config=distributed_config
-            )
+            return Chronos2Forecaster(chronos2_config)
         except ImportError as e:
             raise ImportError(
                 f"Chronos-2 model not available. Install with: "
@@ -323,10 +306,7 @@ class ModelFactory:
             )
 
     @staticmethod
-    def _create_moment_model(
-        config: GenericModelConfig,
-        distributed_config: Optional[DistributedConfig] = None,
-    ):
+    def _create_moment_model(config: GenericModelConfig):
         """Create a MOMENT model instance."""
         try:
             from src.models.moment import MomentForecaster, MomentConfig
@@ -345,19 +325,14 @@ class ModelFactory:
                 **config.extra_config,
             )
 
-            return MomentForecaster(
-                moment_config, distributed_config=distributed_config
-            )
+            return MomentForecaster(moment_config)
         except ImportError as e:
             raise ImportError(
                 f"MOMENT model not available. Install moment dependencies: {e}"
             )
 
     @staticmethod
-    def _create_timesfm_model(
-        config: GenericModelConfig,
-        distributed_config: Optional[DistributedConfig] = None,
-    ):
+    def _create_timesfm_model(config: GenericModelConfig):
         """Create a TimesFM model instance."""
         try:
             from src.models.timesfm import TimesFMForecaster, TimesFMConfig
@@ -376,9 +351,7 @@ class ModelFactory:
                 **extra,
             )
 
-            return TimesFMForecaster(
-                timesfm_config, distributed_config=distributed_config
-            )
+            return TimesFMForecaster(timesfm_config)
         except ImportError as e:
             raise ImportError(
                 f"TimesFM model not available. Install with: "
@@ -386,10 +359,7 @@ class ModelFactory:
             )
 
     @staticmethod
-    def _create_timegrad_model(
-        config: GenericModelConfig,
-        distributed_config: Optional[DistributedConfig] = None,
-    ):
+    def _create_timegrad_model(config: GenericModelConfig):
         """Create a TimeGrad model instance."""
         try:
             from src.models.timegrad import TimeGradForecaster, TimeGradConfig
@@ -405,9 +375,7 @@ class ModelFactory:
                 **config.extra_config,
             )
 
-            return TimeGradForecaster(
-                timegrad_config, distributed_config=distributed_config
-            )
+            return TimeGradForecaster(timegrad_config)
         except ImportError as e:
             raise ImportError(
                 f"TimeGrad model not available. Install with: "
@@ -415,10 +383,7 @@ class ModelFactory:
             )
 
     @staticmethod
-    def _create_tide_model(
-        config: GenericModelConfig,
-        distributed_config: Optional[DistributedConfig] = None,
-    ):
+    def _create_tide_model(config: GenericModelConfig):
         """Create a TiDE model instance."""
         try:
             from src.models.tide import TiDEForecaster, TiDEConfig
@@ -439,10 +404,7 @@ class ModelFactory:
             )
 
     @staticmethod
-    def _create_toto_model(
-        config: GenericModelConfig,
-        distributed_config: Optional[DistributedConfig] = None,
-    ):
+    def _create_toto_model(config: GenericModelConfig):
         """Create a Toto model instance."""
         try:
             from src.models.toto import TotoForecaster, TotoConfig
@@ -463,7 +425,7 @@ class ModelFactory:
 
             toto_config = TotoConfig(**toto_kwargs)
 
-            return TotoForecaster(toto_config, distributed_config=distributed_config)
+            return TotoForecaster(toto_config)
         except ImportError as e:
             raise ImportError(
                 f"Toto model not available. Install with: "
@@ -471,10 +433,7 @@ class ModelFactory:
             )
 
     @staticmethod
-    def _create_moirai_model(
-        config: GenericModelConfig,
-        distributed_config: Optional[DistributedConfig] = None,
-    ):
+    def _create_moirai_model(config: GenericModelConfig):
         """Create a Moirai model instance."""
         try:
             from src.models.moirai import MoiraiForecaster, MoiraiConfig
@@ -491,9 +450,7 @@ class ModelFactory:
                 **moirai_kwargs,
             )
 
-            return MoiraiForecaster(
-                moirai_config, distributed_config=distributed_config
-            )
+            return MoiraiForecaster(moirai_config)
         except ImportError as e:
             raise ImportError(
                 f"Moirai model not available. Install with: "
@@ -501,10 +458,7 @@ class ModelFactory:
             )
 
     @staticmethod
-    def _create_naive_baseline_model(
-        config: "GenericModelConfig",
-        distributed_config=None,
-    ):
+    def _create_naive_baseline_model(config: "GenericModelConfig"):
         """Create a NaiveBaseline model instance (Naive or Average)."""
         from src.models.naive_baseline import (
             NaiveBaselineForecaster,
@@ -522,10 +476,7 @@ class ModelFactory:
         return NaiveBaselineForecaster(naive_config)
 
     @staticmethod
-    def _create_statistical_model(
-        config: "GenericModelConfig",
-        distributed_config=None,
-    ):
+    def _create_statistical_model(config: "GenericModelConfig"):
         """Create a Statistical model instance (AutoARIMA, Theta, or NPTS)."""
         from src.models.statistical import StatisticalForecaster, StatisticalConfig
 
@@ -540,10 +491,7 @@ class ModelFactory:
         return StatisticalForecaster(stat_config)
 
     @staticmethod
-    def _create_deepar_model(
-        config: "GenericModelConfig",
-        distributed_config=None,
-    ):
+    def _create_deepar_model(config: "GenericModelConfig"):
         """Create a DeepAR model instance."""
         from src.models.deepar import DeepARForecaster, DeepARConfig
 
@@ -557,10 +505,7 @@ class ModelFactory:
         return DeepARForecaster(deepar_config)
 
     @staticmethod
-    def _create_patchtst_model(
-        config: "GenericModelConfig",
-        distributed_config=None,
-    ):
+    def _create_patchtst_model(config: "GenericModelConfig"):
         """Create a PatchTST model instance."""
         from src.models.patchtst import PatchTSTForecaster, PatchTSTConfig
 
@@ -574,10 +519,7 @@ class ModelFactory:
         return PatchTSTForecaster(patchtst_config)
 
     @staticmethod
-    def _create_tft_model(
-        config: "GenericModelConfig",
-        distributed_config=None,
-    ):
+    def _create_tft_model(config: "GenericModelConfig"):
         """Create a TFT (TemporalFusionTransformer) model instance."""
         from src.models.tft import TFTForecaster, TFTConfig
 
@@ -1716,8 +1658,6 @@ def step4_zero_shot_evaluation(
     logger.info(f"GPU available: {gpu_info['gpu_available']}")
     logger.info(f"GPU count: {gpu_info['gpu_count']}")
 
-    # Single GPU (no distributed)
-    distributed_config = DistributedConfig(enabled=False)
     use_cpu = not gpu_info["gpu_available"]
 
     # Create zero-shot configuration using the factory
@@ -1739,7 +1679,7 @@ def step4_zero_shot_evaluation(
     logger.info(f"  Num epochs: {config.num_epochs}")
 
     # Create model using the factory
-    model = ModelFactory.create_model(config, distributed_config=distributed_config)
+    model = ModelFactory.create_model(config)
 
     # Check if model actually supports zero-shot prediction
     if not model.supports_zero_shot:
@@ -1815,7 +1755,6 @@ def step5_train_model(
 
     # GPU setup
     gpu_info = GPUManager.get_gpu_info()
-    distributed_config = DistributedConfig(enabled=False)
     use_cpu = not gpu_info["gpu_available"]
 
     # Create fine-tuning configuration using the factory
@@ -1838,7 +1777,7 @@ def step5_train_model(
     logger.info(f"  Num epochs: {config.num_epochs}")
 
     # Create fresh model for fine-tuning using the factory
-    model = ModelFactory.create_model(config, distributed_config=distributed_config)
+    model = ModelFactory.create_model(config)
     logger.info(f"✓ Fresh {model_type.upper()} model created for fine-tuning")
 
     print(f"\n>>> Starting training on combined datasets: {', '.join(dataset_names)}")

@@ -13,7 +13,7 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -23,7 +23,7 @@ from torch.utils.data import DataLoader
 from enum import Enum
 
 # Local imports - adapt these to your existing structure
-from src.utils.logging_helper import info_print, error_print
+from src.utils.logging_helper import info_print
 
 
 class TrainingBackend(Enum):
@@ -159,79 +159,6 @@ class ModelConfig:
         return cls(**d)
 
 
-@dataclass
-class LoRAConfig:
-    """Configuration for LoRA (Low-Rank Adaptation) fine-tuning.
-
-    LoRA enables memory-efficient fine-tuning by adding trainable low-rank
-    decomposition matrices to transformer layers while keeping the original
-    weights frozen.
-
-    Attributes:
-        enabled: Whether to enable LoRA fine-tuning.
-        rank: Rank of the low-rank decomposition matrices. Lower values use
-            less memory but may reduce model capacity.
-        alpha: Scaling factor for LoRA updates. Higher values increase the
-            influence of LoRA adaptations.
-        dropout: Dropout probability applied to LoRA layers.
-        target_modules: List of module names to apply LoRA to (e.g., ["q_proj", "v_proj"]).
-        bias: How to handle bias terms - "none", "all", or "lora_only".
-        auto_detect_modules: Whether to automatically detect suitable target modules
-            based on the model architecture.
-    """
-
-    enabled: bool = False
-    rank: int = 16
-    alpha: int = 32
-    dropout: float = 0.1
-    target_modules: List[str] = field(default_factory=lambda: ["q_proj", "v_proj"])
-    bias: str = "none"  # "none", "all", "lora_only"
-
-    # Architecture compatibility
-    auto_detect_modules: bool = True  # Automatically detect target modules
-
-
-@dataclass
-class DistributedConfig:
-    """Configuration for distributed training across multiple GPUs or nodes.
-
-    Supports various distributed training strategies including DDP (Distributed
-    Data Parallel), DeepSpeed, and FSDP (Fully Sharded Data Parallel).
-
-    Attributes:
-        enabled: Whether to enable distributed training.
-        strategy: Distributed training strategy - "ddp", "deepspeed", or "fsdp".
-        world_size: Total number of processes participating in training.
-        local_rank: Rank of this process on the local node (0-indexed).
-        backend: Communication backend - "nccl" (GPU) or "gloo" (CPU).
-        find_unused_parameters: Whether DDP should find unused parameters. Set to
-            False for better performance with static computation graphs.
-        gradient_as_bucket_view: Enable memory-efficient gradient bucketing in DDP.
-        deepspeed_config: DeepSpeed configuration dictionary for ZeRO optimization,
-            mixed precision, and other DeepSpeed-specific settings.
-        fsdp_config: FSDP configuration dictionary for sharding policy,
-            CPU offloading, and other FSDP-specific settings.
-    """
-
-    enabled: bool = False
-    strategy: str = "ddp"  # "ddp", "deepspeed", "fsdp"
-    world_size: int = 1
-    local_rank: int = 0
-    backend: str = "nccl"
-
-    # DDP specific optimizations
-    find_unused_parameters: bool = (
-        False  # Set to False for better performance with static models like TTM
-    )
-    gradient_as_bucket_view: bool = True  # Enable for memory efficiency
-
-    # DeepSpeed specific
-    deepspeed_config: Optional[Dict[str, Any]] = None
-
-    # FSDP specific
-    fsdp_config: Optional[Dict[str, Any]] = None
-
-
 class BaseTimeSeriesFoundationModel(ABC):
     """
     Abstract base class for all Time Series Foundation Models.
@@ -240,8 +167,6 @@ class BaseTimeSeriesFoundationModel(ABC):
     time series foundation models should implement, including:
     - Model initialization and configuration
     - Training pipeline management
-    - Distributed training setup
-    - LoRA integration for memory-efficient fine-tuning
     - Model saving/loading with metadata
     - Evaluation and metrics computation
     """
@@ -258,20 +183,14 @@ class BaseTimeSeriesFoundationModel(ABC):
     def __init__(
         self,
         config: ModelConfig,
-        lora_config: Optional[LoRAConfig] = None,
-        distributed_config: Optional[DistributedConfig] = None,
     ):
         """
         Initialize the base TSFM.
 
         Args:
             config: Model configuration
-            lora_config: LoRA configuration for efficient fine-tuning
-            distributed_config: Distributed training configuration
         """
         self.config = config
-        self.lora_config = lora_config or LoRAConfig()
-        self.distributed_config = distributed_config or DistributedConfig()
 
         # Model and training components
         self.model: Optional[torch.nn.Module] = None
@@ -281,9 +200,6 @@ class BaseTimeSeriesFoundationModel(ABC):
         self.is_fitted = False
         self.training_history = {}
         self.best_metrics = {}
-
-        # Distributed training
-        self._distributed_setup_done = False
 
         # Logging
         self.logger = logging.getLogger(self.__class__.__name__)
@@ -303,18 +219,6 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
-    @property
-    @abstractmethod
-    def supports_lora(self) -> bool:
-        """
-        Check if this model architecture supports LoRA fine-tuning.
-
-        Returns:
-            bool: True if the model supports LoRA, False otherwise
-        """
-        pass
-
-    @property
     @abstractmethod
     def supports_zero_shot(self) -> bool:
         """
@@ -611,11 +515,8 @@ class BaseTimeSeriesFoundationModel(ABC):
         """Fit the model to training data.
 
         This method orchestrates the complete training pipeline including:
-        - Setting up distributed training (if configured)
-        - Enabling LoRA adapters (if configured)
         - Calling the model-specific training implementation
         - Saving training metadata
-        - Cleaning up distributed resources
 
         Data splitting for train/val/test is controlled by model configuration.
 
@@ -632,38 +533,23 @@ class BaseTimeSeriesFoundationModel(ABC):
             Dict[str, Any]: Dictionary containing training metrics, including
                 'train_metrics' and optionally 'test_metrics'.
 
-        Raises:
-            Exception: If training fails. Distributed cleanup is guaranteed
-                to run even if training raises an exception.
         """
         info_print(f"Starting training for {self.__class__.__name__}")
         info_print(f"Training Backend: {self.training_backend.value}")
 
-        # Setup distributed training if configured
-        self._setup_distributed()
+        # Let each model handle its own training
+        metrics = self._train_model(train_data, output_dir, **kwargs)
 
-        # Enable LoRA if configured and supported
-        self._enable_lora()
+        # Post-training state updates
+        self.is_fitted = True
+        # Use training_history if provided, otherwise fall back to train_metrics
+        self.training_history = metrics.get(
+            "training_history", metrics.get("train_metrics", metrics)
+        )
+        self._save_training_metadata(output_dir, metrics)
 
-        try:
-            # Let each model handle its own training
-            metrics = self._train_model(train_data, output_dir, **kwargs)
-
-            # Post-training state updates
-            self.is_fitted = True
-            # Use training_history if provided, otherwise fall back to train_metrics
-            self.training_history = metrics.get(
-                "training_history", metrics.get("train_metrics", metrics)
-            )
-            self._save_training_metadata(output_dir, metrics)
-
-            info_print("🏁 Training complete!")
-            return metrics
-
-        finally:
-            # Common cleanup that must happen in distributed training scenarios
-            # This can causes serious issues causes GPUs to be locked if not run.
-            self._cleanup_distributed()
+        info_print("🏁 Training complete!")
+        return metrics
 
     def save(
         self, model_path: str, save_config: bool = True, save_metadata: bool = True
@@ -699,8 +585,6 @@ class BaseTimeSeriesFoundationModel(ABC):
                 "training_history": self.training_history,
                 "best_metrics": self.best_metrics,
                 "config": self.config.to_dict(),
-                "lora_config": self.lora_config.__dict__,
-                "distributed_config": self.distributed_config.__dict__,
                 "training_backend": self.training_backend.value,
             }
 
@@ -782,8 +666,6 @@ class BaseTimeSeriesFoundationModel(ABC):
                 - model_type: Name of the model class.
                 - config: Full model configuration as dictionary.
                 - is_fitted: Whether the model has been trained.
-                - lora_enabled: Whether LoRA is enabled.
-                - distributed_enabled: Whether distributed training is enabled.
                 - training_backend: The training framework being used.
                 - total_parameters: Total number of model parameters (if model exists).
                 - trainable_parameters: Number of trainable parameters (if model exists).
@@ -793,8 +675,6 @@ class BaseTimeSeriesFoundationModel(ABC):
             "model_type": self.__class__.__name__,
             "config": self.config.to_dict(),
             "is_fitted": self.is_fitted,
-            "lora_enabled": self.lora_config.enabled,
-            "distributed_enabled": self.distributed_config.enabled,
             "training_backend": self.training_backend.value,
         }
 
@@ -816,234 +696,6 @@ class BaseTimeSeriesFoundationModel(ABC):
             )
 
         return info
-
-    # Protected Helpers
-    ## Distributed Training Setup
-    def _setup_distributed(self) -> None:
-        """Set up distributed training environment if configured.
-
-        Initializes the appropriate distributed training backend based on the
-        configured strategy (DDP, DeepSpeed, or FSDP). This method is idempotent
-        and will skip setup if already initialized.
-
-        Raises:
-            ValueError: If an unknown distributed strategy is specified.
-        """
-        if not self.distributed_config.enabled or self._distributed_setup_done:
-            return
-
-        if self.distributed_config.strategy == "ddp":
-            self._setup_ddp()
-        elif self.distributed_config.strategy == "deepspeed":
-            self._setup_deepspeed()
-        elif self.distributed_config.strategy == "fsdp":
-            self._setup_fsdp()
-        else:
-            raise ValueError(
-                f"Unknown distributed strategy: {self.distributed_config.strategy}"
-            )
-
-        self._distributed_setup_done = True
-
-    def _cleanup_distributed(self) -> None:
-        """Clean up distributed training resources properly."""
-        if (
-            self.distributed_config.enabled
-            and self.distributed_config.strategy == "ddp"
-            and torch.distributed.is_initialized()
-        ):
-            info_print("🧹 Cleaning up distributed training resources...")
-            try:
-                # Synchronize all processes before cleanup
-                torch.distributed.barrier()
-                # Properly destroy the process group
-                torch.distributed.destroy_process_group()
-                info_print(
-                    f"✅ Distributed training cleanup complete for {self.distributed_config.local_rank}"
-                )
-            except Exception as e:
-                # Don't crash if cleanup fails, but warn about it
-                info_print(f"⚠️  Warning: Distributed cleanup failed: {e}")
-
-    def _setup_ddp(self) -> None:
-        """Set up PyTorch Distributed Data Parallel (DDP).
-
-        Initializes the distributed process group for DDP training. Requires
-        MASTER_ADDR environment variable to be set. This method is typically
-        called via _setup_distributed() rather than directly.
-
-        Raises:
-            ValueError: If MASTER_ADDR environment variable is not set.
-        """
-        if torch.distributed.is_initialized():
-            return  # Already initialized
-
-        # Check if we have required environment variables
-        master_addr = os.environ.get("MASTER_ADDR")
-        master_port = os.environ.get("MASTER_PORT", "29500")
-
-        if not master_addr:
-            error_print(
-                "MASTER_ADDR environment variable not set for distributed training!"
-            )
-            error_print("Run with: torchrun --nproc_per_node=N --nnodes=1 script.py")
-            raise ValueError(
-                "Distributed training requires MASTER_ADDR environment variable"
-            )
-
-        info_print(f"Initializing DDP with MASTER_ADDR={master_addr}:{master_port}")
-
-        # Set the device for this process
-        device_id = None
-        if torch.cuda.is_available() and not self.config.use_cpu:
-            device_id = self.distributed_config.local_rank
-            torch.cuda.set_device(device_id)
-            info_print(f"Set CUDA device to GPU {device_id}")
-
-        torch.distributed.init_process_group(
-            backend=self.distributed_config.backend,
-            world_size=self.distributed_config.world_size,
-            rank=self.distributed_config.local_rank,
-            device_id=device_id,
-        )
-        info_print(
-            f"✅ Initialized DDP process group: rank {self.distributed_config.local_rank}/{self.distributed_config.world_size}"
-        )
-
-        # NOTE: Don't wrap model with DDP here for Transformers-based models
-        # The Trainer handles that automatically
-
-    def _setup_deepspeed(self) -> None:
-        """Set up DeepSpeed for large model training."""
-        # DeepSpeed configuration is handled entirely by the Trainer through TrainingArguments
-        # We just validate that the config exists if needed
-        if self.distributed_config.deepspeed_config is None:
-            info_print(
-                "DeepSpeed enabled but no config provided - using Trainer defaults"
-            )
-        else:
-            info_print(
-                "DeepSpeed will be configured in TrainingArguments with provided config"
-            )
-
-    def _setup_fsdp(self) -> None:
-        """Set up Fully Sharded Data Parallel."""
-        info_print("FSDP will be configured in TrainingArguments")
-
-    ## LoRA Integration
-    def _enable_lora(self) -> None:
-        """Enable LoRA (Low-Rank Adaptation) for memory-efficient fine-tuning.
-
-        Applies LoRA adapters to the model's target modules, freezing the original
-        weights and adding trainable low-rank matrices. This significantly reduces
-        memory requirements for fine-tuning large models.
-
-        The method will skip LoRA setup if:
-        - LoRA is not enabled in the configuration
-        - The model is None
-        - The model architecture doesn't support LoRA
-
-        Note:
-            Requires the PEFT library to be installed.
-        """
-        if not self.lora_config.enabled or self.model is None:
-            return
-
-        # Check if this model supports LoRA
-        if not self.supports_lora:
-            info_print(
-                f"LoRA is not supported for {self.__class__.__name__} architecture"
-            )
-            info_print("LoRA requires transformer-based models with attention layers")
-            return
-
-        try:
-            from peft import LoraConfig, get_peft_model, TaskType
-        except ImportError:
-            error_print("PEFT is not installed. Please install with: pip install peft")
-            return
-
-        # Create LoRA config
-        peft_config = LoraConfig(
-            task_type=TaskType.FEATURE_EXTRACTION,  # Adjust based on your task
-            inference_mode=False,
-            r=self.lora_config.rank,
-            lora_alpha=self.lora_config.alpha,
-            lora_dropout=self.lora_config.dropout,
-            target_modules=self.lora_config.target_modules,
-            bias=self.lora_config.bias,
-        )
-
-        # Auto-detect target modules if enabled
-        if self.lora_config.auto_detect_modules:
-            detected_modules = self._detect_lora_target_modules()
-            if detected_modules:
-                peft_config.target_modules = detected_modules
-                info_print(f"Auto-detected LoRA target modules: {detected_modules}")
-            else:
-                info_print(
-                    f"Using configured target modules: {self.lora_config.target_modules}"
-                )
-
-        # Apply LoRA to model
-        self.model = get_peft_model(self.model, peft_config)
-        info_print(f"LoRA enabled with rank {self.lora_config.rank}")
-        info_print(f"Target modules: {peft_config.target_modules}")
-
-        # Print trainable parameters
-        trainable_params = sum(
-            p.numel() for p in self.model.parameters() if p.requires_grad
-        )
-        total_params = sum(p.numel() for p in self.model.parameters())
-        info_print(f"Trainable parameters: {trainable_params:,}")
-        info_print(f"Total parameters: {total_params:,}")
-        info_print(f"Trainable %: {100 * trainable_params / total_params:.2f}%")
-
-    def _detect_lora_target_modules(self) -> List[str]:
-        """
-        Automatically detect suitable target modules for LoRA.
-
-        Returns:
-            List[str]: List of module names suitable for LoRA adaptation
-        """
-        if self.model is None:
-            return []
-
-        target_modules = []
-
-        # Common transformer module patterns
-        transformer_patterns = [
-            "q_proj",
-            "k_proj",
-            "v_proj",
-            "o_proj",  # Attention projections
-            "gate_proj",
-            "up_proj",
-            "down_proj",  # Feed-forward layers
-            "query",
-            "key",
-            "value",
-            "output",  # Alternative naming
-            "dense",
-            "linear",  # Generic linear layers
-        ]
-
-        # Scan model modules
-        for name, module in self.model.named_modules():
-            module_name = name.split(".")[-1]  # Get the last part of the name
-
-            # Check if it's a linear layer and matches patterns
-            if hasattr(module, "weight") and hasattr(module, "bias"):
-                if any(
-                    pattern in module_name.lower() for pattern in transformer_patterns
-                ):
-                    if module_name not in target_modules:
-                        target_modules.append(module_name)
-
-        # Remove duplicates and sort
-        target_modules = sorted(list(set(target_modules)))
-
-        return target_modules
 
     ## Training Metadata
     def _get_early_stopping_config(self) -> Dict[str, Any]:
@@ -1088,8 +740,6 @@ class BaseTimeSeriesFoundationModel(ABC):
             "timestamp": pd.Timestamp.now().isoformat(),
             "metrics": metrics,
             "config": self.config.to_dict(),
-            "lora_enabled": self.lora_config.enabled,
-            "distributed_enabled": self.distributed_config.enabled,
         }
 
         # Add git information if available
@@ -1113,14 +763,6 @@ class BaseTimeSeriesFoundationModel(ABC):
     # Dunder methods
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(config={self.config.model_type}, fitted={self.is_fitted})"
-
-    def __del__(self):
-        """Ensure cleanup happens even if not called explicitly."""
-        try:
-            self._cleanup_distributed()
-        except Exception:
-            # Don't raise exceptions in destructor
-            pass
 
 
 # Utility functions for model management

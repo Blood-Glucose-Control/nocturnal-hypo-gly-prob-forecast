@@ -109,15 +109,13 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
     config_class = MoiraiConfig
 
-    def __init__(self, config: MoiraiConfig, lora_config=None, distributed_config=None):
+    def __init__(self, config: MoiraiConfig):
         """Initialize the Moirai forecaster.
 
         Args:
             config: Moirai configuration object. If a non-``MoiraiConfig`` is
                 passed the essential parameters are extracted and a fresh
                 ``MoiraiConfig`` is constructed.
-            lora_config: LoRA configuration (reserved for future use).
-            distributed_config: Distributed training configuration (reserved).
         """
         if not isinstance(config, MoiraiConfig):
             config = MoiraiConfig(
@@ -131,7 +129,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 num_epochs=getattr(config, "num_epochs", 10),
             )
 
-        super().__init__(config, lora_config, distributed_config)
+        super().__init__(config)
         self.config: MoiraiConfig = self.config
 
         # Lazily initialised GluonTS predictor
@@ -143,12 +141,6 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         """Moirai inference runs through GluonTS / uni2ts, not a HF Trainer."""
         return TrainingBackend.CUSTOM
 
-    @property
-    def supports_lora(self) -> bool:
-        """Moirai is transformer-based and supports LoRA."""
-        return True
-
-    @property
     def supports_zero_shot(self) -> bool:
         """Moirai ships pretrained weights and forecasts out of the box."""
         return True
@@ -822,10 +814,10 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
         info_print(f"RMSE: {df['rmse'].mean():.3f} +/- {df['rmse'].std():.3f}")
         info_print(
-            f"Calibration 90% PI: {df['calibration_90'].mean()*100:.1f}% (target: 90%)"
+            f"Calibration 90% PI: {df['calibration_90'].mean() * 100:.1f}% (target: 90%)"
         )
         info_print(
-            f"Calibration 50% PI: {df['calibration_50'].mean()*100:.1f}% (target: 50%)"
+            f"Calibration 50% PI: {df['calibration_50'].mean() * 100:.1f}% (target: 50%)"
         )
         info_print(f"Episodes with actual hypo: {df['actual_hypo'].sum()}/{len(df)}")
 
