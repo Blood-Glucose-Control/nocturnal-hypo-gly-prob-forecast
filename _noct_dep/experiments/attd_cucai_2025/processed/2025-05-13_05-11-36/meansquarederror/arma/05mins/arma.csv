@@ -1,2 +1,0 @@
-validation_id,model_id,runtime_secs,MeanSquaredError_mean,MeanSquaredError_std
-glu001,AutoARIMA-start_p_2-max_p_216-start_q_2-max_q_216-seasonal_False-n_jobs_-1,907.1516761779784,2.0150931373528924,1.4964244096823045

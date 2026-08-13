@@ -49,7 +49,7 @@ GPU1="${GPU1:-1}"
 SINGLE_GPU="${SINGLE_GPU:-0}"
 REQUESTED_DATASETS_STR="${DATASETS:-lynch_2022 aleppo_2017 brown_2019 tamborlane_2008}"
 CONFIG_DIR="${CONFIG_DIR:-configs/data/holdout_10pct}"
-WORKFLOW="scripts/examples/run_holdout_generic_workflow.sh"
+WORKFLOW="scripts/experiments/run_holdout_generic_workflow.sh"
 # Faster sweep default: keep only core data load + fine-tuning path.
 SKIP_STEPS="${SKIP_STEPS:-1 2 4 6 7}"
 ARTIFACT_DIR="trained_models/artifacts/timesfm"

@@ -13,7 +13,7 @@
 #     CONFIG_DIR="configs/data/holdout_10pct" \
 #     DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" \
 #     SKIP_TRAINING="false" \
-#     ./scripts/examples/run_holdout_generic_workflow.sh
+#     ./scripts/experiments/run_holdout_generic_workflow.sh
 # =============================================================================
 
 model_type: "tide"

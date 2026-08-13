@@ -1,17 +1,17 @@
 # Example Scripts Guide
 
-This guide lists the maintained scripts in `scripts/examples/` and when to use
-each one.
+This guide lists the maintained scripts in `scripts/examples/` and
+`scripts/experiments/` and when to use each one.
 
 ## Active examples
 
 | Script | Purpose | Typical use |
 |---|---|---|
 | `example_holdout_generic_workflow.py` | End-to-end holdout workflow across model families | Main example for training/eval workflow |
-| `run_holdout_generic_workflow.sh` | Local shell wrapper for the generic holdout workflow | Repeatable local runs with environment variables |
+| `run_holdout_generic_workflow.sh` (`scripts/experiments/`) | Local shell wrapper for the generic holdout workflow | Repeatable local runs with environment variables |
 | `example_chronos2_finetune.py` | Focused Chronos-2 fine-tuning walkthrough | Model-specific Chronos-2 experimentation |
 | `example_data_holdout_system.py` | Demonstrates holdout config generation/validation/loading APIs | Data split and holdout debugging |
-| `load_holdout_data_example.py` | Minimal holdout loading example | Quick data-access sanity checks |
+| `example_load_holdout_data.py` | Minimal holdout loading example | Quick data-access sanity checks |
 | `ttm_holdout_workflow.py` | TTM-specific workflow variant | Legacy TTM-specific experimentation |
 
 ## Canonical workflow example
@@ -31,7 +31,7 @@ Or with the local wrapper:
 MODEL_TYPE=chronos2 \
 DATASETS="brown_2019 lynch_2022" \
 CONFIG_DIR="configs/data/holdout_10pct" \
-bash scripts/examples/run_holdout_generic_workflow.sh
+bash scripts/experiments/run_holdout_generic_workflow.sh
 ```
 
 ## Notes on legacy examples

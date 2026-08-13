@@ -17,7 +17,7 @@ as part of the P1 scripts reorganization.
 Until the SLURM launchers are rewired, use the maintained generic workflow script:
 
 ```bash
-bash scripts/examples/run_holdout_generic_workflow.sh
+bash scripts/experiments/run_holdout_generic_workflow.sh
 ```
 
 Or call Python directly:

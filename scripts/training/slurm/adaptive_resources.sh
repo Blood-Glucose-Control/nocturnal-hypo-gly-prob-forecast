@@ -154,7 +154,7 @@ echo ""
 echo "❌ This launcher is temporarily deprecated."
 echo "Reason: adaptive flow depended on legacy example entrypoints pruned in scripts cleanup."
 echo "Next step: rewire adaptive launcher to a maintained training entrypoint in follow-up PR."
-echo "For now, use scripts/examples/run_holdout_generic_workflow.sh for end-to-end workflow runs."
+echo "For now, use scripts/experiments/run_holdout_generic_workflow.sh for end-to-end workflow runs."
 exit 2
 
 # Capture exit code

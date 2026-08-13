@@ -42,7 +42,7 @@ Usage:
     python scripts/examples/example_holdout_generic_workflow.py --model-type timegrad --datasets lynch_2022
 
     # Use shell wrapper for local execution:
-    ./scripts/examples/run_holdout_generic_workflow.sh
+    ./scripts/experiments/run_holdout_generic_workflow.sh
 """
 
 import argparse
@@ -1403,9 +1403,7 @@ def step1_generate_holdout_configs(
         return True
     else:
         logger.warning(f"⚠ Config directory does not exist: {config_dir}")
-        logger.info(
-            "  Run: python scripts/data_processing_scripts/generate_holdout_configs.py"
-        )
+        logger.info("  Run: python scripts/data_processing/generate_holdout_configs.py")
         return False
 
 

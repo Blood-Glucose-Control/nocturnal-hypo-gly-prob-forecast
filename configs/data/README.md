@@ -29,7 +29,7 @@ src/data/versioning/
 ├── dataset_registry.py       # Dataset loading with splits
 └── ...
 
-scripts/data_processing_scripts/
+scripts/data_processing/
 ├── generate_holdout_configs.py   # Generate configs for all datasets
 └── validate_holdout_configs.py   # Validate configs and splits
 ```
@@ -67,7 +67,7 @@ Combines both strategies:
 Run this **once** to generate holdout configurations for all datasets:
 
 ```bash
-python scripts/data_processing_scripts/generate_holdout_configs.py
+python scripts/data_processing/generate_holdout_configs.py
 ```
 
 This creates configuration files in `configs/data/holdout/` with:
@@ -118,7 +118,7 @@ train_data, holdout_data = load_split_data("kaggle_brisT1D")
 ### Validate All Datasets
 
 ```bash
-python scripts/data_processing_scripts/validate_holdout_configs.py
+python scripts/data_processing/validate_holdout_configs.py
 ```
 
 This checks:
@@ -131,7 +131,7 @@ This checks:
 ### Validate Specific Dataset
 
 ```bash
-python scripts/data_processing_scripts/validate_holdout_configs.py kaggle_brisT1D
+python scripts/data_processing/validate_holdout_configs.py kaggle_brisT1D
 ```
 
 ## Configuration Format
@@ -265,7 +265,7 @@ If you need to change holdout strategies:
 
 ### "No holdout configuration found"
 
-**Solution**: Run `python scripts/data_processing_scripts/generate_holdout_configs.py`
+**Solution**: Run `python scripts/data_processing/generate_holdout_configs.py`
 
 ### "Patient overlap detected"
 
@@ -289,7 +289,7 @@ If you need to change holdout strategies:
 
 - **Configurations**: `configs/data/holdout/*.yaml`
 - **Source code**: `src/data/preprocessing/holdout_*.py` and `src/data/versioning/dataset_registry.py`
-- **Scripts**: `scripts/data_processing_scripts/{generate,validate}_holdout_configs.py`
+- **Scripts**: `scripts/data_processing/{generate,validate}_holdout_configs.py`
 - **Documentation**: This file
 
 ## Support

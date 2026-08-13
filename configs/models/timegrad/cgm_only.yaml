@@ -8,7 +8,7 @@
 #   MODEL_TYPE="timegrad" \
 #   EPOCHS=10 \
 #   DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" \
-#   ./scripts/examples/run_holdout_generic_workflow.sh
+#   ./scripts/experiments/run_holdout_generic_workflow.sh
 #
 # CLI arguments (--epochs, --batch-size) override values in this file.
 # =============================================================================

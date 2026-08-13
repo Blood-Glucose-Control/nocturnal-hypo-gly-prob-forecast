@@ -81,7 +81,7 @@ fi
 # Run experiment
 echo ""
 echo "Starting experiment..."
-python scripts/chronos2_time_covariate_experiment.py \
+python scripts/experiments/chronos2_time_covariate_experiment.py \
     --steps "$STEPS" \
     --lr "$LR" \
     --time-limit "$TIME_LIMIT" \
