@@ -7,7 +7,7 @@ This script demonstrates a complete workflow that can work with different
 time series foundation models (TTM, Chronos, Moment, etc.) by using the
 base class interfaces.
 
-This is a refactored version of example_holdout_ttm_workflow.py that:
+This script supersedes the old TTM-only holdout workflow and:
 - Supports multiple model types via --model-type argument
 - Uses generic base class interfaces (BaseTimeSeriesFoundationModel, ModelConfig)
 - Can be extended to support new model types by implementing the model factory

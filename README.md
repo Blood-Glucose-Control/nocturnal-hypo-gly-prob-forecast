@@ -27,7 +27,11 @@ For instructions on getting started with our project and the commmit/PR procedur
 ### Data Downloads
 #### Kaggle
 
-See script: [BrisT1D](scripts/data_downloads/README_data_download.md)
+Kaggle download/submit helper scripts were intentionally removed from this repo.
+If you need the BrisT1D dataset locally, use the Kaggle CLI directly and place the
+downloaded files under:
+
+`cache/data/kaggle_bris_t1d/raw/`
 
 ## License
 

@@ -3,7 +3,7 @@
 # HOLDOUT SYSTEM WORKFLOW - LOCAL/NON-SLURM VERSION
 # ==================================================
 # Complete end-to-end workflow for local development and testing.
-# This is a non-SLURM version of run_holdout_ttm_workflow.sh
+# This is the maintained local wrapper for the generic holdout workflow script.
 #
 # Quick Start (uses defaults: MODEL_TYPE=ttm, CONFIG_DIR=configs/data/holdout_5pct):
 #   ./scripts/examples/run_holdout_generic_workflow.sh

@@ -171,23 +171,17 @@ distributed:
 
 ## Testing & Validation
 
-Run the comprehensive test suite:
+Use maintained scripts:
 
 ```bash
-# Test basic functionality
-python scripts/examples/test_base_framework.py --example 1
+# Data holdout API sanity checks
+python scripts/examples/example_data_holdout_system.py
 
-# Test LoRA integration
-python scripts/examples/test_base_framework.py --example 2
+# Generic model workflow CLI
+python scripts/examples/example_holdout_generic_workflow.py --help
 
-# Test distributed setup
-python scripts/examples/test_base_framework.py --example 3
-
-# Full workflow simulation
-python scripts/examples/test_base_framework.py --example 4
-
-# Run all tests
-python scripts/examples/test_base_framework.py
+# Batch prediction consistency check
+python scripts/experiments/validate_predict_batch.py --help
 ```
 
 ## Migration Strategy
@@ -197,7 +191,7 @@ python scripts/examples/test_base_framework.py
 1. **Extract Configuration**: Move parameters to `TTMConfig`
 2. **Wrap Training Logic**: Implement `_prepare_training_data()` and `_compute_metrics()`
 3. **Preserve Existing Code**: Framework calls your existing functions
-4. **Add New Features**: LoRA, distributed training come for free
+4. **Add New Features**: Extend behavior via shared model/factory interfaces
 
 ### Benefits
 
@@ -208,7 +202,7 @@ python scripts/examples/test_base_framework.py
 
 ## Next Steps
 
-1. **Test Framework**: Run `test_base_framework.py`
+1. **Test Framework**: Run `example_holdout_generic_workflow.py --help`
 2. **Integrate Data**: Adapt `_prepare_training_data()` to your specific data format
 3. **Test Training**: Run actual training with your datasets
 4. **Add Models**: Implement Chronos, TimeGPT using same pattern

@@ -107,16 +107,12 @@ echo "Starting distributed training with $NUM_GPUS GPUs..."
 echo "Using torchrun for process coordination..."
 echo ""
 
-# Run distributed training with torchrun
-torchrun \
-    --nproc_per_node=$NUM_GPUS \
-    --nnodes=1 \
-    --node_rank=0 \
-    --master_addr=$MASTER_ADDR \
-    --master_port=$MASTER_PORT \
-    scripts/examples/example_distributed_ttm.py \
-    --output_dir "$OUTPUT_DIR/$EXPERIMENT_NAME" \
-    2>&1 | tee "logs/train_${SLURM_JOB_ID}.log"
+# Fail-fast while stale example launchers are being removed/reworked.
+echo "❌ This launcher is temporarily deprecated."
+echo "Reason: legacy distributed example entrypoint was pruned during scripts cleanup."
+echo "Next step: rewire to a maintained multi-GPU training entrypoint in follow-up PR."
+echo "For now, use scripts/examples/run_holdout_generic_workflow.sh for end-to-end workflow runs."
+exit 2
 
 # Capture exit code
 exit_code=$?
