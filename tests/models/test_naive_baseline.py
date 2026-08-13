@@ -5,7 +5,7 @@ Verifies registry registration, config validation, and hyperparameter
 output. Full integration is covered by test_autogluon_base.py.
 
 Run:
-    .venvs/chronos2/bin/python -m pytest tests/models/test_naive_baseline.py -v
+    .venvs/autogluon/bin/python -m pytest tests/models/test_naive_baseline.py -v
 """
 
 import pytest

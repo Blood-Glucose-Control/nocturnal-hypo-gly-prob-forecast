@@ -5,7 +5,7 @@ Verifies config validation, flat_df → TimeSeriesDataFrame conversion,
 and save/load round-trip using NaiveBaselineForecaster as the concrete impl.
 
 Run:
-    .venvs/chronos2/bin/python -m pytest tests/models/test_autogluon_base.py -v
+    .venvs/autogluon/bin/python -m pytest tests/models/test_autogluon_base.py -v
 """
 
 import json

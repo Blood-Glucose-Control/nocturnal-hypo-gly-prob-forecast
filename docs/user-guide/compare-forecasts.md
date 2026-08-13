@@ -30,7 +30,7 @@ with identical arguments is a no-op — it hits the cache and skips inference.
 
 ```bash
 # Chronos2 (in its own env)
-source scripts/setup_model_env.sh chronos2
+source scripts/setup_model_env.sh autogluon
 python scripts/analysis/compare_forecasts.py \
     --model chronos2::Chronos2 \
     --no-plot

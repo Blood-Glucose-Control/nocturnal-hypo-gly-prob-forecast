@@ -4,7 +4,7 @@ Tests for TFTForecaster (Temporal Fusion Transformer).
 Verifies registry registration, config defaults, and hyperparameter output.
 
 Run:
-    .venvs/chronos2/bin/python -m pytest tests/models/test_tft.py -v
+    .venvs/autogluon/bin/python -m pytest tests/models/test_tft.py -v
 """
 
 import pytest

@@ -4,12 +4,12 @@ Chronos-2 model class tests.
 Focuses on core integration requirements and key edge cases.
 Real-data validation lives in scripts/test_chronos2_parity.py (watgpu).
 
-Requires the chronos2 virtual environment (.venvs/chronos2) which includes
+Requires the shared AutoGluon virtual environment (.venvs/autogluon) which includes
 AutoGluon. Tests are automatically skipped in other environments via conftest.py.
 
 Run:
-    make test-chronos2                               # recommended
-    .venvs/chronos2/bin/python -m pytest tests/models/ -v -k chronos2
+    make test-autogluon                              # recommended
+    .venvs/autogluon/bin/python -m pytest tests/models/ -v -k chronos2
     pytest tests/models/test_chronos2.py -v -m slow  # GPU-only slow tests
 """
 
@@ -22,7 +22,7 @@ import pandas as pd
 import pytest
 
 # All Chronos-2 tests require AutoGluon — skip the whole module outside the
-# chronos2 venv (conftest.py also enforces this at collection time).
+# shared autogluon venv (conftest.py also enforces this at collection time).
 pytest.importorskip("autogluon.timeseries")
 
 from src.models.chronos2.config import Chronos2Config  # noqa: E402

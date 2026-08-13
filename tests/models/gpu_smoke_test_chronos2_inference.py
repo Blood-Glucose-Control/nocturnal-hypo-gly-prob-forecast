@@ -3,7 +3,7 @@
 
 Tests both zero-shot and fine-tuned inference paths.
 Run via SLURM: sbatch --partition=HI --gres=gpu:1 --time=00:30:00 \
-    --wrap="source .venvs/chronos2/bin/activate && python scripts/tests/gpu_smoke_test_chronos2_prob.py"
+    --wrap="source .venvs/autogluon/bin/activate && python scripts/tests/gpu_smoke_test_chronos2_prob.py"
 """
 
 import sys

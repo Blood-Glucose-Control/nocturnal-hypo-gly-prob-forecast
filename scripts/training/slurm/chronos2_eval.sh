@@ -47,7 +47,7 @@ echo "Config Dir:  $CONFIG_DIR"
 echo "Started:     $(date)"
 echo "========================================="
 
-source ".venvs/chronos2/bin/activate"
+source ".venvs/autogluon/bin/activate"
 echo "Python: $(which python)"
 
 nvidia-smi --query-gpu=index,name,memory.total --format=csv

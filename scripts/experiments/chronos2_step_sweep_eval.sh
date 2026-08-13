@@ -29,7 +29,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
-PYTHON="${PROJECT_ROOT}/.venvs/chronos2/bin/python"
+PYTHON="${PROJECT_ROOT}/.venvs/autogluon/bin/python"
 EVAL_SCRIPT="scripts/experiments/nocturnal_hypo_eval_ctx_ablation.py"
 CONFIG_DIR="configs/data/holdout_10pct"
 DATASETS=(lynch_2022 aleppo_2017 brown_2019)

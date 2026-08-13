@@ -10,6 +10,7 @@ To run model tests use the Makefile targets:
     make test-ttm
     make test-sundial
     make test-timesfm
+    make test-autogluon
 
 Or invoke directly:
     .venvs/ttm/bin/python -m pytest tests/models/ -v
@@ -27,7 +28,13 @@ _MODEL_VENV_MAP: dict[str, tuple[str, str]] = {
     "ttm": ("ttm", ".venvs/ttm"),
     "sundial": ("sundial", ".venvs/sundial"),
     "timesfm": ("timesfm", ".venvs/timesfm"),
-    "chronos2": ("chronos2", ".venvs/chronos2"),
+    "chronos2": ("autogluon", ".venvs/autogluon"),
+    "autogluon_base": ("autogluon", ".venvs/autogluon"),
+    "deepar": ("autogluon", ".venvs/autogluon"),
+    "patchtst": ("autogluon", ".venvs/autogluon"),
+    "tft": ("autogluon", ".venvs/autogluon"),
+    "naive_baseline": ("autogluon", ".venvs/autogluon"),
+    "statistical": ("autogluon", ".venvs/autogluon"),
 }
 
 
