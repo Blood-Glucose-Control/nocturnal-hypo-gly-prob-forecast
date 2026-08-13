@@ -7,7 +7,7 @@ the base TSFM framework, demonstrating how to integrate existing models.
 
 import os
 import logging
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
+from typing import Any, Dict, List, Optional, Tuple, TypedDict, cast
 
 import numpy as np
 import pandas as pd
@@ -129,8 +129,11 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
     def _predict(
         self,
         data: Any,
+        quantile_levels: Optional[List[float]] = None,
+        *,
         batch_size: Optional[int] = None,
         inverse_scale: bool = True,
+        **kwargs,
     ) -> np.ndarray:
         """Make predictions on new data using TTM pipeline.
 
@@ -149,6 +152,18 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Predictions as numpy array (in original scale if inverse_scale=True).
         """
+        if quantile_levels is not None:
+            logger.warning(
+                "TTM does not provide quantile outputs; returning point forecasts only."
+            )
+
+        if kwargs:
+            logger.debug("Ignoring unsupported TTM predict kwargs: %s", list(kwargs))
+
+        if self.model is None:
+            raise RuntimeError("TTM model weights are not initialized.")
+        model = cast(Any, self.model)
+
         if self.is_fitted:
             # Fine-tuned path: preprocessor handles scaling + inverse scaling
             if self.preprocessor is None:
@@ -158,7 +173,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                     "Re-train the model or use zero-shot inference instead."
                 )
             pipeline = TimeSeriesForecastingPipeline(
-                model=self.model,
+                model=model,
                 feature_extractor=self.preprocessor,
                 explode_forecasts=True,
                 inverse_scale_outputs=inverse_scale,
@@ -183,7 +198,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 )
 
             pipeline = TimeSeriesForecastingPipeline(
-                model=self.model,
+                model=model,
                 timestamp_column=self.column_specifiers.get(
                     "timestamp_column", ColumnNames.DATETIME.value
                 ),
@@ -215,6 +230,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Predictions inverse-scaled to original units
         """
+        _ = data
         if self.preprocessor is None:
             logger.warning(
                 "No preprocessor available - predictions will be returned in SCALED units (z-scores). "
@@ -273,7 +289,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         elif len(original_shape) == 3:
             # (samples, forecast_length, channels)
             # For target channel (channel 0), reshape to (samples * forecast_length, 1)
-            n_samples, forecast_len, n_channels = original_shape
             # Only inverse scale the target channel(s) - typically just channel 0
             predictions_2d = predictions[:, :, 0].reshape(-1, 1)
         else:
@@ -286,17 +301,19 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
             # Reshape back to original shape
             if len(original_shape) == 1:
-                result = predictions_unscaled.flatten()
-            elif len(original_shape) == 2:
-                result = predictions_unscaled.reshape(
+                return predictions_unscaled.flatten()
+            if len(original_shape) == 2:
+                return predictions_unscaled.reshape(
                     original_shape[0], original_shape[1]
                 )
-            elif len(original_shape) == 3:
+            if len(original_shape) == 3:
                 # Put unscaled values back into channel 0, keep other channels as-is
                 result = predictions.copy()
-                result[:, :, 0] = predictions_unscaled.reshape(n_samples, forecast_len)
-
-            return result
+                result[:, :, 0] = predictions_unscaled.reshape(
+                    original_shape[0], original_shape[1]
+                )
+                return result
+            return predictions
 
         except Exception as e:
             error_print(f"Failed to inverse scale predictions: {e}")
@@ -428,10 +445,14 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         info_print("Splitting data into train/val/test sets...")
         info_print(f"  Split config: {self.config.split_config}")
         try:
+            split_config = cast(
+                Dict[str, List[int | float] | float],
+                self.config.split_config,
+            )
             dset_train, dset_val, dset_test = get_datasets(  # type: ignore[misc]
                 ts_preprocessor=self.preprocessor,
                 dataset=data,
-                split_config=self.config.split_config,
+                split_config=split_config,
                 fewshot_fraction=self.config.fewshot_percent / 100,
                 fewshot_location="last",  # Take the last x percent of the training data
             )
@@ -760,6 +781,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             Dict mapping episode ID (as str) to 1-D numpy forecast array.
         """
         episode_ids = data[episode_col].unique()
+        if quantile_levels is not None:
+            logger.warning(
+                "TTM batch predict does not provide quantile outputs; returning point forecasts only."
+            )
 
         # Zero-shot path: include episode_col in id_columns so the pipeline
         # groups episodes correctly in a single batched forward pass.
@@ -780,8 +805,11 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                     f"the input data. Available columns: {list(data.columns)}"
                 )
 
+            if self.model is None:
+                raise RuntimeError("TTM model weights are not initialized.")
+            model = cast(Any, self.model)
             pipeline = TimeSeriesForecastingPipeline(
-                model=self.model,
+                model=model,
                 timestamp_column=self.column_specifiers.get(
                     "timestamp_column", ColumnNames.DATETIME.value
                 ),

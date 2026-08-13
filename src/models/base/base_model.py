@@ -454,7 +454,7 @@ class BaseTimeSeriesFoundationModel(ABC):
     def _prepare_training_data(
         self,
         train_data: Any,
-    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
+    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[Any]]:
         """
         Prepare data loaders for training, validation, and testing.
 
@@ -464,7 +464,9 @@ class BaseTimeSeriesFoundationModel(ABC):
             train_data: Training dataset (will be split based on config)
 
         Returns:
-            Tuple of (train_loader, val_loader, test_loader)
+            Tuple of (train_loader, val_loader, aux_eval_data). The third
+            element is typically a test DataLoader for standard backends but
+            may be backend-specific auxiliary evaluation data.
         """
         pass
 

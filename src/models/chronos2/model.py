@@ -540,7 +540,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             TimeSeriesDataFrame with item_id/timestamp index and one column
             per known covariate, covering forecast_length steps per episode.
         """
-        from autogluon.timeseries import TimeSeriesDataFrame
+        from autogluon.timeseries import TimeSeriesDataFrame  # pyright: ignore[reportMissingImports]
 
         from ...data.preprocessing.feature_engineering import (
             generate_future_known_covariates,
@@ -684,6 +684,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             np.ndarray — point forecast or quantile forecasts depending on
             quantile_levels parameter.
         """
+        if kwargs:
+            logger.debug(
+                "Ignoring unsupported Chronos2 predict kwargs: %s", list(kwargs)
+            )
+
         if quantile_levels is not None:
             return self._predict_quantiles_impl(data, quantile_levels)
 
