@@ -150,51 +150,12 @@ mkdir -p "logs"
 echo "Starting training with $STRATEGY strategy..."
 echo ""
 
-# Set distributed training environment variables
-export MASTER_ADDR="127.0.0.1"
-export MASTER_PORT=29500
-
-case $STRATEGY in
-    cpu)
-        echo "Running CPU training (not recommended for large models)..."
-        python scripts/examples/example_single_gpu_ttm.py \
-            --output_dir "$OUTPUT_DIR/$EXPERIMENT_NAME" \
-            --use_cpu \
-            2>&1 | tee "logs/train_${SLURM_JOB_ID}.log"
-        ;;
-
-    single_gpu)
-        echo "Running single GPU training..."
-        python scripts/examples/example_single_gpu_ttm.py \
-            --output_dir "$OUTPUT_DIR/$EXPERIMENT_NAME" \
-            2>&1 | tee "logs/train_${SLURM_JOB_ID}.log"
-        ;;
-
-    multi_gpu_ddp|multi_gpu_ddp_optimized)
-        echo "Running distributed training with torchrun..."
-        echo "Command: torchrun --nproc_per_node=$NUM_GPUS"
-
-        # NCCL optimizations
-        export NCCL_DEBUG=INFO
-        export NCCL_IB_DISABLE=0
-        export NCCL_SOCKET_IFNAME=^docker0,lo
-
-        torchrun \
-            --nproc_per_node=$NUM_GPUS \
-            --nnodes=1 \
-            --node_rank=0 \
-            --master_addr=$MASTER_ADDR \
-            --master_port=$MASTER_PORT \
-            scripts/examples/example_distributed_ttm.py \
-            --output_dir "$OUTPUT_DIR/$EXPERIMENT_NAME" \
-            2>&1 | tee "logs/train_${SLURM_JOB_ID}.log"
-        ;;
-
-    *)
-        echo "❌ ERROR: Unknown strategy: $STRATEGY"
-        exit 1
-        ;;
-esac
+# Fail-fast while stale example launchers are being removed/reworked.
+echo "❌ This launcher is temporarily deprecated."
+echo "Reason: adaptive flow depended on legacy example entrypoints pruned in scripts cleanup."
+echo "Next step: rewire adaptive launcher to a maintained training entrypoint in follow-up PR."
+echo "For now, use scripts/examples/run_holdout_generic_workflow.sh for end-to-end workflow runs."
+exit 2
 
 # Capture exit code
 exit_code=$?

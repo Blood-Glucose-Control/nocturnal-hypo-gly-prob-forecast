@@ -20,11 +20,11 @@ Documentation is currently under construction.
     results/
         figures/
 
-    scripts/                    # Any sort of scripting file belongs here, usually for running experiments or notebooks.
-        competition_submission/     # Scripts for submitting predictions to the BrisT1D Kaggle Competion.
-        data_downloads/             # Scripts for downloading data from various sources to your local directory.
-        notebooks/                  # .ipynb files, for naming convention see: https://cookiecutter-data-science.drivendata.org/using-the-template/
-        watgpu/                     # bash or py scripts for training and evaluating models with WATGPU.
+    scripts/                    # Experiment orchestration, analysis, and visualization utilities.
+        experiments/                # Primary experiment runners.
+        analysis/                   # Result aggregation/report scripts.
+        visualization/              # Plotting and figure generation scripts.
+        training/                   # Cluster/local launcher wrappers.
     src/
         data/                       # Data processing, downloading, and loading code
             carb_model/

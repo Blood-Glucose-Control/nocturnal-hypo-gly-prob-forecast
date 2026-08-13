@@ -145,12 +145,9 @@ else:
 
 ## Testing LoRA Compatibility
 
-Run the updated test framework:
-
-```bash
-# Test LoRA compatibility across models
-python scripts/examples/test_base_framework.py --example 2
-```
+The old `test_base_framework.py` example harness was removed during scripts cleanup.
+Use maintained experiment scripts for current runtime validation, and treat this
+document as architectural background rather than an executable workflow.
 
 Expected output:
 ```

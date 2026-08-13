@@ -122,12 +122,12 @@ echo "Starting training..."
 echo "Command: python -m src.training.train_model --config $CONFIG_PATH"
 echo ""
 
-# Run training
-# TODO: Replace with actual unified training script when implemented
-# For now, use the TTM example
-python scripts/examples/example_single_gpu_ttm.py \
-    --output_dir "$OUTPUT_DIR/$EXPERIMENT_NAME" \
-    2>&1 | tee "logs/train_${SLURM_JOB_ID}.log"
+# Fail-fast while stale example launchers are being removed/reworked.
+echo "❌ This launcher is temporarily deprecated."
+echo "Reason: legacy examples it depended on were pruned during scripts cleanup."
+echo "Next step: rewire to a maintained training entrypoint in follow-up PR."
+echo "For now, use scripts/examples/run_holdout_generic_workflow.sh for end-to-end workflow runs."
+exit 2
 
 # Capture exit code
 exit_code=$?
