@@ -56,6 +56,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.CUSTOM
 
+    @property
     def supports_zero_shot(self) -> bool:
         return True
 

@@ -141,6 +141,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         """Moirai inference runs through GluonTS / uni2ts, not a HF Trainer."""
         return TrainingBackend.CUSTOM
 
+    @property
     def supports_zero_shot(self) -> bool:
         """Moirai ships pretrained weights and forecasts out of the box."""
         return True

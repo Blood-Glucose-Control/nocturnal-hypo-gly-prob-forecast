@@ -121,6 +121,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         """
         return TrainingBackend.TRANSFORMERS
 
+    @property
     def supports_zero_shot(self) -> bool:
         return True
 

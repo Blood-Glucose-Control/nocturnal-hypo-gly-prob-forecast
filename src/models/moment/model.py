@@ -124,6 +124,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             TrainingBackend.PYTORCH,  # Fine-tuning always uses custom PyTorch loop
         )
 
+    @property
     def supports_zero_shot(self) -> bool:
         return True
 
