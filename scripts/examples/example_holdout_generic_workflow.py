@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pyright: reportMissingImports=false
 """
 End-to-end example: Holdout system with GENERIC model training and evaluation.
 
@@ -54,7 +55,7 @@ import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 import yaml
 
@@ -1130,16 +1131,19 @@ def _plot_forecasts(
             )
 
             # Create plot
-            fig, ax = plt.subplots(figsize=(15, 6))
+            _, ax = plt.subplots(figsize=(15, 6))
 
             # Determine if we can use datetime x-axis
             use_datetime_axis = (
                 forecast_datetimes is not None and len(forecast_datetimes) > 0
             )
 
+            forecast_dts = pd.DatetimeIndex([])
+            historical_dts = pd.DatetimeIndex([])
             if use_datetime_axis:
+                forecast_datetimes_nonnull = cast(Any, forecast_datetimes)
                 # Convert to pandas datetime for plotting
-                forecast_dts = pd.to_datetime(forecast_datetimes)
+                forecast_dts = pd.to_datetime(forecast_datetimes_nonnull)
 
                 # Estimate historical datetimes by subtracting from first forecast time
                 # Assuming 5-minute intervals (common for CGM data)
@@ -1478,7 +1482,7 @@ def step2_validate_holdout_configs(datasets: list, config_dir: str) -> bool:
 
 
 def step3_load_training_data(
-    dataset_names: list, config_dir: str, output_dir: str = None
+    dataset_names: list, config_dir: str, output_dir: Optional[str] = None
 ):
     """Step 3: Load and combine training data from multiple datasets."""
     logger.info(" ")
@@ -2270,7 +2274,7 @@ stored in separate subdirectories for comparison.
             if combined_train_data is None:
                 logger.error("Step 5 requires training data (step 3)")
                 return
-            model, config, train_results, model_path = step5_train_model(
+            model, config, _, model_path = step5_train_model(
                 model_type=args.model_type,
                 combined_data=combined_train_data,
                 dataset_names=args.datasets,
@@ -2328,7 +2332,7 @@ stored in separate subdirectories for comparison.
                     "(step 3), skipping"
                 )
             else:
-                model, resume_results, resumed_model_path = step7_resume_training(
+                model, _, _ = step7_resume_training(
                     model=model,
                     combined_data=combined_train_data,
                     dataset_names=args.datasets,
