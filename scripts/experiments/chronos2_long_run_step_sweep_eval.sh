@@ -61,8 +61,8 @@ EPISODE_CTX=512
 STEPS=(10000 20000 30000 40000 50000 60000 70000 80000 90000 100000)
 
 # Default artifact dirs — both long-run jobs from April 26 2026
-ARTIFACT_16="${ARTIFACT_16:-trained_models/artifacts/chronos2/2026-04-26_06:26_RID20260426_062650_516757_holdout_workflow}"
-ARTIFACT_17="${ARTIFACT_17:-trained_models/artifacts/chronos2/2026-04-26_06:27_RID20260426_062756_517224_holdout_workflow}"
+ARTIFACT_16="${ARTIFACT_16:-trained_models/artifacts/chronos2/2026-04-26_06:26_RID20260426_062650_516757_forecasting_workflow}"
+ARTIFACT_17="${ARTIFACT_17:-trained_models/artifacts/chronos2/2026-04-26_06:27_RID20260426_062756_517224_forecasting_workflow}"
 
 # fmt: off
 # (stem, artifact_dir, model_config)

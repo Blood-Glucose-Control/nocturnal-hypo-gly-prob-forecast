@@ -13,7 +13,7 @@
 #   CONFIG_DIR="configs/data/holdout_10pct" \
 #   DATASETS="aleppo_2017 brown_2019 lynch_2022 tamborlane_2008" \
 #   SKIP_TRAINING="false" SKIP_STEPS="7" \
-#     ./scripts/experiments/run_holdout_generic_workflow.sh
+#     ./scripts/experiments/run_forecasting_workflow.sh
 # =============================================================================
 
 context_length: 512

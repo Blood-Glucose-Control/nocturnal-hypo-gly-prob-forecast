@@ -7,32 +7,117 @@ This guide lists the maintained scripts in `scripts/examples/` and
 
 | Script | Purpose | Typical use |
 |---|---|---|
-| `example_holdout_generic_workflow.py` | End-to-end holdout workflow across model families | Main example for training/eval workflow |
-| `run_holdout_generic_workflow.sh` (`scripts/experiments/`) | Local shell wrapper for the generic holdout workflow | Repeatable local runs with environment variables |
-| `example_chronos2_finetune.py` | Focused Chronos-2 fine-tuning walkthrough | Model-specific Chronos-2 experimentation |
+| `example_forecasting_workflow.py` | Thin onboarding entrypoint for generic forecasting workflow | Quick walkthrough and CLI discovery |
+| `forecasting_workflow_orchestrator.py` (`scripts/experiments/`) | Production CLI entrypoint for generic forecasting workflow | Stable runtime surface for wrappers and automation |
+| `run_forecasting_workflow.sh` (`scripts/experiments/`) | Local shell wrapper for the production orchestrator | Repeatable local runs with environment variables |
+| `forecasting_workflow_regression_smoke.sh` (`scripts/experiments/`) | Deterministic bounded regression profile | Major-change workflow smoke/regression runs |
 | `example_data_holdout_system.py` | Demonstrates holdout config generation/validation/loading APIs | Data split and holdout debugging |
 | `example_load_holdout_data.py` | Minimal holdout loading example | Quick data-access sanity checks |
-| `ttm_holdout_workflow.py` | TTM-specific workflow variant | Legacy TTM-specific experimentation |
+
+## Model-specific experiment scripts
+
+These are intentionally in `scripts/experiments/` (not `scripts/examples/`):
+
+- `chronos2_finetune.py` (Chronos-2 fine-tuning workflow)
+- `ttm_forecasting_workflow.py` (TTM-specific forecasting workflow variant)
+
+## Python-first sweep orchestration
+
+Sweep training now has a model-agnostic Python entrypoint plus model profile
+wrappers:
+
+- Generic CLI: `scripts/experiments/sweep_train.py`
+- Chronos-2 profile wrapper: `scripts/experiments/chronos2_sweep_train.py`
+- Thin shell launcher: `scripts/experiments/chronos2_sweep_train.sh`
+
+Chronos-2 profile spec:
+
+- `configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml`
+
+Local usage:
+
+```bash
+GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/chronos2_sweep_train.sh
+```
+
+Path-check (no training execution):
+
+```bash
+DRY_RUN=1 GPUS="0" JOBS_PER_GPU=1 bash scripts/experiments/chronos2_sweep_train.sh
+```
+
+Generic config-directory mode (same datasets applied to every model config):
+
+```bash
+python scripts/experiments/sweep_train.py \
+  --model-type chronos2 \
+  --model-config-dir configs/models/chronos2 \
+  --datasets aleppo_2017 brown_2019 lynch_2022 tamborlane_2008 \
+  --gpus "0 1" \
+  --jobs-per-gpu 2 \
+  --dry-run
+```
+
+SLURM usage pattern (launch wrapper inside one allocation):
+
+```bash
+sbatch --gres=gpu:2 --wrap 'cd /path/to/repo && GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/chronos2_sweep_train.sh'
+```
 
 ## Canonical workflow example
 
-Use the generic workflow as the default entrypoint:
+Use the production orchestrator as the default entrypoint for training runs:
 
 ```bash
-python scripts/examples/example_holdout_generic_workflow.py \
+python scripts/experiments/forecasting_workflow_orchestrator.py \
   --model-type chronos2 \
   --datasets brown_2019 lynch_2022 \
   --config-dir configs/data/holdout_10pct
 ```
 
-Or with the local wrapper:
+Use the onboarding example wrapper for quick discovery:
+
+```bash
+python scripts/examples/example_forecasting_workflow.py --help
+```
+
+Or use the local shell wrapper:
 
 ```bash
 MODEL_TYPE=chronos2 \
 DATASETS="brown_2019 lynch_2022" \
 CONFIG_DIR="configs/data/holdout_10pct" \
-bash scripts/experiments/run_holdout_generic_workflow.sh
+bash scripts/experiments/run_forecasting_workflow.sh
 ```
+
+Regression profile (bounded end-to-end guardrail):
+
+```bash
+bash scripts/experiments/forecasting_workflow_regression_smoke.sh
+```
+
+## SLURM launcher entrypoints (cluster runs)
+
+For cluster execution, use the rewired launchers in `scripts/training/slurm/`
+that now route to the same maintained workflow path:
+
+- `single_gpu.sh`
+- `multi_gpu.sh`
+- `adaptive_resources.sh`
+
+Example:
+
+```bash
+sbatch scripts/training/slurm/single_gpu.sh
+```
+
+The main override surface is the same as local wrapper runs (`MODEL_TYPE`,
+`MODEL_CONFIG`, `DATASETS`, `CONFIG_DIR`, `SKIP_TRAINING`, `SKIP_STEPS`).
+
+For a step-by-step private-cluster validation workflow, see:
+
+- `docs/user-guide/slurm-cluster-smoke-test-runbook.md`
+- `docs/user-guide/slurm-cluster-smoke-test-checklist.md`
 
 ## Notes on legacy examples
 

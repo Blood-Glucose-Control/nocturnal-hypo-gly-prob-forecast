@@ -1,15 +1,18 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
-# PRODUCTION SINGLE GPU TRAINING
-# ================================
-# Use this for production model training on a single GPU
+# PRODUCTION SINGLE-GPU WORKFLOW LAUNCHER
+# =======================================
+# Rewired to the maintained forecasting workflow wrapper:
+#   scripts/experiments/run_forecasting_workflow.sh
 #
-# Quick Start:
+# Quick start:
 #   sbatch scripts/training/slurm/single_gpu.sh
 #
-# With custom config:
+# Backward-compatible override:
 #   sbatch --export=CONFIG_PATH=configs/models/ttm/custom.yaml scripts/training/slurm/single_gpu.sh
 #
+# Preferred overrides:
+#   sbatch --export=MODEL_TYPE=chronos2,MODEL_CONFIG=configs/models/chronos2/00_bg_only.yaml,DATASETS="brown_2019 lynch_2022"
 #SBATCH --job-name=ttm_train_1gpu
 #SBATCH --output=logs/train_1gpu_%j.out
 #SBATCH --error=logs/train_1gpu_%j.err
@@ -21,132 +24,114 @@
 ##SBATCH --mail-user=your.email@example.com
 ##SBATCH --mail-type=BEGIN,END,FAIL
 
-# =============================================================================
-# CONFIGURATION
-# =============================================================================
+set -euo pipefail
 
-# Default configuration (can be overridden with --export)
-: ${CONFIG_PATH:="configs/models/ttm/fine_tune.yaml"}
-: ${DATA_CONFIG:="configs/data/kaggle_bris_t1d.yaml"}
-: ${OUTPUT_DIR:="trained_models/artifacts/ttm"}
-: ${EXPERIMENT_NAME:="single_gpu_training"}
+datasets_was_set="${DATASETS+x}"
+config_dir_was_set="${CONFIG_DIR+x}"
 
-# =============================================================================
-# ENVIRONMENT SETUP
-# =============================================================================
+# Backward-compatible names
+: "${CONFIG_PATH:=configs/models/ttm/fine_tune.yaml}"
+: "${DATA_CONFIG:=}"
+: "${OUTPUT_DIR:=trained_models/artifacts/ttm}"
+: "${EXPERIMENT_NAME:=single_gpu_training}"
 
-echo "========================================="
-echo "TTM Single GPU Training"
-echo "========================================="
-echo "Job ID: $SLURM_JOB_ID"
-echo "Node: $SLURM_NODELIST"
-echo "Started: $(date)"
-echo ""
-echo "Configuration:"
-echo "  Model config: $CONFIG_PATH"
-echo "  Data config: $DATA_CONFIG"
-echo "  Output dir: $OUTPUT_DIR"
-echo "  Experiment: $EXPERIMENT_NAME"
-echo "========================================="
-echo ""
+# Canonical wrapper inputs
+: "${MODEL_TYPE:=ttm}"
+: "${MODEL_CONFIG:=$CONFIG_PATH}"
+: "${DATASETS:=brown_2019}"
+: "${CONFIG_DIR:=configs/data/holdout_10pct}"
+: "${OUTPUT_BASE_DIR:=${OUTPUT_DIR%/}/${EXPERIMENT_NAME}}"
+: "${SKIP_TRAINING:=false}"
+: "${SKIP_STEPS:=1 2 4 6 7}"
+: "${EPOCHS:=}"
+: "${BATCH_SIZE:=}"
+: "${VENV_NAME:=$MODEL_TYPE}"
+: "${DRY_RUN:=0}"
+: "${RUN_ID:=${SLURM_JOB_ID:-$(date +%Y%m%d_%H%M%S)_$$}}"
 
-# Load modules if needed (uncomment and adjust for your cluster)
-# module load cuda/11.8
-# module load python/3.10
+if [[ -n "$DATA_CONFIG" ]]; then
+    if [[ -z "$datasets_was_set" ]]; then
+        DATASETS="$(basename "${DATA_CONFIG%.yaml}")"
+    fi
+    if [[ -z "$config_dir_was_set" ]]; then
+        CONFIG_DIR="$(dirname "$DATA_CONFIG")"
+    fi
+fi
 
-# Debug: Show SLURM environment
-echo "Debug - SLURM_SUBMIT_DIR: $SLURM_SUBMIT_DIR"
-echo "Debug - PWD: $PWD"
-echo "Debug - BASH_SOURCE: ${BASH_SOURCE[0]}"
+case "$SKIP_TRAINING" in
+    1 | true | TRUE | yes | YES)
+        SKIP_TRAINING="true"
+        ;;
+    0 | false | FALSE | no | NO | "")
+        SKIP_TRAINING="false"
+        ;;
+    *)
+        echo "ERROR: SKIP_TRAINING must be one of: true/false/1/0/yes/no"
+        exit 1
+        ;;
+esac
 
-# Determine project root
-# Use SLURM_SUBMIT_DIR if available (when submitted via sbatch)
-# Otherwise fall back to detecting from script location
-if [ -n "$SLURM_SUBMIT_DIR" ]; then
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
     PROJECT_ROOT="$SLURM_SUBMIT_DIR"
-    echo "✓ Using SLURM submit directory: $PROJECT_ROOT"
 else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-    echo "✓ Detected project root from script: $PROJECT_ROOT"
+fi
+cd "$PROJECT_ROOT"
+
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-${SLURM_CPUS_PER_TASK:-8}}"
+export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
+
+WORKFLOW_SCRIPT="scripts/experiments/run_forecasting_workflow.sh"
+if [[ ! -f "$WORKFLOW_SCRIPT" ]]; then
+    echo "ERROR: workflow script not found: $WORKFLOW_SCRIPT"
+    exit 1
 fi
 
-# Navigate to project root
-echo "Changing to project root..."
-cd "$PROJECT_ROOT" || { echo "❌ Failed to cd to $PROJECT_ROOT"; exit 1; }
-echo "Current directory: $(pwd)"
-ls -la | head -20
+echo "========================================="
+echo "Single-GPU forecasting workflow launcher"
+echo "========================================="
+echo "Job ID: ${SLURM_JOB_ID:-local}"
+echo "Node: ${SLURM_NODELIST:-$(hostname)}"
+echo "Project root: $PROJECT_ROOT"
+echo "Model type: $MODEL_TYPE"
+echo "Model config: $MODEL_CONFIG"
+echo "Datasets: $DATASETS"
+echo "Config dir: $CONFIG_DIR"
+echo "Output base dir: $OUTPUT_BASE_DIR"
+echo "Skip training: $SKIP_TRAINING"
+echo "Skip steps: ${SKIP_STEPS:-none}"
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
+echo "Run ID: $RUN_ID"
+echo "========================================="
+echo ""
 
-# Activate virtual environment
-# Prefer model-specific environment for training (see CONTRIBUTING.md)
-echo "Activating environment..."
-if [ -f ".venvs/ttm/bin/activate" ]; then
-    source ".venvs/ttm/bin/activate"
-    echo "✓ Activated model-specific environment: .venvs/ttm"
-elif [ -f ".noctprob-venv/bin/activate" ]; then
-    echo "⚠️  Model-specific env .venvs/ttm not found, using general dev environment"
-    echo "   Consider running: source scripts/setup_model_env.sh ttm"
-    source .noctprob-venv/bin/activate
-elif [ -f "venv/bin/activate" ]; then
-    source venv/bin/activate
-elif [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
-elif [ -n "$VIRTUAL_ENV" ]; then
-    echo "Using existing virtual environment: $VIRTUAL_ENV"
-else
-    echo "⚠️  WARNING: No virtual environment found, using system Python"
+if [[ "$DRY_RUN" == "1" ]]; then
+    echo "DRY_RUN=1 set; command path validated without executing workflow."
+    exit 0
 fi
 
-# =============================================================================
-# HARDWARE VERIFICATION
-# =============================================================================
-
-echo ""
-echo "GPU Information:"
-nvidia-smi --query-gpu=index,name,memory.total,compute_cap --format=csv
-echo ""
-
-# =============================================================================
-# TRAINING
-# =============================================================================
-
-# Create output directory
-mkdir -p "$OUTPUT_DIR"
-mkdir -p "logs"
-
-# Set environment variables for optimal single GPU performance
-export CUDA_VISIBLE_DEVICES=0
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-
-echo "Starting training..."
-echo "Command: python -m src.training.train_model --config $CONFIG_PATH"
-echo ""
-
-# Fail-fast while stale example launchers are being removed/reworked.
-echo "❌ This launcher is temporarily deprecated."
-echo "Reason: legacy examples it depended on were pruned during scripts cleanup."
-echo "Next step: rewire to a maintained training entrypoint in follow-up PR."
-echo "For now, use scripts/experiments/run_holdout_generic_workflow.sh for end-to-end workflow runs."
-exit 2
-
-# Capture exit code
+MODEL_TYPE="$MODEL_TYPE" \
+MODEL_CONFIG="$MODEL_CONFIG" \
+DATASETS="$DATASETS" \
+CONFIG_DIR="$CONFIG_DIR" \
+OUTPUT_BASE_DIR="$OUTPUT_BASE_DIR" \
+SKIP_TRAINING="$SKIP_TRAINING" \
+SKIP_STEPS="$SKIP_STEPS" \
+EPOCHS="$EPOCHS" \
+BATCH_SIZE="$BATCH_SIZE" \
+VENV_NAME="$VENV_NAME" \
+RUN_ID="$RUN_ID" \
+bash "$WORKFLOW_SCRIPT"
 exit_code=$?
 
-# =============================================================================
-# COMPLETION
-# =============================================================================
-
 echo ""
 echo "========================================="
-echo "Training completed: $(date)"
+echo "Workflow completed: $(date)"
 echo "Exit code: $exit_code"
-echo "Duration: $SECONDS seconds"
 echo "========================================="
 
-if [ $exit_code -eq 0 ]; then
-    echo "✅ SUCCESS: Model saved to $OUTPUT_DIR/$EXPERIMENT_NAME"
-else
-    echo "❌ FAILED: Check logs/train_${SLURM_JOB_ID}.log for details"
-fi
-
-exit $exit_code
+exit "$exit_code"

@@ -7,7 +7,7 @@
 #   IOB: insulin covariate configs (01–04) — excl. tamborlane (no insulin data)
 #   COB: carb covariate configs (05–08) — excl. brown + tamborlane (no meal data)
 # Output dirs follow the project convention:
-#   trained_models/artifacts/toto/<date>_RID<id>_holdout_workflow
+#   trained_models/artifacts/toto/<date>_RID<id>_forecasting_workflow
 # A manifest is appended to trained_models/artifacts/toto/sweep_manifest.txt
 # so toto_sweep_eval.sh can find the checkpoints without parsing dir names.
 #
@@ -35,7 +35,7 @@ DATASETS_WITH_IOB="lynch_2022 aleppo_2017 brown_2019"
 # Carb covariates (cob, carb_availability): brown has no meal data; tamborlane has no covariates
 DATASETS_WITH_COB="lynch_2022 aleppo_2017"
 CONFIG_DIR="configs/data/holdout_10pct"
-WORKFLOW="scripts/experiments/run_holdout_generic_workflow.sh"
+WORKFLOW="scripts/experiments/run_forecasting_workflow.sh"
 MANIFEST="trained_models/artifacts/toto/sweep_manifest.txt"
 
 # Format: "config_path|datasets_key"
@@ -74,7 +74,7 @@ for entry in "${CONFIGS[@]}"; do
 
     # Generate RID matching the workflow's own convention: YYYYMMDD_HHMMSS_PID
     RUN_ID="$(date +%Y%m%d_%H%M%S)_$$"
-    out_dir="trained_models/artifacts/toto/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_holdout_workflow"
+    out_dir="trained_models/artifacts/toto/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_forecasting_workflow"
 
     echo ""
     echo "============================================================"

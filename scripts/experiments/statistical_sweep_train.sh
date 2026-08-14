@@ -30,7 +30,7 @@ DATASETS_ALL="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008"
 DATASETS_WITH_IOB="lynch_2022 aleppo_2017 brown_2019"
 MANIFEST_DIR="trained_models/artifacts/statistical"
 MANIFEST="${MANIFEST_DIR}/sweep_manifest.txt"
-WORKFLOW="scripts/experiments/run_holdout_generic_workflow.sh"
+WORKFLOW="scripts/experiments/run_forecasting_workflow.sh"
 SKIP_STEPS="${SKIP_STEPS:-1 2 4 7}"
 LOG_DIR="logs"
 

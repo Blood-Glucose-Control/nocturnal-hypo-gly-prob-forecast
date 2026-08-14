@@ -21,7 +21,7 @@ Usage:
         --dataset brown_2019 \
         --context-length 512 \
         --forecast-length 96 \
-        --model-config /data/home/cjrisi/nocturnal/trained_models/artifacts/ttm/2026-02-27_05:17_RID20260227_051750_206895_holdout_workflow/model_config.yaml \
+        --model-config /data/home/cjrisi/nocturnal/trained_models/artifacts/ttm/2026-02-27_05:17_RID20260227_051750_206895_forecasting_workflow/model_config.yaml \
         --cuda-device 0
 
     # TimesFM zero-shot (no checkpoint):
@@ -37,7 +37,7 @@ Usage:
     python scripts/experiments/sliding_window_eval.py \
         --model timegrad \
         --dataset tamborlane_2008 \
-        --checkpoint trained_models/artifacts/timegrad/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/model.pt \
+        --checkpoint trained_models/artifacts/timegrad/2026-02-23_17:20_RID20260223_172056_2749226_forecasting_workflow/model.pt \
         --context-length 512 \
         --forecast-length 96 \
         --model-config configs/models/timegrad/cgm_only.yaml \
@@ -47,7 +47,7 @@ Usage:
     python scripts/experiments/sliding_window_eval.py \
         --model timegrad \
         --dataset aleppo_2017 \
-        --checkpoint trained_models/artifacts/timegrad/2026-02-23_17:20_RID20260223_172056_2749226_holdout_workflow/resumed_training/model.pt \
+        --checkpoint trained_models/artifacts/timegrad/2026-02-23_17:20_RID20260223_172056_2749226_forecasting_workflow/resumed_training/model.pt \
         --context-length 512 \
         --forecast-length 48 \
         --model-config configs/models/timegrad/cgm_only.yaml

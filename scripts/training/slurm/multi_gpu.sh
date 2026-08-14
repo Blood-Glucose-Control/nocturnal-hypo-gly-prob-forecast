@@ -1,14 +1,16 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
-# PRODUCTION MULTI-GPU TRAINING (DDP)
-# =====================================
-# Use this for distributed training across multiple GPUs
+# PRODUCTION MULTI-GPU WORKFLOW LAUNCHER
+# ======================================
+# Rewired to the maintained forecasting workflow wrapper:
+#   scripts/experiments/run_forecasting_workflow.sh
 #
-# Quick Start:
+# Quick start:
 #   sbatch scripts/training/slurm/multi_gpu.sh
 #
-# Specify number of GPUs:
-#   sbatch --export=NUM_GPUS=4 scripts/training/slurm/multi_gpu.sh
+# GPU overrides:
+#   sbatch --export=NUM_GPUS=2 scripts/training/slurm/multi_gpu.sh
+#   sbatch --export=GPUS="0 1 2" scripts/training/slurm/multi_gpu.sh
 #
 #SBATCH --job-name=ttm_train_multi
 #SBATCH --output=logs/train_multi_%j.out
@@ -21,128 +23,155 @@
 ##SBATCH --mail-user=your.email@example.com
 ##SBATCH --mail-type=BEGIN,END,FAIL
 
-# =============================================================================
-# CONFIGURATION
-# =============================================================================
+set -euo pipefail
 
-# Default configuration (can be overridden with --export)
-: ${NUM_GPUS:=4}
-: ${CONFIG_PATH:="configs/models/ttm/fine_tune.yaml"}
-: ${DATA_CONFIG:="configs/data/kaggle_bris_t1d.yaml"}
-: ${OUTPUT_DIR:="trained_models/artifacts/ttm"}
-: ${EXPERIMENT_NAME:="multi_gpu_training"}
+datasets_was_set="${DATASETS+x}"
+config_dir_was_set="${CONFIG_DIR+x}"
 
-# Distributed training settings
-: ${MASTER_PORT:=29500}
+# Backward-compatible names
+: "${NUM_GPUS:=4}"
+: "${MASTER_PORT:=29500}"
+: "${CONFIG_PATH:=configs/models/ttm/fine_tune.yaml}"
+: "${DATA_CONFIG:=}"
+: "${OUTPUT_DIR:=trained_models/artifacts/ttm}"
+: "${EXPERIMENT_NAME:=multi_gpu_training}"
 
-# =============================================================================
-# ENVIRONMENT SETUP
-# =============================================================================
+# Canonical wrapper inputs
+: "${MODEL_TYPE:=ttm}"
+: "${MODEL_CONFIG:=$CONFIG_PATH}"
+: "${DATASETS:=brown_2019}"
+: "${CONFIG_DIR:=configs/data/holdout_10pct}"
+: "${OUTPUT_BASE_DIR:=${OUTPUT_DIR%/}/${EXPERIMENT_NAME}}"
+: "${SKIP_TRAINING:=false}"
+: "${SKIP_STEPS:=1 2 4 6 7}"
+: "${EPOCHS:=}"
+: "${BATCH_SIZE:=}"
+: "${VENV_NAME:=$MODEL_TYPE}"
+: "${DRY_RUN:=0}"
+: "${RUN_ID:=${SLURM_JOB_ID:-$(date +%Y%m%d_%H%M%S)_$$}}"
 
-echo "========================================="
-echo "TTM Multi-GPU Distributed Training"
-echo "========================================="
-echo "Job ID: $SLURM_JOB_ID"
-echo "Node: $SLURM_NODELIST"
-echo "Started: $(date)"
-echo ""
-echo "Configuration:"
-echo "  GPUs: $NUM_GPUS"
-echo "  Model config: $CONFIG_PATH"
-echo "  Data config: $DATA_CONFIG"
-echo "  Output dir: $OUTPUT_DIR"
-echo "  Experiment: $EXPERIMENT_NAME"
-echo "  Master port: $MASTER_PORT"
-echo "========================================="
-echo ""
-
-# Load modules if needed (uncomment and adjust for your cluster)
-# module load cuda/11.8
-# module load python/3.10
-# module load nccl
-
-# Activate virtual environment
-echo "Activating environment..."
-source /u6/cjrisi/nocturnal/.noctprob-venv/bin/activate
-
-# Navigate to project root
-cd /u6/cjrisi/nocturnal
-
-# =============================================================================
-# HARDWARE VERIFICATION
-# =============================================================================
-
-echo ""
-echo "GPU Information:"
-nvidia-smi --query-gpu=index,name,memory.total,compute_cap --format=csv
-echo ""
-echo "NCCL Version:"
-python -c "import torch; print(torch.cuda.nccl.version())" 2>/dev/null || echo "NCCL not available"
-echo ""
-
-# =============================================================================
-# DISTRIBUTED TRAINING SETUP
-# =============================================================================
-
-# Set environment variables for distributed training
-export MASTER_ADDR="127.0.0.1"
-export MASTER_PORT=$MASTER_PORT
-export WORLD_SIZE=$NUM_GPUS
-export OMP_NUM_THREADS=$((SLURM_CPUS_PER_TASK / NUM_GPUS))
-
-# NCCL optimizations
-export NCCL_DEBUG=INFO
-export NCCL_IB_DISABLE=0
-export NCCL_SOCKET_IFNAME=^docker0,lo
-
-# Create output directory
-mkdir -p "$OUTPUT_DIR"
-mkdir -p "logs"
-
-# =============================================================================
-# TRAINING
-# =============================================================================
-
-echo "Starting distributed training with $NUM_GPUS GPUs..."
-echo "Using torchrun for process coordination..."
-echo ""
-
-# Fail-fast while stale example launchers are being removed/reworked.
-echo "❌ This launcher is temporarily deprecated."
-echo "Reason: legacy distributed example entrypoint was pruned during scripts cleanup."
-echo "Next step: rewire to a maintained multi-GPU training entrypoint in follow-up PR."
-echo "For now, use scripts/experiments/run_holdout_generic_workflow.sh for end-to-end workflow runs."
-exit 2
-
-# Capture exit code
-exit_code=$?
-
-# =============================================================================
-# COMPLETION
-# =============================================================================
-
-echo ""
-echo "========================================="
-echo "Training completed: $(date)"
-echo "Exit code: $exit_code"
-echo "Duration: $SECONDS seconds"
-echo "========================================="
-
-if [ $exit_code -eq 0 ]; then
-    echo "✅ SUCCESS: Model saved to $OUTPUT_DIR/$EXPERIMENT_NAME"
-    echo ""
-    echo "Training efficiency metrics:"
-    python -c "
-import sys
-duration_sec = $SECONDS
-num_gpus = $NUM_GPUS
-duration_hours = duration_sec / 3600
-print(f'  Total time: {duration_hours:.2f} hours')
-print(f'  GPU-hours: {duration_hours * num_gpus:.2f}')
-print(f'  Effective speedup: {num_gpus}x (theoretical)')
-"
-else
-    echo "❌ FAILED: Check logs/train_${SLURM_JOB_ID}.log for details"
+if [[ -n "$DATA_CONFIG" ]]; then
+    if [[ -z "$datasets_was_set" ]]; then
+        DATASETS="$(basename "${DATA_CONFIG%.yaml}")"
+    fi
+    if [[ -z "$config_dir_was_set" ]]; then
+        CONFIG_DIR="$(dirname "$DATA_CONFIG")"
+    fi
 fi
 
-exit $exit_code
+case "$SKIP_TRAINING" in
+    1 | true | TRUE | yes | YES)
+        SKIP_TRAINING="true"
+        ;;
+    0 | false | FALSE | no | NO | "")
+        SKIP_TRAINING="false"
+        ;;
+    *)
+        echo "ERROR: SKIP_TRAINING must be one of: true/false/1/0/yes/no"
+        exit 1
+        ;;
+esac
+
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
+    PROJECT_ROOT="$SLURM_SUBMIT_DIR"
+else
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+fi
+cd "$PROJECT_ROOT"
+
+detect_gpus() {
+    local -a detected
+    mapfile -t detected < <(
+        nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null || true
+    )
+    if [[ ${#detected[@]} -eq 0 ]]; then
+        detected=(0)
+    fi
+    printf "%s\n" "${detected[@]}"
+}
+
+declare -a selected_gpus
+if [[ -n "${GPUS:-}" ]]; then
+    read -r -a selected_gpus <<< "$GPUS"
+else
+    mapfile -t all_gpus < <(detect_gpus)
+    if (( NUM_GPUS > ${#all_gpus[@]} )); then
+        NUM_GPUS="${#all_gpus[@]}"
+    fi
+    if (( NUM_GPUS < 1 )); then
+        NUM_GPUS=1
+    fi
+    selected_gpus=("${all_gpus[@]:0:NUM_GPUS}")
+fi
+
+gpu_csv="$(IFS=,; echo "${selected_gpus[*]}")"
+effective_num_gpus="${#selected_gpus[@]}"
+cpus_per_task="${SLURM_CPUS_PER_TASK:-32}"
+threads_per_gpu=$((cpus_per_task / effective_num_gpus))
+if (( threads_per_gpu < 1 )); then
+    threads_per_gpu=1
+fi
+
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export CUDA_VISIBLE_DEVICES="$gpu_csv"
+export WORLD_SIZE="$effective_num_gpus"
+export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
+export MASTER_PORT
+export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$threads_per_gpu}"
+export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
+
+WORKFLOW_SCRIPT="scripts/experiments/run_forecasting_workflow.sh"
+if [[ ! -f "$WORKFLOW_SCRIPT" ]]; then
+    echo "ERROR: workflow script not found: $WORKFLOW_SCRIPT"
+    exit 1
+fi
+
+echo "========================================="
+echo "Multi-GPU forecasting workflow launcher"
+echo "========================================="
+echo "Job ID: ${SLURM_JOB_ID:-local}"
+echo "Node: ${SLURM_NODELIST:-$(hostname)}"
+echo "Project root: $PROJECT_ROOT"
+echo "Model type: $MODEL_TYPE"
+echo "Model config: $MODEL_CONFIG"
+echo "Datasets: $DATASETS"
+echo "Config dir: $CONFIG_DIR"
+echo "Output base dir: $OUTPUT_BASE_DIR"
+echo "Skip training: $SKIP_TRAINING"
+echo "Skip steps: ${SKIP_STEPS:-none}"
+echo "GPU list: ${selected_gpus[*]}"
+echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+echo "WORLD_SIZE: $WORLD_SIZE"
+echo "MASTER_PORT: $MASTER_PORT"
+echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
+echo "Run ID: $RUN_ID"
+echo "========================================="
+echo ""
+
+if [[ "$DRY_RUN" == "1" ]]; then
+    echo "DRY_RUN=1 set; command path validated without executing workflow."
+    exit 0
+fi
+
+MODEL_TYPE="$MODEL_TYPE" \
+MODEL_CONFIG="$MODEL_CONFIG" \
+DATASETS="$DATASETS" \
+CONFIG_DIR="$CONFIG_DIR" \
+OUTPUT_BASE_DIR="$OUTPUT_BASE_DIR" \
+SKIP_TRAINING="$SKIP_TRAINING" \
+SKIP_STEPS="$SKIP_STEPS" \
+EPOCHS="$EPOCHS" \
+BATCH_SIZE="$BATCH_SIZE" \
+VENV_NAME="$VENV_NAME" \
+RUN_ID="$RUN_ID" \
+bash "$WORKFLOW_SCRIPT"
+exit_code=$?
+
+echo ""
+echo "========================================="
+echo "Workflow completed: $(date)"
+echo "Exit code: $exit_code"
+echo "========================================="
+
+exit "$exit_code"

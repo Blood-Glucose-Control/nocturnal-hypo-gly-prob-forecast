@@ -4,7 +4,7 @@
 # This is the default configuration for TTM fine-tuning runs.
 # Copy this file and modify it for your experiment, then pass it via:
 #
-#   MODEL_CONFIG="configs/models/ttm/my_experiment.yaml" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   MODEL_CONFIG="configs/models/ttm/my_experiment.yaml" ./scripts/experiments/run_forecasting_workflow.sh
 #
 # Any parameter not specified here will use the TTMConfig defaults.
 # CLI arguments (--epochs, --batch-size) override values in this file.

@@ -40,7 +40,7 @@ GPU0="${GPU0:-0}"
 GPU1="${GPU1:-1}"
 REQUESTED_DATASETS_STR="${DATASETS:-lynch_2022 aleppo_2017 brown_2019 tamborlane_2008}"
 CONFIG_DIR="${CONFIG_DIR:-configs/data/holdout_10pct}"
-WORKFLOW="scripts/experiments/run_holdout_generic_workflow.sh"
+WORKFLOW="scripts/experiments/run_forecasting_workflow.sh"
 # Faster sweep default: keep only core data load + fine-tuning path.
 SKIP_STEPS="${SKIP_STEPS:-1 2 4 6 7}"
 ARTIFACT_DIR="trained_models/artifacts/moment"
@@ -161,7 +161,7 @@ run_train_lane() {
         local run_id
         run_id="$(date +%Y%m%d_%H%M%S)_${lane_name}_${RANDOM}"
         local out_dir
-        out_dir="${ARTIFACT_DIR}/$(date +%Y-%m-%d_%H:%M)_RID${run_id}_holdout_workflow"
+        out_dir="${ARTIFACT_DIR}/$(date +%Y-%m-%d_%H:%M)_RID${run_id}_forecasting_workflow"
 
         echo ""
         echo "------------------------------------------------------------"

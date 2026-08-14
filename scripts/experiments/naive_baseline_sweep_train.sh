@@ -29,7 +29,7 @@ cd "$PROJECT_ROOT"
 
 ALL_DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008"
 CONFIG_DIR="configs/data/holdout_10pct"
-WORKFLOW="scripts/experiments/run_holdout_generic_workflow.sh"
+WORKFLOW="scripts/experiments/run_forecasting_workflow.sh"
 MANIFEST="trained_models/artifacts/naive_baseline/sweep_manifest.txt"
 
 # Configs: "config_path" (all use ALL datasets, BG-only)
@@ -51,7 +51,7 @@ for config in "${CONFIGS[@]}"; do
 
     # Generate run ID matching workflow convention: YYYYMMDD_HHMMSS_PID
     RUN_ID="$(date +%Y%m%d_%H%M%S)_$$"
-    out_dir="trained_models/artifacts/naive_baseline/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_holdout_workflow"
+    out_dir="trained_models/artifacts/naive_baseline/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_forecasting_workflow"
 
     echo ""
     echo "============================================================"
