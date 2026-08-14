@@ -96,6 +96,23 @@ Regression profile (bounded end-to-end guardrail):
 bash scripts/experiments/forecasting_workflow_regression_smoke.sh
 ```
 
+## Canonical run manifest (pre-MLflow v1)
+
+The maintained forecasting training workflow and nocturnal evaluation workflow now
+emit a canonical run manifest at:
+
+- `<workflow_output_dir>/run_manifest.json`
+
+This includes the ratified v1 fields from the design handbook:
+
+- identity (`run_id`, `workflow_name`, `workflow_version`)
+- timing (`created_at_utc`, `started_at_utc`, `ended_at_utc`, `duration_seconds`)
+- code provenance (`git_commit`, `git_branch`, `git_dirty`, `repository`)
+- execution context (`launcher_type`, `host`, `user`, `python_version`, CUDA/SLURM context)
+- inputs (data/model config paths + resolved runtime config)
+- outputs (artifact root + checkpoint/prediction/plot paths)
+- result summary (`key_metrics`, `status`, `failure_message`)
+
 ## SLURM launcher entrypoints (cluster runs)
 
 For cluster execution, use the rewired launchers in `scripts/training/slurm/`

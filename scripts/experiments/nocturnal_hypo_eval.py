@@ -33,6 +33,7 @@ Usage:
 import argparse
 import json
 import logging
+import os
 import shlex
 import sys
 from datetime import datetime
@@ -53,6 +54,11 @@ from src.experiments.nocturnal.grand_summary import (
 )
 from src.models import create_model_and_config
 from src.utils import get_git_commit_hash, setup_file_logging, load_yaml_config
+from src.workflows.runtime.manifest import (
+    build_run_manifest,
+    utc_now,
+    write_run_manifest,
+)
 
 # Configure root logger for console output
 logging.basicConfig(
@@ -246,211 +252,327 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main():
-    args = parse_arguments()
+def _safe_int_from_env(name: str) -> Optional[int]:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
 
-    # Set CUDA device to avoid DataParallel issues
-    import os
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.cuda_device)
+def _infer_eval_run_id(args: argparse.Namespace, output_path: Path) -> str:
+    env_run_id = os.environ.get("RUN_ID")
+    if env_run_id:
+        return env_run_id
+    timestamp = utc_now().strftime("%Y%m%d_%H%M%S")
+    return f"{args.model}_{args.dataset}_{timestamp}_{output_path.name}"
 
-    # Load config from file if provided
-    config_dict = load_yaml_config(args.model_config) if args.model_config else {}
 
-    # Prepare model kwargs — pop model_type to avoid collision with the
-    # positional argument in create_model_and_config()
-    model_kwargs = {
-        **config_dict,
-        "context_length": args.context_length,
-        "forecast_length": args.forecast_length,
-    }
-    model_kwargs.pop("model_type", None)
+def _collect_eval_output_paths(
+    output_path: Path,
+    checkpoint_path: Optional[str],
+    written_results: Optional[Dict[str, Path]],
+) -> Dict[str, list[str]]:
+    checkpoint_paths = []
+    if checkpoint_path:
+        checkpoint_paths.append(str(Path(checkpoint_path)))
 
-    # Early check: covariate columns were passed for a model that cannot use them.
-    # Fail immediately before loading weights to prevent silent data leakage bugs.
-    requested_covariates = config_dict.get("covariate_cols") or args.covariate_cols
-    if requested_covariates and not model_supports_past_covariates(args.model):
-        logger.error(
-            "%s does not support past covariates but --covariate-cols %s was "
-            "passed. Remove --covariate-cols or use a model that accepts "
-            "past covariates (e.g., chronos2, tft, tide).",
-            args.model,
-            requested_covariates,
-        )
-        raise ValueError(
-            f"{args.model} does not support past covariates: {requested_covariates}"
-        )
+    prediction_paths: list[str] = []
+    if written_results:
+        prediction_paths = sorted(str(path) for path in written_results.values())
 
-    # Initialize model
-    logger.info(f"\n--- Initializing {args.model.upper()} ---")
-    model, config = create_model_and_config(
-        args.model, checkpoint=args.checkpoint, **model_kwargs
+    plot_suffixes = {".png", ".svg", ".pdf"}
+    plot_paths = sorted(
+        str(path)
+        for path in output_path.rglob("*")
+        if path.is_file() and path.suffix.lower() in plot_suffixes
     )
 
-    # Early check: ensure model supports probabilistic forecasting if requested
-    if args.probabilistic and not model.supports_probabilistic_forecast:
-        logger.error(
-            "%s does not support probabilistic forecasting. "
-            "Remove --probabilistic or use a model that supports it "
-            "(e.g., chronos2).",
-            args.model,
-        )
-        raise ValueError("Model does not support probabilistic forecasting")
+    return {
+        "checkpoint_paths": checkpoint_paths,
+        "prediction_paths": prediction_paths,
+        "plot_paths": plot_paths,
+    }
 
-    context_length = args.context_length
-    forecast_length = args.forecast_length
-    mode = "Fine-tuned" if args.checkpoint else "Zero-shot"
 
-    # Setup output directory and file logging BEFORE logging config,
-    # so everything goes to both console and file in one pass.
+def _summarize_eval_metrics(results: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not isinstance(results, dict):
+        return {}
+    summary: Dict[str, Any] = {}
+    for key in (
+        "overall_rmse",
+        "overall_wql",
+        "overall_brier",
+        "overall_mace",
+        "total_episodes",
+        "total_patients",
+    ):
+        value = results.get(key)
+        if isinstance(value, (int, float)):
+            summary[key] = value
+    return summary
+
+
+def main() -> int:
+    args = parse_arguments()
+    created_at_utc = utc_now()
+    started_at_utc = utc_now()
+    status = "failed"
+    failure_message: Optional[str] = None
+    results: Optional[Dict[str, Any]] = None
+    written_results: Optional[Dict[str, Path]] = None
+    resolved_config: Dict[str, Any] = {}
+    exit_code = 1
+
+    # Set CUDA device to avoid DataParallel issues
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.cuda_device)
+
     output_path = setup_output_directory(
         args.model,
         args.dataset,
-        context_length,
-        forecast_length,
+        args.context_length,
+        args.forecast_length,
         args.checkpoint,
         args.output_dir,
     )
     log_file = setup_file_logging(output_path, "nocturnal_evaluation.log")
 
-    # Log configuration (captured by both console and file handlers)
-    logger.info("=" * 60)
-    logger.info("NOCTURNAL HYPOGLYCEMIA EVALUATION")
-    logger.info("=" * 60)
-    logger.info(f"Model: {args.model} ({mode})")
-    logger.info(f"Dataset: {args.dataset}")
-    logger.info(f"Checkpoint: {args.checkpoint}")
-    logger.info(
-        f"Context: {context_length} steps ({context_length / STEPS_PER_HOUR:.1f} hours)"
-    )
-    logger.info(
-        f"Forecast: {forecast_length} steps ({forecast_length / STEPS_PER_HOUR:.1f} hours)"
-    )
-    logger.info(f"Output: {output_path}")
-    logger.info(f"Log file: {log_file}")
+    # Load config from file if provided
+    config_dict = load_yaml_config(args.model_config) if args.model_config else {}
 
-    # Load holdout data
-    logger.info("\n--- Loading Holdout Data ---")
-    registry = DatasetRegistry(holdout_config_dir=args.config_dir)
-    holdout_data = registry.load_holdout_data_only(args.dataset)
+    try:
+        # Prepare model kwargs — pop model_type to avoid collision with the
+        # positional argument in create_model_and_config()
+        model_kwargs = {
+            **config_dict,
+            "context_length": args.context_length,
+            "forecast_length": args.forecast_length,
+        }
+        model_kwargs.pop("model_type", None)
 
-    patient_col = get_patient_column(holdout_data)
-    if args.patients:
-        requested = set(args.patients)
-        available = set(holdout_data[patient_col].unique())
-        missing = requested - available
-        if missing:
-            logger.warning(
-                f"Requested patients not found in holdout data: {sorted(missing)}"
+        # Early check: covariate columns were passed for a model that cannot use them.
+        # Fail immediately before loading weights to prevent silent data leakage bugs.
+        requested_covariates = config_dict.get("covariate_cols") or args.covariate_cols
+        if requested_covariates and not model_supports_past_covariates(args.model):
+            logger.error(
+                "%s does not support past covariates but --covariate-cols %s was "
+                "passed. Remove --covariate-cols or use a model that accepts "
+                "past covariates (e.g., chronos2, tft, tide).",
+                args.model,
+                requested_covariates,
             )
-        holdout_data = holdout_data[holdout_data[patient_col].isin(args.patients)]
-    patients = holdout_data[patient_col].unique()
-    if args.patients:
-        logger.info(
-            f"Filtered to {len(patients)} of {len(args.patients)} requested patients: {list(patients)}"
+            raise ValueError(
+                f"{args.model} does not support past covariates: {requested_covariates}"
+            )
+
+        # Initialize model
+        logger.info(f"\n--- Initializing {args.model.upper()} ---")
+        model, config = create_model_and_config(
+            args.model, checkpoint=args.checkpoint, **model_kwargs
         )
-    logger.info(f"Evaluating patients: {list(patients)}")
-    logger.info(f"Total samples: {len(holdout_data):,}")
 
-    # Auto-detect covariates from model config if not explicitly specified.
-    # Fine-tuned models (e.g., Chronos-2 with IOB) need the same columns at
-    # predict time as were present during training.
-    covariate_cols = args.covariate_cols
-    if (
-        covariate_cols is None
-        and hasattr(config, "covariate_cols")
-        and config.covariate_cols
-    ):
-        covariate_cols = config.covariate_cols
-        logger.info("Using covariates from model config: %s", covariate_cols)
+        # Early check: ensure model supports probabilistic forecasting if requested
+        if args.probabilistic and not model.supports_probabilistic_forecast:
+            logger.error(
+                "%s does not support probabilistic forecasting. "
+                "Remove --probabilistic or use a model that supports it "
+                "(e.g., chronos2).",
+                args.model,
+            )
+            raise ValueError("Model does not support probabilistic forecasting")
 
-    # Build resolved config dict once (used in experiment_config.json and results)
-    resolved_config = {
-        **config_dict,
-        "context_length": context_length,
-        "forecast_length": forecast_length,
-        "covariate_cols": covariate_cols,
-    }
+        context_length = args.context_length
+        forecast_length = args.forecast_length
+        mode = "Fine-tuned" if args.checkpoint else "Zero-shot"
 
-    # Save experiment configuration
-    save_experiment_config(args, resolved_config, output_path)
+        # Log configuration (captured by both console and file handlers)
+        logger.info("=" * 60)
+        logger.info("NOCTURNAL HYPOGLYCEMIA EVALUATION")
+        logger.info("=" * 60)
+        logger.info(f"Model: {args.model} ({mode})")
+        logger.info(f"Dataset: {args.dataset}")
+        logger.info(f"Checkpoint: {args.checkpoint}")
+        logger.info(
+            f"Context: {context_length} steps ({context_length / STEPS_PER_HOUR:.1f} hours)"
+        )
+        logger.info(
+            f"Forecast: {forecast_length} steps ({forecast_length / STEPS_PER_HOUR:.1f} hours)"
+        )
+        logger.info(f"Output: {output_path}")
+        logger.info(f"Log file: {log_file}")
 
-    # Auto-detect covariates from model config if not explicitly specified.
-    # Fine-tuned models (e.g., Chronos-2 with IOB) need the same columns at
-    # predict time as were present during training.
-    covariate_cols = args.covariate_cols
-    if (
-        covariate_cols is None
-        and hasattr(config, "covariate_cols")
-        and config.covariate_cols
-    ):
-        covariate_cols = config.covariate_cols
-        logger.info("Using covariates from model config: %s", covariate_cols)
+        # Load holdout data
+        logger.info("\n--- Loading Holdout Data ---")
+        registry = DatasetRegistry(holdout_config_dir=args.config_dir)
+        holdout_data = registry.load_holdout_data_only(args.dataset)
 
-    # Run nocturnal evaluation
-    logger.info("\n--- Running Nocturnal Evaluation ---")
-    results = evaluate_nocturnal_forecasting(
-        model=model,
-        holdout_data=holdout_data,
-        context_length=context_length,
-        forecast_length=forecast_length,
-        covariate_cols=covariate_cols,
-        probabilistic=args.probabilistic,
-        compute_dilate=not args.no_dilate,
-    )
+        patient_col = get_patient_column(holdout_data)
+        if args.patients:
+            requested = set(args.patients)
+            available = set(holdout_data[patient_col].unique())
+            missing = requested - available
+            if missing:
+                logger.warning(
+                    f"Requested patients not found in holdout data: {sorted(missing)}"
+                )
+            holdout_data = holdout_data[holdout_data[patient_col].isin(args.patients)]
+        patients = holdout_data[patient_col].unique()
+        if args.patients:
+            logger.info(
+                f"Filtered to {len(patients)} of {len(args.patients)} requested patients: {list(patients)}"
+            )
+        logger.info(f"Evaluating patients: {list(patients)}")
+        logger.info(f"Total samples: {len(holdout_data):,}")
 
-    # Log overall results
-    logger.info("\n")
-    logger.info("=" * 60)
-    logger.info("OVERALL RESULTS")
-    logger.info("=" * 60)
-    logger.info(f"Overall RMSE: {results['overall_rmse']:.4f}")
-    if "overall_wql" in results:
-        logger.info(f"Overall WQL:  {results['overall_wql']:.4f}")
-        logger.info(f"Overall Brier@3.9: {results['overall_brier']:.4f}")
-        logger.info(f"Overall MACE: {results['overall_mace']:.4f}")
-        for lvl in (50, 80, 90, 95):
-            key = f"overall_coverage_{lvl}"
-            if key in results:
-                logger.info(f"Coverage {lvl}%%: {results[key]:.3f}")
-        for lvl in (50, 80, 90, 95):
-            key = f"overall_sharpness_{lvl}"
-            if key in results:
-                logger.info(f"Sharpness {lvl}%%: {results[key]:.3f}")
-    logger.info(f"Total midnight episodes: {results['total_episodes']}")
+        # Auto-detect covariates from model config if not explicitly specified.
+        # Fine-tuned models (e.g., Chronos-2 with IOB) need the same columns at
+        # predict time as were present during training.
+        covariate_cols = args.covariate_cols
+        if (
+            covariate_cols is None
+            and hasattr(config, "covariate_cols")
+            and config.covariate_cols
+        ):
+            covariate_cols = config.covariate_cols
+            logger.info("Using covariates from model config: %s", covariate_cols)
 
-    # Save results (3-tier storage)
-    tier_metadata = {
-        "evaluation_type": "nocturnal_hypoglycemia",
-        "model": args.model,
-        "mode": mode.lower(),
-        "checkpoint": args.checkpoint,
-        "dataset": args.dataset,
-        "timestamp": datetime.now().isoformat(),
-        "config": resolved_config,
-        "cov_bucket": bucket_from_covariates(
-            mode.lower().replace("-", ""), covariate_cols
-        ),
-    }
-    written = write_nocturnal_results(results, output_path, tier_metadata)
-    for tier_name, tier_path in written.items():
-        logger.info(f"  {tier_name}: {tier_path}")
+        # Build resolved config dict once (used in experiment_config.json and results)
+        resolved_config = {
+            **config_dict,
+            "context_length": context_length,
+            "forecast_length": forecast_length,
+            "covariate_cols": covariate_cols,
+        }
 
-    # Generate best/worst episode plots
-    logger.info("\n--- Generating Plots ---")
-    plot_best_worst_episodes(
-        per_episode=results["per_episode"],
-        output_path=output_path,
-        model_name=args.model,
-        dataset_name=args.dataset,
-        is_finetuned=bool(args.checkpoint),
-    )
+        # Save experiment configuration
+        save_experiment_config(args, resolved_config, output_path)
 
-    logger.info("\n")
-    logger.info("=" * 60)
-    logger.info("EVALUATION COMPLETE")
-    logger.info("=" * 60)
+        # Run nocturnal evaluation
+        logger.info("\n--- Running Nocturnal Evaluation ---")
+        results = evaluate_nocturnal_forecasting(
+            model=model,
+            holdout_data=holdout_data,
+            context_length=context_length,
+            forecast_length=forecast_length,
+            covariate_cols=covariate_cols,
+            probabilistic=args.probabilistic,
+            compute_dilate=not args.no_dilate,
+        )
+
+        # Log overall results
+        logger.info("\n")
+        logger.info("=" * 60)
+        logger.info("OVERALL RESULTS")
+        logger.info("=" * 60)
+        logger.info(f"Overall RMSE: {results['overall_rmse']:.4f}")
+        if "overall_wql" in results:
+            logger.info(f"Overall WQL:  {results['overall_wql']:.4f}")
+            logger.info(f"Overall Brier@3.9: {results['overall_brier']:.4f}")
+            logger.info(f"Overall MACE: {results['overall_mace']:.4f}")
+            for lvl in (50, 80, 90, 95):
+                key = f"overall_coverage_{lvl}"
+                if key in results:
+                    logger.info(f"Coverage {lvl}%%: {results[key]:.3f}")
+            for lvl in (50, 80, 90, 95):
+                key = f"overall_sharpness_{lvl}"
+                if key in results:
+                    logger.info(f"Sharpness {lvl}%%: {results[key]:.3f}")
+        logger.info(f"Total midnight episodes: {results['total_episodes']}")
+
+        # Save results (3-tier storage)
+        tier_metadata = {
+            "evaluation_type": "nocturnal_hypoglycemia",
+            "model": args.model,
+            "mode": mode.lower(),
+            "checkpoint": args.checkpoint,
+            "dataset": args.dataset,
+            "timestamp": datetime.now().isoformat(),
+            "config": resolved_config,
+            "cov_bucket": bucket_from_covariates(
+                mode.lower().replace("-", ""), covariate_cols
+            ),
+        }
+        written_results = write_nocturnal_results(results, output_path, tier_metadata)
+        for tier_name, tier_path in written_results.items():
+            logger.info(f"  {tier_name}: {tier_path}")
+
+        # Generate best/worst episode plots
+        logger.info("\n--- Generating Plots ---")
+        plot_best_worst_episodes(
+            per_episode=results["per_episode"],
+            output_path=output_path,
+            model_name=args.model,
+            dataset_name=args.dataset,
+            is_finetuned=bool(args.checkpoint),
+        )
+
+        logger.info("\n")
+        logger.info("=" * 60)
+        logger.info("EVALUATION COMPLETE")
+        logger.info("=" * 60)
+
+        status = "success"
+        failure_message = None
+        exit_code = 0
+        return exit_code
+    except KeyboardInterrupt:
+        status = "interrupted"
+        failure_message = "Evaluation interrupted by user."
+        logger.info("\n\nEvaluation interrupted by user")
+        exit_code = 1
+        return exit_code
+    except Exception as e:
+        status = "failed"
+        failure_message = str(e)
+        logger.error("Evaluation failed: %s", e)
+        logger.exception("Nocturnal evaluation failed")
+        exit_code = 1
+        return exit_code
+    finally:
+        ended_at_utc = utc_now()
+        output_paths = _collect_eval_output_paths(
+            output_path=output_path,
+            checkpoint_path=args.checkpoint,
+            written_results=written_results,
+        )
+        manifest = build_run_manifest(
+            run_id=_infer_eval_run_id(args, output_path),
+            parent_run_id=os.environ.get("PARENT_RUN_ID"),
+            workflow_name="nocturnal_hypo_eval",
+            workflow_version="v1",
+            created_at_utc=created_at_utc,
+            started_at_utc=started_at_utc,
+            ended_at_utc=ended_at_utc,
+            data_config_paths=[str(Path(args.config_dir) / f"{args.dataset}.yaml")],
+            data_snapshot_ids=[],
+            model_config_path=args.model_config,
+            experiment_config_path=str(output_path / "experiment_config.json"),
+            seed=_safe_int_from_env("SEED"),
+            resolved_runtime_config={
+                "model": args.model,
+                "dataset": args.dataset,
+                "config_dir": args.config_dir,
+                "context_length": args.context_length,
+                "forecast_length": args.forecast_length,
+                "patients": args.patients or [],
+                "cuda_device": args.cuda_device,
+                "probabilistic": args.probabilistic,
+                "no_dilate": args.no_dilate,
+                "covariate_cols": resolved_config.get("covariate_cols", []),
+            },
+            artifact_root=str(output_path),
+            checkpoint_paths=output_paths["checkpoint_paths"],
+            prediction_paths=output_paths["prediction_paths"],
+            plot_paths=output_paths["plot_paths"],
+            key_metrics=_summarize_eval_metrics(results),
+            status=status,
+            failure_message=failure_message,
+        )
+        manifest_path = write_run_manifest(output_dir=output_path, manifest=manifest)
+        logger.info("Run manifest saved to: %s", manifest_path)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

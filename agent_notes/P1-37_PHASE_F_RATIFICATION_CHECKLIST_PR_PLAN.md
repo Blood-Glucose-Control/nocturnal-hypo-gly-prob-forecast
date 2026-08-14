@@ -132,15 +132,22 @@ Goal: start canonical metadata logging before MLflow full integration.
 
 Checklist:
 
-- [ ] Define a run-manifest writer utility (JSON schema fields per handbook).
-- [ ] Wire manifest output into one training workflow and one evaluation workflow.
-- [ ] Persist manifest with run artifacts/logs.
-- [ ] Document manifest location/fields in reference docs.
+- [x] Define a run-manifest writer utility (JSON schema fields per handbook).
+- [x] Wire manifest output into one training workflow and one evaluation workflow.
+- [x] Persist manifest with run artifacts/logs.
+- [x] Document manifest location/fields in reference docs.
 
 Validation:
 
-- [ ] verify manifest file existence and required fields on sample runs.
-- [ ] verify failure status captures error summary fields.
+- [x] verify manifest file existence and required fields on sample runs.
+- [x] verify failure status captures error summary fields.
+
+Status note: Completed on 2026-08-14 — canonical manifest utility added at
+`src/workflows/runtime/manifest.py`; manifest emission wired into
+`src/workflows/forecasting/pipeline.py` and
+`scripts/experiments/nocturnal_hypo_eval.py`; reference documentation updated in
+`docs/user-guide/example-scripts-guide.md`; success and failure-path manifest
+output validated with sample runs.
 
 ## 4) Exit criteria for Phase F ratification workstream
 
