@@ -342,7 +342,7 @@ class TestMultitarget:
 class TestChronos2GPU:
     """Run with: pytest tests/models/test_chronos2.py -m slow"""
 
-    def test_fit_predict_evaluate(self):
+    def test_fit_predict(self):
         """Full pipeline: config → fit → predict."""
         config = Chronos2Config(fine_tune_steps=1, min_segment_length=100)
         model = Chronos2Forecaster(config)
