@@ -1,11 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
-# ADAPTIVE RESOURCE ALLOCATION
-# ==============================
-# Automatically detects available GPUs and launches training
-# with optimal configuration
+# ADAPTIVE WORKFLOW LAUNCHER
+# ==========================
+# Rewired to the maintained forecasting workflow wrapper:
+#   scripts/experiments/run_forecasting_workflow.sh
 #
-# Quick Start:
+# Quick start:
 #   sbatch scripts/training/slurm/adaptive_resources.sh
 #
 # Override detection:
@@ -22,176 +22,169 @@
 ##SBATCH --mail-user=your.email@example.com
 ##SBATCH --mail-type=BEGIN,END,FAIL
 
-# =============================================================================
-# CONFIGURATION
-# =============================================================================
+set -euo pipefail
 
-# Default configuration (can be overridden with --export)
-: ${CONFIG_PATH:="configs/models/ttm/fine_tune.yaml"}
-: ${DATA_CONFIG:="configs/data/kaggle_bris_t1d.yaml"}
-: ${OUTPUT_DIR:="trained_models/artifacts/ttm"}
-: ${EXPERIMENT_NAME:="adaptive_training"}
+datasets_was_set="${DATASETS+x}"
+config_dir_was_set="${CONFIG_DIR+x}"
 
-# =============================================================================
-# ENVIRONMENT SETUP
-# =============================================================================
+# Backward-compatible names
+: "${FORCE_NUM_GPUS:=}"
+: "${CONFIG_PATH:=configs/models/ttm/fine_tune.yaml}"
+: "${DATA_CONFIG:=}"
+: "${OUTPUT_DIR:=trained_models/artifacts/ttm}"
+: "${EXPERIMENT_NAME:=adaptive_training}"
 
-echo "========================================="
-echo "TTM Adaptive Resource Training"
-echo "========================================="
-echo "Job ID: $SLURM_JOB_ID"
-echo "Node: $SLURM_NODELIST"
-echo "Started: $(date)"
-echo "========================================="
-echo ""
+# Canonical wrapper inputs
+: "${MODEL_TYPE:=ttm}"
+: "${MODEL_CONFIG:=$CONFIG_PATH}"
+: "${DATASETS:=brown_2019}"
+: "${CONFIG_DIR:=configs/data/holdout_10pct}"
+: "${OUTPUT_BASE_DIR:=${OUTPUT_DIR%/}/${EXPERIMENT_NAME}}"
+: "${SKIP_TRAINING:=false}"
+: "${SKIP_STEPS:=1 2 4 6 7}"
+: "${EPOCHS:=}"
+: "${BATCH_SIZE:=}"
+: "${VENV_NAME:=$MODEL_TYPE}"
+: "${DRY_RUN:=0}"
+: "${RUN_ID:=${SLURM_JOB_ID:-$(date +%Y%m%d_%H%M%S)_$$}}"
 
-# Determine project root
-# Use SLURM_SUBMIT_DIR if available (when submitted via sbatch)
-# Otherwise fall back to detecting from script location
-if [ -n "$SLURM_SUBMIT_DIR" ]; then
+if [[ -n "$DATA_CONFIG" ]]; then
+    if [[ -z "$datasets_was_set" ]]; then
+        DATASETS="$(basename "${DATA_CONFIG%.yaml}")"
+    fi
+    if [[ -z "$config_dir_was_set" ]]; then
+        CONFIG_DIR="$(dirname "$DATA_CONFIG")"
+    fi
+fi
+
+case "$SKIP_TRAINING" in
+    1 | true | TRUE | yes | YES)
+        SKIP_TRAINING="true"
+        ;;
+    0 | false | FALSE | no | NO | "")
+        SKIP_TRAINING="false"
+        ;;
+    *)
+        echo "ERROR: SKIP_TRAINING must be one of: true/false/1/0/yes/no"
+        exit 1
+        ;;
+esac
+
+if [[ -n "${SLURM_SUBMIT_DIR:-}" ]]; then
     PROJECT_ROOT="$SLURM_SUBMIT_DIR"
-    echo "Using SLURM submit directory: $PROJECT_ROOT"
 else
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-    echo "Detected project root: $PROJECT_ROOT"
 fi
-
-# Navigate to project root
 cd "$PROJECT_ROOT"
 
-# Activate virtual environment
-# Prefer model-specific environment for training (see CONTRIBUTING.md)
-echo "Activating environment..."
-if [ -f ".venvs/ttm/bin/activate" ]; then
-    source ".venvs/ttm/bin/activate"
-    echo "✓ Activated model-specific environment: .venvs/ttm"
-elif [ -f ".noctprob-venv/bin/activate" ]; then
-    echo "⚠️  Model-specific env .venvs/ttm not found, using general dev environment"
-    echo "   Consider running: source scripts/setup_model_env.sh ttm"
-    source .noctprob-venv/bin/activate
-elif [ -f "venv/bin/activate" ]; then
-    source venv/bin/activate
-elif [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
-elif [ -n "$VIRTUAL_ENV" ]; then
-    echo "Using existing virtual environment: $VIRTUAL_ENV"
+detect_gpus() {
+    local -a detected
+    mapfile -t detected < <(
+        nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null || true
+    )
+    printf "%s\n" "${detected[@]}"
+}
+
+mapfile -t available_gpus < <(detect_gpus)
+available_count="${#available_gpus[@]}"
+
+if [[ -n "$FORCE_NUM_GPUS" ]]; then
+    target_num_gpus="$FORCE_NUM_GPUS"
 else
-    echo "⚠️  WARNING: No virtual environment found, using system Python"
+    target_num_gpus="$available_count"
 fi
 
-# =============================================================================
-# HARDWARE DETECTION
-# =============================================================================
-
-echo "Detecting hardware configuration..."
-echo ""
-
-# Detect number of GPUs
-if [ -n "$FORCE_NUM_GPUS" ]; then
-    NUM_GPUS=$FORCE_NUM_GPUS
-    echo "🔧 Using forced GPU count: $NUM_GPUS"
-else
-    NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)
-    echo "🔍 Detected $NUM_GPUS GPUs automatically"
+if (( target_num_gpus < 0 )); then
+    echo "ERROR: FORCE_NUM_GPUS must be >= 0"
+    exit 1
 fi
 
-echo ""
-echo "GPU Details:"
-nvidia-smi --query-gpu=index,name,memory.total,memory.free --format=csv
-echo ""
-
-# =============================================================================
-# RESOURCE CONFIGURATION
-# =============================================================================
-
-# Adjust resources based on GPU count
-if [ "$NUM_GPUS" -eq 0 ]; then
-    echo "⚠️  WARNING: No GPUs detected! Training will use CPU (very slow)"
-    USE_CPU=true
-    STRATEGY="cpu"
-elif [ "$NUM_GPUS" -eq 1 ]; then
-    echo "📱 Single GPU detected - using simple training"
-    STRATEGY="single_gpu"
-    export CUDA_VISIBLE_DEVICES=0
-elif [ "$NUM_GPUS" -le 4 ]; then
-    echo "🚀 Multiple GPUs detected - using DDP strategy"
-    STRATEGY="multi_gpu_ddp"
+declare -a selected_gpus
+if (( target_num_gpus == 0 )) || (( available_count == 0 )); then
+    strategy="cpu"
 else
-    echo "🚀🚀 Large GPU allocation - using optimized DDP"
-    STRATEGY="multi_gpu_ddp_optimized"
+    if (( target_num_gpus > available_count )); then
+        target_num_gpus="$available_count"
+    fi
+    selected_gpus=("${available_gpus[@]:0:target_num_gpus}")
+    if (( target_num_gpus == 1 )); then
+        strategy="single_gpu"
+    else
+        strategy="multi_gpu"
+    fi
 fi
 
-# Set optimal thread count
-if [ "$NUM_GPUS" -gt 1 ]; then
-    export OMP_NUM_THREADS=$((SLURM_CPUS_PER_TASK / NUM_GPUS))
+cpus_per_task="${SLURM_CPUS_PER_TASK:-32}"
+if [[ "$strategy" == "cpu" ]]; then
+    export CUDA_VISIBLE_DEVICES=""
+    export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$cpus_per_task}"
+    export WORLD_SIZE=1
 else
-    export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+    gpu_csv="$(IFS=,; echo "${selected_gpus[*]}")"
+    threads_per_gpu=$((cpus_per_task / target_num_gpus))
+    if (( threads_per_gpu < 1 )); then
+        threads_per_gpu=1
+    fi
+    export CUDA_DEVICE_ORDER=PCI_BUS_ID
+    export CUDA_VISIBLE_DEVICES="$gpu_csv"
+    export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$threads_per_gpu}"
+    export WORLD_SIZE="$target_num_gpus"
+fi
+export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
+
+WORKFLOW_SCRIPT="scripts/experiments/run_forecasting_workflow.sh"
+if [[ ! -f "$WORKFLOW_SCRIPT" ]]; then
+    echo "ERROR: workflow script not found: $WORKFLOW_SCRIPT"
+    exit 1
 fi
 
-echo ""
-echo "Configuration selected:"
-echo "  Strategy: $STRATEGY"
-echo "  GPUs: $NUM_GPUS"
-echo "  Threads per GPU: $OMP_NUM_THREADS"
-echo "  Model config: $CONFIG_PATH"
-echo "  Output dir: $OUTPUT_DIR"
+echo "========================================="
+echo "Adaptive forecasting workflow launcher"
+echo "========================================="
+echo "Job ID: ${SLURM_JOB_ID:-local}"
+echo "Node: ${SLURM_NODELIST:-$(hostname)}"
+echo "Project root: $PROJECT_ROOT"
+echo "Model type: $MODEL_TYPE"
+echo "Model config: $MODEL_CONFIG"
+echo "Datasets: $DATASETS"
+echo "Config dir: $CONFIG_DIR"
+echo "Output base dir: $OUTPUT_BASE_DIR"
+echo "Skip training: $SKIP_TRAINING"
+echo "Skip steps: ${SKIP_STEPS:-none}"
+echo "Detected GPUs: $available_count"
+echo "Target GPUs: $target_num_gpus"
+echo "Strategy: $strategy"
+echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<none>}"
+echo "WORLD_SIZE: $WORLD_SIZE"
+echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
+echo "Run ID: $RUN_ID"
 echo "========================================="
 echo ""
 
-# Create output directories
-mkdir -p "$OUTPUT_DIR"
-mkdir -p "logs"
+if [[ "$DRY_RUN" == "1" ]]; then
+    echo "DRY_RUN=1 set; command path validated without executing workflow."
+    exit 0
+fi
 
-# =============================================================================
-# TRAINING EXECUTION
-# =============================================================================
-
-echo "Starting training with $STRATEGY strategy..."
-echo ""
-
-# Fail-fast while stale example launchers are being removed/reworked.
-echo "❌ This launcher is temporarily deprecated."
-echo "Reason: adaptive flow depended on legacy example entrypoints pruned in scripts cleanup."
-echo "Next step: rewire adaptive launcher to a maintained training entrypoint in follow-up PR."
-echo "For now, use scripts/experiments/run_holdout_generic_workflow.sh for end-to-end workflow runs."
-exit 2
-
-# Capture exit code
+MODEL_TYPE="$MODEL_TYPE" \
+MODEL_CONFIG="$MODEL_CONFIG" \
+DATASETS="$DATASETS" \
+CONFIG_DIR="$CONFIG_DIR" \
+OUTPUT_BASE_DIR="$OUTPUT_BASE_DIR" \
+SKIP_TRAINING="$SKIP_TRAINING" \
+SKIP_STEPS="$SKIP_STEPS" \
+EPOCHS="$EPOCHS" \
+BATCH_SIZE="$BATCH_SIZE" \
+VENV_NAME="$VENV_NAME" \
+RUN_ID="$RUN_ID" \
+bash "$WORKFLOW_SCRIPT"
 exit_code=$?
 
-# =============================================================================
-# COMPLETION AND REPORTING
-# =============================================================================
-
 echo ""
 echo "========================================="
-echo "Training completed: $(date)"
+echo "Workflow completed: $(date)"
 echo "Exit code: $exit_code"
-echo "Duration: $SECONDS seconds ($(($SECONDS / 3600))h $(($SECONDS % 3600 / 60))m)"
 echo "========================================="
 
-if [ $exit_code -eq 0 ]; then
-    echo "✅ SUCCESS: Model saved to $OUTPUT_DIR/$EXPERIMENT_NAME"
-    echo ""
-
-    # Calculate efficiency metrics
-    if [ "$NUM_GPUS" -gt 0 ]; then
-        duration_hours=$(echo "scale=2; $SECONDS / 3600" | bc)
-        gpu_hours=$(echo "scale=2; $duration_hours * $NUM_GPUS" | bc)
-        echo "Resource usage:"
-        echo "  Total time: ${duration_hours}h"
-        echo "  GPU-hours: ${gpu_hours}"
-        echo "  Strategy used: $STRATEGY"
-    fi
-else
-    echo "❌ FAILED: Check logs/train_${SLURM_JOB_ID}.log for details"
-    echo ""
-    echo "Troubleshooting tips:"
-    echo "  1. Check GPU availability: nvidia-smi"
-    echo "  2. Verify environment: source .noctprob-venv/bin/activate"
-    echo "  3. Review error logs above"
-    echo "  4. For distributed training issues, check NCCL configuration"
-fi
-
-exit $exit_code
+exit "$exit_code"

@@ -8,15 +8,16 @@ We welcome contributions to the Nocturnal Hypo-Gly Prob Forecast project! This d
 2. [Getting Started](#getting-started)
 3. [Development Setup](#development-setup)
 4. [Project Structure](#project-structure)
-5. [Contributing Guidelines](#contributing-guidelines)
-6. [Pull Request Process](#pull-request-process)
-7. [Testing](#testing)
-8. [Code Style](#code-style)
-9. [Documentation](#documentation)
-10. [Issue Reporting](#issue-reporting)
-11. [Development Workflow](#development-workflow)
-12. [Model Training Guidelines](#model-training-guidelines)
-13. [Data Handling Guidelines](#data-handling-guidelines)
+5. [Repository Architecture Boundary Checklist](#repository-architecture-boundary-checklist)
+6. [Contributing Guidelines](#contributing-guidelines)
+7. [Pull Request Process](#pull-request-process)
+8. [Testing](#testing)
+9. [Code Style](#code-style)
+10. [Documentation](#documentation)
+11. [Issue Reporting](#issue-reporting)
+12. [Development Workflow](#development-workflow)
+13. [Model Training Guidelines](#model-training-guidelines)
+14. [Data Handling Guidelines](#data-handling-guidelines)
 
 ---
 
@@ -122,8 +123,9 @@ This project is committed to providing a welcoming and inclusive environment for
 nocturnal-hypo-gly-prob-forecast/
 ├── src/                          # Source code
 │   ├── data/                     # Data loading and processing
-│   ├── train/                    # Model training pipelines
-│   ├── eval/                     # Evaluation and metrics
+│   ├── models/                   # Model implementations/factory adapters
+│   ├── evaluation/               # Evaluation metrics and analysis modules
+│   ├── workflows/                # Multi-step runtime pipelines/orchestrators
 │   ├── tuning/                   # Hyperparameter tuning
 │   └── utils/                    # Utility functions
 ├── tests/                        # Test suite
@@ -141,6 +143,34 @@ nocturnal-hypo-gly-prob-forecast/
 - **Data Pipeline**: Diabetes dataset processing and caching
 - **Evaluation**: Model evaluation and benchmarking
 - **Cache System**: Efficient data storage and retrieval
+
+---
+
+## Repository Architecture Boundary Checklist
+
+Before opening a PR, confirm all items below. These are required repository
+boundary rules for public-release quality.
+
+Reference: [Repository Design Handbook](architecture/repository-design-handbook.md)
+
+- [ ] Multi-step runtime pipeline logic lives in `src/workflows/` (or planned
+      migration target), not in shell scripts.
+- [ ] Orchestration logic is Python-first; shell scripts are thin wrappers for
+      environment activation and launcher execution (local/tmux/SLURM).
+- [ ] `scripts/examples/` contains teaching-oriented examples, not hidden
+      production business logic.
+- [ ] Model factory/registry logic remains in `src/models/` modules.
+- [ ] Shared config loading/parsing uses shared utility/config modules (no
+      per-script duplicate parsers).
+- [ ] New/changed workflows write canonical run metadata manifests.
+- [ ] Documentation updates are included for any entrypoint path/contract change.
+
+Terminology contract:
+
+- `pipeline`: one bounded runtime flow
+- `workflow`: user-facing sequence over one run
+- `orchestrator`: coordinator for many runs/jobs
+- `example`: pedagogical walkthrough
 
 ---
 

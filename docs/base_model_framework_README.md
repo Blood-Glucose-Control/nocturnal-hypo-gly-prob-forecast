@@ -177,8 +177,8 @@ Use maintained scripts:
 # Data holdout API sanity checks
 python scripts/examples/example_data_holdout_system.py
 
-# Generic model workflow CLI
-python scripts/examples/example_holdout_generic_workflow.py --help
+# Generic model workflow CLI (production entrypoint)
+python scripts/experiments/forecasting_workflow_orchestrator.py --help
 
 # Batch prediction consistency check
 python scripts/experiments/validate_predict_batch.py --help
@@ -202,7 +202,7 @@ python scripts/experiments/validate_predict_batch.py --help
 
 ## Next Steps
 
-1. **Test Framework**: Run `example_holdout_generic_workflow.py --help`
+1. **Test Framework**: Run `forecasting_workflow_orchestrator.py --help`
 2. **Integrate Data**: Adapt `_prepare_training_data()` to your specific data format
 3. **Test Training**: Run actual training with your datasets
 4. **Add Models**: Implement Chronos, TimeGPT using same pattern

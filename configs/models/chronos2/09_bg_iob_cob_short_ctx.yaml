@@ -24,7 +24,7 @@
 #   MODEL_CONFIG="configs/models/chronos2/09_bg_iob_cob_short_ctx.yaml" \
 #   DATASETS="aleppo_2017" \
 #   SKIP_TRAINING="false" \
-#     ./scripts/experiments/run_holdout_generic_workflow.sh
+#     ./scripts/experiments/run_forecasting_workflow.sh
 # =============================================================================
 
 model_path: "autogluon/chronos-2"

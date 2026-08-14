@@ -75,7 +75,7 @@ CONFIGS=(
 )
 
 CONFIG_DIR="configs/data/holdout_10pct"
-WORKFLOW="scripts/experiments/run_holdout_generic_workflow.sh"
+WORKFLOW="scripts/experiments/run_forecasting_workflow.sh"
 MANIFEST_DIR="trained_models/artifacts/patchtst"
 SKIP_STEPS="${SKIP_STEPS:-1 2 4 7}"
 MANIFEST="${MANIFEST_DIR}/sweep_manifest.txt"

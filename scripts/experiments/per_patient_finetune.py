@@ -3,7 +3,7 @@
 Per-Patient Fine-Tuning Script (Stage 2).
 
 Implements the two-stage fine-tuning protocol for personalized glucose forecasting:
-  - Stage 1: Population model trained via the holdout workflow (external)
+  - Stage 1: Population model trained via the forecasting workflow (external)
   - Stage 2: Per-patient adaptation of the Stage 1 checkpoint (this script)
 
 Uses LOPO (leave-one-patient-out) evaluation: the target patient must be in the
@@ -224,7 +224,7 @@ def setup_batch_output_dir(
     model_type: str,
     output_dir: Optional[str],
 ) -> Path:
-    """Create output directory for batch mode, following holdout workflow convention."""
+    """Create output directory for batch mode, following forecasting workflow convention."""
     if output_dir is not None:
         path = Path(output_dir)
     else:
@@ -683,7 +683,7 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Per-patient Stage 2 fine-tuning on holdout patient(s). "
-            "Requires a Stage 1 checkpoint trained via the holdout workflow."
+            "Requires a Stage 1 checkpoint trained via the forecasting workflow."
         )
     )
     parser.add_argument(

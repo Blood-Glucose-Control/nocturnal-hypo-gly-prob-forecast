@@ -663,7 +663,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         #
         # NOTE: This is a fallback for users running the training module directly.
         # For reliable configuration, set PYTORCH_ALLOC_CONF in your shell/runner
-        # script BEFORE invoking Python (e.g., in run_holdout_generic_workflow.sh).
+        # script BEFORE invoking Python (e.g., in run_forecasting_workflow.sh).
         # Setting it here may not take effect if CUDA was already initialized.
         if "PYTORCH_ALLOC_CONF" not in os.environ:
             os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"

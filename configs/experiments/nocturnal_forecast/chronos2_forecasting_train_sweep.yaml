@@ -1,0 +1,34 @@
+model_type: chronos2
+jobs:
+  - model_config: configs/models/chronos2/00_bg_only.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/chronos2/01_bg_iob_insulin_availability.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022]
+  - model_config: configs/models/chronos2/02_bg_iob.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022]
+  - model_config: configs/models/chronos2/03_joint_bg_iob.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022]
+  - model_config: configs/models/chronos2/04_bg_iob_ia_high_lr.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022]
+  - model_config: configs/models/chronos2/05_bg_iob_short_ctx.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022]
+  - model_config: configs/models/chronos2/06_bg_iob_cob.yaml
+    datasets: [aleppo_2017]
+  - model_config: configs/models/chronos2/07_bg_full_features.yaml
+    datasets: [aleppo_2017]
+  - model_config: configs/models/chronos2/08_bg_iob_cob_high_lr.yaml
+    datasets: [aleppo_2017]
+  - model_config: configs/models/chronos2/09_bg_iob_cob_short_ctx.yaml
+    datasets: [aleppo_2017]
+  - model_config: configs/models/chronos2/10_bg_iob_ia_high_lr_ctx256.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022]
+  - model_config: configs/models/chronos2/11_bg_iob_ia_high_lr_ctx128.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022]
+  - model_config: configs/models/chronos2/12_bg_iob_ia_high_lr_ctx64.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022]
+  - model_config: configs/models/chronos2/13_bg_iob_cob_high_lr_ctx256.yaml
+    datasets: [aleppo_2017]
+  - model_config: configs/models/chronos2/14_bg_iob_cob_high_lr_ctx128.yaml
+    datasets: [aleppo_2017]
+  - model_config: configs/models/chronos2/15_bg_iob_cob_high_lr_ctx64.yaml
+    datasets: [aleppo_2017]

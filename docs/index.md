@@ -52,6 +52,10 @@ Documentation is currently under construction.
 
 [See Usage Instructions](user-guide/usage.md#basic-usage)
 
+## Architecture
+
+[Repository Design Handbook](architecture/repository-design-handbook.md)
+
 ## MkDocs
 This documentation is made with [mkdocs.org](https://www.mkdocs.org).
 

@@ -16,7 +16,7 @@
 #   MODEL_CONFIG="configs/models/chronos2/bg_only_test.yaml" \
 #   DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" \
 #   SKIP_TRAINING="false" \
-#     ./scripts/experiments/run_holdout_generic_workflow.sh
+#     ./scripts/experiments/run_forecasting_workflow.sh
 # =============================================================================
 
 model_path: "autogluon/chronos-2"

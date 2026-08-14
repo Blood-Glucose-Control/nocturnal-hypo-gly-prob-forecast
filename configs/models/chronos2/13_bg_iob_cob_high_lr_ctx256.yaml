@@ -19,7 +19,7 @@
 #   MODEL_CONFIG="configs/models/chronos2/13_bg_iob_cob_high_lr_ctx256.yaml" \
 #   DATASETS="aleppo_2017" \
 #   SKIP_TRAINING="false" \
-#     ./scripts/experiments/run_holdout_generic_workflow.sh
+#     ./scripts/experiments/run_forecasting_workflow.sh
 # =============================================================================
 
 model_path: "autogluon/chronos-2"

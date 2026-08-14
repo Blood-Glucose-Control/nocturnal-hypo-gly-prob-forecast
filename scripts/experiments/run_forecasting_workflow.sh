@@ -1,48 +1,48 @@
 #!/bin/bash
 #
-# HOLDOUT SYSTEM WORKFLOW - LOCAL/NON-SLURM VERSION
+# FORECASTING WORKFLOW - LOCAL/NON-SLURM VERSION
 # ==================================================
 # Complete end-to-end workflow for local development and testing.
-# This is the maintained local wrapper for the generic holdout workflow script.
+# This is the maintained local wrapper for the generic forecasting workflow script.
 #
 # Quick Start (uses defaults: MODEL_TYPE=ttm, CONFIG_DIR=configs/data/holdout_5pct):
-#   ./scripts/experiments/run_holdout_generic_workflow.sh
+#   ./scripts/experiments/run_forecasting_workflow.sh
 #
 # With specific datasets:
-#   DATASETS="lynch_2022 brown_2019" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   DATASETS="lynch_2022 brown_2019" ./scripts/experiments/run_forecasting_workflow.sh
 #
 # With specific model type:
-#   MODEL_TYPE="chronos" ./scripts/experiments/run_holdout_generic_workflow.sh
-#   MODEL_TYPE="moment" DATASETS="lynch_2022 aleppo_2017" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   MODEL_TYPE="chronos" ./scripts/experiments/run_forecasting_workflow.sh
+#   MODEL_TYPE="moment" DATASETS="lynch_2022 aleppo_2017" ./scripts/experiments/run_forecasting_workflow.sh
 #
 # With specific config directory (e.g., different holdout percentage):
-#   CONFIG_DIR="configs/data/holdout_10pct" ./scripts/experiments/run_holdout_generic_workflow.sh
-#   CONFIG_DIR="configs/data/holdout" DATASETS="brown_2019" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   CONFIG_DIR="configs/data/holdout_10pct" ./scripts/experiments/run_forecasting_workflow.sh
+#   CONFIG_DIR="configs/data/holdout" DATASETS="brown_2019" ./scripts/experiments/run_forecasting_workflow.sh
 #
 # Combining model type and config location:
-#   MODEL_TYPE="ttm" CONFIG_DIR="configs/data/holdout_10pct" ./scripts/experiments/run_holdout_generic_workflow.sh
-#   MODEL_TYPE="chronos" CONFIG_DIR="configs/data/holdout" DATASETS="lynch_2022 brown_2019" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   MODEL_TYPE="ttm" CONFIG_DIR="configs/data/holdout_10pct" ./scripts/experiments/run_forecasting_workflow.sh
+#   MODEL_TYPE="chronos" CONFIG_DIR="configs/data/holdout" DATASETS="lynch_2022 brown_2019" ./scripts/experiments/run_forecasting_workflow.sh
 #
 # With specific GPU (useful on multi-GPU machines):
-#   CUDA_VISIBLE_DEVICES=0 ./scripts/experiments/run_holdout_generic_workflow.sh
-#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="chronos" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   CUDA_VISIBLE_DEVICES=0 ./scripts/experiments/run_forecasting_workflow.sh
+#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="chronos" ./scripts/experiments/run_forecasting_workflow.sh
 #
 # With model config YAML (specify TTM parameters like features, scaler, split, etc.):
-#   MODEL_CONFIG="configs/models/ttm/default.yaml" ./scripts/experiments/run_holdout_generic_workflow.sh
-#   MODEL_CONFIG="configs/models/ttm/fine_tune.yaml" DATASETS="lynch_2022 brown_2019" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   MODEL_CONFIG="configs/models/ttm/default.yaml" ./scripts/experiments/run_forecasting_workflow.sh
+#   MODEL_CONFIG="configs/models/ttm/fine_tune.yaml" DATASETS="lynch_2022 brown_2019" ./scripts/experiments/run_forecasting_workflow.sh
 #
 # All datasets combined with specific model:
-#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="ttm" MODEL_CONFIG="configs/models/ttm/00_fine_tune_cgm_only.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="ttm" MODEL_CONFIG="configs/models/ttm/00_fine_tune_cgm_only.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/experiments/run_forecasting_workflow.sh
 #
 # Chronos2, all datasets, cgm-only/BG-only config (fast smoke test):
-#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="chronos2" MODEL_CONFIG="configs/models/chronos2/01_bg_iob_insulin_availability.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="chronos2" MODEL_CONFIG="configs/models/chronos2/01_bg_iob_insulin_availability.yaml" CONFIG_DIR="configs/data/holdout_10pct" DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/experiments/run_forecasting_workflow.sh
 # TimeGrad, all datasets, CGM only (10 epochs):
-#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="timegrad" MODEL_CONFIG="configs/models/timegrad/cgm_only.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=1 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="timegrad" MODEL_CONFIG="configs/models/timegrad/cgm_only.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=1 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/experiments/run_forecasting_workflow.sh
 # Timesfm, all datasets, CGM only (10 epochs):
-#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="timesfm" MODEL_CONFIG="configs/models/timesfm/fine_tune.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=3 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="timesfm" MODEL_CONFIG="configs/models/timesfm/fine_tune.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=3 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/experiments/run_forecasting_workflow.sh
 #
 # TiDE, all datasets, BG + covariates:
-#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="tide" MODEL_CONFIG="configs/models/tide/from_scratch.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=1 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/experiments/run_holdout_generic_workflow.sh
+#   CUDA_VISIBLE_DEVICES=0 MODEL_TYPE="tide" MODEL_CONFIG="configs/models/tide/from_scratch.yaml" CONFIG_DIR="configs/data/holdout_10pct" EPOCHS=1 DATASETS="lynch_2022 aleppo_2017 brown_2019 tamborlane_2008" SKIP_TRAINING="false" ./scripts/experiments/run_forecasting_workflow.sh
 
 # =============================================================================
 # CONFIGURATION
@@ -56,7 +56,7 @@ RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 # DATASETS can be space-separated list: "lynch_2022 aleppo_2017 brown_2019"
 : ${DATASETS:="tamborlane_2008 brown_2019"}
 : ${CONFIG_DIR:="configs/data/holdout_10pct"}
-: ${OUTPUT_BASE_DIR:="trained_models/artifacts/${MODEL_TYPE}/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_holdout_workflow"}
+: ${OUTPUT_BASE_DIR:="trained_models/artifacts/${MODEL_TYPE}/$(date +%Y-%m-%d_%H:%M)_RID${RUN_ID}_forecasting_workflow"}
 : ${SKIP_TRAINING:="true"}
 : ${SKIP_STEPS:=""}      # Space-separated step numbers to skip (e.g., SKIP_STEPS="7" or SKIP_STEPS="4 7")
 : ${EPOCHS:=""}          # Leave empty to use YAML config value; set to override (e.g., EPOCHS=10)
@@ -73,7 +73,7 @@ RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 # =============================================================================
 
 echo "========================================="
-echo "Holdout System Workflow (Local/Non-SLURM)"
+echo "Forecasting Workflow (Local/Non-SLURM)"
 echo "========================================="
 echo "Run ID: $RUN_ID"
 echo "Started: $(date)"
@@ -188,71 +188,50 @@ echo "==================================================================="
 echo ""
 
 # Build command - pass all datasets together
-CMD="python scripts/examples/example_holdout_generic_workflow.py"
-CMD="$CMD --model-type $MODEL_TYPE"
-CMD="$CMD --datasets $DATASETS"
-CMD="$CMD --config-dir $CONFIG_DIR"
-CMD="$CMD --output-dir $OUTPUT_BASE_DIR"
+read -r -a DATASET_ARGS <<< "$DATASETS"
+read -r -a SKIP_STEP_ARGS <<< "$SKIP_STEPS"
+
+CMD=(python scripts/experiments/forecasting_workflow_orchestrator.py)
+CMD+=(--model-type "$MODEL_TYPE")
+CMD+=(--datasets "${DATASET_ARGS[@]}")
+CMD+=(--config-dir "$CONFIG_DIR")
+CMD+=(--output-dir "$OUTPUT_BASE_DIR")
 if [ -n "$EPOCHS" ]; then
-    CMD="$CMD --epochs $EPOCHS"
+    CMD+=(--epochs "$EPOCHS")
 fi
 if [ -n "$BATCH_SIZE" ]; then
-    CMD="$CMD --batch-size $BATCH_SIZE"
+    CMD+=(--batch-size "$BATCH_SIZE")
 fi
 if [ -n "$MODEL_CONFIG" ]; then
-    CMD="$CMD --model-config $MODEL_CONFIG"
+    CMD+=(--model-config "$MODEL_CONFIG")
 fi
 if [ "$SKIP_TRAINING" = "true" ]; then
-    CMD="$CMD --skip-training"
+    CMD+=(--skip-training)
 fi
 if [ -n "$SKIP_STEPS" ]; then
-    CMD="$CMD --skip-steps $SKIP_STEPS"
+    CMD+=(--skip-steps "${SKIP_STEP_ARGS[@]}")
 fi
 
 echo "Running combined workflow..."
-# Pretty print for logs (display only)
 echo "Command:"
-echo "  python scripts/examples/example_holdout_generic_workflow.py \\"
-echo "    --model-type $MODEL_TYPE \\"
-echo "    --datasets $DATASETS \\"
-echo "    --config-dir $CONFIG_DIR \\"
-echo "    --output-dir $OUTPUT_BASE_DIR \\"
-if [ -n "$EPOCHS" ]; then
-    echo "    --epochs $EPOCHS \\"
-fi
-if [ -n "$BATCH_SIZE" ]; then
-    echo "    --batch-size $BATCH_SIZE \\"
-fi
-if [ -n "$MODEL_CONFIG" ]; then
-    echo "    --model-config $MODEL_CONFIG \\"
-fi
-if [ "$SKIP_TRAINING" = "true" ]; then
-    echo "    --skip-training \\"
-fi
-if [ -n "$SKIP_STEPS" ]; then
-    echo "    --skip-steps $SKIP_STEPS \\"
-fi
+printf "  "
+printf "%q " "${CMD[@]}"
+echo
 echo ""
 echo ""
 
 # Create log filename with run ID (matches SLURM pattern with job ID)
-LOG_FILE="trained_models/logs/holdout_workflow_${MODEL_TYPE}_${RUN_ID}.log"
+LOG_FILE="trained_models/logs/forecasting_workflow_${MODEL_TYPE}_${RUN_ID}.log"
 
 # Also create stdout/stderr equivalent logs for parity with SLURM
-STDOUT_LOG="trained_models/logs/holdout_${MODEL_TYPE}_${RUN_ID}.out"
-STDERR_LOG="trained_models/logs/holdout_${MODEL_TYPE}_${RUN_ID}.err"
+STDOUT_LOG="trained_models/logs/forecasting_${MODEL_TYPE}_${RUN_ID}.out"
+STDERR_LOG="trained_models/logs/forecasting_${MODEL_TYPE}_${RUN_ID}.err"
 
 # Run the workflow script with all datasets
 # Capture combined output to log file while showing to terminal
 # Also save stdout and stderr separately for SLURM parity
-{
-    $CMD 2>&1
-    echo $? > /tmp/exit_code_${RUN_ID}
-} | tee "$LOG_FILE"
-
-# Capture exit code from the python command (not tee)
-exit_code=$(cat /tmp/exit_code_${RUN_ID} 2>/dev/null || echo 1)
-rm -f /tmp/exit_code_${RUN_ID}
+"${CMD[@]}" 2>&1 | tee "$LOG_FILE"
+exit_code=${PIPESTATUS[0]}
 
 # Copy the combined log as both .out and .err for SLURM parity
 # (In local runs, stdout/stderr are combined unlike SLURM which separates them)
@@ -297,9 +276,9 @@ if [ $overall_exit_code -eq 0 ]; then
     echo "✅ Combined training successful"
     echo "   Model: ${OUTPUT_BASE_DIR}/model.pt"
     echo "   Logs: ${OUTPUT_BASE_DIR}/"
-    echo "     - holdout_${MODEL_TYPE}_${RUN_ID}.out (stdout)"
-    echo "     - holdout_${MODEL_TYPE}_${RUN_ID}.err (stderr)"
-    echo "     - holdout_workflow_${MODEL_TYPE}_${RUN_ID}.log (workflow log)"
+    echo "     - forecasting_${MODEL_TYPE}_${RUN_ID}.out (stdout)"
+    echo "     - forecasting_${MODEL_TYPE}_${RUN_ID}.err (stderr)"
+    echo "     - forecasting_workflow_${MODEL_TYPE}_${RUN_ID}.log (workflow log)"
 else
     echo "❌ Combined training failed"
     echo "   Logs: ${OUTPUT_BASE_DIR}/"

@@ -9,7 +9,7 @@
 #   MODEL_CONFIG="configs/models/ttm/fine_tune_with_carbs.yaml" \
 #   DATASETS="lynch_2022 aleppo_2017" \
 #   SKIP_TRAINING="false" \
-#   ./scripts/experiments/run_holdout_generic_workflow.sh
+#   ./scripts/experiments/run_forecasting_workflow.sh
 # =============================================================================
 
 model_path: "ibm-granite/granite-timeseries-ttm-r2"

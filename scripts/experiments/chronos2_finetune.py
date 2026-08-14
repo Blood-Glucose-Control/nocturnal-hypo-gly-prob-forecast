@@ -13,10 +13,10 @@ using the model class interface instead of raw AutoGluon calls.
 
 Usage:
     # On watgpu (GPU required for fine-tuning)
-    python scripts/examples/example_chronos2_finetune.py
+    python scripts/experiments/chronos2_finetune.py
 
     # Custom steps / output
-    python scripts/examples/example_chronos2_finetune.py --steps 5000 --output-dir models/chronos2_quick
+    python scripts/experiments/chronos2_finetune.py --steps 5000 --output-dir models/chronos2_quick
 
     # Via SLURM
     sbatch scripts/training/slurm/chronos2_finetune.sh

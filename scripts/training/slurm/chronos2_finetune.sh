@@ -56,10 +56,10 @@ export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
 export PYTORCH_ALLOC_CONF=${PYTORCH_ALLOC_CONF:-"expandable_segments:True"}
 
 echo ""
-echo "Running example_chronos2_finetune.py..."
+echo "Running chronos2_finetune.py..."
 echo ""
 
-python scripts/examples/example_chronos2_finetune.py \
+python scripts/experiments/chronos2_finetune.py \
     --dataset "$DATASET" \
     --steps "$STEPS" \
     --lr "$LR" \

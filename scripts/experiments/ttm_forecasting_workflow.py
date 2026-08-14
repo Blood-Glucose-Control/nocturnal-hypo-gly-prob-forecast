@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-TTM holdout workflow -- direct, no factory indirection.
+TTM forecasting workflow -- direct, no factory indirection.
 
 7-step validation workflow for TTM (TinyTimeMixer) using the model class
-directly. Serves as a template for model-specific holdout scripts.
+directly. Serves as a template for model-specific forecasting scripts.
 
 Steps:
   1. Check holdout configs exist
@@ -16,21 +16,21 @@ Steps:
 
 Usage:
     # Zero-shot only (skip training)
-    python scripts/examples/ttm_holdout_workflow.py \\
+    python scripts/experiments/ttm_forecasting_workflow.py \\
         --datasets brown_2019 --skip-training
 
     # Full workflow with training
-    python scripts/examples/ttm_holdout_workflow.py \\
+    python scripts/experiments/ttm_forecasting_workflow.py \\
         --datasets brown_2019 --epochs 10
 
     # Use YAML config for TTM params
-    python scripts/examples/ttm_holdout_workflow.py \\
+    python scripts/experiments/ttm_forecasting_workflow.py \\
         --datasets brown_2019 \\
         --model-config configs/models/ttm/fine_tune.yaml \\
         --epochs 25
 
     # Skip specific steps
-    python scripts/examples/ttm_holdout_workflow.py \\
+    python scripts/experiments/ttm_forecasting_workflow.py \\
         --datasets brown_2019 --skip-steps 4 7
 """
 
@@ -442,7 +442,9 @@ def step7_resume_training(
 # CLI
 # ---------------------------------------------------------------------------
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="TTM holdout workflow (direct, no factory)")
+    p = argparse.ArgumentParser(
+        description="TTM forecasting workflow (direct, no factory)"
+    )
     p.add_argument(
         "--datasets",
         nargs="+",

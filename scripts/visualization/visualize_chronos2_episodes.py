@@ -65,13 +65,13 @@ DEFAULT_PREDICTOR_PATH = str(
     / "trained_models"
     / "artifacts"
     / "chronos2"
-    / "2026-02-28_05:57_RID20260228_055715_392456_holdout_workflow"
+    / "2026-02-28_05:57_RID20260228_055715_392456_forecasting_workflow"
 )
 
 # Alternative: BG-only predictor (50k steps)
 # DEFAULT_PREDICTOR_PATH = str(
 #     REPO_ROOT / "trained_models" / "artifacts" / "chronos2"
-#     / "2026-02-28_05:54_RID20260228_055400_391511_holdout_workflow"
+#     / "2026-02-28_05:54_RID20260228_055400_391511_forecasting_workflow"
 # )
 
 DEFAULT_OUTPUT_DIR = str(REPO_ROOT / "results" / "chronos2_episodes")
