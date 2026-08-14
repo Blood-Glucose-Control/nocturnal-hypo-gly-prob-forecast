@@ -36,7 +36,7 @@ from src.models.chronos2.utils import (
     convert_to_patient_dict,
     format_segments_for_autogluon,
 )
-from src.utils.logging_helper import info_print
+from src.utils.logging_helper import info_print, prune_stale_file_handlers
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +178,11 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
 
         freq = f"{config.interval_mins}min"
         info_print(f"Creating TimeSeriesPredictor at {output_dir} (freq={freq})")
+        removed_handlers = prune_stale_file_handlers("autogluon")
+        if removed_handlers:
+            info_print(
+                f"Pruned {removed_handlers} stale AutoGluon file log handler(s) before fit."
+            )
 
         predictor_kwargs: Dict[str, Any] = dict(
             prediction_length=config.forecast_length,

@@ -165,3 +165,61 @@ def setup_file_logging(output_path, log_filename: str = "evaluation.log"):
     # Add to root logger so all loggers write to file
     logging.getLogger().addHandler(file_handler)
     return log_file
+
+
+def prune_stale_file_handlers(*logger_prefixes: str) -> int:
+    """Remove file handlers whose parent directory no longer exists.
+
+    This is primarily used to harden long-lived Python processes where a third-party
+    library logger may keep a FileHandler to a temporary directory that has been
+    deleted. Subsequent log writes then raise FileNotFoundError.
+
+    Args:
+        *logger_prefixes: Logger namespace prefixes to inspect. When omitted,
+            defaults to ("autogluon",).
+
+    Returns:
+        Number of stale handlers that were removed.
+    """
+    import logging
+    from pathlib import Path
+
+    prefixes = logger_prefixes or ("autogluon",)
+
+    def _matches_prefix(logger_name: str) -> bool:
+        return any(
+            logger_name == prefix or logger_name.startswith(f"{prefix}.")
+            for prefix in prefixes
+        )
+
+    candidates = [logging.getLogger()]
+    for name, maybe_logger in logging.Logger.manager.loggerDict.items():
+        if not isinstance(maybe_logger, logging.Logger):
+            continue
+        if _matches_prefix(name):
+            candidates.append(maybe_logger)
+
+    removed = 0
+    seen = set()
+    for log_obj in candidates:
+        obj_id = id(log_obj)
+        if obj_id in seen:
+            continue
+        seen.add(obj_id)
+
+        for handler in list(log_obj.handlers):
+            if not isinstance(handler, logging.FileHandler):
+                continue
+            file_name = getattr(handler, "baseFilename", None)
+            if not file_name:
+                continue
+
+            parent_dir = Path(file_name).parent
+            if parent_dir.exists():
+                continue
+
+            log_obj.removeHandler(handler)
+            handler.close()
+            removed += 1
+
+    return removed

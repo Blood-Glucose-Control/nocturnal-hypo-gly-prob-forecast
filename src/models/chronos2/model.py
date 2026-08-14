@@ -36,7 +36,7 @@ import pandas as pd
 from ...data.preprocessing.gap_handling import segment_all_patients
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
 from ..base.registry import ModelRegistry
-from ...utils.logging_helper import info_print
+from ...utils.logging_helper import info_print, prune_stale_file_handlers
 
 from .config import Chronos2Config
 from .utils import (
@@ -179,6 +179,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         ts_train, _, _ = self._prepare_training_data(train_data)
 
         info_print(f"Creating TimeSeriesPredictor at {output_dir}")
+        removed_handlers = prune_stale_file_handlers("autogluon")
+        if removed_handlers:
+            info_print(
+                f"Pruned {removed_handlers} stale AutoGluon file log handler(s) before fit."
+            )
         predictor_kwargs: Dict[str, Any] = dict(
             prediction_length=config.forecast_length,
             # "target" is the column name after format_segments_for_autogluon
@@ -612,10 +617,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         # predict_quantiles returns list of tensors with shape
         # (n_variates, prediction_length, n_quantiles).  For univariate
         # forecasting we squeeze the variate dim and transpose to (Q, H).
-        return (
-            quantiles[0].squeeze(0).T.detach().cpu().numpy(),
-            mean[0].squeeze().detach().cpu().numpy(),
-        )
+        quantiles_np = None
+        if quantiles is not None:
+            quantiles_np = quantiles[0].squeeze(0).T.detach().cpu().numpy()
+        mean_np = mean[0].squeeze().detach().cpu().numpy()
+        return quantiles_np, mean_np
 
     def _autogluon_extract(self, data: pd.DataFrame, columns: list) -> np.ndarray:
         """Run fine-tuned AutoGluon inference and extract specified columns.
@@ -704,6 +710,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         """Internal quantile forecast logic shared by _predict and _predict_batch."""
         if self.predictor is None:
             quantiles, _ = self._zero_shot_forecast(data, quantile_levels)
+            if quantiles is None:
+                raise RuntimeError(
+                    "Chronos2 zero-shot pipeline did not return quantiles for "
+                    f"requested levels {quantile_levels}."
+                )
             return quantiles
 
         # Validate requested levels against training-time registration.

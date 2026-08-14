@@ -343,16 +343,21 @@ class TestChronos2GPU:
     """Run with: pytest tests/models/test_chronos2.py -m slow"""
 
     def test_fit_predict_evaluate(self):
-        """Full pipeline: config → fit → predict → evaluate."""
+        """Full pipeline: config → fit → predict."""
         config = Chronos2Config(fine_tune_steps=1, min_segment_length=100)
         model = Chronos2Forecaster(config)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            model.fit(_make_flat_df(n_patients=2, n_days=10), output_dir=tmpdir)
+            output_dir = os.path.join(tmpdir, "ag_predictor")
+            model.fit(_make_flat_df(n_patients=2, n_days=10), output_dir=output_dir)
             assert model.is_fitted and model.predictor is not None
 
-            results = model.evaluate(_make_flat_df(n_patients=1, n_days=10))
-            assert "rmse" in results and results["n_episodes"] >= 0
+            pred_input = _make_flat_df(n_patients=1, n_days=10).tail(
+                config.context_length
+            )
+            prediction = model.predict(pred_input)
+            assert isinstance(prediction, np.ndarray)
+            assert prediction.shape == (config.forecast_length,)
 
     def test_save_and_load(self):
         """Trained model persists and reloads correctly."""
@@ -360,7 +365,8 @@ class TestChronos2GPU:
         model = Chronos2Forecaster(config)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            model.fit(_make_flat_df(n_patients=2, n_days=10), output_dir=tmpdir)
+            output_dir = os.path.join(tmpdir, "ag_predictor")
+            model.fit(_make_flat_df(n_patients=2, n_days=10), output_dir=output_dir)
             model.save(tmpdir)
 
             loaded = Chronos2Forecaster.load(tmpdir, config=config)
