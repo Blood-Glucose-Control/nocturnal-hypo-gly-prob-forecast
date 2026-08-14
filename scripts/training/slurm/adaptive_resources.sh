@@ -83,7 +83,9 @@ detect_gpus() {
     mapfile -t detected < <(
         nvidia-smi --query-gpu=index --format=csv,noheader 2>/dev/null || true
     )
-    printf "%s\n" "${detected[@]}"
+    if (( ${#detected[@]} > 0 )); then
+        printf "%s\n" "${detected[@]}"
+    fi
 }
 
 mapfile -t available_gpus < <(detect_gpus)
