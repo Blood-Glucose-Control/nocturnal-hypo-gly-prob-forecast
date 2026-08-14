@@ -36,6 +36,7 @@ class PatchTSTForecaster(AutoGluonBaseModel):
 
     _PREDICTOR_JSON_NAME = "patchtst_predictor.json"
 
+    @property
     def supports_zero_shot(self) -> bool:
         return False
 

@@ -219,6 +219,7 @@ class BaseTimeSeriesFoundationModel(ABC):
         """
         pass
 
+    @property
     @abstractmethod
     def supports_zero_shot(self) -> bool:
         """

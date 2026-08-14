@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
-PYTHON="${PROJECT_ROOT}/.venvs/chronos2/bin/python"
+PYTHON="${PROJECT_ROOT}/.venvs/autogluon/bin/python"
 CONFIG_DIR="configs/data/holdout_10pct"
 ALL_DATASETS=(lynch_2022 aleppo_2017 brown_2019 tamborlane_2008)
 DATASETS_WITH_IOB=(lynch_2022 aleppo_2017 brown_2019)

@@ -65,6 +65,7 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
     def training_backend(self) -> TrainingBackend:
         return TrainingBackend.TRANSFORMERS
 
+    @property
     def supports_zero_shot(self) -> bool:
         return True
 

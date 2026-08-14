@@ -5,7 +5,7 @@ Verifies registry registration, config validation, and hyperparameter
 output for each supported model.
 
 Run:
-    .venvs/chronos2/bin/python -m pytest tests/models/test_statistical.py -v
+    .venvs/autogluon/bin/python -m pytest tests/models/test_statistical.py -v
 """
 
 import pytest

@@ -4,7 +4,7 @@ Tests for DeepARForecaster.
 Verifies registry registration, config defaults, and hyperparameter output.
 
 Run:
-    .venvs/chronos2/bin/python -m pytest tests/models/test_deepar.py -v
+    .venvs/autogluon/bin/python -m pytest tests/models/test_deepar.py -v
 """
 
 import pytest

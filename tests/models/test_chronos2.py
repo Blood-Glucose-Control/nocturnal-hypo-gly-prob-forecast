@@ -4,12 +4,12 @@ Chronos-2 model class tests.
 Focuses on core integration requirements and key edge cases.
 Real-data validation lives in scripts/test_chronos2_parity.py (watgpu).
 
-Requires the chronos2 virtual environment (.venvs/chronos2) which includes
+Requires the shared AutoGluon virtual environment (.venvs/autogluon) which includes
 AutoGluon. Tests are automatically skipped in other environments via conftest.py.
 
 Run:
-    make test-chronos2                               # recommended
-    .venvs/chronos2/bin/python -m pytest tests/models/ -v -k chronos2
+    make test-autogluon                              # recommended
+    .venvs/autogluon/bin/python -m pytest tests/models/ -v -k chronos2
     pytest tests/models/test_chronos2.py -v -m slow  # GPU-only slow tests
 """
 
@@ -22,7 +22,7 @@ import pandas as pd
 import pytest
 
 # All Chronos-2 tests require AutoGluon — skip the whole module outside the
-# chronos2 venv (conftest.py also enforces this at collection time).
+# shared autogluon venv (conftest.py also enforces this at collection time).
 pytest.importorskip("autogluon.timeseries")
 
 from src.models.chronos2.config import Chronos2Config  # noqa: E402
@@ -342,17 +342,22 @@ class TestMultitarget:
 class TestChronos2GPU:
     """Run with: pytest tests/models/test_chronos2.py -m slow"""
 
-    def test_fit_predict_evaluate(self):
-        """Full pipeline: config → fit → predict → evaluate."""
+    def test_fit_predict(self):
+        """Full pipeline: config → fit → predict."""
         config = Chronos2Config(fine_tune_steps=1, min_segment_length=100)
         model = Chronos2Forecaster(config)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            model.fit(_make_flat_df(n_patients=2, n_days=10), output_dir=tmpdir)
+            output_dir = os.path.join(tmpdir, "ag_predictor")
+            model.fit(_make_flat_df(n_patients=2, n_days=10), output_dir=output_dir)
             assert model.is_fitted and model.predictor is not None
 
-            results = model.evaluate(_make_flat_df(n_patients=1, n_days=10))
-            assert "rmse" in results and results["n_episodes"] >= 0
+            pred_input = _make_flat_df(n_patients=1, n_days=10).tail(
+                config.context_length
+            )
+            prediction = model.predict(pred_input)
+            assert isinstance(prediction, np.ndarray)
+            assert prediction.shape == (config.forecast_length,)
 
     def test_save_and_load(self):
         """Trained model persists and reloads correctly."""
@@ -360,7 +365,8 @@ class TestChronos2GPU:
         model = Chronos2Forecaster(config)
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            model.fit(_make_flat_df(n_patients=2, n_days=10), output_dir=tmpdir)
+            output_dir = os.path.join(tmpdir, "ag_predictor")
+            model.fit(_make_flat_df(n_patients=2, n_days=10), output_dir=output_dir)
             model.save(tmpdir)
 
             loaded = Chronos2Forecaster.load(tmpdir, config=config)

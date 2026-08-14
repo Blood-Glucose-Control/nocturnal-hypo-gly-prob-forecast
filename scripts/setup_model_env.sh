@@ -8,17 +8,36 @@
 #   source scripts/setup_model_env.sh ttm
 #   source scripts/setup_model_env.sh sundial
 #
-# Available models (defined as optional deps in pyproject.toml):
-#   ttm, sundial, chronos2, timegrad, moment, timesfm, tide, moirai, toto
+# Available models:
+#   - Optional dependency groups in pyproject.toml (e.g., ttm, sundial, moirai)
+#   - AutoGluon-backed model aliases:
+#       autogluon, chronos2, tide, deepar, patchtst, tft, naive_baseline, statistical
+#     These all resolve to the shared .venvs/autogluon environment.
 
 MODEL="${1:?Usage: source scripts/setup_model_env.sh <model>}"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Error: Must be run from within a git repository"; return 1 2>/dev/null || exit 1; }
 VENVS_DIR="${REPO_ROOT}/.venvs"
-VENV_PATH="${VENVS_DIR}/${MODEL}"
+
+is_autogluon_alias() {
+    case "${1}" in
+        autogluon|chronos2|tide|deepar|patchtst|tft|naive_baseline|statistical) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+if is_autogluon_alias "${MODEL}"; then
+    VENV_NAME="autogluon"
+    DEP_GROUP="autogluon"
+else
+    VENV_NAME="${MODEL}"
+    DEP_GROUP="${MODEL}"
+fi
+
+VENV_PATH="${VENVS_DIR}/${VENV_NAME}"
 
 # Model-specific Python version overrides
 # Most models use 3.12; some need older versions for dependency compatibility.
-case "${MODEL}" in
+case "${DEP_GROUP}" in
     timegrad) PYTHON_VERSION="3.11" ;;  # pytorchts requires pandas<2.0 (no 3.12 wheel)
     *)        PYTHON_VERSION="3.12" ;;
 esac
@@ -29,7 +48,7 @@ if command -v "python${PYTHON_VERSION}" &>/dev/null; then
 elif [ "${PYTHON_VERSION}" = "3.12" ] && [ -x "${REPO_ROOT}/.noctprob-venv/bin/python" ]; then
     PYTHON_CMD="${REPO_ROOT}/.noctprob-venv/bin/python"
 else
-    echo "Error: Python ${PYTHON_VERSION} not found (required for ${MODEL})."
+    echo "Error: Python ${PYTHON_VERSION} not found (required for ${MODEL} / ${DEP_GROUP})."
     echo "Install python${PYTHON_VERSION} or use: brew install python@${PYTHON_VERSION}"
     return 1 2>/dev/null || exit 1
 fi
@@ -37,30 +56,43 @@ fi
 echo "Using Python: ${PYTHON_CMD} ($(${PYTHON_CMD} --version 2>&1))"
 
 install_model_dependencies() {
-    if [ "${MODEL}" = "moment" ]; then
-        # momentfm currently has resolver friction on Python 3.12 in some environments.
-        # Install project deps first, then install momentfm without transitive re-resolution.
-        echo "Installing project dependencies for 'moment' environment..."
+    if [ "${DEP_GROUP}" = "moment" ]; then
+        echo "Installing project with [moment] dependencies..."
+        if pip install -e ".[moment]"; then
+            return 0
+        fi
+
+        # Fallback for environments where momentfm dependency resolution fails.
+        # Keep project dependencies editable, then install momentfm without
+        # re-resolving the full dependency graph.
+        echo "Standard [moment] install failed. Applying momentfm fallback..."
         pip install -e . || return 1
-        echo "Installing momentfm (no-deps workaround)..."
         pip install --no-deps momentfm || return 1
-    else
-        echo "Installing project with [${MODEL}] dependencies..."
-        pip install -e ".[${MODEL}]" || return 1
+        return 0
     fi
+
+    echo "Installing project with [${DEP_GROUP}] dependencies..."
+    pip install -e ".[${DEP_GROUP}]" || return 1
 }
 
 # Validate model name exists in pyproject.toml [project.optional-dependencies]
 OPT_DEPS=$(sed -n '/^\[project.optional-dependencies\]/,/^\[/p' "${REPO_ROOT}/pyproject.toml" 2>/dev/null | tail -n +2)
-if ! echo "${OPT_DEPS}" | grep -qF "${MODEL} = ["; then
-    echo "Error: Model '${MODEL}' not found in pyproject.toml [project.optional-dependencies]"
+if ! echo "${OPT_DEPS}" | grep -qF "${DEP_GROUP} = ["; then
+    echo "Error: Model '${MODEL}' resolved to dependency group '${DEP_GROUP}', which is not found in pyproject.toml [project.optional-dependencies]"
     echo "Available models:"
     echo "${OPT_DEPS}" | grep -F ' = [' | sed 's/ = \[.*//'
+    echo ""
+    echo "AutoGluon aliases (all use .venvs/autogluon):"
+    echo "  chronos2 tide deepar patchtst tft naive_baseline statistical"
     return 1 2>/dev/null || exit 1
 fi
 
 if [ ! -d "${VENV_PATH}" ]; then
-    echo "Creating new venv for '${MODEL}' at ${VENV_PATH}..."
+    if [ "${MODEL}" = "${VENV_NAME}" ]; then
+        echo "Creating new venv for '${MODEL}' at ${VENV_PATH}..."
+    else
+        echo "Creating shared '${VENV_NAME}' venv for model '${MODEL}' at ${VENV_PATH}..."
+    fi
 
     # Try venv first, fall back to virtualenv if ensurepip not available
     if ${PYTHON_CMD} -m venv "${VENV_PATH}" 2>/dev/null; then
@@ -78,7 +110,7 @@ if [ ! -d "${VENV_PATH}" ]; then
         echo "Options:"
         echo "  1. Install virtualenv: pip install virtualenv"
         echo "  2. Ask admin to install: sudo apt install python3.12-venv"
-        echo "  3. Use conda: conda create -n ${MODEL} python=3.12 && conda activate ${MODEL} && pip install -e '.[${MODEL}]'"
+        echo "  3. Use conda: conda create -n ${VENV_NAME} python=${PYTHON_VERSION} && conda activate ${VENV_NAME} && pip install -e '.[${DEP_GROUP}]'"
         return 1 2>/dev/null || exit 1
     fi
 
@@ -89,7 +121,11 @@ if [ ! -d "${VENV_PATH}" ]; then
         return 1 2>/dev/null || exit 1
     }
     echo ""
-    echo "Done! Environment '${MODEL}' is ready and activated."
+    if [ "${MODEL}" = "${VENV_NAME}" ]; then
+        echo "Done! Environment '${VENV_NAME}' is ready and activated."
+    else
+        echo "Done! Shared environment '${VENV_NAME}' is ready and activated for model '${MODEL}'."
+    fi
 elif [ ! -f "${VENV_PATH}/bin/activate" ]; then
     # Directory exists but is broken (no activate script)
     echo "Warning: Found broken venv at ${VENV_PATH} (missing activate script)"
@@ -100,11 +136,15 @@ elif [ ! -f "${VENV_PATH}/bin/activate" ]; then
     return $? 2>/dev/null || exit $?
 else
     source "${VENV_PATH}/bin/activate"
-    echo "Activated existing '${MODEL}' environment."
-    if [ "${MODEL}" = "moment" ]; then
-        echo "To reinstall deps: pip install -e . && pip install --no-deps momentfm"
+    if [ "${MODEL}" = "${VENV_NAME}" ]; then
+        echo "Activated existing '${VENV_NAME}' environment."
     else
-        echo "To reinstall deps: pip install -e '.[${MODEL}]'"
+        echo "Activated existing shared '${VENV_NAME}' environment for model '${MODEL}'."
+    fi
+    if [ "${DEP_GROUP}" = "moment" ]; then
+        echo "To reinstall deps: pip install -e '.[moment]' (fallback: pip install -e . && pip install --no-deps momentfm)"
+    else
+        echo "To reinstall deps: pip install -e '.[${DEP_GROUP}]'"
     fi
 fi
 

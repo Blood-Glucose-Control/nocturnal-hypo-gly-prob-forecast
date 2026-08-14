@@ -4,7 +4,7 @@ Tests for PatchTSTForecaster.
 Verifies registry registration, config defaults, and hyperparameter output.
 
 Run:
-    .venvs/chronos2/bin/python -m pytest tests/models/test_patchtst.py -v
+    .venvs/autogluon/bin/python -m pytest tests/models/test_patchtst.py -v
 """
 
 import pytest

@@ -46,7 +46,7 @@ echo "Output:     $OUTPUT_DIR"
 echo "Started:    $(date)"
 echo "========================================="
 
-source ".venvs/chronos2/bin/activate"
+source ".venvs/autogluon/bin/activate"
 echo "Python: $(which python)"
 echo "Python version: $(python --version)"
 

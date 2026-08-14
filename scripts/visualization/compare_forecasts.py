@@ -5,7 +5,7 @@ Two-stage workflow to handle models that require different Python environments:
 
   Stage 1 — Inference (run once per model, in its model-specific env):
 
-      source scripts/setup_model_env.sh chronos2
+      source scripts/setup_model_env.sh autogluon
       python scripts/visualization/compare_forecasts.py --model chronos2::Chronos2 --no-plot
       # → prints: Results cached at: results/forecast_comparisons/a3f82c1d.json
 
