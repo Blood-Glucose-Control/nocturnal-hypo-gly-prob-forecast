@@ -28,7 +28,7 @@ import pandas as pd
 from src.data.preprocessing.gap_handling import segment_all_patients
 from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
 from src.models.base.registry import ModelRegistry
-from src.utils.logging_helper import info_print
+from src.utils.logging_helper import info_print, prune_stale_file_handlers
 
 from .config import TiDEConfig
 
@@ -148,6 +148,11 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         freq = f"{config.interval_mins}min"
 
         info_print(f"Creating TimeSeriesPredictor at {output_dir} with freq={freq}")
+        removed_handlers = prune_stale_file_handlers("autogluon")
+        if removed_handlers:
+            info_print(
+                f"Pruned {removed_handlers} stale AutoGluon file log handler(s) before fit."
+            )
         predictor = TimeSeriesPredictor(
             prediction_length=config.forecast_length,
             target="target",
