@@ -104,3 +104,6 @@ include = ["src*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+markers = [
+    "slow: marks tests that are slower/integration-heavy (deselect with '-m \"not slow\"')",
+]
