@@ -14,5 +14,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 MODEL_TYPE="chronos2" \
+TASK_FAMILY="${TASK_FAMILY:-forecasting}" \
+EXPERIMENT_TYPE="${EXPERIMENT_TYPE:-nocturnal_forecast}" \
 SWEEP_SPEC="configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml" \
 bash scripts/training/sweeps/run_sweep_train.sh "$@"

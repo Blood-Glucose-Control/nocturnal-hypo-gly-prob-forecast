@@ -198,11 +198,11 @@ Minimum bar for script and workflow changes:
 
 ### 11.2 Remaining open items
 
-1. Extend the model-agnostic sweep pattern (`src/workflows/sweeps/`) across
-   evaluation sweeps so training and eval orchestration share one profile-driven
-   contract.
-2. Extend the initial `src/workflows/forecasting/` placement pattern to
-   nocturnal/shared pipeline components during transition.
+1. Extend the task/experiment sweep dispatcher pattern (`src/workflows/sweeps/`)
+   with additional adapters beyond the initial
+   `forecasting/nocturnal_forecast` implementation.
+2. Continue extending the initial `src/workflows/forecasting/` placement pattern
+   to additional shared pipeline components during transition.
 
 ## 12) Canonical experiment metadata schema (pre-MLflow decision)
 
