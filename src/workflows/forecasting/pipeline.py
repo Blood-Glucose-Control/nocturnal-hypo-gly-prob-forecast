@@ -39,6 +39,11 @@ from src.workflows.runtime.hardware import (
     clear_cuda_cache,
     get_gpu_info as runtime_get_gpu_info,
 )
+from src.workflows.runtime.manifest import (
+    build_run_manifest,
+    utc_now,
+    write_run_manifest,
+)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -748,6 +753,82 @@ class ForecastingWorkflowRequest:
     model_config: Optional[str] = None
 
 
+def _infer_run_id(output_dir: Path) -> str:
+    env_run_id = os.environ.get("RUN_ID")
+    if env_run_id:
+        return env_run_id
+
+    run_name = output_dir.name
+    if "_RID" in run_name and "_forecasting_workflow" in run_name:
+        return run_name.split("_RID", 1)[1].split("_forecasting_workflow", 1)[0]
+
+    now = utc_now().strftime("%Y%m%d_%H%M%S")
+    return f"{now}_{os.getpid()}"
+
+
+def _safe_int_from_env(name: str) -> Optional[int]:
+    value = os.environ.get(name)
+    if value is None or value == "":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _collect_workflow_output_paths(output_dir: Path) -> Dict[str, list[str]]:
+    checkpoint_candidates = [
+        output_dir / "model.pt",
+        output_dir / "resumed_training" / "model.pt",
+    ]
+    checkpoint_paths = [
+        str(path) for path in checkpoint_candidates if path.exists() and path.is_file()
+    ]
+
+    predictions_root = output_dir / "predictions"
+    prediction_paths = (
+        sorted(str(path) for path in predictions_root.rglob("*.json"))
+        if predictions_root.exists()
+        else []
+    )
+
+    forecasts_root = output_dir / "forecasts"
+    plot_suffixes = {".png", ".svg", ".pdf", ".csv"}
+    plot_paths = (
+        sorted(
+            str(path)
+            for path in forecasts_root.rglob("*")
+            if path.is_file() and path.suffix.lower() in plot_suffixes
+        )
+        if forecasts_root.exists()
+        else []
+    )
+
+    return {
+        "checkpoint_paths": checkpoint_paths,
+        "prediction_paths": prediction_paths,
+        "plot_paths": plot_paths,
+    }
+
+
+def _collect_workflow_key_metrics(
+    train_results: Optional[Dict[str, Any]],
+    resumed_results: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    key_metrics: Dict[str, Any] = {}
+    for prefix, payload in (
+        ("step5", train_results),
+        ("step7", resumed_results),
+    ):
+        if not isinstance(payload, dict):
+            continue
+        for metric_name in ("best_metric", "train_loss", "eval_loss", "loss"):
+            value = payload.get(metric_name)
+            if isinstance(value, (int, float)):
+                key_metrics[f"{prefix}_{metric_name}"] = value
+    return key_metrics
+
+
 def build_cli_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="End-to-end forecasting workflow for time series foundation models",
@@ -849,7 +930,15 @@ stored in separate subdirectories for comparison.
 
 
 def run_with_args(args: argparse.Namespace) -> int:
+    created_at_utc = utc_now()
+    started_at_utc = utc_now()
     entrypoint_name = Path(sys.argv[0]).as_posix()
+    output_path: Optional[Path] = None
+    status = "failed"
+    failure_message: Optional[str] = None
+    exit_code = 1
+    train_results: Optional[Dict[str, Any]] = None
+    resumed_results: Optional[Dict[str, Any]] = None
 
     # Load model config from YAML if provided
     model_config_overrides = None
@@ -886,6 +975,8 @@ def run_with_args(args: argparse.Namespace) -> int:
         args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{_run_subdir}"
     else:
         args.output_dir = str(Path(args.output_dir) / _run_subdir)
+    output_path = Path(args.output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
 
     logger.info("=" * 80)
     logger.info("GENERIC FORECASTER WORKFLOW DEMONSTRATION")
@@ -902,8 +993,6 @@ def run_with_args(args: argparse.Namespace) -> int:
 
     # Copy model config to output directory for reproducibility
     if args.model_config:
-        output_path = Path(args.output_dir)
-        output_path.mkdir(parents=True, exist_ok=True)
         shutil.copy2(args.model_config, output_path / "model_config.yaml")
         logger.info(f"Copied model config to: {output_path / 'model_config.yaml'}")
 
@@ -916,7 +1005,9 @@ def run_with_args(args: argparse.Namespace) -> int:
                 args.config_dir, args.output_dir, args.datasets
             ):
                 logger.error("Please generate holdout configs first")
-                return 1
+                failure_message = "Holdout configuration generation/check failed."
+                exit_code = 1
+                return exit_code
         else:
             logger.info("Skipping step 1 (holdout config check)")
 
@@ -926,7 +1017,9 @@ def run_with_args(args: argparse.Namespace) -> int:
         if 2 not in skip_steps:
             if not step2_validate_holdout_configs(args.datasets, args.config_dir):
                 logger.error("Configuration validation failed")
-                return 1
+                failure_message = "Holdout configuration validation failed."
+                exit_code = 1
+                return exit_code
         else:
             logger.info("Skipping step 2 (config validation)")
 
@@ -975,8 +1068,10 @@ def run_with_args(args: argparse.Namespace) -> int:
 
             if combined_train_data is None:
                 logger.error("Step 5 requires training data (step 3)")
-                return 1
-            model, config, _, model_path = step5_train_model(
+                failure_message = "Step 5 requires combined training data from step 3."
+                exit_code = 1
+                return exit_code
+            model, config, train_results, model_path = step5_train_model(
                 model_type=args.model_type,
                 combined_data=combined_train_data,
                 dataset_names=args.datasets,
@@ -1020,7 +1115,9 @@ def run_with_args(args: argparse.Namespace) -> int:
                 )
                 if model is None:
                     logger.error("Failed to load model from checkpoint")
-                    return 1
+                    failure_message = "Checkpoint load verification failed in step 6."
+                    exit_code = 1
+                    return exit_code
         else:
             logger.info("Skipping step 6 (load checkpoint)")
 
@@ -1034,7 +1131,7 @@ def run_with_args(args: argparse.Namespace) -> int:
                     "(step 3), skipping"
                 )
             else:
-                model, _, _ = step7_resume_training(
+                model, resumed_results, _ = step7_resume_training(
                     model=model,
                     combined_data=combined_train_data,
                     dataset_names=args.datasets,
@@ -1074,15 +1171,66 @@ def run_with_args(args: argparse.Namespace) -> int:
         logger.info("  - forecasts/*/                   : Forecast plots per phase")
         logger.info("=" * 80)
         logger.info(f"End of: {entrypoint_name}")
-        return 0
+        status = "success"
+        failure_message = None
+        exit_code = 0
+        return exit_code
 
     except KeyboardInterrupt:
         logger.info("\n\nWorkflow interrupted by user")
-        return 1
+        status = "interrupted"
+        failure_message = "Workflow interrupted by user."
+        exit_code = 1
+        return exit_code
     except Exception as e:
         logger.error(f"\n\nWorkflow failed: {e}")
         traceback.print_exc()
-        return 1
+        status = "failed"
+        failure_message = str(e)
+        exit_code = 1
+        return exit_code
+    finally:
+        ended_at_utc = utc_now()
+        if output_path is None:
+            output_path = Path(args.output_dir)
+
+        output_paths = _collect_workflow_output_paths(output_path)
+        manifest = build_run_manifest(
+            run_id=_infer_run_id(output_path),
+            parent_run_id=os.environ.get("PARENT_RUN_ID"),
+            workflow_name="forecasting_workflow",
+            workflow_version="v1",
+            created_at_utc=created_at_utc,
+            started_at_utc=started_at_utc,
+            ended_at_utc=ended_at_utc,
+            data_config_paths=[
+                str(Path(args.config_dir) / f"{dataset_name}.yaml")
+                for dataset_name in args.datasets
+            ],
+            data_snapshot_ids=[],
+            model_config_path=args.model_config,
+            experiment_config_path=None,
+            seed=_safe_int_from_env("SEED"),
+            resolved_runtime_config={
+                "model_type": args.model_type,
+                "datasets": args.datasets,
+                "config_dir": args.config_dir,
+                "skip_training": args.skip_training,
+                "skip_steps": sorted(skip_steps),
+                "epochs": args.epochs,
+                "batch_size": args.batch_size,
+                "model_config_overrides": model_config_overrides or {},
+            },
+            artifact_root=str(output_path),
+            checkpoint_paths=output_paths["checkpoint_paths"],
+            prediction_paths=output_paths["prediction_paths"],
+            plot_paths=output_paths["plot_paths"],
+            key_metrics=_collect_workflow_key_metrics(train_results, resumed_results),
+            status=status,
+            failure_message=failure_message,
+        )
+        manifest_path = write_run_manifest(output_dir=output_path, manifest=manifest)
+        logger.info("Run manifest saved to: %s", manifest_path)
 
 
 def run_workflow(request: ForecastingWorkflowRequest) -> int:
