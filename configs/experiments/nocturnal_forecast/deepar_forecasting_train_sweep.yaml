@@ -1,0 +1,25 @@
+jobs:
+  - model_config: configs/models/deepar/00_baseline.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/01_short_ctx.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/02_long_ctx.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/03_wide.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/04_narrow.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/05_deep.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/06_shallow.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/07_high_dropout.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/08_low_dropout.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/09_high_lr.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/10_low_lr.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/deepar/11_big.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]

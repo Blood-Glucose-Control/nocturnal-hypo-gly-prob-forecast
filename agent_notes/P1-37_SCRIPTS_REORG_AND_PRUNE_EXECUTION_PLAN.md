@@ -290,6 +290,22 @@ Refreshed on 2026-08-14 after PR #433 merge and a full re-audit of `scripts/`.
   - `scripts/evaluation/sweeps/models/*_sweep_eval.sh`
 - Updated model sweep script usage comments and docs references to canonical paths.
 
+### 2026-08-16 (profile-driven dedup: deep model sweeps)
+
+- Added forecasting sweep profile specs for DeepAR/PatchTST/TFT:
+  - train: `configs/experiments/nocturnal_forecast/{deepar,patchtst,tft}_forecasting_train_sweep.yaml`
+  - eval: `configs/experiments/nocturnal_forecast/{deepar,patchtst,tft}_forecasting_eval_sweep.yaml`
+- Replaced heavy model-specific shell orchestration with thin profile launchers:
+  - `scripts/training/sweeps/models/{deepar,patchtst,tft}_sweep_train.sh`
+  - `scripts/evaluation/sweeps/models/{deepar,patchtst,tft}_sweep_eval.sh`
+- Updated overnight chain retry parsing to read canonical sweep specs instead of
+  shell-embedded `CONFIGS=(...)` arrays:
+  - `scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh`
+- Removed legacy orchestration compatibility wrappers from `scripts/experiments/`:
+  - `chronos2_sweep.sh`
+  - `run_ctx_ablation_sweeps.sh`
+  - `run_overnight_deep_sweeps.sh`
+
 ---
 
 ## 1) Current-state snapshot (facts)
@@ -317,12 +333,13 @@ Refreshed on 2026-08-14 after PR #433 merge and a full re-audit of `scripts/`.
    - `single_gpu.sh`, `multi_gpu.sh`, `adaptive_resources.sh` now route to the
      maintained generic workflow wrapper.
    - real `sbatch` smoke validation is deferred to private-cluster execution.
-4. **Sweep train/eval shell duplication is high.**
-   - Similarity scan shows many pairs at >=0.92 (e.g. DeepAR/PatchTST/TFT variants).
-5. **Orchestration is still fragmented (partially improved).**
+4. **Sweep train/eval shell duplication is reduced, but not eliminated.**
+   - DeepAR/PatchTST/TFT now use profile-spec wrappers; additional model families
+     still have script-local orchestration logic.
+5. **Orchestration is substantially cleaner, with fewer legacy entrypoints.**
    - Multi-stage chain scripts now have canonical placement under
-     `scripts/orchestration/sweeps/`, but substantial script-per-model
-     duplication remains across canonical model sweep scripts.
+     `scripts/orchestration/sweeps/`, and legacy `scripts/experiments/` chain
+     wrappers have been removed.
 6. **Data processing loaders are repetitive and hardcoded.**
    - dataset-specific shell wrappers are near-identical and include user-path assumptions.
 

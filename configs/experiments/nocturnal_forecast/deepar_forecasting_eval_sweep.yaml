@@ -1,0 +1,63 @@
+forecast_length: 96
+probabilistic: true
+jobs:
+  - model_config: configs/models/deepar/00_baseline.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/01_short_ctx.yaml
+    context_length: 256
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/02_long_ctx.yaml
+    context_length: 768
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/03_wide.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/04_narrow.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/05_deep.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/06_shallow.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/07_high_dropout.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/08_low_dropout.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/09_high_lr.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/10_low_lr.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/deepar/11_big.yaml
+    context_length: 768
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
