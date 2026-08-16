@@ -44,7 +44,7 @@ All sweep configs share: `model_path: autogluon/chronos-2`, `fine_tune_steps: 10
 
 ## Expected Evaluation Results
 
-After running `chronos2_sweep_eval.sh`, you should see **35 fine-tuned + 60 zero-shot = 95 total result directories**:
+After running `scripts/evaluation/sweeps/run_sweep_eval.sh` (with the Chronos-2 eval sweep spec), you should see **35 fine-tuned + 60 zero-shot = 95 total result directories**:
 
 ### Fine-tuned evaluations
 
