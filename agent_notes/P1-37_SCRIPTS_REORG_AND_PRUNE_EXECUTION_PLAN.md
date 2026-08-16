@@ -306,6 +306,17 @@ Refreshed on 2026-08-14 after PR #433 merge and a full re-audit of `scripts/`.
   - `run_ctx_ablation_sweeps.sh`
   - `run_overnight_deep_sweeps.sh`
 
+### 2026-08-16 (ctx-ablation canonical sub-experiment migration)
+
+- Ratified ctx-ablation placement as a `nocturnal_forecast` sub-experiment.
+- Migrated ctx-ablation training scripts to:
+  - `scripts/training/sweeps/nocturnal_forecast/context_ablation/`
+- Migrated ctx-ablation evaluation scripts to:
+  - `scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/`
+- Updated canonical chain orchestration to call new ctx-ablation script paths:
+  - `scripts/orchestration/sweeps/run_ctx_ablation_sweeps.sh`
+- Removed legacy `scripts/experiments/*ctx_ablation*.sh` script surfaces.
+
 ---
 
 ## 1) Current-state snapshot (facts)

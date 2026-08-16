@@ -51,27 +51,27 @@ echo "  Start: $(date)"
 echo "========================================================"
 
 run_stage "DeepAR train" \
-    "scripts/experiments/deepar_ctx_ablation_train.sh" \
+    "scripts/training/sweeps/nocturnal_forecast/context_ablation/deepar_ctx_ablation_train.sh" \
     "${LOG_DIR}/ctx_ablation_deepar_train.log"
 
 run_stage "PatchTST train" \
-    "scripts/experiments/patchtst_ctx_ablation_train.sh" \
+    "scripts/training/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_train.sh" \
     "${LOG_DIR}/ctx_ablation_patchtst_train.log"
 
 run_stage "TFT train" \
-    "scripts/experiments/tft_ctx_ablation_train.sh" \
+    "scripts/training/sweeps/nocturnal_forecast/context_ablation/tft_ctx_ablation_train.sh" \
     "${LOG_DIR}/ctx_ablation_tft_train.log"
 
 run_stage "DeepAR eval" \
-    "scripts/experiments/deepar_ctx_ablation_eval.sh" \
+    "scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/deepar_ctx_ablation_eval.sh" \
     "${LOG_DIR}/ctx_ablation_deepar_eval.log"
 
 run_stage "PatchTST eval" \
-    "scripts/experiments/patchtst_ctx_ablation_eval.sh" \
+    "scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_eval.sh" \
     "${LOG_DIR}/ctx_ablation_patchtst_eval.log"
 
 run_stage "TFT eval" \
-    "scripts/experiments/tft_ctx_ablation_eval.sh" \
+    "scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/tft_ctx_ablation_eval.sh" \
     "${LOG_DIR}/ctx_ablation_tft_eval.log"
 
 echo ""

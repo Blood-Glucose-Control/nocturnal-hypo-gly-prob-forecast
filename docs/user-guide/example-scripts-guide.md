@@ -114,6 +114,12 @@ Canonical chain/orchestration scripts now live under:
 - `scripts/orchestration/sweeps/run_ctx_ablation_sweeps.sh`
 - `scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh`
 
+Context-ablation model scripts are now canonicalized as a `nocturnal_forecast`
+sub-experiment under:
+
+- `scripts/training/sweeps/nocturnal_forecast/context_ablation/`
+- `scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/`
+
 Legacy compatibility wrappers in `scripts/experiments/` were removed for both
 model-sweep and orchestration chain scripts; use the canonical paths above.
 

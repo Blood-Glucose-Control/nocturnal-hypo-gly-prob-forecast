@@ -10,13 +10,13 @@
 # Manifest: trained_models/artifacts/tft/ctx_ablation_manifest.txt
 #
 # Usage:
-#   bash scripts/experiments/tft_ctx_ablation_train.sh
-#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/tft_ctx_ablation_train.sh 2>&1 | tee logs/ctx_ablation_tft_train.log
+#   bash scripts/training/sweeps/nocturnal_forecast/context_ablation/tft_ctx_ablation_train.sh
+#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/training/sweeps/nocturnal_forecast/context_ablation/tft_ctx_ablation_train.sh 2>&1 | tee logs/ctx_ablation_tft_train.log
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 PYTHON="${PROJECT_ROOT}/.venvs/autogluon/bin/python"
