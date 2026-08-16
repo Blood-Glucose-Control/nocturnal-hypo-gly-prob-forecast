@@ -41,6 +41,15 @@ The Python sweep CLIs are now dispatcher entrypoints keyed by:
 Currently implemented adapter:
 
 - `task-family=forecasting`, `experiment-type=nocturnal_forecast`
+- scaffolded next adapter key (not yet implemented):
+  - `task-family=event_detection`, `experiment-type=nocturnal_events`
+
+Discover available adapters:
+
+```bash
+python scripts/experiments/sweep_train.py --list-adapters
+python scripts/experiments/sweep_eval.py --list-adapters
+```
 
 Chronos-2 profile spec:
 
@@ -87,6 +96,17 @@ SLURM usage pattern (launch wrapper inside one allocation):
 ```bash
 sbatch --gres=gpu:2 --wrap 'cd /path/to/repo && TASK_FAMILY=forecasting EXPERIMENT_TYPE=nocturnal_forecast MODEL_TYPE=chronos2 SWEEP_SPEC=configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml GPUS="0 1" JOBS_PER_GPU=2 bash scripts/training/sweeps/run_sweep_train.sh'
 ```
+
+## Multi-stage orchestration chains
+
+Canonical chain/orchestration scripts now live under:
+
+- `scripts/orchestration/sweeps/chronos2_sweep.sh`
+- `scripts/orchestration/sweeps/run_ctx_ablation_sweeps.sh`
+- `scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh`
+
+Compatibility wrappers remain in `scripts/experiments/` with the same names
+while references migrate.
 
 ## Canonical workflow example
 

@@ -7,6 +7,9 @@ import argparse
 import os
 from typing import Callable, Dict, Sequence, Tuple
 
+from src.workflows.sweeps.tasks.event_detection.train import (
+    main as event_detection_train_main,
+)
 from src.workflows.sweeps.tasks.forecasting.train import (
     main as forecasting_train_main,
 )
@@ -17,6 +20,7 @@ TrainAdapter = Callable[[Sequence[str] | None], int]
 def _build_adapter_registry() -> Dict[Tuple[str, str], TrainAdapter]:
     return {
         ("forecasting", "nocturnal_forecast"): forecasting_train_main,
+        ("event_detection", "nocturnal_events"): event_detection_train_main,
     }
 
 
@@ -46,12 +50,23 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="show_help",
         help="Show dispatcher help and selected adapter help.",
     )
+    parser.add_argument(
+        "--list-adapters",
+        action="store_true",
+        help="List supported task_family/experiment_type adapters and exit.",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = _build_parser()
     parsed, remaining = parser.parse_known_args(argv)
+    adapters = _build_adapter_registry()
+
+    if parsed.list_adapters:
+        for task, exp in sorted(adapters.keys()):
+            print(f"{task}/{exp}")
+        return 0
 
     task_family = (
         parsed.task_family or os.environ.get("TASK_FAMILY", "forecasting")
@@ -61,7 +76,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         or os.environ.get("EXPERIMENT_TYPE", "nocturnal_forecast")
     ).strip()
 
-    adapters = _build_adapter_registry()
     key = (task_family, experiment_type)
     adapter = adapters.get(key)
     if adapter is None:
