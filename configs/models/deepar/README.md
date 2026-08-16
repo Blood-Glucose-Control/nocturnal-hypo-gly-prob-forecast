@@ -29,7 +29,7 @@ All configs use `forecast_length=96`, `batch_size=128`,
 ## Run
 
 ```bash
-bash scripts/experiments/deepar_sweep_train.sh
-GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/deepar_sweep_train.sh 2>&1 | tee logs/deepar_sweep_train.log
-GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/deepar_sweep_eval.sh  2>&1 | tee logs/deepar_sweep_eval.log
+bash scripts/training/sweeps/models/deepar_sweep_train.sh
+GPUS="0 1" JOBS_PER_GPU=6 bash scripts/training/sweeps/models/deepar_sweep_train.sh 2>&1 | tee logs/deepar_sweep_train.log
+GPUS="0 1" JOBS_PER_GPU=6 bash scripts/evaluation/sweeps/models/deepar_sweep_eval.sh  2>&1 | tee logs/deepar_sweep_eval.log
 ```

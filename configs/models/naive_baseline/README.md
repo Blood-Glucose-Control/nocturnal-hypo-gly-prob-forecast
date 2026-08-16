@@ -15,11 +15,11 @@ Two zero-parameter baselines. AutoGluon fits Naive/Average in seconds.
 
 ```bash
 # Step 1 — Train (fits AutoGluon predictor; ~seconds per config)
-bash scripts/experiments/naive_baseline_sweep_train.sh 2>&1 | tee logs/naive_train.log
+bash scripts/training/sweeps/models/naive_baseline_sweep_train.sh 2>&1 | tee logs/naive_train.log
 
 # Step 2 — Evaluate
-bash scripts/experiments/naive_baseline_sweep_eval.sh 2>&1 | tee logs/naive_eval.log
+bash scripts/evaluation/sweeps/models/naive_baseline_sweep_eval.sh 2>&1 | tee logs/naive_eval.log
 
 # Control eval parallelism
-JOBS_PER_CPU=4 bash scripts/experiments/naive_baseline_sweep_eval.sh | tee logs/naive_eval.log
+JOBS_PER_CPU=4 bash scripts/evaluation/sweeps/models/naive_baseline_sweep_eval.sh | tee logs/naive_eval.log
 ```

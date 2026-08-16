@@ -86,7 +86,7 @@ record_failures() {
 # ---------------------------------------------------------------------------
 run_stage() {
     local model="$1"
-    local sweep_script="scripts/experiments/${model}_sweep_train.sh"
+    local sweep_script="scripts/training/sweeps/models/${model}_sweep_train.sh"
     local stage_log="${LOG_DIR}/overnight_${model}_train.log"
 
     echo ""
