@@ -29,10 +29,14 @@ wrappers:
 - Generic CLI: `scripts/experiments/sweep_train.py`
 - Chronos-2 profile wrapper: `scripts/experiments/chronos2_sweep_train.py`
 - Thin shell launcher: `scripts/experiments/chronos2_sweep_train.sh`
+- Generic eval core: `src/workflows/sweeps/eval.py` (via profile wrappers)
+- Chronos-2 eval profile wrapper: `scripts/experiments/chronos2_sweep_eval.py`
+- Thin eval launcher: `scripts/experiments/chronos2_sweep_eval.sh`
 
 Chronos-2 profile spec:
 
 - `configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/chronos2_forecasting_eval_sweep.yaml`
 
 Local usage:
 
@@ -44,6 +48,12 @@ Path-check (no training execution):
 
 ```bash
 DRY_RUN=1 GPUS="0" JOBS_PER_GPU=1 bash scripts/experiments/chronos2_sweep_train.sh
+```
+
+Chronos-2 eval path-check (no evaluation execution):
+
+```bash
+DRY_RUN=1 GPUS="0" JOBS_PER_GPU=1 bash scripts/experiments/chronos2_sweep_eval.sh
 ```
 
 Generic config-directory mode (same datasets applied to every model config):
