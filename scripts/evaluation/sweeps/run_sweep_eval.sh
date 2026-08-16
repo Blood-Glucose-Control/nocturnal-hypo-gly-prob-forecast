@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Generic, experiment-spec-driven sweep evaluation launcher.
 #
-# Defaults target the Chronos-2 forecasting sweep profile but callers can
-# override with MODEL_TYPE, SWEEP_SPEC, and EVAL_PYTHON.
+# Defaults target the forecasting/nocturnal_forecast task+experiment profile
+# with Chronos-2 configs, but callers can override.
 #
 # Contract preserved via env vars:
+#   TASK_FAMILY, EXPERIMENT_TYPE, MODEL_TYPE, SWEEP_SPEC, EVAL_PYTHON,
 #   GPUS, JOBS_PER_GPU, CONFIG_DIR, DRY_RUN
 #
 # Examples:
@@ -21,8 +22,12 @@ cd "$PROJECT_ROOT"
 MODEL_TYPE="${MODEL_TYPE:-chronos2}"
 SWEEP_SPEC="${SWEEP_SPEC:-configs/experiments/nocturnal_forecast/chronos2_forecasting_eval_sweep.yaml}"
 EVAL_PYTHON="${EVAL_PYTHON:-.venvs/autogluon/bin/python}"
+TASK_FAMILY="${TASK_FAMILY:-forecasting}"
+EXPERIMENT_TYPE="${EXPERIMENT_TYPE:-nocturnal_forecast}"
 
 python scripts/experiments/sweep_eval.py \
+  --task-family "$TASK_FAMILY" \
+  --experiment-type "$EXPERIMENT_TYPE" \
   --model-type "$MODEL_TYPE" \
   --sweep-spec "$SWEEP_SPEC" \
   --python-executable "$EVAL_PYTHON" \

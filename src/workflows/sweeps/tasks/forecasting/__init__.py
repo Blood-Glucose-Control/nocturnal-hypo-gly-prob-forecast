@@ -1,4 +1,4 @@
-"""Task/experiment-aware sweep orchestration entrypoints."""
+"""Forecasting sweep adapters."""
 
 from .eval import main as eval_main
 from .train import main as train_main

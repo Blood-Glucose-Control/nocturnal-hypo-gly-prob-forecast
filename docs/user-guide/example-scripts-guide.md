@@ -33,6 +33,15 @@ taxonomy-aligned shell launchers:
 - Chronos-2 compatibility launchers remain in `scripts/experiments/` as thin
   wrappers only (`chronos2_sweep_train.sh`, `chronos2_sweep_eval.sh`)
 
+The Python sweep CLIs are now dispatcher entrypoints keyed by:
+
+- `--task-family` / `TASK_FAMILY`
+- `--experiment-type` / `EXPERIMENT_TYPE`
+
+Currently implemented adapter:
+
+- `task-family=forecasting`, `experiment-type=nocturnal_forecast`
+
 Chronos-2 profile spec:
 
 - `configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml`
@@ -42,6 +51,8 @@ Local usage:
 
 ```bash
 MODEL_TYPE=chronos2 \
+TASK_FAMILY=forecasting \
+EXPERIMENT_TYPE=nocturnal_forecast \
 SWEEP_SPEC=configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml \
 GPUS="0 1" JOBS_PER_GPU=2 \
 bash scripts/training/sweeps/run_sweep_train.sh
@@ -74,7 +85,7 @@ python scripts/experiments/sweep_train.py \
 SLURM usage pattern (launch wrapper inside one allocation):
 
 ```bash
-sbatch --gres=gpu:2 --wrap 'cd /path/to/repo && MODEL_TYPE=chronos2 SWEEP_SPEC=configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml GPUS="0 1" JOBS_PER_GPU=2 bash scripts/training/sweeps/run_sweep_train.sh'
+sbatch --gres=gpu:2 --wrap 'cd /path/to/repo && TASK_FAMILY=forecasting EXPERIMENT_TYPE=nocturnal_forecast MODEL_TYPE=chronos2 SWEEP_SPEC=configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml GPUS="0 1" JOBS_PER_GPU=2 bash scripts/training/sweeps/run_sweep_train.sh'
 ```
 
 ## Canonical workflow example

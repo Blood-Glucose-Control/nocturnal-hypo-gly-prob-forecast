@@ -233,6 +233,25 @@ Refreshed on 2026-08-14 after PR #433 merge and a full re-audit of `scripts/`.
   - `scripts/experiments/chronos2_sweep_train.sh`
   - `scripts/experiments/chronos2_sweep_eval.sh`
 
+### 2026-08-16 (task/experiment taxonomy pivot: sweep dispatcher adapters)
+
+- Refactored sweep orchestration to a task/experiment dispatch model:
+  - `src/workflows/sweeps/train.py` (dispatcher)
+  - `src/workflows/sweeps/eval.py` (dispatcher)
+- Moved forecasting-specific orchestration logic into explicit task adapters:
+  - `src/workflows/sweeps/tasks/forecasting/train.py`
+  - `src/workflows/sweeps/tasks/forecasting/eval.py`
+- Added adapter package scaffolding for future task families:
+  - `src/workflows/sweeps/tasks/__init__.py`
+  - `src/workflows/sweeps/tasks/forecasting/__init__.py`
+- Extended canonical shell launcher contract with task/experiment selectors:
+  - `TASK_FAMILY` / `EXPERIMENT_TYPE`
+  - wired in `scripts/training/sweeps/run_sweep_train.sh` and
+    `scripts/evaluation/sweeps/run_sweep_eval.sh`
+- Preserved current behavior by defaulting to:
+  - `task_family=forecasting`
+  - `experiment_type=nocturnal_forecast`
+
 ---
 
 ## 1) Current-state snapshot (facts)
