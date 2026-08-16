@@ -268,6 +268,18 @@ Refreshed on 2026-08-14 after PR #433 merge and a full re-audit of `scripts/`.
 - Kept same-name compatibility wrappers in `scripts/experiments/` to avoid
   caller breakage during migration.
 
+### 2026-08-16 (model-family sweep shell relocation: train/eval surfaces)
+
+- Relocated model-family sweep train scripts to canonical training path:
+  - `scripts/training/sweeps/models/*_sweep_train.sh`
+- Relocated model-family sweep eval scripts to canonical evaluation path:
+  - `scripts/evaluation/sweeps/models/*_sweep_eval.sh`
+- Added same-name compatibility wrappers in `scripts/experiments/` for all moved
+  model sweep train/eval scripts.
+- Updated chain orchestration parsing dependency to read canonical model sweep
+  scripts directly:
+  - `scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh`
+
 ---
 
 ## 1) Current-state snapshot (facts)
@@ -300,7 +312,7 @@ Refreshed on 2026-08-14 after PR #433 merge and a full re-audit of `scripts/`.
 5. **Orchestration is still fragmented (partially improved).**
    - Multi-stage chain scripts now have canonical placement under
      `scripts/orchestration/sweeps/`, but substantial script-per-model
-     duplication remains in `scripts/experiments/`.
+     duplication remains across canonical model sweep scripts.
 6. **Data processing loaders are repetitive and hardcoded.**
    - dataset-specific shell wrappers are near-identical and include user-path assumptions.
 

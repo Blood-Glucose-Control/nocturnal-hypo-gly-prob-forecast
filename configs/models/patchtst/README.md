@@ -28,7 +28,7 @@ datasets = `aleppo_2017 brown_2019 lynch_2022 tamborlane_2008`.
 ## Run
 
 ```bash
-bash scripts/experiments/patchtst_sweep_train.sh
-GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/patchtst_sweep_train.sh 2>&1 | tee logs/patchtst_sweep_train.log
-GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/patchtst_sweep_eval.sh  2>&1 | tee logs/patchtst_sweep_eval.log
+bash scripts/training/sweeps/models/patchtst_sweep_train.sh
+GPUS="0 1" JOBS_PER_GPU=6 bash scripts/training/sweeps/models/patchtst_sweep_train.sh 2>&1 | tee logs/patchtst_sweep_train.log
+GPUS="0 1" JOBS_PER_GPU=6 bash scripts/evaluation/sweeps/models/patchtst_sweep_eval.sh  2>&1 | tee logs/patchtst_sweep_eval.log
 ```

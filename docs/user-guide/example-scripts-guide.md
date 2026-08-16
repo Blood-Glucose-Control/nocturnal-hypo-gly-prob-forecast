@@ -33,6 +33,14 @@ taxonomy-aligned shell launchers:
 - Chronos-2 compatibility launchers remain in `scripts/experiments/` as thin
   wrappers only (`chronos2_sweep_train.sh`, `chronos2_sweep_eval.sh`)
 
+Model-family sweep shell entrypoints are now canonicalized under:
+
+- `scripts/training/sweeps/models/*_sweep_train.sh`
+- `scripts/evaluation/sweeps/models/*_sweep_eval.sh`
+
+Compatibility wrappers with the same names remain in `scripts/experiments/`
+while references migrate.
+
 The Python sweep CLIs are now dispatcher entrypoints keyed by:
 
 - `--task-family` / `TASK_FAMILY`

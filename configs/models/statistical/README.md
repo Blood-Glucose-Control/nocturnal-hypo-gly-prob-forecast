@@ -17,15 +17,15 @@ fall back to Naive — no work is lost.
 
 ```bash
 # 1. Train (CPU — runs configs sequentially, writes manifest)
-bash scripts/experiments/statistical_sweep_train.sh
+bash scripts/training/sweeps/models/statistical_sweep_train.sh
 
 # 2. Evaluate (CPU — parallel workers, reads manifest)
-bash scripts/experiments/statistical_sweep_eval.sh
+bash scripts/evaluation/sweeps/models/statistical_sweep_eval.sh
 
 # Control CPU parallelism for eval
-JOBS_PER_CPU=2 bash scripts/experiments/statistical_sweep_eval.sh
+JOBS_PER_CPU=2 bash scripts/evaluation/sweeps/models/statistical_sweep_eval.sh
 
 # Log both to file
-bash scripts/experiments/statistical_sweep_train.sh 2>&1 | tee logs/statistical_sweep_train.log
-bash scripts/experiments/statistical_sweep_eval.sh  2>&1 | tee logs/statistical_sweep_eval.log
+bash scripts/training/sweeps/models/statistical_sweep_train.sh 2>&1 | tee logs/statistical_sweep_train.log
+bash scripts/evaluation/sweeps/models/statistical_sweep_eval.sh  2>&1 | tee logs/statistical_sweep_eval.log
 ```
