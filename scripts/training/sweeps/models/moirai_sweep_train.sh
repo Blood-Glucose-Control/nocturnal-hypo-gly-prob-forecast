@@ -12,9 +12,9 @@
 # so moirai_sweep_eval.sh can find the checkpoints without parsing dir names.
 #
 # Usage:
-#   bash scripts/experiments/moirai_sweep_train.sh
-#   CUDA_VISIBLE_DEVICES=1 bash scripts/experiments/moirai_sweep_train.sh
-#   bash scripts/experiments/moirai_sweep_train.sh 2>&1 | tee moirai_sweep_train.log
+#   bash scripts/training/sweeps/models/moirai_sweep_train.sh
+#   CUDA_VISIBLE_DEVICES=1 bash scripts/training/sweeps/models/moirai_sweep_train.sh
+#   bash scripts/training/sweeps/models/moirai_sweep_train.sh 2>&1 | tee moirai_sweep_train.log
 
 set -euo pipefail
 

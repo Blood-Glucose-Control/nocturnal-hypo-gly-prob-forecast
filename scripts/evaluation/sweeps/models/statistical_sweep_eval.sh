@@ -9,8 +9,8 @@
 # Format: <stem>\t<output_dir>  (tab-separated, last entry wins on re-run)
 #
 # Usage:
-#   bash scripts/experiments/statistical_sweep_eval.sh
-#   JOBS_PER_CPU=4 bash scripts/experiments/statistical_sweep_eval.sh 2>&1 | tee statistical_sweep_eval.log
+#   bash scripts/evaluation/sweeps/models/statistical_sweep_eval.sh
+#   JOBS_PER_CPU=4 bash scripts/evaluation/sweeps/models/statistical_sweep_eval.sh 2>&1 | tee statistical_sweep_eval.log
 
 set -euo pipefail
 

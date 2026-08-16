@@ -10,9 +10,9 @@
 # All four datasets are evaluated — Sundial has no covariate support.
 #
 # Usage:
-#   bash scripts/experiments/sundial_sweep_eval.sh
-#   CUDA_DEVICE=1 bash scripts/experiments/sundial_sweep_eval.sh
-#   DATASETS="lynch_2022" bash scripts/experiments/sundial_sweep_eval.sh
+#   bash scripts/evaluation/sweeps/models/sundial_sweep_eval.sh
+#   CUDA_DEVICE=1 bash scripts/evaluation/sweeps/models/sundial_sweep_eval.sh
+#   DATASETS="lynch_2022" bash scripts/evaluation/sweeps/models/sundial_sweep_eval.sh
 
 set -euo pipefail
 

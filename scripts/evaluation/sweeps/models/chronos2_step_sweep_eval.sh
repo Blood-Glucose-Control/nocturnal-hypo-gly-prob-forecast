@@ -19,9 +19,9 @@
 #   logs/chronos2_step_sweep_done.log
 #
 # Usage:
-#   bash scripts/experiments/chronos2_step_sweep_eval.sh
-#   GPUS="0 1" bash scripts/experiments/chronos2_step_sweep_eval.sh
-#   GPUS="0 1" JOBS_PER_GPU=4 bash scripts/experiments/chronos2_step_sweep_eval.sh
+#   bash scripts/evaluation/sweeps/models/chronos2_step_sweep_eval.sh
+#   GPUS="0 1" bash scripts/evaluation/sweeps/models/chronos2_step_sweep_eval.sh
+#   GPUS="0 1" JOBS_PER_GPU=4 bash scripts/evaluation/sweeps/models/chronos2_step_sweep_eval.sh
 
 set -euo pipefail
 

@@ -30,15 +30,15 @@
 # USAGE
 # -----
 #   # Both GPUs (default):
-#   GPUS="0 1" bash scripts/experiments/chronos2_long_run_step_sweep_eval.sh
+#   GPUS="0 1" bash scripts/evaluation/sweeps/models/chronos2_long_run_step_sweep_eval.sh
 #
 #   # Single GPU:
-#   GPUS="0" bash scripts/experiments/chronos2_long_run_step_sweep_eval.sh
+#   GPUS="0" bash scripts/evaluation/sweeps/models/chronos2_long_run_step_sweep_eval.sh
 #
 #   # Override artifact dirs if they change:
 #   ARTIFACT_16=trained_models/artifacts/chronos2/<id16> \
 #   ARTIFACT_17=trained_models/artifacts/chronos2/<id17> \
-#   bash scripts/experiments/chronos2_long_run_step_sweep_eval.sh
+#   bash scripts/evaluation/sweeps/models/chronos2_long_run_step_sweep_eval.sh
 
 set -euo pipefail
 

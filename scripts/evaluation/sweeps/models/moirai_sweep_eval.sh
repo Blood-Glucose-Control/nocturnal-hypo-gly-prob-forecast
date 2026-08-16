@@ -15,9 +15,9 @@
 #   COB: carb covariate configs (05–08) — excl. brown + tamborlane (no meal data)
 #
 # Usage:
-#   bash scripts/experiments/moirai_sweep_eval.sh
-#   CUDA_VISIBLE_DEVICES=1 bash scripts/experiments/moirai_sweep_eval.sh
-#   bash scripts/experiments/moirai_sweep_eval.sh 2>&1 | tee moirai_sweep_eval.log
+#   bash scripts/evaluation/sweeps/models/moirai_sweep_eval.sh
+#   CUDA_VISIBLE_DEVICES=1 bash scripts/evaluation/sweeps/models/moirai_sweep_eval.sh
+#   bash scripts/evaluation/sweeps/models/moirai_sweep_eval.sh 2>&1 | tee moirai_sweep_eval.log
 
 set -euo pipefail
 

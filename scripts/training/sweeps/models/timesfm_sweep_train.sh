@@ -29,13 +29,13 @@
 #   <stem>\t<output_dir>
 #
 # Usage:
-#   bash scripts/experiments/timesfm_sweep_train.sh
-#   GPU0=0 GPU1=1 bash scripts/experiments/timesfm_sweep_train.sh
-#   DATASETS="aleppo_2017" bash scripts/experiments/timesfm_sweep_train.sh
+#   bash scripts/training/sweeps/models/timesfm_sweep_train.sh
+#   GPU0=0 GPU1=1 bash scripts/training/sweeps/models/timesfm_sweep_train.sh
+#   DATASETS="aleppo_2017" bash scripts/training/sweeps/models/timesfm_sweep_train.sh
 #
 # Single-GPU mode (one GPU occupied / testing):
-#   SINGLE_GPU=1 bash scripts/experiments/timesfm_sweep_train.sh
-#   SINGLE_GPU=1 GPU0=1 bash scripts/experiments/timesfm_sweep_train.sh
+#   SINGLE_GPU=1 bash scripts/training/sweeps/models/timesfm_sweep_train.sh
+#   SINGLE_GPU=1 GPU0=1 bash scripts/training/sweeps/models/timesfm_sweep_train.sh
 # All configs run sequentially on GPU0; no background processes are spawned.
 
 set -euo pipefail

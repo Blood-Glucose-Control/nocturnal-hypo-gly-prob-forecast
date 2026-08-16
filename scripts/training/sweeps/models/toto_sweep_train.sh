@@ -18,9 +18,9 @@
 #   Full sweep (9 configs): ~1.5–2 hours
 #
 # Usage:
-#   bash scripts/experiments/toto_sweep_train.sh
-#   CUDA_VISIBLE_DEVICES=1 bash scripts/experiments/toto_sweep_train.sh
-#   bash scripts/experiments/toto_sweep_train.sh 2>&1 | tee toto_sweep_train.log
+#   bash scripts/training/sweeps/models/toto_sweep_train.sh
+#   CUDA_VISIBLE_DEVICES=1 bash scripts/training/sweeps/models/toto_sweep_train.sh
+#   bash scripts/training/sweeps/models/toto_sweep_train.sh 2>&1 | tee toto_sweep_train.log
 
 set -euo pipefail
 

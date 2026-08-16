@@ -8,8 +8,8 @@
 #   trained_models/artifacts/deepar/sweep_manifest.txt
 #
 # Usage:
-#   bash scripts/experiments/deepar_sweep_eval.sh
-#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/deepar_sweep_eval.sh 2>&1 | tee deepar_sweep_eval.log
+#   bash scripts/evaluation/sweeps/models/deepar_sweep_eval.sh
+#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/evaluation/sweeps/models/deepar_sweep_eval.sh 2>&1 | tee deepar_sweep_eval.log
 
 set -euo pipefail
 

@@ -30,16 +30,11 @@ taxonomy-aligned shell launchers:
 - Generic evaluation CLI: `scripts/experiments/sweep_eval.py`
 - Canonical training launcher: `scripts/training/sweeps/run_sweep_train.sh`
 - Canonical evaluation launcher: `scripts/evaluation/sweeps/run_sweep_eval.sh`
-- Chronos-2 compatibility launchers remain in `scripts/experiments/` as thin
-  wrappers only (`chronos2_sweep_train.sh`, `chronos2_sweep_eval.sh`)
 
 Model-family sweep shell entrypoints are now canonicalized under:
 
 - `scripts/training/sweeps/models/*_sweep_train.sh`
 - `scripts/evaluation/sweeps/models/*_sweep_eval.sh`
-
-Compatibility wrappers with the same names remain in `scripts/experiments/`
-while references migrate.
 
 The Python sweep CLIs are now dispatcher entrypoints keyed by:
 
@@ -113,8 +108,8 @@ Canonical chain/orchestration scripts now live under:
 - `scripts/orchestration/sweeps/run_ctx_ablation_sweeps.sh`
 - `scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh`
 
-Compatibility wrappers remain in `scripts/experiments/` with the same names
-while references migrate.
+Legacy model-sweep compatibility wrappers in `scripts/experiments/` were removed;
+use the canonical orchestration and model-sweep paths above.
 
 ## Canonical workflow example
 

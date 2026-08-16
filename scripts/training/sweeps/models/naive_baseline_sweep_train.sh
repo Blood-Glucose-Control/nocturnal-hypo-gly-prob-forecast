@@ -18,8 +18,8 @@
 # CPU-only. No GPU required.
 #
 # Usage:
-#   bash scripts/experiments/naive_baseline_sweep_train.sh
-#   bash scripts/experiments/naive_baseline_sweep_train.sh 2>&1 | tee logs/naive_train.log
+#   bash scripts/training/sweeps/models/naive_baseline_sweep_train.sh
+#   bash scripts/training/sweeps/models/naive_baseline_sweep_train.sh 2>&1 | tee logs/naive_train.log
 
 set -euo pipefail
 

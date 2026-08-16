@@ -15,8 +15,8 @@
 # CPU-only. No GPU required.
 #
 # Usage:
-#   bash scripts/experiments/statistical_sweep_train.sh
-#   bash scripts/experiments/statistical_sweep_train.sh 2>&1 | tee statistical_sweep_train.log
+#   bash scripts/training/sweeps/models/statistical_sweep_train.sh
+#   bash scripts/training/sweeps/models/statistical_sweep_train.sh 2>&1 | tee statistical_sweep_train.log
 
 set -euo pipefail
 
