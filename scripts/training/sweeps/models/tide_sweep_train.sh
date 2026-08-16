@@ -11,9 +11,9 @@
 # A manifest is written so tide_sweep_eval.sh can find the checkpoints.
 #
 # Usage:
-#   bash scripts/experiments/tide_sweep_train.sh
-#   CUDA_VISIBLE_DEVICES=1 bash scripts/experiments/tide_sweep_train.sh
-#   bash scripts/experiments/tide_sweep_train.sh 2>&1 | tee tide_sweep_train.log
+#   bash scripts/training/sweeps/models/tide_sweep_train.sh
+#   CUDA_VISIBLE_DEVICES=1 bash scripts/training/sweeps/models/tide_sweep_train.sh
+#   bash scripts/training/sweeps/models/tide_sweep_train.sh 2>&1 | tee tide_sweep_train.log
 
 set -euo pipefail
 

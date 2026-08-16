@@ -12,9 +12,9 @@
 # GPU memory: ~6 GB peak at defaults → 6 workers per 96 GB Blackwell GPU is safe.
 #
 # Usage:
-#   bash scripts/experiments/patchtst_sweep_train.sh
-#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/patchtst_sweep_train.sh
-#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/patchtst_sweep_train.sh 2>&1 | tee patchtst_sweep_train.log
+#   bash scripts/training/sweeps/models/patchtst_sweep_train.sh
+#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/training/sweeps/models/patchtst_sweep_train.sh
+#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/training/sweeps/models/patchtst_sweep_train.sh 2>&1 | tee patchtst_sweep_train.log
 
 set -euo pipefail
 

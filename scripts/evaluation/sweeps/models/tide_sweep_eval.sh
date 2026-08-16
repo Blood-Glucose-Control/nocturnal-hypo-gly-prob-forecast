@@ -13,9 +13,9 @@
 # If a stem appears more than once (re-run), the last entry wins.
 #
 # Usage:
-#   bash scripts/experiments/tide_sweep_eval.sh
-#   CUDA_VISIBLE_DEVICES=1 bash scripts/experiments/tide_sweep_eval.sh
-#   bash scripts/experiments/tide_sweep_eval.sh 2>&1 | tee tide_sweep_eval.log
+#   bash scripts/evaluation/sweeps/models/tide_sweep_eval.sh
+#   CUDA_VISIBLE_DEVICES=1 bash scripts/evaluation/sweeps/models/tide_sweep_eval.sh
+#   bash scripts/evaluation/sweeps/models/tide_sweep_eval.sh 2>&1 | tee tide_sweep_eval.log
 
 set -euo pipefail
 

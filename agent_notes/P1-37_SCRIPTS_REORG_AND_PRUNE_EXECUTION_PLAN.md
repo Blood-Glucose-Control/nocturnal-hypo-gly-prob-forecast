@@ -280,6 +280,16 @@ Refreshed on 2026-08-14 after PR #433 merge and a full re-audit of `scripts/`.
   scripts directly:
   - `scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh`
 
+### 2026-08-16 (dedup cleanup: remove model-sweep compatibility wrappers)
+
+- Removed model-sweep compatibility wrappers from `scripts/experiments/`:
+  - `*_sweep_train.sh`
+  - `*_sweep_eval.sh`
+- Canonical script surfaces are now direct-only:
+  - `scripts/training/sweeps/models/*_sweep_train.sh`
+  - `scripts/evaluation/sweeps/models/*_sweep_eval.sh`
+- Updated model sweep script usage comments and docs references to canonical paths.
+
 ---
 
 ## 1) Current-state snapshot (facts)

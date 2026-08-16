@@ -22,9 +22,9 @@
 #   - COB/carb covariates: lynch, aleppo
 #
 # Usage:
-#   bash scripts/experiments/moment_sweep_eval.sh
-#   GPU0=0 GPU1=1 bash scripts/experiments/moment_sweep_eval.sh
-#   DATASETS="aleppo_2017" bash scripts/experiments/moment_sweep_eval.sh
+#   bash scripts/evaluation/sweeps/models/moment_sweep_eval.sh
+#   GPU0=0 GPU1=1 bash scripts/evaluation/sweeps/models/moment_sweep_eval.sh
+#   DATASETS="aleppo_2017" bash scripts/evaluation/sweeps/models/moment_sweep_eval.sh
 
 set -euo pipefail
 

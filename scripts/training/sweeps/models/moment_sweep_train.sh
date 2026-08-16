@@ -26,9 +26,9 @@
 #   <stem>\t<output_dir>
 #
 # Usage:
-#   bash scripts/experiments/moment_sweep_train.sh
-#   GPU0=0 GPU1=1 bash scripts/experiments/moment_sweep_train.sh
-#   DATASETS="aleppo_2017" bash scripts/experiments/moment_sweep_train.sh
+#   bash scripts/training/sweeps/models/moment_sweep_train.sh
+#   GPU0=0 GPU1=1 bash scripts/training/sweeps/models/moment_sweep_train.sh
+#   DATASETS="aleppo_2017" bash scripts/training/sweeps/models/moment_sweep_train.sh
 
 set -euo pipefail
 

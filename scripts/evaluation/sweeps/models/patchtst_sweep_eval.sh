@@ -8,8 +8,8 @@
 #   trained_models/artifacts/patchtst/sweep_manifest.txt
 #
 # Usage:
-#   bash scripts/experiments/patchtst_sweep_eval.sh
-#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/patchtst_sweep_eval.sh 2>&1 | tee patchtst_sweep_eval.log
+#   bash scripts/evaluation/sweeps/models/patchtst_sweep_eval.sh
+#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/evaluation/sweeps/models/patchtst_sweep_eval.sh 2>&1 | tee patchtst_sweep_eval.log
 
 set -euo pipefail
 

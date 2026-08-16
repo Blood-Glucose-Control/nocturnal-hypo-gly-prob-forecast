@@ -15,8 +15,8 @@
 # Use JOBS_PER_CPU to parallelise across datasets (default: nproc / 2).
 #
 # Usage:
-#   bash scripts/experiments/naive_baseline_sweep_eval.sh
-#   JOBS_PER_CPU=4 bash scripts/experiments/naive_baseline_sweep_eval.sh 2>&1 | tee logs/naive_sweep_eval.log
+#   bash scripts/evaluation/sweeps/models/naive_baseline_sweep_eval.sh
+#   JOBS_PER_CPU=4 bash scripts/evaluation/sweeps/models/naive_baseline_sweep_eval.sh 2>&1 | tee logs/naive_sweep_eval.log
 
 set -euo pipefail
 

@@ -16,9 +16,9 @@
 # TimesFM has no covariate support — all four datasets are always evaluated.
 #
 # Usage:
-#   bash scripts/experiments/timesfm_sweep_eval.sh
-#   GPU0=0 GPU1=1 bash scripts/experiments/timesfm_sweep_eval.sh
-#   DATASETS="aleppo_2017" bash scripts/experiments/timesfm_sweep_eval.sh
+#   bash scripts/evaluation/sweeps/models/timesfm_sweep_eval.sh
+#   GPU0=0 GPU1=1 bash scripts/evaluation/sweeps/models/timesfm_sweep_eval.sh
+#   DATASETS="aleppo_2017" bash scripts/evaluation/sweeps/models/timesfm_sweep_eval.sh
 
 set -euo pipefail
 

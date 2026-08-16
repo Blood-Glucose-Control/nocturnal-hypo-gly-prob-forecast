@@ -17,9 +17,9 @@
 # matching each run to a config stem via (covariate_cols, context_length, lr).
 #
 # Usage:
-#   bash scripts/experiments/toto_sweep_eval.sh
-#   CUDA_VISIBLE_DEVICES=1 bash scripts/experiments/toto_sweep_eval.sh
-#   bash scripts/experiments/toto_sweep_eval.sh 2>&1 | tee toto_sweep_eval.log
+#   bash scripts/evaluation/sweeps/models/toto_sweep_eval.sh
+#   CUDA_VISIBLE_DEVICES=1 bash scripts/evaluation/sweeps/models/toto_sweep_eval.sh
+#   bash scripts/evaluation/sweeps/models/toto_sweep_eval.sh 2>&1 | tee toto_sweep_eval.log
 
 set -euo pipefail
 

@@ -13,9 +13,9 @@
 # GPU memory: ~8 GB peak at defaults → 6 workers per 96 GB Blackwell GPU is safe.
 #
 # Usage:
-#   bash scripts/experiments/tft_sweep_train.sh
-#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/tft_sweep_train.sh
-#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/experiments/tft_sweep_train.sh 2>&1 | tee tft_sweep_train.log
+#   bash scripts/training/sweeps/models/tft_sweep_train.sh
+#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/training/sweeps/models/tft_sweep_train.sh
+#   GPUS="0 1" JOBS_PER_GPU=6 bash scripts/training/sweeps/models/tft_sweep_train.sh 2>&1 | tee tft_sweep_train.log
 
 set -euo pipefail
 
