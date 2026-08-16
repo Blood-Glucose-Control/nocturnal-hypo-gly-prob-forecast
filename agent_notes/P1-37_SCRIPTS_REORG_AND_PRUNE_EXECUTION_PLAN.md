@@ -252,6 +252,22 @@ Refreshed on 2026-08-14 after PR #433 merge and a full re-audit of `scripts/`.
   - `task_family=forecasting`
   - `experiment_type=nocturnal_forecast`
 
+### 2026-08-16 (adapter scaffolds + chain-orchestration relocation)
+
+- Added registered event-detection adapter scaffolds:
+  - `src/workflows/sweeps/tasks/event_detection/train.py`
+  - `src/workflows/sweeps/tasks/event_detection/eval.py`
+  - key: `task_family=event_detection`, `experiment_type=nocturnal_events`
+- Added adapter discovery on dispatcher CLIs:
+  - `python scripts/experiments/sweep_train.py --list-adapters`
+  - `python scripts/experiments/sweep_eval.py --list-adapters`
+- Relocated multi-stage forecasting chain orchestrators to canonical path:
+  - `scripts/orchestration/sweeps/chronos2_sweep.sh`
+  - `scripts/orchestration/sweeps/run_ctx_ablation_sweeps.sh`
+  - `scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh`
+- Kept same-name compatibility wrappers in `scripts/experiments/` to avoid
+  caller breakage during migration.
+
 ---
 
 ## 1) Current-state snapshot (facts)
@@ -281,9 +297,10 @@ Refreshed on 2026-08-14 after PR #433 merge and a full re-audit of `scripts/`.
    - real `sbatch` smoke validation is deferred to private-cluster execution.
 4. **Sweep train/eval shell duplication is high.**
    - Similarity scan shows many pairs at >=0.92 (e.g. DeepAR/PatchTST/TFT variants).
-5. **Orchestration is fragmented.**
-   - We have script-per-model plus ad-hoc chain scripts (`run_ctx_ablation_sweeps.sh`,
-     `run_overnight_deep_sweeps.sh`, `chronos2_sweep.sh`) with overlapping worker logic.
+5. **Orchestration is still fragmented (partially improved).**
+   - Multi-stage chain scripts now have canonical placement under
+     `scripts/orchestration/sweeps/`, but substantial script-per-model
+     duplication remains in `scripts/experiments/`.
 6. **Data processing loaders are repetitive and hardcoded.**
    - dataset-specific shell wrappers are near-identical and include user-path assumptions.
 

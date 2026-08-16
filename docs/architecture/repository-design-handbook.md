@@ -98,6 +98,7 @@ Use `scripts/` for:
 - user-facing examples/tutorial scripts
 - launchers (local, tmux, SLURM)
 - thin wrappers over `src` modules
+- canonical multi-run chains under `scripts/orchestration/`
 
 Avoid in `scripts/`:
 
@@ -199,8 +200,8 @@ Minimum bar for script and workflow changes:
 ### 11.2 Remaining open items
 
 1. Extend the task/experiment sweep dispatcher pattern (`src/workflows/sweeps/`)
-   with additional adapters beyond the initial
-   `forecasting/nocturnal_forecast` implementation.
+   with production adapters beyond the currently scaffolded set
+   (`forecasting/nocturnal_forecast`, `event_detection/nocturnal_events`).
 2. Continue extending the initial `src/workflows/forecasting/` placement pattern
    to additional shared pipeline components during transition.
 
