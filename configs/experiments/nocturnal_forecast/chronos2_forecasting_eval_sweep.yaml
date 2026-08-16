@@ -1,0 +1,117 @@
+model_type: chronos2
+probabilistic: true
+no_dilate: false
+forecast_length: 96
+jobs:
+  - model_config: configs/models/chronos2/00_bg_only.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+  - model_config: configs/models/chronos2/06_bg_iob_cob.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+  - model_config: configs/models/chronos2/07_bg_full_features.yaml
+    context_length: 512
+    covariate_cols: [iob, cob, insulin_availability, carb_availability]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+  - model_config: configs/models/chronos2/08_bg_iob_cob_high_lr.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+  - model_config: configs/models/chronos2/09_bg_iob_cob_short_ctx.yaml
+    context_length: 288
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+  - model_config: configs/models/chronos2/10_bg_iob_ia_high_lr_ctx256.yaml
+    context_length: 256
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+  - model_config: configs/models/chronos2/11_bg_iob_ia_high_lr_ctx128.yaml
+    context_length: 128
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+  - model_config: configs/models/chronos2/12_bg_iob_ia_high_lr_ctx64.yaml
+    context_length: 64
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+  - model_config: configs/models/chronos2/13_bg_iob_cob_high_lr_ctx256.yaml
+    context_length: 256
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+  - model_config: configs/models/chronos2/14_bg_iob_cob_high_lr_ctx128.yaml
+    context_length: 128
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008
+  - model_config: configs/models/chronos2/15_bg_iob_cob_high_lr_ctx64.yaml
+    context_length: 64
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets:
+      - lynch_2022
+      - aleppo_2017
+      - brown_2019
+      - tamborlane_2008

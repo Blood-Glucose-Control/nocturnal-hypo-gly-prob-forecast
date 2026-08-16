@@ -23,27 +23,40 @@ These are intentionally in `scripts/experiments/` (not `scripts/examples/`):
 
 ## Python-first sweep orchestration
 
-Sweep training now has a model-agnostic Python entrypoint plus model profile
-wrappers:
+Sweep orchestration now uses model-agnostic Python entrypoints with canonical
+taxonomy-aligned shell launchers:
 
-- Generic CLI: `scripts/experiments/sweep_train.py`
-- Chronos-2 profile wrapper: `scripts/experiments/chronos2_sweep_train.py`
-- Thin shell launcher: `scripts/experiments/chronos2_sweep_train.sh`
+- Generic training CLI: `scripts/experiments/sweep_train.py`
+- Generic evaluation CLI: `scripts/experiments/sweep_eval.py`
+- Canonical training launcher: `scripts/training/sweeps/run_sweep_train.sh`
+- Canonical evaluation launcher: `scripts/evaluation/sweeps/run_sweep_eval.sh`
+- Chronos-2 compatibility launchers remain in `scripts/experiments/` as thin
+  wrappers only (`chronos2_sweep_train.sh`, `chronos2_sweep_eval.sh`)
 
 Chronos-2 profile spec:
 
 - `configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/chronos2_forecasting_eval_sweep.yaml`
 
 Local usage:
 
 ```bash
-GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/chronos2_sweep_train.sh
+MODEL_TYPE=chronos2 \
+SWEEP_SPEC=configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml \
+GPUS="0 1" JOBS_PER_GPU=2 \
+bash scripts/training/sweeps/run_sweep_train.sh
 ```
 
 Path-check (no training execution):
 
 ```bash
-DRY_RUN=1 GPUS="0" JOBS_PER_GPU=1 bash scripts/experiments/chronos2_sweep_train.sh
+DRY_RUN=1 GPUS="0" JOBS_PER_GPU=1 bash scripts/training/sweeps/run_sweep_train.sh
+```
+
+Chronos-2 eval path-check (no evaluation execution):
+
+```bash
+DRY_RUN=1 GPUS="0" JOBS_PER_GPU=1 bash scripts/evaluation/sweeps/run_sweep_eval.sh
 ```
 
 Generic config-directory mode (same datasets applied to every model config):
@@ -61,7 +74,7 @@ python scripts/experiments/sweep_train.py \
 SLURM usage pattern (launch wrapper inside one allocation):
 
 ```bash
-sbatch --gres=gpu:2 --wrap 'cd /path/to/repo && GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/chronos2_sweep_train.sh'
+sbatch --gres=gpu:2 --wrap 'cd /path/to/repo && MODEL_TYPE=chronos2 SWEEP_SPEC=configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml GPUS="0 1" JOBS_PER_GPU=2 bash scripts/training/sweeps/run_sweep_train.sh'
 ```
 
 ## Canonical workflow example

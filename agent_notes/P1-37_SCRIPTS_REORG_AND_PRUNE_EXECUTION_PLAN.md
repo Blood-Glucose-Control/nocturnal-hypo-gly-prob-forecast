@@ -217,6 +217,22 @@ Refreshed on 2026-08-14 after PR #433 merge and a full re-audit of `scripts/`.
 - Renamed Chronos-2 sweep profile config to taxonomy-aligned title:
   - `configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml`
 
+### 2026-08-16 (scripts-surface cleanup continuation: generic launchers)
+
+- Added generic sweep evaluation CLI entrypoint:
+  - `scripts/experiments/sweep_eval.py`
+- Added canonical taxonomy-aligned shell launchers:
+  - `scripts/training/sweeps/run_sweep_train.sh`
+  - `scripts/evaluation/sweeps/run_sweep_eval.sh`
+- Removed model-specific Chronos-2 Python profile wrappers:
+  - `scripts/experiments/chronos2_sweep_train.py` (deleted)
+  - `scripts/experiments/chronos2_sweep_eval.py` (deleted)
+  - `src/workflows/forecasting/orchestrators/*` Chronos-2 profile wrappers (deleted)
+- Kept compatibility shell wrappers in `scripts/experiments/` as thin delegators
+  to canonical launchers while references migrate:
+  - `scripts/experiments/chronos2_sweep_train.sh`
+  - `scripts/experiments/chronos2_sweep_eval.sh`
+
 ---
 
 ## 1) Current-state snapshot (facts)

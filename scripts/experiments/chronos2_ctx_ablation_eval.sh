@@ -90,7 +90,7 @@ fi
 
 if [[ ! -f "$MANIFEST" ]]; then
     echo "ERROR: manifest not found at $MANIFEST"
-    echo "       Run chronos2_sweep_train.sh first."
+    echo "       Run scripts/training/sweeps/run_sweep_train.sh first."
     exit 1
 fi
 

@@ -9,8 +9,8 @@
 #     works before committing GPU-hours to the full sweep.
 #
 #   Phase 2 — Full sweep training (parallel GPUs)
-#     Distributes configs 00–15 across all available GPUs via
-#     chronos2_sweep_train.sh.  Only runs if the smoke phase passes.
+#     Distributes configs 00–15 across all available GPUs via the generic
+#     sweep launcher. Only runs if the smoke phase passes.
 #
 # Usage:
 #   bash scripts/experiments/chronos2_sweep.sh           # smoke + full sweep
@@ -36,7 +36,7 @@ SMOKE_GPU_ID="${SMOKE_GPU%% *}"
 
 CONFIG_DIR="configs/data/holdout_10pct"
 WORKFLOW="scripts/experiments/run_forecasting_workflow.sh"
-TRAIN_SCRIPT="scripts/experiments/chronos2_sweep_train.sh"
+TRAIN_SCRIPT="scripts/training/sweeps/run_sweep_train.sh"
 
 ARTIFACT_BASE="trained_models/artifacts/chronos2"
 LOG_DIR="logs"
@@ -106,7 +106,10 @@ echo "  Logging to: ${SWEEP_LOG}"
 echo "  (tail -f ${SWEEP_LOG} to monitor)"
 echo ""
 
-if GPUS="${GPUS:-}" bash "$TRAIN_SCRIPT" 2>&1 | tee "$SWEEP_LOG"; then
+if MODEL_TYPE="chronos2" \
+   SWEEP_SPEC="configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml" \
+   GPUS="${GPUS:-}" \
+   bash "$TRAIN_SCRIPT" 2>&1 | tee "$SWEEP_LOG"; then
     pass "Full sweep training complete."
 else
     fail "Full sweep training reported failures — check ${SWEEP_LOG}."
