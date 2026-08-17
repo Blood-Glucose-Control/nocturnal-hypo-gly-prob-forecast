@@ -11,13 +11,13 @@
 #   trained_models/artifacts/deepar/ctx_ablation_manifest.txt
 #
 # Usage:
-#   bash scripts/experiments/deepar_ctx_ablation_eval.sh
-#   GPUS="0 1" JOBS_PER_GPU=10 bash scripts/experiments/deepar_ctx_ablation_eval.sh 2>&1 | tee logs/ctx_ablation_deepar_eval.log
+#   bash scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/deepar_ctx_ablation_eval.sh
+#   GPUS="0 1" JOBS_PER_GPU=10 bash scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/deepar_ctx_ablation_eval.sh 2>&1 | tee logs/ctx_ablation_deepar_eval.log
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 PYTHON="${PROJECT_ROOT}/.venvs/autogluon/bin/python"
@@ -51,7 +51,7 @@ fi
 
 if [[ ! -f "$MANIFEST" ]]; then
     echo "ERROR: manifest not found at $MANIFEST"
-    echo "       Run deepar_ctx_ablation_train.sh first."
+    echo "       Run scripts/training/sweeps/nocturnal_forecast/context_ablation/deepar_ctx_ablation_train.sh first."
     exit 1
 fi
 

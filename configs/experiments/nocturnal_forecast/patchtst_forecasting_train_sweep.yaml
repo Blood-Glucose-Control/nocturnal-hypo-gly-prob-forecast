@@ -1,0 +1,25 @@
+jobs:
+  - model_config: configs/models/patchtst/00_baseline.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/01_short_patch.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/02_long_patch.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/03_short_ctx.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/04_long_ctx.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/05_narrow_d.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/06_wide_d.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/07_deep.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/08_shallow.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/09_high_lr.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/10_low_lr.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]
+  - model_config: configs/models/patchtst/11_weight_decay.yaml
+    datasets: [aleppo_2017, brown_2019, lynch_2022, tamborlane_2008]

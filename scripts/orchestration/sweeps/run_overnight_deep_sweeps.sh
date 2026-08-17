@@ -10,7 +10,7 @@
 # Outputs:
 #   logs/overnight_chain.log                — top-level orchestrator log
 #   logs/overnight_<model>_train.log        — per-stage stdout/stderr
-#   logs/overnight_failed_retry.txt         — TSV: <model>\t<config_path>\t<datasets_key>
+#   logs/overnight_failed_retry.txt         — TSV: <model>\t<config_path>\t<datasets_csv>
 #
 # Usage:
 #   nohup bash scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh \
@@ -33,28 +33,31 @@ RETRY_FILE="${LOG_DIR}/overnight_failed_retry.txt"
 : > "$RETRY_FILE"
 
 # ---------------------------------------------------------------------------
-# Parse a sweep_train.sh CONFIGS=( ... ) array into TSV: stem<TAB>path<TAB>key
+# Parse a train sweep spec into TSV: stem<TAB>path<TAB>datasets_csv
 # ---------------------------------------------------------------------------
 parse_sweep_configs() {
-    local sweep_script="$1"
-    awk '
-        /^CONFIGS=\(/ { in_arr=1; next }
-        in_arr && /^\)/ { in_arr=0; next }
-        in_arr {
-            line=$0
-            gsub(/^[[:space:]]*"/, "", line)
-            gsub(/"[[:space:]]*$/, "", line)
-            n = split(line, parts, "|")
-            if (n == 2) {
-                path = parts[1]
-                key  = parts[2]
-                m = split(path, segs, "/")
-                stem = segs[m]
-                sub(/\.yaml$/, "", stem)
-                printf "%s\t%s\t%s\n", stem, path, key
-            }
-        }
-    ' "$sweep_script"
+    local sweep_spec="$1"
+    python - "$sweep_spec" <<'PY'
+import pathlib
+import sys
+import yaml
+
+sweep_spec = pathlib.Path(sys.argv[1])
+data = yaml.safe_load(sweep_spec.read_text(encoding="utf-8"))
+jobs = data.get("jobs", []) if isinstance(data, dict) else []
+for item in jobs:
+    if not isinstance(item, dict):
+        continue
+    model_config = item.get("model_config")
+    datasets = item.get("datasets", [])
+    if not isinstance(model_config, str):
+        continue
+    if not isinstance(datasets, list):
+        datasets = []
+    stem = pathlib.Path(model_config).stem
+    datasets_csv = ",".join(str(ds).strip() for ds in datasets if str(ds).strip())
+    print(f"{stem}\t{model_config}\t{datasets_csv}")
+PY
 }
 
 # ---------------------------------------------------------------------------
@@ -62,21 +65,21 @@ parse_sweep_configs() {
 # ---------------------------------------------------------------------------
 record_failures() {
     local model="$1"
-    local sweep_script="$2"
+    local sweep_spec="$2"
     local manifest="trained_models/artifacts/${model}/sweep_manifest.txt"
     [[ -f "$manifest" ]] || touch "$manifest"
 
     local total=0 ok=0 missing=0
-    while IFS=$'\t' read -r stem path key; do
+    while IFS=$'\t' read -r stem path datasets_csv; do
         [[ -z "$stem" ]] && continue
         total=$(( total + 1 ))
         if awk -F'\t' -v s="$stem" '$1 == s { found=1 } END { exit !found }' "$manifest"; then
             ok=$(( ok + 1 ))
         else
             missing=$(( missing + 1 ))
-            printf '%s\t%s\t%s\n' "$model" "$path" "$key" >> "$RETRY_FILE"
+            printf '%s\t%s\t%s\n' "$model" "$path" "$datasets_csv" >> "$RETRY_FILE"
         fi
-    done < <(parse_sweep_configs "$sweep_script")
+    done < <(parse_sweep_configs "$sweep_spec")
 
     echo "[chain] ${model}: ${ok}/${total} succeeded, ${missing} need retry"
 }
@@ -87,6 +90,7 @@ record_failures() {
 run_stage() {
     local model="$1"
     local sweep_script="scripts/training/sweeps/models/${model}_sweep_train.sh"
+    local sweep_spec="configs/experiments/nocturnal_forecast/${model}_forecasting_train_sweep.yaml"
     local stage_log="${LOG_DIR}/overnight_${model}_train.log"
 
     echo ""
@@ -100,11 +104,15 @@ run_stage() {
         echo "[chain] ERROR: sweep script not found: ${sweep_script}"
         return 0
     fi
+    if [[ ! -f "$sweep_spec" ]]; then
+        echo "[chain] ERROR: sweep spec not found: ${sweep_spec}"
+        return 0
+    fi
 
     local rc=0
     bash "$sweep_script" > "$stage_log" 2>&1 || rc=$?
     echo "[chain]  Stage: ${model}    finished $(date '+%Y-%m-%d %H:%M:%S')  exit=${rc}"
-    record_failures "$model" "$sweep_script"
+    record_failures "$model" "$sweep_spec"
     return 0
 }
 
@@ -122,7 +130,7 @@ run_stage tft
 # ---------------------------------------------------------------------------
 # Final summary
 # ---------------------------------------------------------------------------
-total_failures=$(grep -c '' "$RETRY_FILE" 2>/dev/null || echo 0)
+total_failures="$(wc -l < "$RETRY_FILE" | tr -d '[:space:]')"
 
 echo ""
 echo "[chain] ============================================================"

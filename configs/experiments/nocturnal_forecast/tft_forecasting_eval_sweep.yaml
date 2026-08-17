@@ -1,0 +1,88 @@
+forecast_length: 96
+probabilistic: true
+jobs:
+  - model_config: configs/models/tft/00_bg_baseline.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/01_bg_wide.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/02_bg_long_ctx.yaml
+    context_length: 768
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/03_bg_high_dropout.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/04_bg_more_heads.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/05_bg_high_lr.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/06_iob_baseline.yaml
+    context_length: 512
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/07_iob_wide.yaml
+    context_length: 512
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/08_iob_long_ctx.yaml
+    context_length: 768
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/09_iob_high_dropout.yaml
+    context_length: 512
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/10_iob_more_heads.yaml
+    context_length: 512
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/11_iob_high_lr.yaml
+    context_length: 512
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/12_iob_cob_baseline.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/13_iob_cob_wide.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/14_iob_cob_high_dropout.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/15_iob_cob_more_heads.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/16_iob_cob_high_lr.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [aleppo_2017]
+    zeroshot_datasets: []

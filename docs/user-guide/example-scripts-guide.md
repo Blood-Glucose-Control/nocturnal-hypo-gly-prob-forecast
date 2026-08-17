@@ -54,10 +54,16 @@ python scripts/experiments/sweep_train.py --list-adapters
 python scripts/experiments/sweep_eval.py --list-adapters
 ```
 
-Chronos-2 profile spec:
+Forecasting sweep profile specs:
 
 - `configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml`
 - `configs/experiments/nocturnal_forecast/chronos2_forecasting_eval_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/deepar_forecasting_train_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/deepar_forecasting_eval_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/patchtst_forecasting_train_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/patchtst_forecasting_eval_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/tft_forecasting_train_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/tft_forecasting_eval_sweep.yaml`
 
 Local usage:
 
@@ -108,8 +114,14 @@ Canonical chain/orchestration scripts now live under:
 - `scripts/orchestration/sweeps/run_ctx_ablation_sweeps.sh`
 - `scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh`
 
-Legacy model-sweep compatibility wrappers in `scripts/experiments/` were removed;
-use the canonical orchestration and model-sweep paths above.
+Context-ablation model scripts are now canonicalized as a `nocturnal_forecast`
+sub-experiment under:
+
+- `scripts/training/sweeps/nocturnal_forecast/context_ablation/`
+- `scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/`
+
+Legacy compatibility wrappers in `scripts/experiments/` were removed for both
+model-sweep and orchestration chain scripts; use the canonical paths above.
 
 ## Canonical workflow example
 

@@ -1,34 +1,30 @@
 #!/usr/bin/env bash
-# tft_ctx_ablation_eval.sh
+# patchtst_ctx_ablation_eval.sh
 #
-# Evaluates the 6 TFT context-ablation configs:
-#   BG winner (01_bg_wide):       256/128/64ctx → all 4 datasets  (12 jobs)
-#   IOB winner (11_iob_high_lr):  256/128/64ctx → 3 IOB datasets  (9 jobs)
-#   Total: 21 eval jobs
-#
-# Fine-tuned only. JOBS_PER_GPU=10 (eval is VRAM-light).
+# Evaluates the 3 PatchTST context-ablation configs (256/128/64ctx variants of
+# winning 09_high_lr). Fine-tuned only. JOBS_PER_GPU=10 (eval is VRAM-light).
 #
 # Results land in:
-#   experiments/nocturnal_forecasting_ctx_ablation/{ctx}ctx_96fh/tft/
+#   experiments/nocturnal_forecasting_ctx_ablation/{ctx}ctx_96fh/patchtst/
 #
 # Checkpoint paths are read from:
-#   trained_models/artifacts/tft/ctx_ablation_manifest.txt
+#   trained_models/artifacts/patchtst/ctx_ablation_manifest.txt
 #
 # Usage:
-#   bash scripts/experiments/tft_ctx_ablation_eval.sh
-#   GPUS="0 1" JOBS_PER_GPU=10 bash scripts/experiments/tft_ctx_ablation_eval.sh 2>&1 | tee logs/ctx_ablation_tft_eval.log
+#   bash scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_eval.sh
+#   GPUS="0 1" JOBS_PER_GPU=10 bash scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_eval.sh 2>&1 | tee logs/ctx_ablation_patchtst_eval.log
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 PYTHON="${PROJECT_ROOT}/.venvs/autogluon/bin/python"
 CONFIG_DIR="configs/data/holdout_10pct"
 ALL_DATASETS=(lynch_2022 aleppo_2017 brown_2019 tamborlane_2008)
 DATASETS_WITH_IOB=(lynch_2022 aleppo_2017 brown_2019)
-MANIFEST="trained_models/artifacts/tft/ctx_ablation_manifest.txt"
+MANIFEST="trained_models/artifacts/patchtst/ctx_ablation_manifest.txt"
 LOG_DIR="logs"
 
 # ---------------------------------------------------------------------------
@@ -43,7 +39,7 @@ else
 fi
 
 N_GPUS=${#GPUS_ARRAY[@]}
-echo "=== TFT ctx-ablation eval  $(date) ==="
+echo "=== PatchTST ctx-ablation eval  $(date) ==="
 echo "  GPUs: ${GPUS_ARRAY[*]}  (${N_GPUS} total)"
 echo "  Venv: ${PYTHON}"
 echo ""
@@ -55,22 +51,19 @@ fi
 
 if [[ ! -f "$MANIFEST" ]]; then
     echo "ERROR: manifest not found at $MANIFEST"
-    echo "       Run tft_ctx_ablation_train.sh first."
+    echo "       Run scripts/training/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_train.sh first."
     exit 1
 fi
 
 # Format: "stem|ctx_len|cov_cols|datasets_key"
 CONFIG_META=(
-    "01_bg_wide_256ctx|256||ALL"
-    "01_bg_wide_128ctx|128||ALL"
-    "01_bg_wide_64ctx|64||ALL"
-    "11_iob_high_lr_256ctx|256|iob|IOB"
-    "11_iob_high_lr_128ctx|128|iob|IOB"
-    "11_iob_high_lr_64ctx|64|iob|IOB"
+    "09_high_lr_256ctx|256||ALL"
+    "09_high_lr_128ctx|128||ALL"
+    "09_high_lr_64ctx|64||ALL"
 )
 
 mkdir -p "$LOG_DIR"
-DONE_FILE="${LOG_DIR}/tft_ctx_ablation_eval_done.log"
+DONE_FILE="${LOG_DIR}/patchtst_ctx_ablation_eval_done.log"
 touch "$DONE_FILE"
 
 # ---------------------------------------------------------------------------
@@ -154,7 +147,7 @@ run_gpu_worker() {
         [[ -z "$job" ]] && continue
         IFS='|' read -r stem ctx_len cov_cols dataset checkpoint <<< "$job"
 
-        local model_config="configs/models/tft/ctx_ablation/${stem}.yaml"
+        local model_config="configs/models/patchtst/ctx_ablation/${stem}.yaml"
         local data_config="${CONFIG_DIR}/${dataset}.yaml"
         local done_key="${stem}|${dataset}"
 
@@ -180,17 +173,17 @@ run_gpu_worker() {
 
         local timestamp
         timestamp="$(date +%Y-%m-%d_%H%M%S)"
-        local output_dir="experiments/nocturnal_forecasting_ctx_ablation/${ctx_len}ctx_96fh/tft/${timestamp}_${dataset}_finetuned"
+        local output_dir="experiments/nocturnal_forecasting_ctx_ablation/${ctx_len}ctx_96fh/patchtst/${timestamp}_${dataset}_finetuned"
 
         echo ""
         echo "[${label}] ============================================"
-        echo "[${label}]  Eval: tft / ${stem} / ${dataset}"
+        echo "[${label}]  Eval: patchtst / ${stem} / ${dataset}"
         echo "[${label}]  Checkpoint: ${checkpoint}"
         echo "[${label}]  Output:     ${output_dir}"
         echo "[${label}] ============================================"
 
         eval_args=(
-            --model tft
+            --model patchtst
             --model-config "$model_config"
             --dataset "$dataset"
             --config-dir "$CONFIG_DIR"
@@ -231,7 +224,7 @@ export PYTHON CONFIG_DIR DONE_FILE
 declare -A PIDS
 for (( slot=0; slot<N_SLOTS; slot++ )); do
     gpu="${SLOT_GPU[$slot]}"
-    log_file="${LOG_DIR}/tft_ctx_ablation_eval_gpu${gpu}_w${slot}.log"
+    log_file="${LOG_DIR}/patchtst_ctx_ablation_eval_gpu${gpu}_w${slot}.log"
     echo "Launching GPU ${gpu} worker ${slot} → ${log_file}"
     run_gpu_worker "$gpu" "$slot" "${SLOT_CONFIGS[$slot]}" \
         > "$log_file" 2>&1 &
@@ -240,7 +233,7 @@ done
 
 echo ""
 echo "All workers launched. Waiting for completion..."
-echo "(tail -f logs/tft_ctx_ablation_eval_gpu<N>_w<slot>.log to monitor)"
+echo "(tail -f logs/patchtst_ctx_ablation_eval_gpu<N>_w<slot>.log to monitor)"
 echo ""
 
 OVERALL_FAIL=0
@@ -250,13 +243,13 @@ for (( slot=0; slot<N_SLOTS; slot++ )); do
     if wait "$pid"; then
         echo "GPU ${gpu} worker ${slot}: SUCCESS"
     else
-        echo "GPU ${gpu} worker ${slot}: FAILED  (see ${LOG_DIR}/tft_ctx_ablation_eval_gpu${gpu}_w${slot}.log)"
+        echo "GPU ${gpu} worker ${slot}: FAILED  (see ${LOG_DIR}/patchtst_ctx_ablation_eval_gpu${gpu}_w${slot}.log)"
         OVERALL_FAIL=$(( OVERALL_FAIL + 1 ))
     fi
 done
 
 echo ""
-echo "=== TFT ctx-ablation eval complete  $(date) ==="
+echo "=== PatchTST ctx-ablation eval complete  $(date) ==="
 if [[ $OVERALL_FAIL -gt 0 ]]; then
     echo "  ${OVERALL_FAIL} GPU worker(s) reported failures."
     exit 1

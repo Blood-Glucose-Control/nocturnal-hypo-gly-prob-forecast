@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
-# deepar_ctx_ablation_train.sh
+# patchtst_ctx_ablation_train.sh
 #
-# Trains the 3 DeepAR context-ablation configs (256/128/64ctx variants of
-# the winning 10_low_lr config). JOBS_PER_GPU=2 (training is memory-heavy).
+# Trains the 3 PatchTST context-ablation configs (256/128/64ctx variants of
+# the winning 09_high_lr config). JOBS_PER_GPU=2 (training is memory-heavy).
 #
-# Manifest: trained_models/artifacts/deepar/ctx_ablation_manifest.txt
+# Manifest: trained_models/artifacts/patchtst/ctx_ablation_manifest.txt
 #
 # Usage:
-#   bash scripts/experiments/deepar_ctx_ablation_train.sh
-#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/experiments/deepar_ctx_ablation_train.sh 2>&1 | tee logs/ctx_ablation_deepar_train.log
+#   bash scripts/training/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_train.sh
+#   GPUS="0 1" JOBS_PER_GPU=2 bash scripts/training/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_train.sh 2>&1 | tee logs/ctx_ablation_patchtst_train.log
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 PYTHON="${PROJECT_ROOT}/.venvs/autogluon/bin/python"
@@ -30,7 +30,7 @@ else
 fi
 
 N_GPUS=${#GPUS_ARRAY[@]}
-echo "=== DeepAR ctx-ablation training  $(date) ==="
+echo "=== PatchTST ctx-ablation training  $(date) ==="
 echo "  GPUs: ${GPUS_ARRAY[*]}  (${N_GPUS} total)"
 echo "  Venv: ${PYTHON}"
 echo ""
@@ -42,8 +42,8 @@ fi
 
 # Smoke-test imports
 "$PYTHON" - <<'EOF'
-from autogluon.timeseries.models import DeepARModel
-print("AutoGluon DeepAR import OK")
+from autogluon.timeseries.models import PatchTSTModel
+print("AutoGluon PatchTST import OK")
 EOF
 echo ""
 
@@ -54,14 +54,14 @@ DATASETS_ALL="aleppo_2017 brown_2019 lynch_2022 tamborlane_2008"
 DATASETS_WITH_IOB="aleppo_2017 brown_2019 lynch_2022"
 
 CONFIGS=(
-    "configs/models/deepar/ctx_ablation/10_low_lr_256ctx.yaml|ALL"
-    "configs/models/deepar/ctx_ablation/10_low_lr_128ctx.yaml|ALL"
-    "configs/models/deepar/ctx_ablation/10_low_lr_64ctx.yaml|ALL"
+    "configs/models/patchtst/ctx_ablation/09_high_lr_256ctx.yaml|ALL"
+    "configs/models/patchtst/ctx_ablation/09_high_lr_128ctx.yaml|ALL"
+    "configs/models/patchtst/ctx_ablation/09_high_lr_64ctx.yaml|ALL"
 )
 
 CONFIG_DIR="configs/data/holdout_10pct"
 WORKFLOW="scripts/experiments/run_forecasting_workflow.sh"
-MANIFEST_DIR="trained_models/artifacts/deepar"
+MANIFEST_DIR="trained_models/artifacts/patchtst"
 SKIP_STEPS="${SKIP_STEPS:-1 2 4 7}"
 MANIFEST="${MANIFEST_DIR}/ctx_ablation_manifest.txt"
 LOG_DIR="logs"
@@ -138,14 +138,14 @@ run_gpu_worker() {
 
         echo ""
         echo "[${label}] ============================================"
-        echo "[${label}]  Training: deepar / ${stem}"
+        echo "[${label}]  Training: patchtst / ${stem}"
         echo "[${label}]  Config:   ${config}"
         echo "[${label}]  Datasets: ${datasets}"
         echo "[${label}]  Output:   ${out_dir}"
         echo "[${label}] ============================================"
 
         if CUDA_VISIBLE_DEVICES="$gpu" \
-           MODEL_TYPE="deepar" \
+           MODEL_TYPE="patchtst" \
            VENV_NAME="chronos2" \
            MODEL_CONFIG="$config" \
            CONFIG_DIR="$CONFIG_DIR" \
@@ -182,7 +182,7 @@ export DATASETS_ALL DATASETS_WITH_IOB MANIFEST_DIR MANIFEST CONFIG_DIR WORKFLOW 
 declare -A PIDS
 for (( slot=0; slot<N_SLOTS; slot++ )); do
     gpu="${SLOT_GPU[$slot]}"
-    log_file="${LOG_DIR}/deepar_ctx_ablation_train_gpu${gpu}_w${slot}.log"
+    log_file="${LOG_DIR}/patchtst_ctx_ablation_train_gpu${gpu}_w${slot}.log"
     echo "Launching GPU ${gpu} worker ${slot} → ${log_file}"
     run_gpu_worker "$gpu" "$slot" "${SLOT_CONFIGS[$slot]}" \
         > "$log_file" 2>&1 &
@@ -191,7 +191,7 @@ done
 
 echo ""
 echo "All workers launched. Waiting for completion..."
-echo "(tail -f logs/deepar_ctx_ablation_train_gpu<N>_w<slot>.log to monitor)"
+echo "(tail -f logs/patchtst_ctx_ablation_train_gpu<N>_w<slot>.log to monitor)"
 echo ""
 
 OVERALL_FAIL=0
@@ -201,13 +201,13 @@ for (( slot=0; slot<N_SLOTS; slot++ )); do
     if wait "$pid"; then
         echo "GPU ${gpu} worker ${slot}: SUCCESS"
     else
-        echo "GPU ${gpu} worker ${slot}: FAILED  (see ${LOG_DIR}/deepar_ctx_ablation_train_gpu${gpu}_w${slot}.log)"
+        echo "GPU ${gpu} worker ${slot}: FAILED  (see ${LOG_DIR}/patchtst_ctx_ablation_train_gpu${gpu}_w${slot}.log)"
         OVERALL_FAIL=$(( OVERALL_FAIL + 1 ))
     fi
 done
 
 echo ""
-echo "=== DeepAR ctx-ablation training complete  $(date) ==="
+echo "=== PatchTST ctx-ablation training complete  $(date) ==="
 echo "  Manifest: ${MANIFEST}"
 if [[ $OVERALL_FAIL -gt 0 ]]; then
     echo "  ${OVERALL_FAIL} GPU worker(s) reported failures."

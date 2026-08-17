@@ -22,14 +22,14 @@
 #   Zero-shot    : all four ctx lengths × all 4 datasets
 #
 # Usage:
-#   bash scripts/experiments/chronos2_ctx_ablation_eval.sh
-#   GPUS="0 1" bash scripts/experiments/chronos2_ctx_ablation_eval.sh
-#   GPUS="0 1" JOBS_PER_GPU=4 bash scripts/experiments/chronos2_ctx_ablation_eval.sh
+#   bash scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/chronos2_ctx_ablation_eval.sh
+#   GPUS="0 1" bash scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/chronos2_ctx_ablation_eval.sh
+#   GPUS="0 1" JOBS_PER_GPU=4 bash scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/chronos2_ctx_ablation_eval.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 PYTHON="${PROJECT_ROOT}/.venvs/autogluon/bin/python"
