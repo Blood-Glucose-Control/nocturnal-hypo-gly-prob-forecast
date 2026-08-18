@@ -1,0 +1,19 @@
+{
+  "dataset": "lynch_2022",
+  "checkpoint": "/tmp/model/series_b/step_10000",
+  "timestamp": "2026-04-13T12:00:00",
+  "config": {
+    "context_length": 512,
+    "covariate_cols": [
+      "iob"
+    ]
+  },
+  "overall_rmse": 1.4849999999999999,
+  "overall_wql": 0.312,
+  "overall_coverage_50": 0.494,
+  "overall_coverage_80": 0.7908000000000001,
+  "overall_sharpness_50": 0.8220000000000001,
+  "overall_sharpness_80": 1.4000000000000001,
+  "overall_brier": 0.19999999999999998,
+  "overall_dilate_g001": 0.5499999999999999
+}

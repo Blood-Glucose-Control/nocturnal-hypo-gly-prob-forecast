@@ -33,7 +33,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 PYTHON="${PROJECT_ROOT}/.venvs/autogluon/bin/python"
-EVAL_SCRIPT="scripts/experiments/nocturnal_hypo_eval_ctx_ablation.py"
+EVAL_SCRIPT="scripts/scratch/experiments/nocturnal_hypo_eval_ctx_ablation.py"
 CONFIG_DIR="configs/data/holdout_10pct"
 ALL_DATASETS=(lynch_2022 aleppo_2017 brown_2019 tamborlane_2008)
 DATASETS_WITH_IOB=(lynch_2022 aleppo_2017 brown_2019)

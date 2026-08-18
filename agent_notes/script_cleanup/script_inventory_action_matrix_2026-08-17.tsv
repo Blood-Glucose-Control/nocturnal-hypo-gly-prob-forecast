@@ -1,0 +1,114 @@
+path	top_dir	sub_dir	ext	lines	proposed_action	target_or_new_home	wave	rationale
+scripts/analysis/build_best_episode_classification.py	analysis	build_best_episode_classification.py	.py	122	KEEP_AND_CLEAN		wave-4	Retain as canonical post-run analysis utility.
+scripts/analysis/build_best_split_breakdown.py	analysis	build_best_split_breakdown.py	.py	105	KEEP_AND_CLEAN		wave-4	Retain as canonical post-run analysis utility.
+scripts/analysis/build_dataset_cohort_variance.py	analysis	build_dataset_cohort_variance.py	.py	117	MOVE_TO_SCRATCH	scripts/scratch/analysis/	wave-3	One-off or low-reuse analysis helper.
+scripts/analysis/build_dataset_holdout_characteristics.py	analysis	build_dataset_holdout_characteristics.py	.py	190	MOVE_TO_SCRATCH	scripts/scratch/analysis/	wave-3	One-off or low-reuse analysis helper.
+scripts/analysis/build_grand_summary.py	analysis	build_grand_summary.py	.py	233	KEEP_AND_CLEAN		wave-4	Retain as canonical post-run analysis utility.
+scripts/analysis/compute_cumrmse_by_timestep.py	analysis	compute_cumrmse_by_timestep.py	.py	258	KEEP_AND_CLEAN		wave-4	Retain as canonical post-run analysis utility.
+scripts/analysis/count_episodes_by_gap_policy.py	analysis	count_episodes_by_gap_policy.py	.py	182	MOVE_TO_SCRATCH	scripts/scratch/analysis/	wave-3	One-off or low-reuse analysis helper.
+scripts/analysis/cumrmse_table.py	analysis	cumrmse_table.py	.py	207	MOVE_TO_SCRATCH	scripts/scratch/analysis/	wave-3	One-off or low-reuse analysis helper.
+scripts/analysis/plot_bg_histograms_by_split.py	analysis	plot_bg_histograms_by_split.py	.py	207	MOVE_TO_SCRATCH	scripts/scratch/analysis/	wave-3	One-off or low-reuse analysis helper.
+scripts/analysis/plot_episode_classification_curves.py	analysis	plot_episode_classification_curves.py	.py	254	MOVE_TO_SCRATCH	scripts/scratch/analysis/	wave-3	One-off or low-reuse analysis helper.
+scripts/analysis/relocate_768ctx_results.py	analysis	relocate_768ctx_results.py	.py	103	MOVE_TO_SCRATCH	scripts/scratch/analysis/	wave-3	One-off or low-reuse analysis helper.
+scripts/analysis/summarize_experiments.py	analysis	summarize_experiments.py	.py	202	KEEP_AND_CLEAN		wave-4	Retain as canonical post-run analysis utility.
+scripts/data_processing/WATGPU_FILE_TRANSFER.md	data_processing	WATGPU_FILE_TRANSFER.md	.md	41	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific or ad-hoc data utility; not core onboarding surface.
+scripts/data_processing/compare_lynch_data_sources.py	data_processing	compare_lynch_data_sources.py	.py	221	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific or ad-hoc data utility; not core onboarding surface.
+scripts/data_processing/export_single_episode_eval_data.py	data_processing	export_single_episode_eval_data.py	.py	515	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific or ad-hoc data utility; not core onboarding surface.
+scripts/data_processing/generate_holdout_configs.py	data_processing	generate_holdout_configs.py	.py	202	KEEP_AND_CLEAN		wave-1	Generic data-config pipeline utility.
+scripts/data_processing/loader_local_shells/aleppo_data_processing_local.sh	data_processing	loader_local_shells	.sh	43	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific shell wrappers with hardcoded env/path assumptions.
+scripts/data_processing/loader_local_shells/brown_data_processing_local.sh	data_processing	loader_local_shells	.sh	41	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific shell wrappers with hardcoded env/path assumptions.
+scripts/data_processing/loader_local_shells/lynch_data_processing_local.sh	data_processing	loader_local_shells	.sh	42	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific shell wrappers with hardcoded env/path assumptions.
+scripts/data_processing/loader_local_shells/tamborlane_data_processing_local.sh	data_processing	loader_local_shells	.sh	41	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific shell wrappers with hardcoded env/path assumptions.
+scripts/data_processing/loader_slurm_shells/aleppo_data_processing.sh	data_processing	loader_slurm_shells	.sh	32	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific shell wrappers with hardcoded env/path assumptions.
+scripts/data_processing/loader_slurm_shells/brown_data_processing.sh	data_processing	loader_slurm_shells	.sh	30	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific shell wrappers with hardcoded env/path assumptions.
+scripts/data_processing/loader_slurm_shells/lynch_data_processing.sh	data_processing	loader_slurm_shells	.sh	32	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific shell wrappers with hardcoded env/path assumptions.
+scripts/data_processing/loader_slurm_shells/tamborlane_data_processing.sh	data_processing	loader_slurm_shells	.sh	30	MOVE_TO_SCRATCH	scripts/scratch/data_processing/	wave-3	Dataset-specific shell wrappers with hardcoded env/path assumptions.
+scripts/data_processing/validate_holdout_configs.py	data_processing	validate_holdout_configs.py	.py	109	KEEP_AND_CLEAN		wave-1	Generic data-config pipeline utility.
+scripts/data_processing/verify_time_features.py	data_processing	verify_time_features.py	.py	144	KEEP_AND_CLEAN		wave-1	Generic data-config pipeline utility.
+scripts/data_processing/view_data_config_registry.py	data_processing	view_data_config_registry.py	.py	212	KEEP_AND_CLEAN		wave-1	Generic data-config pipeline utility.
+scripts/evaluation/sweeps/models/chronos2_long_run_step_sweep_eval.sh	evaluation	sweeps	.sh	269	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/evaluation/sweeps/models/chronos2_step_sweep_eval.sh	evaluation	sweeps	.sh	265	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/evaluation/sweeps/models/chronos2_sweep_eval.sh	evaluation	sweeps	.sh	21	KEEP_CANONICAL		wave-0	Already thin wrapper.
+scripts/evaluation/sweeps/models/deepar_sweep_eval.sh	evaluation	sweeps	.sh	19	KEEP_CANONICAL		wave-0	Already thin wrapper.
+scripts/evaluation/sweeps/models/moirai_sweep_eval.sh	evaluation	sweeps	.sh	159	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/evaluation/sweeps/models/moment_sweep_eval.sh	evaluation	sweeps	.sh	255	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/evaluation/sweeps/models/naive_baseline_sweep_eval.sh	evaluation	sweeps	.sh	213	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/evaluation/sweeps/models/patchtst_sweep_eval.sh	evaluation	sweeps	.sh	19	KEEP_CANONICAL		wave-0	Already thin wrapper.
+scripts/evaluation/sweeps/models/statistical_sweep_eval.sh	evaluation	sweeps	.sh	219	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/evaluation/sweeps/models/sundial_sweep_eval.sh	evaluation	sweeps	.sh	81	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/evaluation/sweeps/models/tft_sweep_eval.sh	evaluation	sweeps	.sh	19	KEEP_CANONICAL		wave-0	Already thin wrapper.
+scripts/evaluation/sweeps/models/tide_sweep_eval.sh	evaluation	sweeps	.sh	144	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/evaluation/sweeps/models/timesfm_sweep_eval.sh	evaluation	sweeps	.sh	185	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/evaluation/sweeps/models/toto_sweep_eval.sh	evaluation	sweeps	.sh	214	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/chronos2_ctx_ablation_eval.sh	evaluation	sweeps	.sh	325	CLEAN_AND_DEDUP		wave-2	Fold context-ablation loops into sweep spec + generic launcher.
+scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/deepar_ctx_ablation_eval.sh	evaluation	sweeps	.sh	257	CLEAN_AND_DEDUP		wave-2	Fold context-ablation loops into sweep spec + generic launcher.
+scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_eval.sh	evaluation	sweeps	.sh	257	CLEAN_AND_DEDUP		wave-2	Fold context-ablation loops into sweep spec + generic launcher.
+scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/tft_ctx_ablation_eval.sh	evaluation	sweeps	.sh	264	CLEAN_AND_DEDUP		wave-2	Fold context-ablation loops into sweep spec + generic launcher.
+scripts/evaluation/sweeps/run_sweep_eval.sh	evaluation	sweeps	.sh	34	KEEP_CANONICAL		wave-0	Generic sweep launcher core.
+scripts/examples/example_data_holdout_system.py	examples	example_data_holdout_system.py	.py	309	KEEP_CANONICAL		wave-0	Onboarding example surface; keep public and documented.
+scripts/examples/example_forecasting_workflow.py	examples	example_forecasting_workflow.py	.py	14	KEEP_CANONICAL		wave-0	Onboarding example surface; keep public and documented.
+scripts/examples/example_load_holdout_data.py	examples	example_load_holdout_data.py	.py	189	KEEP_CANONICAL		wave-0	Onboarding example surface; keep public and documented.
+scripts/experiments/chronos2_eval_long_run_checkpoints.sh	experiments	chronos2_eval_long_run_checkpoints.sh	.sh	129	MIGRATE_TO_CANONICAL_PATH	scripts/orchestration/sweeps/	wave-2	Checkpoint sweep is orchestration, not experiment core.
+scripts/experiments/chronos2_finetune.py	experiments	chronos2_finetune.py	.py	186	MOVE_TO_SCRATCH	scripts/scratch/experiments/	wave-3	Model-specific or exploratory experiment script; keep out of canonical public surface.
+scripts/experiments/chronos2_time_covariate_experiment.py	experiments	chronos2_time_covariate_experiment.py	.py	561	MOVE_TO_SCRATCH	scripts/scratch/experiments/	wave-3	Model-specific or exploratory experiment script; keep out of canonical public surface.
+scripts/experiments/forecasting_workflow_orchestrator.py	experiments	forecasting_workflow_orchestrator.py	.py	9	MIGRATE_TO_CANONICAL_PATH	scripts/workflows/forecasting/	wave-1	Single-run workflow entrypoints should live in workflows namespace.
+scripts/experiments/forecasting_workflow_regression_smoke.sh	experiments	forecasting_workflow_regression_smoke.sh	.sh	49	MIGRATE_TO_CANONICAL_PATH	scripts/workflows/forecasting/	wave-1	Single-run workflow entrypoints should live in workflows namespace.
+scripts/experiments/nocturnal_hypo_eval.py	experiments	nocturnal_hypo_eval.py	.py	578	MIGRATE_TO_SRC_PLUS_THIN_SCRIPT	src/workflows/evaluation/ + scripts/evaluation/	wave-2	Move heavy evaluation logic into src module and keep thin script entrypoint.
+scripts/experiments/nocturnal_hypo_eval_ctx_ablation.py	experiments	nocturnal_hypo_eval_ctx_ablation.py	.py	426	MOVE_TO_SCRATCH	scripts/scratch/experiments/	wave-2	Quarantine duplicate variant instead of deleting; preserve recoverability while keeping canonical surface clean.
+scripts/experiments/per_patient_finetune.py	experiments	per_patient_finetune.py	.py	887	MIGRATE_TO_SRC_PLUS_THIN_SCRIPT	src/workflows/personalization/ + scripts/workflows/personalization/	wave-2	Personalization workflow should be module-backed and taxonomy-aligned.
+scripts/experiments/run_forecasting_workflow.sh	experiments	run_forecasting_workflow.sh	.sh	291	MIGRATE_TO_CANONICAL_PATH	scripts/workflows/forecasting/	wave-1	Single-run workflow entrypoints should live in workflows namespace.
+scripts/experiments/sliding_window_eval.py	experiments	sliding_window_eval.py	.py	716	MIGRATE_TO_SRC_PLUS_THIN_SCRIPT	src/workflows/evaluation/ + scripts/evaluation/	wave-2	Move heavy evaluation logic into src module and keep thin script entrypoint.
+scripts/experiments/sweep_eval.py	experiments	sweep_eval.py	.py	9	MIGRATE_TO_CANONICAL_PATH	scripts/orchestration/sweeps/	wave-1	Sweep dispatch belongs to orchestration namespace, not experiments.
+scripts/experiments/sweep_train.py	experiments	sweep_train.py	.py	9	MIGRATE_TO_CANONICAL_PATH	scripts/orchestration/sweeps/	wave-1	Sweep dispatch belongs to orchestration namespace, not experiments.
+scripts/experiments/ttm_forecasting_workflow.py	experiments	ttm_forecasting_workflow.py	.py	651	MOVE_TO_SCRATCH	scripts/scratch/experiments/	wave-3	Model-specific or exploratory experiment script; keep out of canonical public surface.
+scripts/experiments/validate_predict_batch.md	experiments	validate_predict_batch.md	.md	41	MOVE_TO_SCRATCH	scripts/scratch/experiments/	wave-3	Model-specific or exploratory experiment script; keep out of canonical public surface.
+scripts/experiments/validate_predict_batch.py	experiments	validate_predict_batch.py	.py	475	MIGRATE_TO_SRC_PLUS_THIN_SCRIPT	src/workflows/evaluation/ + scripts/evaluation/	wave-2	Move heavy evaluation logic into src module and keep thin script entrypoint.
+scripts/orchestration/sweeps/chronos2_sweep.sh	orchestration	sweeps	.sh	125	KEEP_AND_CLEAN		wave-2	Canonical multi-run orchestration; standardize contracts and logging.
+scripts/orchestration/sweeps/run_ctx_ablation_sweeps.sh	orchestration	sweeps	.sh	87	KEEP_AND_CLEAN		wave-2	Canonical multi-run orchestration; standardize contracts and logging.
+scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh	orchestration	sweeps	.sh	145	KEEP_AND_CLEAN		wave-2	Canonical multi-run orchestration; standardize contracts and logging.
+scripts/setup_model_env.sh	setup_model_env.sh		.sh	152	KEEP_CANONICAL		wave-0	Operations helper outside experiment taxonomy.
+scripts/sync_upstream_to_private.sh	sync_upstream_to_private.sh		.sh	55	KEEP_CANONICAL		wave-0	Operations helper outside experiment taxonomy.
+scripts/training/analysis/analyze_logs.py	training	analysis	.py	144	MOVE_TO_SCRATCH	scripts/scratch/training/	wave-3	SLURM log forensics utilities; not canonical training runtime.
+scripts/training/analysis/analyze_resources.py	training	analysis	.py	367	MOVE_TO_SCRATCH	scripts/scratch/training/	wave-3	SLURM log forensics utilities; not canonical training runtime.
+scripts/training/slurm/README.md	training	slurm	.md	79	KEEP_AND_CLEAN		wave-1	Canonical generic SLURM launchers.
+scripts/training/slurm/adaptive_resources.sh	training	slurm	.sh	192	KEEP_AND_CLEAN		wave-1	Canonical generic SLURM launchers.
+scripts/training/slurm/chronos2_eval.sh	training	slurm	.sh	78	MOVE_TO_SCRATCH	scripts/scratch/training/slurm/	wave-3	Model-specific legacy launcher; replace with generic launchers + config.
+scripts/training/slurm/chronos2_finetune.sh	training	slurm	.sh	78	MOVE_TO_SCRATCH	scripts/scratch/training/slurm/	wave-3	Model-specific legacy launcher; replace with generic launchers + config.
+scripts/training/slurm/chronos2_forecasting_workflow.sh	training	slurm	.sh	116	MOVE_TO_SCRATCH	scripts/scratch/training/slurm/	wave-3	Model-specific legacy launcher; replace with generic launchers + config.
+scripts/training/slurm/chronos2_time_covariate.sh	training	slurm	.sh	99	MOVE_TO_SCRATCH	scripts/scratch/training/slurm/	wave-3	Model-specific legacy launcher; replace with generic launchers + config.
+scripts/training/slurm/multi_gpu.sh	training	slurm	.sh	177	KEEP_AND_CLEAN		wave-1	Canonical generic SLURM launchers.
+scripts/training/slurm/per_patient_finetune.sh	training	slurm	.sh	95	MOVE_TO_SCRATCH	scripts/scratch/training/slurm/	wave-3	Model-specific legacy launcher; replace with generic launchers + config.
+scripts/training/slurm/per_patient_finetune_all.sh	training	slurm	.sh	167	MOVE_TO_SCRATCH	scripts/scratch/training/slurm/	wave-3	Model-specific legacy launcher; replace with generic launchers + config.
+scripts/training/slurm/single_gpu.sh	training	slurm	.sh	137	KEEP_AND_CLEAN		wave-1	Canonical generic SLURM launchers.
+scripts/training/slurm/toto_eval.sh	training	slurm	.sh	68	MOVE_TO_SCRATCH	scripts/scratch/training/slurm/	wave-3	Model-specific legacy launcher; replace with generic launchers + config.
+scripts/training/sweeps/models/chronos2_sweep_train.sh	training	sweeps	.sh	20	KEEP_CANONICAL		wave-0	Already thin wrapper.
+scripts/training/sweeps/models/deepar_sweep_train.sh	training	sweeps	.sh	18	KEEP_CANONICAL		wave-0	Already thin wrapper.
+scripts/training/sweeps/models/moirai_sweep_train.sh	training	sweeps	.sh	117	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/training/sweeps/models/moment_sweep_train.sh	training	sweeps	.sh	243	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/training/sweeps/models/naive_baseline_sweep_train.sh	training	sweeps	.sh	97	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/training/sweeps/models/patchtst_sweep_train.sh	training	sweeps	.sh	18	KEEP_CANONICAL		wave-0	Already thin wrapper.
+scripts/training/sweeps/models/statistical_sweep_train.sh	training	sweeps	.sh	172	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/training/sweeps/models/tft_sweep_train.sh	training	sweeps	.sh	18	KEEP_CANONICAL		wave-0	Already thin wrapper.
+scripts/training/sweeps/models/tide_sweep_train.sh	training	sweeps	.sh	108	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/training/sweeps/models/timesfm_sweep_train.sh	training	sweeps	.sh	220	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/training/sweeps/models/toto_sweep_train.sh	training	sweeps	.sh	120	CLEAN_AND_DEDUP		wave-2	Convert heavy model-specific flow into profile-driven thin wrapper.
+scripts/training/sweeps/nocturnal_forecast/context_ablation/deepar_ctx_ablation_train.sh	training	sweeps	.sh	216	CLEAN_AND_DEDUP		wave-2	Fold context-ablation loops into sweep spec + generic launcher.
+scripts/training/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_train.sh	training	sweeps	.sh	216	CLEAN_AND_DEDUP		wave-2	Fold context-ablation loops into sweep spec + generic launcher.
+scripts/training/sweeps/nocturnal_forecast/context_ablation/tft_ctx_ablation_train.sh	training	sweeps	.sh	222	CLEAN_AND_DEDUP		wave-2	Fold context-ablation loops into sweep spec + generic launcher.
+scripts/training/sweeps/run_sweep_train.sh	training	sweeps	.sh	32	KEEP_CANONICAL		wave-0	Generic sweep launcher core.
+scripts/training/ttm_finetune.sh	training	ttm_finetune.sh	.sh	311	MOVE_TO_SCRATCH	scripts/scratch/training/	wave-3	Legacy single-model launcher superseded by generic workflows.
+scripts/visualization/compare_forecasts.py	visualization	compare_forecasts.py	.py	761	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_checkpoint_rmse_vs_steps.py	visualization	plot_checkpoint_rmse_vs_steps.py	.py	113	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_chronos2_forecast_grid.py	visualization	plot_chronos2_forecast_grid.py	.py	289	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_coverage_error_2d.py	visualization	plot_coverage_error_2d.py	.py	264	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_coverage_error_2d_sharpness.py	visualization	plot_coverage_error_2d_sharpness.py	.py	449	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_coverage_sharpness_scatter.py	visualization	plot_coverage_sharpness_scatter.py	.py	313	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_long_run_step_sweep.py	visualization	plot_long_run_step_sweep.py	.py	389	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_pit_combined.py	visualization	plot_pit_combined.py	.py	622	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_pit_histograms.py	visualization	plot_pit_histograms.py	.py	426	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_pit_horizon_heatmap.py	visualization	plot_pit_horizon_heatmap.py	.py	659	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_reliability_diagrams.py	visualization	plot_reliability_diagrams.py	.py	444	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_rmse_vs_horizon.py	visualization	plot_rmse_vs_horizon.py	.py	174	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_rmse_vs_horizon_grid.py	visualization	plot_rmse_vs_horizon_grid.py	.py	266	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/plot_step_sweep.py	visualization	plot_step_sweep.py	.py	352	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.
+scripts/visualization/visualize_chronos2_episodes.py	visualization	visualize_chronos2_episodes.py	.py	593	KEEP_AND_CLEAN		wave-4	Retain plotting surface; later consolidate shared plotting logic into src.

@@ -1,0 +1,4 @@
+dataset,dataset_label,run_path
+aleppo_2017,Aleppo 2017,/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/assets/visualizations/example_data/prob_runs/chronos2/aleppo_2017/run_best
+brown_2019,Brown 2019,/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/assets/visualizations/example_data/prob_runs/chronos2/brown_2019/run_best
+lynch_2022,Lynch 2022,/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/assets/visualizations/example_data/prob_runs/chronos2/lynch_2022/run_best

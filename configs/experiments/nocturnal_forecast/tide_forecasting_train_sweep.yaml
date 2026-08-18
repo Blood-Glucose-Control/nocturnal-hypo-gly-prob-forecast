@@ -1,0 +1,16 @@
+model_type: tide
+jobs:
+  - model_config: configs/models/tide/00_bg_only.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/tide/01_bg_iob.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/tide/02_bg_iob_insulin_availability.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/tide/03_bg_all_covariates.yaml
+    datasets: [lynch_2022, aleppo_2017]
+  - model_config: configs/models/tide/04_large_arch.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/tide/05_bg_iob_ia_high_lr.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/tide/06_bg_iob_ia_short_ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]

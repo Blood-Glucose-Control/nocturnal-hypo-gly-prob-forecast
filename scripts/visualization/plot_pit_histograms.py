@@ -17,6 +17,17 @@ Under a perfectly calibrated forecast, the PIT histogram should be flat
   Left skew → positive bias    (forecasts consistently too high)
   Right skew→ negative bias    (forecasts consistently too low)
 
+What this visualization tells you
+---------------------------------
+- Global probabilistic calibration shape for each model and dataset.
+- Whether errors are primarily dispersion-related or bias-related.
+
+What to look for
+----------------
+- Uniform bars around density 1 (well-calibrated).
+- U-shape or hump patterns (under-/over-dispersion).
+- Persistent skew direction (systematic directional bias).
+
 Usage
 -----
     python scripts/visualization/plot_pit_histograms.py

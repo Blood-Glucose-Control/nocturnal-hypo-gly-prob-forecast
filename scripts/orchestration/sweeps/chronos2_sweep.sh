@@ -35,7 +35,7 @@ SMOKE_GPU="${SMOKE_GPU:-${GPUS:-0}}"                   # single GPU for smoketes
 SMOKE_GPU_ID="${SMOKE_GPU%% *}"
 
 CONFIG_DIR="configs/data/holdout_10pct"
-WORKFLOW="scripts/experiments/run_forecasting_workflow.sh"
+WORKFLOW="scripts/workflows/forecasting/run_forecasting_workflow.sh"
 TRAIN_SCRIPT="scripts/training/sweeps/run_sweep_train.sh"
 
 ARTIFACT_BASE="trained_models/artifacts/chronos2"

@@ -1,6 +1,17 @@
 """
 Plot absolute error distribution (box plots) vs forecast horizon for one or more eval runs.
 
+What this visualization tells you
+---------------------------------
+- Error growth profile as forecast horizon increases.
+- Distributional spread (not just mean), including tails and median.
+
+What to look for
+----------------
+- Steep late-horizon growth (poor long-horizon stability).
+- Wide boxes/whiskers at specific horizons (episode heterogeneity).
+- Consistent median separation between model lines of evidence.
+
 Usage:
     python scripts/visualization/plot_rmse_vs_horizon.py \
         --results path/to/run_dir [path2/run_dir ...] \
@@ -14,12 +25,15 @@ Usage:
 """
 
 import argparse
-import json
-from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+
+from src.visualization.nocturnal import (
+    compute_horizon_rmse_quantiles,
+    load_prediction_actual_arrays,
+)
 
 matplotlib.use("svg")
 matplotlib.rcParams["svg.fonttype"] = "none"
@@ -27,60 +41,11 @@ matplotlib.rcParams["svg.fonttype"] = "none"
 COLORS = ["#E07B54", "#3A7FD5", "#5BAD6F", "#9B59B6"]
 
 
-def load_horizon(path: str) -> list[dict]:
-    p = Path(path)
-
-    # Resolve run directory: prefer Tier 3 NPZ, fall back to legacy JSON
-    if p.is_dir():
-        npz_candidate = p / "forecasts.npz"
-        json_candidate = p / "nocturnal_results.json"
-        if npz_candidate.exists():
-            p = npz_candidate
-        elif json_candidate.exists():
-            p = json_candidate
-        else:
-            raise FileNotFoundError(
-                f"No results found in {path!r}: expected forecasts.npz or nocturnal_results.json"
-            )
-
-    if p.suffix == ".npz":
-        data = np.load(p, allow_pickle=False)
-        pred_matrix = data["predictions"]  # (n_episodes, forecast_length)
-        tgt_matrix = data["actuals"]  # (n_episodes, forecast_length)
-        forecast_length = pred_matrix.shape[1]
-    else:
-        with open(p) as f:
-            d = json.load(f)
-        episodes = d["per_episode"]
-        forecast_length = len(episodes[0]["pred"])
-        pred_matrix = np.array(
-            [ep["pred"] for ep in episodes if len(ep["pred"]) == forecast_length]
-        )
-        tgt_matrix = np.array(
-            [
-                ep["target_bg"]
-                for ep in episodes
-                if len(ep["target_bg"]) == forecast_length
-            ]
-        )
-
-    sampling_interval = 5  # CGM sampling interval (minutes)
-
-    horizon_data = []
-    for idx in range(forecast_length):
-        ep_rmse = (pred_matrix[:, idx] - tgt_matrix[:, idx]) ** 2
-        horizon_data.append(
-            {
-                "horizon_minutes": (idx + 1) * sampling_interval,
-                "rmse": float(np.sqrt(np.mean(ep_rmse))),
-                "q10": float(np.sqrt(np.percentile(ep_rmse, 10))),
-                "q25": float(np.sqrt(np.percentile(ep_rmse, 25))),
-                "q50": float(np.sqrt(np.percentile(ep_rmse, 50))),
-                "q75": float(np.sqrt(np.percentile(ep_rmse, 75))),
-                "q90": float(np.sqrt(np.percentile(ep_rmse, 90))),
-            }
-        )
-    return horizon_data
+def load_horizon(
+    path: str, quantiles: tuple[float, float, float, float, float]
+) -> list[dict]:
+    predictions, actuals = load_prediction_actual_arrays(path)
+    return compute_horizon_rmse_quantiles(predictions, actuals, quantiles=quantiles)
 
 
 def make_plot(results: list[list[dict]], labels: list[str], output_path: str):
@@ -94,19 +59,19 @@ def make_plot(results: list[list[dict]], labels: list[str], output_path: str):
         axes = [axes]
 
     # Compute shared y-axis upper limit across all series
-    all_q90 = [d["q90"] for data in results for d in data]
-    y_max = max(all_q90) * 1.1
+    all_whisker_high = [d["whisker_high"] for data in results for d in data]
+    y_max = max(all_whisker_high) * 1.1
 
     for i, (ax, data, label, color) in enumerate(zip(axes, results, labels, COLORS)):
         hours = np.array([d["horizon_minutes"] / 60 for d in data])
 
         stats = [
             {
-                "med": d["q50"],
-                "q1": d["q25"],
-                "q3": d["q75"],
-                "whislo": d["q10"],
-                "whishi": d["q90"],
+                "med": d["median"],
+                "q1": d["box_low"],
+                "q3": d["box_high"],
+                "whislo": d["whisker_low"],
+                "whishi": d["whisker_high"],
                 "fliers": [],
             }
             for d in data
@@ -161,12 +126,24 @@ def main():
     parser.add_argument("--results", nargs="+", required=True)
     parser.add_argument("--labels", nargs="+", required=True)
     parser.add_argument("--output", default="rmse_vs_horizon.svg")
+    parser.add_argument(
+        "--quantiles",
+        nargs=5,
+        type=float,
+        default=(10.0, 25.0, 50.0, 75.0, 90.0),
+        metavar=("WHISKER_LOW", "BOX_LOW", "MEDIAN", "BOX_HIGH", "WHISKER_HIGH"),
+        help=(
+            "Five quantiles (0-100) used for whiskers/box/median, in ascending order. "
+            "Default: 10 25 50 75 90."
+        ),
+    )
     args = parser.parse_args()
 
     if len(args.results) != len(args.labels):
         raise ValueError("--results and --labels must have the same number of entries")
 
-    results = [load_horizon(p) for p in args.results]
+    quantiles = tuple(args.quantiles)
+    results = [load_horizon(path, quantiles) for path in args.results]
     make_plot(results, args.labels, args.output)
 
 

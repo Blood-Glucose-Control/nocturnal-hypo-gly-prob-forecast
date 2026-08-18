@@ -51,7 +51,7 @@ CUDA_DEVICE="${CUDA_DEVICE:-0}"
 # Set MODEL_CONFIG to the YAML used for training (context_length, covariate_cols, etc.).
 MODEL_CONFIG="${MODEL_CONFIG:-configs/models/chronos2/99_250k_checkpoints.yaml}"
 
-EVAL="python scripts/experiments/nocturnal_hypo_eval.py"
+EVAL="python scripts/evaluation/nocturnal_hypo_eval.py"
 CONFIG_DIR="configs/data/holdout_10pct"
 OUTPUT_BASE="${OUTPUT_BASE:-experiments/nocturnal_forecasting/512ctx_96fh/chronos2/long_run_checkpoints}"
 

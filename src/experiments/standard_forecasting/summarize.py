@@ -9,7 +9,7 @@ Scans all run directories under ``experiments/standard_forecasting/`` and
 builds a tidy CSV with one row per run.  Extends
 :class:`~src.experiments.base.experiment.ExperimentSummarizer` with logic to
 parse ``results.json`` files as produced by
-``scripts/experiments/sliding_window_eval.py``.
+``scripts/evaluation/sliding_window_eval.py``.
 
 Module: experiments.standard_forecasting.summarize
 Author: Blood-Glucose-Control
@@ -38,7 +38,7 @@ class StandardForecastingSummarizer(ExperimentSummarizer):
     """Summarise runs under ``experiments/standard_forecasting/``.
 
     Each completed run is expected to contain a ``results.json`` file with
-    the structure written by ``scripts/experiments/sliding_window_eval.py``::
+    the structure written by ``scripts/evaluation/sliding_window_eval.py``::
 
         {
           "model": "ttm",

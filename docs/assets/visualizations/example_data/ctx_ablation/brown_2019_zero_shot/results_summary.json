@@ -1,0 +1,19 @@
+{
+  "dataset": "brown_2019",
+  "checkpoint": null,
+  "timestamp": "2026-04-10T00:00:00",
+  "config": {
+    "context_length": 512,
+    "covariate_cols": [
+      "iob"
+    ]
+  },
+  "overall_rmse": 1.38,
+  "overall_wql": 0.27999999999999997,
+  "overall_coverage_50": 0.51,
+  "overall_coverage_80": 0.812,
+  "overall_sharpness_50": 0.7799999999999999,
+  "overall_sharpness_80": 1.35,
+  "overall_brier": 0.18,
+  "overall_dilate_g001": 0.49
+}

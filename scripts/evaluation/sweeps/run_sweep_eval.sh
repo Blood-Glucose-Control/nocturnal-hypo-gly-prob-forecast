@@ -25,7 +25,7 @@ EVAL_PYTHON="${EVAL_PYTHON:-.venvs/autogluon/bin/python}"
 TASK_FAMILY="${TASK_FAMILY:-forecasting}"
 EXPERIMENT_TYPE="${EXPERIMENT_TYPE:-nocturnal_forecast}"
 
-python scripts/experiments/sweep_eval.py \
+python scripts/orchestration/sweeps/sweep_eval.py \
   --task-family "$TASK_FAMILY" \
   --experiment-type "$EXPERIMENT_TYPE" \
   --model-type "$MODEL_TYPE" \

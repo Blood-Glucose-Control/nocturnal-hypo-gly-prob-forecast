@@ -7,7 +7,7 @@ workflow stack on cluster infrastructure.
 
 These launchers now route to:
 
-- `scripts/experiments/run_forecasting_workflow.sh`
+- `scripts/workflows/forecasting/run_forecasting_workflow.sh`
 
 without depending on deprecated legacy example entrypoints.
 

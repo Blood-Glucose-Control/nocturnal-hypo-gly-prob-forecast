@@ -1,0 +1,29 @@
+model_type: timesfm
+forecast_length: 96
+probabilistic: true
+jobs:
+  - model_config: configs/models/timesfm/00_long_run.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/timesfm/01_lr_2e5.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/timesfm/02_lr_5e5.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/timesfm/03_dilate_pinball_median_3ep.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/timesfm/04_dilate_pinball_all_3ep.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []

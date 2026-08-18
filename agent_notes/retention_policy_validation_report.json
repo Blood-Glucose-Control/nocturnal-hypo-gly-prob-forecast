@@ -1,0 +1,515 @@
+{
+  "timestamp_utc": "2026-08-07T03:29:32.883875+00:00",
+  "policy_path": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/configs/retention/model_artifact_retention_policy.json",
+  "run_root": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts",
+  "policy_version": "1.0.0",
+  "summary": {
+    "total_runs_checked": 215,
+    "runs_with_violations": 37,
+    "compliant_runs": 178
+  },
+  "violations_by_model_family": {
+    "chronos2": 1,
+    "deepar": 4,
+    "patchtst": 4,
+    "tide": 11,
+    "timesfm": 4,
+    "toto": 6,
+    "ttm": 7
+  },
+  "missing_top_level_totals": {
+    "forecasts": 28,
+    "model_config.yaml": 14,
+    "predictions": 25,
+    "split_metadata.json": 18,
+    "training_metadata.json": 30
+  },
+  "forbidden_file_totals": {},
+  "violations": [
+    {
+      "run_path": "chronos2/2026-03-14_03:49_RID20260314_034933_1315802_holdout_workflow",
+      "model_family": "chronos2",
+      "missing_top_level": [
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "model.safetensors",
+        "hf_model"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "deepar/2026-04-28_0725_RID20260428_072516_909735_00_baseline",
+      "model_family": "deepar",
+      "missing_top_level": [
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "deepar/2026-04-28_0725_RID20260428_072516_909743_06_shallow",
+      "model_family": "deepar",
+      "missing_top_level": [
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "deepar/2026-04-28_0725_RID20260428_072516_909750_08_low_dropout",
+      "model_family": "deepar",
+      "missing_top_level": [
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "deepar/2026-04-28_0725_RID20260428_072516_909753_11_big",
+      "model_family": "deepar",
+      "missing_top_level": [
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "patchtst/2026-04-28_0803_RID20260428_080348_916035_00_baseline",
+      "model_family": "patchtst",
+      "missing_top_level": [
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "patchtst/2026-04-28_0803_RID20260428_080348_916036_01_short_patch",
+      "model_family": "patchtst",
+      "missing_top_level": [
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "patchtst/2026-04-28_0803_RID20260428_080348_916045_06_wide_d",
+      "model_family": "patchtst",
+      "missing_top_level": [
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "patchtst/2026-04-28_0803_RID20260428_080348_916047_07_deep",
+      "model_family": "patchtst",
+      "missing_top_level": [
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/2026-02-28_19:05_RID20260228_190544_478856_holdout_workflow",
+      "model_family": "tide",
+      "missing_top_level": [
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/2026-02-28_19:13_RID20260228_191342_480393_holdout_workflow",
+      "model_family": "tide",
+      "missing_top_level": [
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/2026-02-28_19:20_RID20260228_192007_481730_holdout_workflow",
+      "model_family": "tide",
+      "missing_top_level": [
+        "forecasts"
+      ],
+      "missing_payload_any_of": [],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/2026-02-28_21:28_RID20260228_212852_496983_holdout_workflow",
+      "model_family": "tide",
+      "missing_top_level": [
+        "forecasts"
+      ],
+      "missing_payload_any_of": [],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/2026-04-17_03:23_RID20260417_032321_3339779_holdout_workflow",
+      "model_family": "tide",
+      "missing_top_level": [
+        "model_config.yaml",
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/2026-04-17_03:23_RID20260417_032327_3339779_holdout_workflow",
+      "model_family": "tide",
+      "missing_top_level": [
+        "model_config.yaml",
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/2026-04-17_03:23_RID20260417_032331_3339779_holdout_workflow",
+      "model_family": "tide",
+      "missing_top_level": [
+        "model_config.yaml",
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/2026-04-17_03:23_RID20260417_032336_3339779_holdout_workflow",
+      "model_family": "tide",
+      "missing_top_level": [
+        "model_config.yaml",
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/2026-04-17_03:23_RID20260417_032340_3339779_holdout_workflow",
+      "model_family": "tide",
+      "missing_top_level": [
+        "model_config.yaml",
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/2026-04-17_03:23_RID20260417_032344_3339779_holdout_workflow",
+      "model_family": "tide",
+      "missing_top_level": [
+        "model_config.yaml",
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "tide/sweep",
+      "model_family": "tide",
+      "missing_top_level": [
+        "model_config.yaml",
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "timesfm/2026-02-17_02:37_RID20260217_023719_2322017_holdout_workflow",
+      "model_family": "timesfm",
+      "missing_top_level": [
+        "model_config.yaml",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "model.safetensors",
+        "hf_model",
+        "checkpoints"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "timesfm/2026-02-17_02:53_RID20260217_025309_2323711_holdout_workflow",
+      "model_family": "timesfm",
+      "missing_top_level": [
+        "model_config.yaml",
+        "training_metadata.json"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "model.safetensors",
+        "hf_model",
+        "checkpoints"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "timesfm/2026-02-17_18:47_RID20260217_184741_2402397_holdout_workflow",
+      "model_family": "timesfm",
+      "missing_top_level": [
+        "model_config.yaml",
+        "training_metadata.json"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "model.safetensors",
+        "hf_model",
+        "checkpoints"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "timesfm/2026-02-26_22:20_RID20260226_222048_158764_holdout_workflow",
+      "model_family": "timesfm",
+      "missing_top_level": [
+        "forecasts"
+      ],
+      "missing_payload_any_of": [],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "toto/2026-03-18_05:07_RID20260318_050708_1928395_holdout_workflow",
+      "model_family": "toto",
+      "missing_top_level": [
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "toto_finetuning"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "toto/2026-03-18_05:26_RID20260318_052647_1936839_holdout_workflow",
+      "model_family": "toto",
+      "missing_top_level": [
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "toto_finetuning"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "toto/2026-03-18_05:33_RID20260318_053355_1939820_holdout_workflow",
+      "model_family": "toto",
+      "missing_top_level": [
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "toto_finetuning"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "toto/2026-03-18_05:39_RID20260318_053921_1941328_holdout_workflow",
+      "model_family": "toto",
+      "missing_top_level": [
+        "training_metadata.json"
+      ],
+      "missing_payload_any_of": [],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "toto/2026-03-18_06:00_RID20260318_060010_1947762_holdout_workflow",
+      "model_family": "toto",
+      "missing_top_level": [
+        "training_metadata.json"
+      ],
+      "missing_payload_any_of": [],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "toto/2026-03-18_06:20_RID20260318_062024_1961927_holdout_workflow",
+      "model_family": "toto",
+      "missing_top_level": [
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "toto_finetuning"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "ttm/2026-02-07_06:58_RID20260207_065833_723107_holdout_workflow",
+      "model_family": "ttm",
+      "missing_top_level": [
+        "model_config.yaml",
+        "split_metadata.json"
+      ],
+      "missing_payload_any_of": [],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "ttm/2026-02-07_07:23_RID20260207_072330_729538_holdout_workflow",
+      "model_family": "ttm",
+      "missing_top_level": [
+        "model_config.yaml"
+      ],
+      "missing_payload_any_of": [],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "ttm/2026-02-07_07:42_RID20260207_074213_735917_holdout_workflow",
+      "model_family": "ttm",
+      "missing_top_level": [
+        "model_config.yaml"
+      ],
+      "missing_payload_any_of": [],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "ttm/2026-02-27_03:26_RID20260227_032625_189068_holdout_workflow",
+      "model_family": "ttm",
+      "missing_top_level": [
+        "split_metadata.json",
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "model.safetensors"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "ttm/2026-02-27_03:27_RID20260227_032728_189462_holdout_workflow",
+      "model_family": "ttm",
+      "missing_top_level": [
+        "training_metadata.json",
+        "forecasts",
+        "predictions"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "model.safetensors"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "ttm/2026-02-27_03:38_RID20260227_033808_191168_holdout_workflow",
+      "model_family": "ttm",
+      "missing_top_level": [
+        "training_metadata.json"
+      ],
+      "missing_payload_any_of": [
+        "model.pt",
+        "model.safetensors"
+      ],
+      "forbidden_files_found": []
+    },
+    {
+      "run_path": "ttm/2026-05-04_22:25_RID20260504_222537_16054_holdout_workflow",
+      "model_family": "ttm",
+      "missing_top_level": [
+        "model_config.yaml"
+      ],
+      "missing_payload_any_of": [],
+      "forbidden_files_found": []
+    }
+  ]
+}

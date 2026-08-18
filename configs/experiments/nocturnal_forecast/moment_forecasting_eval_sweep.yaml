@@ -1,0 +1,79 @@
+model_type: moment
+forecast_length: 96
+probabilistic: true
+jobs:
+  - model_config: configs/models/moment/00_baseline.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/01_low_lr.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/02_high_lr.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/03_small_batch.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/04_short_context.yaml
+    context_length: 384
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/05_freeze_backbone.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/06_wrapper_norm_on_ablation.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/07_stride_48.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/08_stride_24.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/09_bg_iob_insulin_availability.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/10_bg_iob_only_ablation.yaml
+    context_length: 512
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/11_bg_insulin_availability_only_ablation.yaml
+    context_length: 512
+    covariate_cols: [insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/12_bg_cob_only_ablation.yaml
+    context_length: 512
+    covariate_cols: [cob]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/13_bg_carb_availability_only_ablation.yaml
+    context_length: 512
+    covariate_cols: [carb_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/moment/14_bg_full_covariates.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability, cob, carb_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []

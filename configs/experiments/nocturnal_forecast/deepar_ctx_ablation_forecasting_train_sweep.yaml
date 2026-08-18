@@ -1,0 +1,8 @@
+model_type: deepar
+jobs:
+  - model_config: configs/models/deepar/ctx_ablation/10_low_lr_256ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/deepar/ctx_ablation/10_low_lr_128ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/deepar/ctx_ablation/10_low_lr_64ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]

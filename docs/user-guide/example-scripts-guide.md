@@ -1,16 +1,16 @@
 # Example Scripts Guide
 
-This guide lists the maintained scripts in `scripts/examples/` and
-`scripts/experiments/` and when to use each one.
+This guide lists the maintained scripts in `scripts/examples/`,
+`scripts/workflows/`, and `scripts/orchestration/` and when to use each one.
 
 ## Active examples
 
 | Script | Purpose | Typical use |
 |---|---|---|
 | `example_forecasting_workflow.py` | Thin onboarding entrypoint for generic forecasting workflow | Quick walkthrough and CLI discovery |
-| `forecasting_workflow_orchestrator.py` (`scripts/experiments/`) | Production CLI entrypoint for generic forecasting workflow | Stable runtime surface for wrappers and automation |
-| `run_forecasting_workflow.sh` (`scripts/experiments/`) | Local shell wrapper for the production orchestrator | Repeatable local runs with environment variables |
-| `forecasting_workflow_regression_smoke.sh` (`scripts/experiments/`) | Deterministic bounded regression profile | Major-change workflow smoke/regression runs |
+| `forecasting_workflow_orchestrator.py` (`scripts/workflows/forecasting/`) | Production CLI entrypoint for generic forecasting workflow | Stable runtime surface for wrappers and automation |
+| `run_forecasting_workflow.sh` (`scripts/workflows/forecasting/`) | Local shell wrapper for the production orchestrator | Repeatable local runs with environment variables |
+| `forecasting_workflow_regression_smoke.sh` (`scripts/workflows/forecasting/`) | Deterministic bounded regression profile | Major-change workflow smoke/regression runs |
 | `example_data_holdout_system.py` | Demonstrates holdout config generation/validation/loading APIs | Data split and holdout debugging |
 | `example_load_holdout_data.py` | Minimal holdout loading example | Quick data-access sanity checks |
 
@@ -26,8 +26,8 @@ These are intentionally in `scripts/experiments/` (not `scripts/examples/`):
 Sweep orchestration now uses model-agnostic Python entrypoints with canonical
 taxonomy-aligned shell launchers:
 
-- Generic training CLI: `scripts/experiments/sweep_train.py`
-- Generic evaluation CLI: `scripts/experiments/sweep_eval.py`
+- Generic training CLI: `scripts/orchestration/sweeps/sweep_train.py`
+- Generic evaluation CLI: `scripts/orchestration/sweeps/sweep_eval.py`
 - Canonical training launcher: `scripts/training/sweeps/run_sweep_train.sh`
 - Canonical evaluation launcher: `scripts/evaluation/sweeps/run_sweep_eval.sh`
 
@@ -50,20 +50,23 @@ Currently implemented adapter:
 Discover available adapters:
 
 ```bash
-python scripts/experiments/sweep_train.py --list-adapters
-python scripts/experiments/sweep_eval.py --list-adapters
+python scripts/orchestration/sweeps/sweep_train.py --list-adapters
+python scripts/orchestration/sweeps/sweep_eval.py --list-adapters
 ```
 
 Forecasting sweep profile specs:
 
+- `configs/experiments/nocturnal_forecast/*_forecasting_train_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/*_forecasting_eval_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/*_ctx_ablation_forecasting_train_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/*_ctx_ablation_forecasting_eval_sweep.yaml`
+
+Concrete examples:
+
 - `configs/experiments/nocturnal_forecast/chronos2_forecasting_train_sweep.yaml`
-- `configs/experiments/nocturnal_forecast/chronos2_forecasting_eval_sweep.yaml`
-- `configs/experiments/nocturnal_forecast/deepar_forecasting_train_sweep.yaml`
-- `configs/experiments/nocturnal_forecast/deepar_forecasting_eval_sweep.yaml`
-- `configs/experiments/nocturnal_forecast/patchtst_forecasting_train_sweep.yaml`
-- `configs/experiments/nocturnal_forecast/patchtst_forecasting_eval_sweep.yaml`
-- `configs/experiments/nocturnal_forecast/tft_forecasting_train_sweep.yaml`
-- `configs/experiments/nocturnal_forecast/tft_forecasting_eval_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/moment_forecasting_train_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/timesfm_forecasting_eval_sweep.yaml`
+- `configs/experiments/nocturnal_forecast/tft_ctx_ablation_forecasting_eval_sweep.yaml`
 
 Local usage:
 
@@ -91,7 +94,7 @@ DRY_RUN=1 GPUS="0" JOBS_PER_GPU=1 bash scripts/evaluation/sweeps/run_sweep_eval.
 Generic config-directory mode (same datasets applied to every model config):
 
 ```bash
-python scripts/experiments/sweep_train.py \
+python scripts/orchestration/sweeps/sweep_train.py \
   --model-type chronos2 \
   --model-config-dir configs/models/chronos2 \
   --datasets aleppo_2017 brown_2019 lynch_2022 tamborlane_2008 \
@@ -120,6 +123,13 @@ sub-experiment under:
 - `scripts/training/sweeps/nocturnal_forecast/context_ablation/`
 - `scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/`
 
+Chronos-2 one-off step/context-ablation evaluators remain specialized intentionally
+for now (they embed custom experiment semantics and are not yet generalized):
+
+- `scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/chronos2_ctx_ablation_eval.sh`
+- `scripts/evaluation/sweeps/models/chronos2_step_sweep_eval.sh`
+- `scripts/evaluation/sweeps/models/chronos2_long_run_step_sweep_eval.sh`
+
 Legacy compatibility wrappers in `scripts/experiments/` were removed for both
 model-sweep and orchestration chain scripts; use the canonical paths above.
 
@@ -128,7 +138,7 @@ model-sweep and orchestration chain scripts; use the canonical paths above.
 Use the production orchestrator as the default entrypoint for training runs:
 
 ```bash
-python scripts/experiments/forecasting_workflow_orchestrator.py \
+python scripts/workflows/forecasting/forecasting_workflow_orchestrator.py \
   --model-type chronos2 \
   --datasets brown_2019 lynch_2022 \
   --config-dir configs/data/holdout_10pct
@@ -146,14 +156,39 @@ Or use the local shell wrapper:
 MODEL_TYPE=chronos2 \
 DATASETS="brown_2019 lynch_2022" \
 CONFIG_DIR="configs/data/holdout_10pct" \
-bash scripts/experiments/run_forecasting_workflow.sh
+bash scripts/workflows/forecasting/run_forecasting_workflow.sh
 ```
 
 Regression profile (bounded end-to-end guardrail):
 
 ```bash
-bash scripts/experiments/forecasting_workflow_regression_smoke.sh
+bash scripts/workflows/forecasting/forecasting_workflow_regression_smoke.sh
 ```
+
+## Taxonomy flow (Wave 1)
+
+```mermaid
+flowchart LR
+    D[configs/data + raw/prepared inputs]
+    W[scripts/workflows/*]
+    SW[src/workflows/*]
+    E[scripts/evaluation/*]
+    O[scripts/orchestration/*]
+    A[scripts/analysis/* + scripts/visualization/*]
+
+    D --> W --> SW
+    SW --> E
+    SW --> O
+    E --> A
+    O --> A
+```
+
+Shared visualization helpers for retained nocturnal plotting scripts now live in
+[`src/visualization/nocturnal.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/visualization/nocturnal.py).
+
+Visualization script purposes, duplication assessment, and curated example
+outputs are documented in
+[`docs/user-guide/modeling/visualization-guide.md`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/user-guide/modeling/visualization-guide.md).
 
 ## Canonical run manifest (pre-MLflow v1)
 
@@ -201,3 +236,19 @@ Several older example scripts were removed during P1 scripts cleanup because the
 depended on model-base surfaces that were already pruned from runtime. If you need
 the old behavior, use git history for reference and prefer rebuilding on top of
 the maintained scripts listed above.
+
+## Generic visualization entrypoints (Wave 4)
+
+Wave 4 removes model-specific visualization entrypoints in favor of generic
+plotting contracts:
+
+- [`plot_probabilistic_forecast_grid.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/visualization/plot_probabilistic_forecast_grid.py)
+- [`plot_forecast_episode_overlays.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/visualization/plot_forecast_episode_overlays.py)
+
+Each script documents its required input data format at the top of the file.
+
+Retained step-sweep visualization scripts are also now model-agnostic via CLI
+series mapping instead of hardcoded model/config labels:
+
+- [`plot_step_sweep.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/visualization/plot_step_sweep.py)
+- [`plot_step_sweep_long_run.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/visualization/plot_step_sweep_long_run.py)

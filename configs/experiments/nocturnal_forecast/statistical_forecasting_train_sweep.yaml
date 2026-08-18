@@ -1,0 +1,10 @@
+model_type: statistical
+jobs:
+  - model_config: configs/models/statistical/00_autoarima_bg_only.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/statistical/01_autoarima_bg_iob.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/statistical/02_theta_bg_only.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/statistical/03_npts_bg_only.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]

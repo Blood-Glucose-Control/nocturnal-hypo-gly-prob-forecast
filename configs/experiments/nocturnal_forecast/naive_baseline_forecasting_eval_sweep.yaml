@@ -1,0 +1,14 @@
+model_type: naive_baseline
+forecast_length: 96
+probabilistic: true
+jobs:
+  - model_config: configs/models/naive_baseline/00_naive.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/naive_baseline/01_average.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []

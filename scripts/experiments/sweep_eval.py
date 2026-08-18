@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 # pyright: reportMissingImports=false
-"""Generic sweep evaluation CLI entrypoint."""
+"""Compatibility shim for legacy experiments path."""
 
-from src.workflows.sweeps.eval import main
+import runpy
+from pathlib import Path
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    target = (
+        Path(__file__).resolve().parents[1]
+        / "orchestration"
+        / "sweeps"
+        / "sweep_eval.py"
+    )
+    runpy.run_path(str(target), run_name="__main__")

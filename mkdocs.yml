@@ -19,6 +19,7 @@ nav:
       - Modeling:
         - Model Training: user-guide/modeling/model-training.md
         - Model Evaluation: user-guide/modeling/model-evaluation.md
+        - Visualization Guide: user-guide/modeling/visualization-guide.md
       - Benchmarking:
         - Model Benchmarking: user-guide/benchmarking/model-benchmarking.md
         - WATGPU Benchmarking: user-guide/benchmarking/watgpu-benchmark.md

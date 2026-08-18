@@ -2,6 +2,18 @@
 Plot mean RMSE (with IQR band) vs forecast horizon for multiple models.
 One subplot per dataset (columns), all models overlaid in each panel.
 
+What this visualization tells you
+---------------------------------
+- Cross-model ranking stability as horizon lengthens, split by dataset.
+- Tradeoff between central tendency (mean RMSE line) and variability
+  (IQR envelope).
+
+What to look for
+----------------
+- Model crossings over horizon (short-horizon vs long-horizon winners).
+- Expanding IQR bands (forecast reliability drift across episodes).
+- Dataset-specific rank changes indicating poor transfer.
+
 Reads best run paths from best_by_model_dataset.csv. Models missing
 forecasts.npz for any dataset are skipped automatically.
 
@@ -20,6 +32,11 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import numpy as np
+
+from src.visualization.nocturnal import (
+    compute_horizon_rmse_stats,
+    load_prediction_actual_arrays,
+)
 
 matplotlib.use("svg")
 matplotlib.rcParams["svg.fonttype"] = "none"
@@ -56,51 +73,6 @@ MODEL_COLORS: dict[str, str] = {
     "sundial": "#9E9E9E",
     "timegrad": "#7B5033",
 }
-
-SAMPLING_INTERVAL_MIN = 5  # CGM cadence
-
-
-# ---------------------------------------------------------------------------
-# Data loading
-# ---------------------------------------------------------------------------
-
-
-def load_npz(run_dir: Path) -> tuple[np.ndarray, np.ndarray]:
-    """Return (predictions, actuals) arrays from forecasts.npz."""
-    data = np.load(run_dir / "forecasts.npz", allow_pickle=False)
-    return data["predictions"], data["actuals"]
-
-
-def per_step_stats(preds: np.ndarray, actuals: np.ndarray) -> dict:
-    """Compute per-step mean RMSE and IQR across episodes.
-
-    Returns a dict with keys:
-        hours   : (n_steps,) forecast horizon in hours
-        mean    : (n_steps,) mean RMSE across episodes
-        q25     : (n_steps,) 25th-percentile per-episode RMSE
-        q75     : (n_steps,) 75th-percentile per-episode RMSE
-    """
-    n_steps = preds.shape[1]
-    hours = np.array([(i + 1) * SAMPLING_INTERVAL_MIN / 60.0 for i in range(n_steps)])
-    sq_err = (preds - actuals) ** 2  # (n_episodes, n_steps)
-    mean_rmse = np.sqrt(np.mean(sq_err, axis=0))
-    ep_rmse = np.sqrt(sq_err)  # per-episode RMSE at each step
-    q25 = np.percentile(ep_rmse, 25, axis=0)
-    q75 = np.percentile(ep_rmse, 75, axis=0)
-
-    # Cumulative RMSE: sqrt of running mean of squared errors over all
-    # episodes and all steps up to k.  Correct because we accumulate MSE
-    # (linear) before taking the single square root.
-    cum_mse = np.cumsum(np.mean(sq_err, axis=0)) / np.arange(1, n_steps + 1)
-    cum_rmse = np.sqrt(cum_mse)
-
-    return {
-        "hours": hours,
-        "mean": mean_rmse,
-        "q25": q25,
-        "q75": q75,
-        "cumulative": cum_rmse,
-    }
 
 
 def read_best_paths(csv_path: Path) -> dict[tuple[str, str], str]:
@@ -143,7 +115,12 @@ def make_grid_plot(
             y = s["cumulative"] if cumulative else s["mean"]
             if show_iqr and not cumulative:
                 ax.fill_between(
-                    s["hours"], s["q25"], s["q75"], alpha=0.12, color=color, zorder=2
+                    s["hours"],
+                    s["band_low"],
+                    s["band_high"],
+                    alpha=0.12,
+                    color=color,
+                    zorder=2,
                 )
             ax.plot(
                 s["hours"],
@@ -217,6 +194,17 @@ def main() -> None:
         action="store_true",
         help="Plot cumulative RMSE (sqrt of running mean MSE) instead of per-step RMSE",
     )
+    parser.add_argument(
+        "--iqr-quantiles",
+        nargs=2,
+        type=float,
+        default=(25.0, 75.0),
+        metavar=("LOW", "HIGH"),
+        help=(
+            "Lower/upper quantiles (0-100) for the shaded uncertainty band. "
+            "Default: 25 75."
+        ),
+    )
     args = parser.parse_args()
 
     best_paths = read_best_paths(Path(args.csv))
@@ -238,11 +226,18 @@ def main() -> None:
 
     # Load per-step stats
     run_stats: dict[str, dict[str, dict]] = {}
+    iqr_quantiles = tuple(args.iqr_quantiles)
     for model in complete_models:
         run_stats[model] = {}
         for ds in DATASETS:
-            preds, actuals = load_npz(Path(best_paths[(model, ds)]))
-            run_stats[model][ds] = per_step_stats(preds, actuals)
+            predictions, actuals = load_prediction_actual_arrays(
+                Path(best_paths[(model, ds)])
+            )
+            run_stats[model][ds] = compute_horizon_rmse_stats(
+                predictions,
+                actuals,
+                iqr_quantiles=iqr_quantiles,
+            )
 
     # Order best → worst by mean RMSE averaged across all datasets and steps
     def mean_overall_rmse(model: str) -> float:

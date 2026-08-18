@@ -18,6 +18,17 @@ Like the PIT plots, two output tiers are produced:
   Appendix figures  — one figure per dataset, one subplot per model.
                        Saved as ``<outdir>/reliability_appendix_{dataset}.{png,pdf}``.
 
+What this visualization tells you
+---------------------------------
+- Quantile-level calibration fidelity against the ideal diagonal.
+- Calibration error magnitude via ECE and curve displacement.
+
+What to look for
+----------------
+- Curves close to diagonal (good calibration).
+- Consistent over-/under-forecasting direction (above/below diagonal).
+- Dataset-specific departures not visible in pooled summaries.
+
 Usage
 -----
     python scripts/visualization/plot_reliability_diagrams.py

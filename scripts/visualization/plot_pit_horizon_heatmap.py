@@ -29,6 +29,17 @@ Two binning parameters let you trade resolution for smoothness:
                Set to 12 (40-min blocks), 24 (20-min), or 48 (10-min)
                to pool adjacent steps and reduce per-column noise.
 
+What this visualization tells you
+---------------------------------
+- Where calibration quality degrades along the forecast horizon.
+- Whether failures are transient/localized or persistent across the horizon.
+
+What to look for
+----------------
+- Late-horizon drift (vertical pattern changes at high horizon minutes).
+- Red concentration near PIT extremes (bias and tail miscalibration).
+- Broad non-uniform regions that persist across many time bins.
+
 Usage
 -----
     # Auto-discover best runs from summary CSV

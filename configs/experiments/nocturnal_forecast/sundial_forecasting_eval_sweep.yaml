@@ -1,0 +1,9 @@
+model_type: sundial
+forecast_length: 96
+probabilistic: true
+jobs:
+  - model_config: configs/models/sundial/02_low_samples.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: []
+    zeroshot_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]

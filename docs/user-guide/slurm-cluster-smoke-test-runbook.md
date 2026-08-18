@@ -17,7 +17,7 @@ Validate that these rewired launchers run end-to-end on cluster:
 
 All three should route to:
 
-- `scripts/experiments/run_forecasting_workflow.sh`
+- `scripts/workflows/forecasting/run_forecasting_workflow.sh`
 
 ## 1) Clone repo on cluster
 
