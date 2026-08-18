@@ -1,9 +1,16 @@
 #!/usr/bin/env python3
 # pyright: reportMissingImports=false
-"""Production CLI for the generic forecasting training/evaluation workflow."""
+"""Compatibility shim for legacy experiments path."""
 
-from src.workflows.forecasting.pipeline import main
+import runpy
+from pathlib import Path
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    target = (
+        Path(__file__).resolve().parents[1]
+        / "workflows"
+        / "forecasting"
+        / "forecasting_workflow_orchestrator.py"
+    )
+    runpy.run_path(str(target), run_name="__main__")

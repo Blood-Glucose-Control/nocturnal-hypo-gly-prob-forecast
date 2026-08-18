@@ -26,6 +26,17 @@ scales.
 
 Rows with non-positive or non-finite sharpness are dropped.
 
+What this visualization tells you
+---------------------------------
+- Calibration error at two PI levels plus interval tightness in one figure.
+- Whether good calibration is achieved with practical sharpness.
+
+What to look for
+----------------
+- Points near origin with lower-sharpness encodings (strong candidates).
+- Cases where calibration improves only by widening intervals.
+- Dataset/model clusters that are calibrated but too diffuse (operationally weak).
+
 Usage
 -----
     python scripts/visualization/plot_coverage_error_2d_sharpness.py

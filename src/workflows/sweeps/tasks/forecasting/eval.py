@@ -24,6 +24,7 @@ class SweepEvalConfig:
     covariate_cols: Tuple[str, ...]
     finetuned_datasets: Tuple[str, ...]
     zeroshot_datasets: Tuple[str, ...]
+    output_dir_template: str | None
     probabilistic: bool
     no_dilate: bool
 
@@ -38,6 +39,7 @@ class EvalJob:
     forecast_length: int
     covariate_cols: Tuple[str, ...]
     checkpoint_path: str | None
+    output_dir_template: str | None
     probabilistic: bool
     no_dilate: bool
 
@@ -80,6 +82,19 @@ def _read_latest_manifest_entry(manifest: Path, stem: str, lock: threading.Lock)
         return latest
 
 
+def _resolve_checkpoint_path(project_root: Path, out_dir: str) -> str | None:
+    run_dir = Path(out_dir)
+    if not run_dir.is_absolute():
+        run_dir = project_root / run_dir
+    if not run_dir.exists():
+        return None
+
+    for candidate in (run_dir / "model.pt", run_dir / "model.ckpt", run_dir):
+        if candidate.exists():
+            return candidate.as_posix()
+    return None
+
+
 def _load_eval_configs(
     *,
     sweep_spec: Path,
@@ -100,6 +115,16 @@ def _load_eval_configs(
     default_probabilistic = bool(raw.get("probabilistic", True))
     default_no_dilate = bool(raw.get("no_dilate", False))
     default_forecast_length = int(raw.get("forecast_length", 96))
+    default_output_dir_template = raw.get("output_dir_template")
+    if default_output_dir_template is not None:
+        if (
+            not isinstance(default_output_dir_template, str)
+            or not default_output_dir_template.strip()
+        ):
+            raise ValueError(
+                "Top-level output_dir_template must be a non-empty string when provided"
+            )
+        default_output_dir_template = default_output_dir_template.strip()
 
     configs: List[SweepEvalConfig] = []
     for idx, item in enumerate(jobs):
@@ -147,6 +172,18 @@ def _load_eval_configs(
             if forecast_length_override is not None
             else int(item.get("forecast_length", default_forecast_length))
         )
+        output_dir_template = item.get(
+            "output_dir_template", default_output_dir_template
+        )
+        if output_dir_template is not None:
+            if (
+                not isinstance(output_dir_template, str)
+                or not output_dir_template.strip()
+            ):
+                raise ValueError(
+                    f"jobs[{idx}].output_dir_template must be a non-empty string when provided"
+                )
+            output_dir_template = output_dir_template.strip()
         if forecast_length <= 0:
             raise ValueError(f"jobs[{idx}].forecast_length must be > 0")
 
@@ -162,6 +199,7 @@ def _load_eval_configs(
                 zeroshot_datasets=tuple(
                     v.strip() for v in zeroshot_datasets if v.strip()
                 ),
+                output_dir_template=output_dir_template,
                 probabilistic=probabilistic,
                 no_dilate=no_dilate,
             )
@@ -185,9 +223,7 @@ def _build_eval_jobs(
             out_dir = _read_latest_manifest_entry(manifest, stem, manifest_lock)
             checkpoint = None
             if out_dir:
-                candidate = project_root / out_dir / "model.pt"
-                if candidate.exists():
-                    checkpoint = candidate.as_posix()
+                checkpoint = _resolve_checkpoint_path(project_root, out_dir)
 
             for dataset in item.finetuned_datasets:
                 jobs.append(
@@ -200,6 +236,7 @@ def _build_eval_jobs(
                         forecast_length=item.forecast_length,
                         covariate_cols=item.covariate_cols,
                         checkpoint_path=checkpoint,
+                        output_dir_template=item.output_dir_template,
                         probabilistic=item.probabilistic,
                         no_dilate=item.no_dilate,
                     )
@@ -216,6 +253,7 @@ def _build_eval_jobs(
                     forecast_length=item.forecast_length,
                     covariate_cols=item.covariate_cols,
                     checkpoint_path=None,
+                    output_dir_template=item.output_dir_template,
                     probabilistic=item.probabilistic,
                     no_dilate=item.no_dilate,
                 )
@@ -224,12 +262,41 @@ def _build_eval_jobs(
     if not jobs:
         raise ValueError("Sweep eval spec resolved zero jobs.")
 
-    if not dry_run and not manifest.exists():
+    requires_manifest = any(cfg.finetuned_datasets for cfg in configs)
+    if requires_manifest and not dry_run and not manifest.exists():
         raise FileNotFoundError(
             f"Manifest not found for finetuned evaluation: {manifest.as_posix()}"
         )
 
     return jobs
+
+
+def _resolve_output_dir(
+    project_root: Path, model_type: str, job: EvalJob
+) -> str | None:
+    template = job.output_dir_template
+    if not template:
+        return None
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    try:
+        rendered = template.format(
+            model_type=model_type,
+            stem=job.stem,
+            dataset=job.dataset,
+            mode=job.mode,
+            context_length=job.context_length,
+            forecast_length=job.forecast_length,
+            timestamp=timestamp,
+        )
+    except KeyError as exc:
+        raise ValueError(
+            f"Unknown output_dir_template placeholder '{exc.args[0]}' for {job.stem}"
+        ) from exc
+
+    out_dir = Path(rendered)
+    if not out_dir.is_absolute():
+        out_dir = project_root / out_dir
+    return out_dir.as_posix()
 
 
 def _run_worker(
@@ -322,12 +389,17 @@ def _run_worker(
             if job.covariate_cols:
                 cmd.append("--covariate-cols")
                 cmd.extend(job.covariate_cols)
+            output_dir = _resolve_output_dir(project_root, model_type, job)
+            if output_dir:
+                cmd.extend(["--output-dir", output_dir])
 
             log_line("")
             log_line(f"[{label}] ============================================")
             log_line(f"[{label}]  {label_mode} eval: {job_label}")
             if job.checkpoint_path:
                 log_line(f"[{label}]  Checkpoint: {job.checkpoint_path}")
+            if output_dir:
+                log_line(f"[{label}]  Output: {output_dir}")
             log_line(f"[{label}] ============================================")
             log_line(f"[{label}]  CMD: {' '.join(cmd)}")
 
@@ -390,6 +462,15 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Space-separated GPU IDs override (default: GPUS env or auto-detect).",
     )
     parser.add_argument(
+        "--datasets",
+        nargs="+",
+        default=None,
+        help=(
+            "Optional dataset-name filter applied after loading sweep jobs "
+            "(default: DATASETS env if set; otherwise no filter)."
+        ),
+    )
+    parser.add_argument(
         "--jobs-per-gpu",
         type=int,
         default=None,
@@ -410,7 +491,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--eval-script",
         type=str,
-        default="scripts/experiments/nocturnal_hypo_eval.py",
+        default="scripts/evaluation/nocturnal_hypo_eval.py",
         help="Evaluation script path relative to repo root.",
     )
     parser.add_argument(
@@ -528,6 +609,19 @@ def main(
         dry_run=dry_run,
     )
 
+    dataset_filter = args.datasets
+    if dataset_filter is None:
+        datasets_env = os.environ.get("DATASETS", "").strip()
+        if datasets_env:
+            dataset_filter = datasets_env.split()
+    if dataset_filter:
+        allowed = {dataset.strip() for dataset in dataset_filter if dataset.strip()}
+        jobs = [job for job in jobs if job.dataset in allowed]
+        if not jobs:
+            raise ValueError(
+                "Dataset filter removed all eval jobs. Check --datasets / DATASETS values."
+            )
+
     gpu_ids = _detect_gpu_ids(args.gpus)
     n_gpus = len(gpu_ids)
     n_slots = max(1, n_gpus * jobs_per_gpu)
@@ -537,6 +631,8 @@ def main(
     )
     print(f"  Sweep spec: {sweep_spec.as_posix()}")
     print(f"  Jobs: {len(jobs)}")
+    if dataset_filter:
+        print(f"  Dataset filter: {' '.join(dataset_filter)}")
     print(f"  Python: {python_executable}")
     print(f"  GPUs: {' '.join(gpu_ids)}  ({n_gpus} total)")
     print(f"  Jobs per GPU: {jobs_per_gpu}  ({n_slots} total slots)")

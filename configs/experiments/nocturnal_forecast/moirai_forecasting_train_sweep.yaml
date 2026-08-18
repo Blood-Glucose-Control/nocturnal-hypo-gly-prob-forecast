@@ -1,0 +1,32 @@
+model_type: moirai
+jobs:
+  - model_config: configs/models/moirai/00_bg_only.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moirai/01_bg_iob.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moirai/02_bg_iob_ia.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moirai/03_bg_iob_ia_high_lr.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moirai/04_bg_iob_short_ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moirai/05_bg_iob_cob.yaml
+    datasets: [lynch_2022, aleppo_2017]
+  - model_config: configs/models/moirai/06_bg_full_features.yaml
+    datasets: [lynch_2022, aleppo_2017]
+  - model_config: configs/models/moirai/07_bg_iob_cob_high_lr.yaml
+    datasets: [lynch_2022, aleppo_2017]
+  - model_config: configs/models/moirai/08_bg_iob_cob_short_ctx.yaml
+    datasets: [lynch_2022, aleppo_2017]
+  - model_config: configs/models/moirai/09_bg_only_base.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moirai/10_bg_iob_ia_head_only.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moirai/11_bg_iob_ia_freeze_ffn.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moirai/12_bg_iob_ia_patch8.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moirai/13_bg_iob_ia_patch16.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moirai/14_bg_iob_ia_patch32.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]

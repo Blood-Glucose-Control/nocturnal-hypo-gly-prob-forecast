@@ -126,6 +126,23 @@ def _load_sweep_configs(
     ]
 
 
+def _apply_dataset_filter(
+    configs: Sequence[SweepConfig], allowed_datasets: Sequence[str]
+) -> Tuple[List[SweepConfig], int]:
+    allowed = {dataset.strip() for dataset in allowed_datasets if dataset.strip()}
+    filtered: List[SweepConfig] = []
+    dropped = 0
+    for item in configs:
+        datasets = tuple(dataset for dataset in item.datasets if dataset in allowed)
+        if datasets:
+            filtered.append(
+                SweepConfig(model_config_path=item.model_config_path, datasets=datasets)
+            )
+        else:
+            dropped += 1
+    return filtered, dropped
+
+
 def _run_worker(
     *,
     slot: int,
@@ -161,13 +178,17 @@ def _run_worker(
         for item in configs:
             stem = Path(item.model_config_path).stem
             existing_dir = _read_latest_manifest_entry(manifest, stem, manifest_lock)
-            if existing_dir and (Path(existing_dir) / "model.pt").is_dir():
-                log_line(
-                    f"[{label}] [SKIP] {stem} — already in manifest: "
-                    f"{Path(existing_dir).name}"
-                )
-                pass_count += 1
-                continue
+            if existing_dir:
+                existing_path = Path(existing_dir)
+                if not existing_path.is_absolute():
+                    existing_path = project_root / existing_path
+                if existing_path.exists():
+                    log_line(
+                        f"[{label}] [SKIP] {stem} — already in manifest: "
+                        f"{existing_path.name}"
+                    )
+                    pass_count += 1
+                    continue
 
             datasets = " ".join(item.datasets)
             run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}_{slot}"
@@ -264,7 +285,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--datasets",
         nargs="+",
         default=None,
-        help="Datasets list used for each config when --model-config-dir is used.",
+        help=(
+            "Datasets list used for each config when --model-config-dir is used. "
+            "With --sweep-spec, acts as a dataset-name filter."
+        ),
     )
     parser.add_argument(
         "--gpus",
@@ -293,7 +317,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--workflow-script",
         type=str,
-        default="scripts/experiments/run_forecasting_workflow.sh",
+        default="scripts/workflows/forecasting/run_forecasting_workflow.sh",
         help="Workflow launcher script path relative to repo root.",
     )
     parser.add_argument(
@@ -371,6 +395,22 @@ def main(
     if not configs:
         raise ValueError("No sweep configs resolved.")
 
+    dataset_filter: List[str] | None = None
+    if sweep_spec is not None:
+        if args.datasets:
+            dataset_filter = args.datasets
+        else:
+            datasets_env = os.environ.get("DATASETS", "").strip()
+            if datasets_env:
+                dataset_filter = datasets_env.split()
+    dropped_configs = 0
+    if dataset_filter:
+        configs, dropped_configs = _apply_dataset_filter(configs, dataset_filter)
+        if not configs:
+            raise ValueError(
+                "Dataset filter removed all sweep configs. Check --datasets / DATASETS values."
+            )
+
     gpu_ids = _detect_gpu_ids(args.gpus)
     n_gpus = len(gpu_ids)
     n_slots = max(1, n_gpus * jobs_per_gpu)
@@ -381,6 +421,10 @@ def main(
     print(f"  Configs: {len(configs)}")
     if sweep_spec is not None:
         print(f"  Sweep spec: {sweep_spec.as_posix()}")
+        if dataset_filter:
+            print(f"  Dataset filter: {' '.join(dataset_filter)}")
+            if dropped_configs > 0:
+                print(f"  Configs dropped by filter: {dropped_configs}")
     elif model_config_dir is not None:
         print(f"  Model config dir: {model_config_dir.as_posix()}")
         print(f"  Datasets: {' '.join(args.datasets or [])}")

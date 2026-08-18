@@ -1,0 +1,79 @@
+model_type: moirai
+forecast_length: 96
+probabilistic: true
+jobs:
+  - model_config: configs/models/moirai/00_bg_only.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/01_bg_iob.yaml
+    context_length: 512
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/02_bg_iob_ia.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/03_bg_iob_ia_high_lr.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/04_bg_iob_short_ctx.yaml
+    context_length: 288
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/05_bg_iob_cob.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/06_bg_full_features.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability, cob, carb_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/07_bg_iob_cob_high_lr.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/08_bg_iob_cob_short_ctx.yaml
+    context_length: 288
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/09_bg_only_base.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/10_bg_iob_ia_head_only.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/11_bg_iob_ia_freeze_ffn.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/12_bg_iob_ia_patch8.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/13_bg_iob_ia_patch16.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/moirai/14_bg_iob_ia_patch32.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []

@@ -11,6 +11,17 @@ For each probabilistic model one row is produced:
 Under a perfectly calibrated model the histogram bars are all ≈ 1 and the
 heatmap is uniformly coloured.
 
+What this visualization tells you
+---------------------------------
+- Global calibration quality (left histogram) and horizon-dependent calibration
+  drift (right heatmap) in a single view.
+
+What to look for
+----------------
+- Histogram shape anomalies (U-shape, skew, hump) for global miscalibration.
+- Heatmap structure that emerges only at longer horizons (late-horizon drift).
+- Persistent edge over-density near PIT≈0/1, indicating directional bias.
+
 Usage
 -----
     python scripts/visualization/plot_pit_combined.py \\

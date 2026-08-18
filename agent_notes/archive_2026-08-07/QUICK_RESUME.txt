@@ -1,0 +1,79 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                           QUICK RESUME CARD                                  ║
+║                        Session: d941f7ef-59d1-...                            ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌─ PROGRESS ────────────────────────────────────────────────────────────────┐
+│ ████████████░░░░ 62.5% P0 Complete (5/8 tasks)                            │
+│                                                                            │
+│ ✅ paper-tag-immutable      ✅ pii-secrets-audit                          │
+│ ✅ data-inventory           ✅ agent-safety-conventions                   │
+│ ✅ repo-governance                                                        │
+│                                                                            │
+│ ⏸️  data-mirror-plan (BLOCKED - 95% done, need B2 account)               │
+│ ⏳ land-rebuttal-analyses (NEXT)                                          │
+│ ⏳ stale-branch-triage (NEXT)                                             │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ WHEN B2 ACCOUNT READY ───────────────────────────────────────────────────┐
+│                                                                            │
+│ 1. conda activate env-in-conda                                            │
+│ 2. pip install b2-sdk                                                     │
+│ 3. b2 authorize-account <keyID> <applicationKey>                          │
+│ 4. cd /data/home/cjrisi/nocturnal-hypo-gly-prob-forecast                 │
+│ 5. DRY_RUN=true ./scripts/upload_to_b2.sh    # Test first!               │
+│ 6. ./scripts/upload_to_b2.sh                  # Live upload               │
+│ 7. b2 ls mlflow-nocturnal-hypo --recursive | wc -l  # Verify 876 files   │
+│                                                                            │
+│ Expected: 876 files, 2.27 GB, ~$0.01/month                                │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ IF B2 STILL FAILS ───────────────────────────────────────────────────────┐
+│                                                                            │
+│ Try Wasabi: https://wasabi.com/sign-up/ (no reCAPTCHA issues)            │
+│      Cost: $5.99/month vs $0.01 for B2, but easier signup                │
+│                                                                            │
+│ Or defer: Move to P0-5 (land-rebuttal-analyses) and P0-8                 │
+│           Cloud backup is nice-to-have, not blocking                      │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ DELIVERABLES READY ──────────────────────────────────────────────────────┐
+│                                                                            │
+│ 📄 21,335 files inventoried (292 GB total)                                │
+│ 📄 876 paper-critical files identified (2.27 GB)                          │
+│ 📄 14.5 KB MLflow architecture (Phase 2 ready!)                           │
+│ 🚀 4.8 KB B2 upload script (tested with dry-run)                          │
+│ 📊 Two CSV inventories (trained_models + experiments)                     │
+│ 🔒 AI safety conventions active (AGENTS.md + markers)                     │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ READ THESE FIRST ────────────────────────────────────────────────────────┐
+│                                                                            │
+│ 1. agent_notes/NEXT_SESSION_HANDOFF.md (14 KB) ⭐ START HERE             │
+│ 2. agent_notes/SESSION_STATUS.txt (1.4 KB) - Quick overview              │
+│ 3. agent_notes/CLOUD_BACKUP_OPTIONS.md - B2 alternatives                 │
+│ 4. agent_notes/MLFLOW_STORAGE_ARCHITECTURE.md - Phase 2 plan             │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+┌─ NEXT PRIORITIES ─────────────────────────────────────────────────────────┐
+│                                                                            │
+│ Priority 1: Finish P0-4 (data-mirror-plan) when B2 account ready         │
+│ Priority 2: P0-5 land-rebuttal-analyses (1-2 hrs)                        │
+│             └─ Cherry-pick rebuttal work to main via PR                  │
+│ Priority 3: P0-8 stale-branch-triage (30-60 min)                         │
+│             └─ Archive/delete 21+ old branches                           │
+│                                                                            │
+│ Then: Move to P1 tasks (MLflow, Optuna, adapters)                        │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ Questions for user:                                                          ║
+║ • Did B2 signup work from home?                                              ║
+║ • Want to try Wasabi instead?                                                ║
+║ • Want to defer and do P0-5 first?                                           ║
+╚══════════════════════════════════════════════════════════════════════════════╝

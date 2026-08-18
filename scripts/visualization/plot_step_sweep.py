@@ -1,19 +1,30 @@
 #!/usr/bin/env python3
-"""Plot Chronos-2 IOB training step sweep results.
+"""Plot training-step sweep metrics from evaluation ``results_summary.json`` files.
 
-Reads results from two directories:
-  - experiments/nocturnal_forecasting_step_sweep/  (steps 2000–10000)
-  - experiments/nocturnal_forecasting_ctx_ablation/ (zero-shot, step 0)
+What this visualization tells you
+---------------------------------
+- Short/medium-run step sensitivity of forecasting quality and calibration.
+- Which configured series value (for example context length) is most robust
+  across datasets.
 
-Produces an (8 metrics) × (3 datasets) grid with one line per IOB context
-config (ctx = 512, 256, 128, 64).  X-axis = training steps (0–10000).
+What to look for
+----------------
+- Early gains that saturate (candidate checkpoint for efficient training).
+- Coverage rows drifting away from nominal lines (calibration instability).
+- Series rank flips across datasets (non-transferable settings).
 
-Output:
-    notes/chronos2/figures/step_sweep_grid.png
+Required record fields
+----------------------
+Each discovered ``results_summary.json`` should include:
+- ``dataset`` (string)
+- ``checkpoint`` (string or null) where ``step_<N>`` can be parsed when present
+- ``timestamp`` (string) for deduplication
+- ``config`` (object) containing:
+  - the series field configured by ``--series-field`` (default: ``context_length``)
+  - optional ``covariate_cols`` when using covariate filtering
 
-Usage:
-    python scripts/visualization/plot_step_sweep.py
-    python scripts/visualization/plot_step_sweep.py --output path/to/out.png
+The script overlays one line per series value (``--series-values``) across
+datasets and metrics.
 """
 
 from __future__ import annotations
@@ -40,7 +51,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # Configuration
 # ---------------------------------------------------------------------------
 
-# (json_key, y-axis label)
 METRICS: list[tuple[str, str]] = [
     ("overall_rmse", "RMSE (mmol/L)"),
     ("overall_wql", "WQL"),
@@ -52,123 +62,125 @@ METRICS: list[tuple[str, str]] = [
     ("overall_dilate_g001", "DILATE (γ=0.01)"),
 ]
 
-DATASETS = ["aleppo_2017", "brown_2019", "lynch_2022"]
 DATASET_LABELS = {
     "aleppo_2017": "Aleppo 2017",
     "brown_2019": "Brown 2019",
     "lynch_2022": "Lynch 2022",
 }
+DEFAULT_DATASETS = list(DATASET_LABELS)
 
-CTX_CONFIGS = [512, 256, 128, 64]
-CTX_COLORS = {512: "#1f77b4", 256: "#ff7f0e", 128: "#2ca02c", 64: "#d62728"}
-CTX_MARKERS = {512: "o", 256: "s", 128: "^", 64: "D"}
-CTX_LABELS = {
-    512: "ctx=512 (cfg04)",
-    256: "ctx=256 (cfg10)",
-    128: "ctx=128 (cfg11)",
-    64: "ctx=64 (cfg12)",
-}
-
-ALL_STEPS = [0, 2000, 4000, 6000, 8000, 10000]
-
-
-# ---------------------------------------------------------------------------
-# Data loading helpers
-# ---------------------------------------------------------------------------
+DEFAULT_SERIES_VALUES = [512, 256, 128, 64]
+DEFAULT_SERIES_COLORS = [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+]
+DEFAULT_SERIES_MARKERS = ["o", "s", "^", "D", "v", "P", "X", "*"]
 
 
-def _extract_step(checkpoint: str | None) -> int:
-    """Return training step from a checkpoint path.
-
-    - None → 0  (zero-shot)
-    - path containing ``step_N`` → N
-    - path without ``step_N`` (final model.pt) → 10000
-    """
+def _extract_step(checkpoint: str | None, default_final: int = 10000) -> int:
+    """Return training step from a checkpoint path."""
     if checkpoint is None:
         return 0
-    m = re.search(r"step_(\d+)", checkpoint)
-    if m:
-        return int(m.group(1))
-    return 10000
+    match = re.search(r"step_(\d+)", checkpoint)
+    if match:
+        return int(match.group(1))
+    return default_final
 
 
-def _load_from_dir(base: Path, step_filter: int | None = None) -> list[dict[str, Any]]:
-    """Recursively find results_summary.json files and build record list.
-
-    Args:
-        base: Root directory to scan.
-        step_filter: If not None, only keep records whose inferred step equals
-            this value.  Use ``step_filter=0`` to collect only zero-shot runs.
-
-    Returns:
-        List of record dicts with keys: step, ctx, dataset, timestamp, and one
-        key per metric in METRICS.
-    """
+def _load_from_dir(
+    base: Path,
+    datasets: set[str],
+    series_field: str,
+    series_values: set[int],
+    required_covariate: str | None,
+    step_filter: int | None = None,
+) -> list[dict[str, Any]]:
+    """Recursively find results_summary.json files and build record list."""
     records: list[dict[str, Any]] = []
 
-    for p in sorted(base.rglob("results_summary.json")):
+    for path in sorted(base.rglob("results_summary.json")):
         try:
-            with open(p) as f:
-                d: dict[str, Any] = json.load(f)
+            with path.open() as file_obj:
+                payload: dict[str, Any] = json.load(file_obj)
         except Exception as exc:  # noqa: BLE001
-            print(f"[WARN] Could not read {p}: {exc}", file=sys.stderr)
+            print(f"[WARN] Could not read {path}: {exc}", file=sys.stderr)
             continue
 
-        cfg = d.get("config") or {}
-        ctx = cfg.get("context_length")
-        if ctx not in CTX_CONFIGS:
+        dataset = payload.get("dataset")
+        if dataset not in datasets:
             continue
 
-        # Keep only IOB runs (must contain 'iob' in covariate_cols)
-        cov_cols: list[str] = cfg.get("covariate_cols") or []
-        if "iob" not in cov_cols:
+        config = payload.get("config") or {}
+        series_value = config.get(series_field)
+        if not isinstance(series_value, int) or series_value not in series_values:
             continue
 
-        dataset = d.get("dataset")
-        if dataset not in DATASETS:
-            continue
+        if required_covariate:
+            covariate_cols = config.get("covariate_cols") or []
+            if required_covariate not in covariate_cols:
+                continue
 
-        step = _extract_step(d.get("checkpoint"))
+        step = _extract_step(payload.get("checkpoint"))
         if step_filter is not None and step != step_filter:
             continue
 
-        timestamp = d.get("timestamp", "")
-
         row: dict[str, Any] = {
             "step": step,
-            "ctx": ctx,
+            "series": series_value,
             "dataset": dataset,
-            "timestamp": timestamp,
+            "timestamp": payload.get("timestamp", ""),
         }
         for key, _ in METRICS:
-            val = d.get(key)
-            row[key] = float(val) if val is not None else np.nan
-
+            value = payload.get(key)
+            row[key] = float(value) if value is not None else np.nan
         records.append(row)
 
     return records
 
 
-def load_all_data() -> pd.DataFrame:
-    """Load and merge data from step-sweep and ctx-ablation directories."""
-    sweep_dir = PROJECT_ROOT / "experiments" / "nocturnal_forecasting_step_sweep"
-    ablation_dir = PROJECT_ROOT / "experiments" / "nocturnal_forecasting_ctx_ablation"
-
+def load_all_data(
+    sweep_dir: Path,
+    ablation_dir: Path,
+    datasets: list[str],
+    series_field: str,
+    series_values: list[int],
+    required_covariate: str | None,
+) -> pd.DataFrame:
+    """Load and merge data from step-sweep and optional step-zero sources."""
+    dataset_set = set(datasets)
+    series_set = set(series_values)
     records: list[dict[str, Any]] = []
 
-    # Steps 2000–10000 from the dedicated step-sweep experiment
     if sweep_dir.exists():
-        sweep_records = _load_from_dir(sweep_dir)
+        sweep_records = _load_from_dir(
+            sweep_dir,
+            datasets=dataset_set,
+            series_field=series_field,
+            series_values=series_set,
+            required_covariate=required_covariate,
+        )
         records.extend(sweep_records)
         print(f"Loaded {len(sweep_records)} records from step-sweep dir.")
     else:
         print(f"[INFO] Step-sweep dir not found: {sweep_dir}", file=sys.stderr)
 
-    # Step 0 (zero-shot) from the ctx-ablation experiment
     if ablation_dir.exists():
-        zs_records = _load_from_dir(ablation_dir, step_filter=0)
-        records.extend(zs_records)
-        print(f"Loaded {len(zs_records)} zero-shot records from ctx-ablation dir.")
+        zero_shot_records = _load_from_dir(
+            ablation_dir,
+            datasets=dataset_set,
+            series_field=series_field,
+            series_values=series_set,
+            required_covariate=required_covariate,
+            step_filter=0,
+        )
+        records.extend(zero_shot_records)
+        print(
+            f"Loaded {len(zero_shot_records)} zero-shot records from ctx-ablation dir."
+        )
     else:
         print(f"[INFO] Ctx-ablation dir not found: {ablation_dir}", file=sys.stderr)
 
@@ -177,33 +189,51 @@ def load_all_data() -> pd.DataFrame:
         sys.exit(1)
 
     df = pd.DataFrame(records)
-
-    # Deduplicate: for identical (step, ctx, dataset) keep the most recent run
     df = (
         df.sort_values("timestamp", ascending=True)
-        .drop_duplicates(subset=["step", "ctx", "dataset"], keep="last")
-        .sort_values(["ctx", "dataset", "step"])
+        .drop_duplicates(subset=["step", "series", "dataset"], keep="last")
+        .sort_values(["series", "dataset", "step"])
         .reset_index(drop=True)
     )
-
-    print(f"\nFinal dataset: {len(df)} unique (step, ctx, dataset) records")
-    print(df.groupby(["ctx", "step"]).size().to_frame("n_datasets").to_string())
-
+    print(f"\nFinal dataset: {len(df)} unique (step, series, dataset) records")
+    print(df.groupby(["series", "step"]).size().to_frame("n_datasets").to_string())
     return df
 
 
-# ---------------------------------------------------------------------------
-# Plotting
-# ---------------------------------------------------------------------------
+def _build_series_meta(
+    series_values: list[int],
+    series_labels: list[str] | None,
+) -> dict[int, dict[str, str]]:
+    if series_labels is not None and len(series_labels) != len(series_values):
+        raise ValueError("--series-labels must match --series-values length")
+
+    meta: dict[int, dict[str, str]] = {}
+    for idx, value in enumerate(series_values):
+        label = (
+            series_labels[idx]
+            if series_labels is not None
+            else f"context_length={value}"
+        )
+        meta[value] = {
+            "label": label,
+            "color": DEFAULT_SERIES_COLORS[idx % len(DEFAULT_SERIES_COLORS)],
+            "marker": DEFAULT_SERIES_MARKERS[idx % len(DEFAULT_SERIES_MARKERS)],
+        }
+    return meta
 
 
-def make_plot(df: pd.DataFrame, output_path: Path) -> None:
-    """Render the 8 × 3 grid and save to *output_path*."""
+def make_plot(
+    df: pd.DataFrame,
+    output_path: Path,
+    datasets: list[str],
+    series_meta: dict[int, dict[str, str]],
+    title: str,
+    legend_title: str,
+) -> None:
+    """Render the metric grid and save to *output_path*."""
     n_rows = len(METRICS)
-    n_cols = len(DATASETS)
+    n_cols = len(datasets)
 
-    # Pre-compute per-row (per-metric) y-axis limits across ALL datasets so
-    # each row shares the same scale — makes cross-dataset comparison easy.
     row_ylims: list[tuple[float, float]] = []
     for metric_key, _ in METRICS:
         vals = df[metric_key].replace([np.inf, -np.inf], np.nan).dropna()
@@ -222,59 +252,44 @@ def make_plot(df: pd.DataFrame, output_path: Path) -> None:
         constrained_layout=True,
     )
 
-    for col_idx, dataset in enumerate(DATASETS):
-        ds_df = df[df["dataset"] == dataset]
+    xticks = sorted(df["step"].dropna().unique().tolist())
+
+    for col_idx, dataset in enumerate(datasets):
+        dataset_df = df[df["dataset"] == dataset]
 
         for row_idx, (metric_key, metric_label) in enumerate(METRICS):
             ax: plt.Axes = axes[row_idx][col_idx]
 
-            for ctx in CTX_CONFIGS:
-                sub = ds_df[ds_df["ctx"] == ctx].sort_values("step")
-                if sub.empty:
+            for series_value, meta in series_meta.items():
+                series_df = dataset_df[
+                    dataset_df["series"] == series_value
+                ].sort_values("step")
+                if series_df.empty:
                     continue
 
-                steps = sub["step"].to_numpy()
-                vals = sub[metric_key].to_numpy()
-
-                # Drop NaN entries so lines don't break
-                mask = ~np.isnan(vals)
+                steps = series_df["step"].to_numpy()
+                values = series_df[metric_key].to_numpy()
+                mask = ~np.isnan(values)
                 if mask.sum() < 2:
                     continue
 
                 ax.plot(
                     steps[mask],
-                    vals[mask],
-                    marker=CTX_MARKERS[ctx],
-                    color=CTX_COLORS[ctx],
+                    values[mask],
+                    marker=meta["marker"],
+                    color=meta["color"],
                     linewidth=1.8,
                     markersize=6,
-                    label=CTX_LABELS[ctx],
+                    label=meta["label"],
                 )
 
-            # Ideal coverage reference lines
             if metric_key == "overall_coverage_50":
-                ax.axhline(
-                    0.50,
-                    color="black",
-                    linewidth=1.0,
-                    linestyle=":",
-                    alpha=0.7,
-                    label="_ideal 50%",
-                )
+                ax.axhline(0.50, color="black", linewidth=1.0, linestyle=":", alpha=0.7)
             elif metric_key == "overall_coverage_80":
-                ax.axhline(
-                    0.80,
-                    color="black",
-                    linewidth=1.0,
-                    linestyle=":",
-                    alpha=0.7,
-                    label="_ideal 80%",
-                )
+                ax.axhline(0.80, color="black", linewidth=1.0, linestyle=":", alpha=0.7)
 
-            # Shared y-axis limits for this metric row
             ax.set_ylim(*row_ylims[row_idx])
-
-            ax.set_xticks(ALL_STEPS)
+            ax.set_xticks(xticks)
             ax.xaxis.set_tick_params(rotation=40, labelsize=8)
             ax.xaxis.set_major_formatter(
                 mticker.FuncFormatter(lambda x, _: f"{int(x):,}" if x > 0 else "ZS")
@@ -286,16 +301,15 @@ def make_plot(df: pd.DataFrame, output_path: Path) -> None:
                 ax.set_xlabel("Training steps", fontsize=9)
             if col_idx == 0:
                 ax.set_ylabel(metric_label, fontsize=9)
-
-            # Column headers (dataset name) on the first row only
             if row_idx == 0:
                 ax.set_title(
-                    DATASET_LABELS[dataset], fontsize=12, fontweight="bold", pad=6
+                    DATASET_LABELS.get(dataset, dataset),
+                    fontsize=12,
+                    fontweight="bold",
+                    pad=6,
                 )
 
-    # Single legend in the top-right cell
     handles, labels = axes[0][-1].get_legend_handles_labels()
-    # Append a proxy for the ideal-coverage reference line
     handles.append(
         mlines.Line2D([], [], color="black", linewidth=1.0, linestyle=":", alpha=0.7)
     )
@@ -307,45 +321,109 @@ def make_plot(df: pd.DataFrame, output_path: Path) -> None:
             loc="upper right",
             fontsize=8,
             framealpha=0.85,
-            title="Context config",
+            title=legend_title,
             title_fontsize=8,
         )
 
-    fig.suptitle(
-        "Chronos-2 IOB Configs — Training Step Sweep\n"
-        "(episode_context_length = 512, fair fixed-episode set)",
-        fontsize=13,
-        fontweight="bold",
-        y=1.01,
-    )
-
+    fig.suptitle(title, fontsize=13, fontweight="bold", y=1.01)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
     print(f"\nPlot saved: {output_path}")
     plt.close(fig)
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--step-sweep-dir",
+        default=str(PROJECT_ROOT / "experiments" / "nocturnal_forecasting_step_sweep"),
+        help="Directory containing step-sweep results_summary.json outputs.",
+    )
+    parser.add_argument(
+        "--ctx-ablation-dir",
+        default=str(
+            PROJECT_ROOT / "experiments" / "nocturnal_forecasting_ctx_ablation"
+        ),
+        help="Directory containing optional zero-shot results_summary.json outputs.",
+    )
+    parser.add_argument(
+        "--datasets",
+        nargs="+",
+        default=list(DEFAULT_DATASETS),
+        help="Datasets to include in the grid (default: aleppo_2017 brown_2019 lynch_2022).",
+    )
+    parser.add_argument(
+        "--series-field",
+        default="context_length",
+        help="Field name under config used to define overlay series (default: %(default)s).",
+    )
+    parser.add_argument(
+        "--series-values",
+        nargs="+",
+        type=int,
+        default=list(DEFAULT_SERIES_VALUES),
+        help="Series values for --series-field to include (default: 512 256 128 64).",
+    )
+    parser.add_argument(
+        "--series-labels",
+        nargs="+",
+        default=None,
+        help="Optional labels matching --series-values order.",
+    )
+    parser.add_argument(
+        "--require-covariate",
+        default="iob",
+        help="Only include runs whose config.covariate_cols contain this value.",
+    )
+    parser.add_argument(
+        "--no-covariate-filter",
+        action="store_true",
+        help="Disable covariate filtering and include all matching series values.",
+    )
+    parser.add_argument(
+        "--title",
+        default="Training Step Sweep Metrics",
+        help="Figure title.",
+    )
+    parser.add_argument(
+        "--legend-title",
+        default="Series",
+        help="Legend title for overlay series.",
+    )
     parser.add_argument(
         "--output",
         default=str(
             PROJECT_ROOT / "notes" / "chronos2" / "figures" / "step_sweep_grid.png"
         ),
-        help="Output PNG path (default: notes/chronos2/figures/step_sweep_grid.png)",
+        help="Output PNG path.",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    df = load_all_data()
-    make_plot(df, Path(args.output))
+    required_covariate = None if args.no_covariate_filter else args.require_covariate
+    series_meta = _build_series_meta(
+        series_values=args.series_values,
+        series_labels=args.series_labels,
+    )
+
+    df = load_all_data(
+        sweep_dir=Path(args.step_sweep_dir),
+        ablation_dir=Path(args.ctx_ablation_dir),
+        datasets=args.datasets,
+        series_field=args.series_field,
+        series_values=args.series_values,
+        required_covariate=required_covariate,
+    )
+    make_plot(
+        df=df,
+        output_path=Path(args.output),
+        datasets=args.datasets,
+        series_meta=series_meta,
+        title=args.title,
+        legend_title=args.legend_title,
+    )
 
 
 if __name__ == "__main__":

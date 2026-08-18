@@ -1,0 +1,19 @@
+{
+  "dataset": "brown_2019",
+  "checkpoint": "/tmp/model/series_b/step_50000",
+  "timestamp": "2026-04-13T11:00:00",
+  "config": {
+    "context_length": 512,
+    "covariate_cols": [
+      "iob"
+    ]
+  },
+  "overall_rmse": 1.2650000000000001,
+  "overall_wql": 0.25999999999999995,
+  "overall_coverage_50": 0.49,
+  "overall_coverage_80": 0.786,
+  "overall_sharpness_50": 0.79,
+  "overall_sharpness_80": 1.36,
+  "overall_brier": 0.17,
+  "overall_dilate_g001": 0.4699999999999999
+}

@@ -1,0 +1,20 @@
+model_type: toto
+jobs:
+  - model_config: configs/models/toto/00_bg_only.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/toto/01_bg_iob.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/toto/02_bg_iob_ia.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/toto/03_bg_iob_ia_high_lr.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/toto/04_bg_iob_short_ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/toto/05_bg_iob_cob.yaml
+    datasets: [lynch_2022, aleppo_2017]
+  - model_config: configs/models/toto/06_bg_full_features.yaml
+    datasets: [lynch_2022, aleppo_2017]
+  - model_config: configs/models/toto/07_bg_iob_cob_high_lr.yaml
+    datasets: [lynch_2022, aleppo_2017]
+  - model_config: configs/models/toto/08_bg_iob_cob_short_ctx.yaml
+    datasets: [lynch_2022, aleppo_2017]

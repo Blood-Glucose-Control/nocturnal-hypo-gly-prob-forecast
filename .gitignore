@@ -86,9 +86,8 @@ scripts/watgpu_slurm/data_processing_scripts/results/
 # Generated plot outputs (large, reproducible from scripts)
 results/
 
-# Local-only research notes and scratch scripts
+# Local-only research notes
 notes/
-scripts/scratch/
 
 # Cache directory (symlinked to shared location)
 cache

@@ -1,0 +1,296 @@
+{
+  "timestamp_utc": "2026-08-07T02:43:42.010546+00:00",
+  "dry_run": false,
+  "keep_quarantine": false,
+  "inventory": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models_inventory.csv",
+  "holdout_config_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/configs/data/holdout_10pct",
+  "quarantine_root": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/_quarantine_smoke/20260807T024342Z",
+  "candidates": [
+    {
+      "model_type": "Chronos2",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/chronos2/2026-02-28_03:35_RID20260228_033523_376656_holdout_workflow",
+      "strategy": "factory",
+      "model_key": "chronos2",
+      "checkpoint_path": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/chronos2/2026-02-28_03:35_RID20260228_033523_376656_holdout_workflow/model.pt",
+      "venv_name": "chronos2",
+      "removable_file_count": 2,
+      "removable_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/chronos2/2026-02-28_03:35_RID20260228_033523_376656_holdout_workflow/resumed_training/utils/data/train.pkl",
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/chronos2/2026-02-28_03:35_RID20260228_033523_376656_holdout_workflow/utils/data/train.pkl"
+      ]
+    },
+    {
+      "model_type": "DeepAR",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/deepar/2026-04-28_0725_RID20260428_072516_909736_01_short_ctx",
+      "strategy": "autogluon",
+      "model_key": null,
+      "checkpoint_path": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/deepar/2026-04-28_0725_RID20260428_072516_909736_01_short_ctx",
+      "venv_name": "tide",
+      "removable_file_count": 1,
+      "removable_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/deepar/2026-04-28_0725_RID20260428_072516_909736_01_short_ctx/utils/data/train.pkl"
+      ]
+    },
+    {
+      "model_type": "Naive Baseline",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/naive_baseline/2026-04-28_01:37_RID20260428_013743_836040_holdout_workflow",
+      "strategy": "autogluon",
+      "model_key": null,
+      "checkpoint_path": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/naive_baseline/2026-04-28_01:37_RID20260428_013743_836040_holdout_workflow",
+      "venv_name": "tide",
+      "removable_file_count": 1,
+      "removable_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/naive_baseline/2026-04-28_01:37_RID20260428_013743_836040_holdout_workflow/utils/data/train.pkl"
+      ]
+    },
+    {
+      "model_type": "PatchTST",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/patchtst/2026-04-28_0803_RID20260428_080348_916037_02_long_patch",
+      "strategy": "autogluon",
+      "model_key": null,
+      "checkpoint_path": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/patchtst/2026-04-28_0803_RID20260428_080348_916037_02_long_patch",
+      "venv_name": "tide",
+      "removable_file_count": 1,
+      "removable_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/patchtst/2026-04-28_0803_RID20260428_080348_916037_02_long_patch/utils/data/train.pkl"
+      ]
+    },
+    {
+      "model_type": "Statistical Baseline",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/statistical/2026-04-28_0308_RID20260428_030824_856335_00_autoarima_bg_only",
+      "strategy": "autogluon",
+      "model_key": null,
+      "checkpoint_path": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/statistical/2026-04-28_0308_RID20260428_030824_856335_00_autoarima_bg_only",
+      "venv_name": "tide",
+      "removable_file_count": 1,
+      "removable_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/statistical/2026-04-28_0308_RID20260428_030824_856335_00_autoarima_bg_only/utils/data/train.pkl"
+      ]
+    },
+    {
+      "model_type": "TIDE",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/tide/2026-02-28_19:20_RID20260228_192007_481730_holdout_workflow",
+      "strategy": "factory",
+      "model_key": "tide",
+      "checkpoint_path": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/tide/2026-02-28_19:20_RID20260228_192007_481730_holdout_workflow/model.pt",
+      "venv_name": "tide",
+      "removable_file_count": 1,
+      "removable_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/tide/2026-02-28_19:20_RID20260228_192007_481730_holdout_workflow/utils/data/train.pkl"
+      ]
+    },
+    {
+      "model_type": "TTM",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/ttm/2026-02-07_06:58_RID20260207_065833_723107_holdout_workflow",
+      "strategy": "factory",
+      "model_key": "ttm",
+      "checkpoint_path": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/ttm/2026-02-07_06:58_RID20260207_065833_723107_holdout_workflow",
+      "venv_name": "ttm",
+      "removable_file_count": 2,
+      "removable_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/ttm/2026-02-07_06:58_RID20260207_065833_723107_holdout_workflow/checkpoint-437/optimizer.pt",
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/ttm/2026-02-07_06:58_RID20260207_065833_723107_holdout_workflow/resumed_training/checkpoint-437/optimizer.pt"
+      ]
+    },
+    {
+      "model_type": "Temporal Fusion Transformer",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/tft/2026-04-28_1749_RID20260428_174925_968377_00_bg_baseline",
+      "strategy": "factory",
+      "model_key": "tft",
+      "checkpoint_path": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/tft/2026-04-28_1749_RID20260428_174925_968377_00_bg_baseline/model.pt",
+      "venv_name": "tide",
+      "removable_file_count": 1,
+      "removable_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/tft/2026-04-28_1749_RID20260428_174925_968377_00_bg_baseline/utils/data/train.pkl"
+      ]
+    },
+    {
+      "model_type": "TimesFM",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/timesfm/2026-02-26_22:20_RID20260226_222048_158764_holdout_workflow",
+      "strategy": "factory",
+      "model_key": "timesfm",
+      "checkpoint_path": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/timesfm/2026-02-26_22:20_RID20260226_222048_158764_holdout_workflow",
+      "venv_name": "timesfm",
+      "removable_file_count": 2,
+      "removable_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/timesfm/2026-02-26_22:20_RID20260226_222048_158764_holdout_workflow/checkpoint-332/optimizer.pt",
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/timesfm/2026-02-26_22:20_RID20260226_222048_158764_holdout_workflow/resumed_training/checkpoint-332/optimizer.pt"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "model_type": "Chronos2",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/chronos2/2026-02-28_03:35_RID20260228_033523_376656_holdout_workflow",
+      "strategy": "factory",
+      "venv_name": "chronos2",
+      "moved_count": 2,
+      "moved_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/chronos2/2026-02-28_03:35_RID20260228_033523_376656_holdout_workflow/resumed_training/utils/data/train.pkl",
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/chronos2/2026-02-28_03:35_RID20260228_033523_376656_holdout_workflow/utils/data/train.pkl"
+      ],
+      "status": "passed",
+      "details": {
+        "dataset": "lynch_2022",
+        "context_length": 512,
+        "prediction_shape": [
+          96
+        ],
+        "prediction_mean": 8.1676664352417
+      }
+    },
+    {
+      "model_type": "DeepAR",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/deepar/2026-04-28_0725_RID20260428_072516_909736_01_short_ctx",
+      "strategy": "autogluon",
+      "venv_name": "tide",
+      "moved_count": 1,
+      "moved_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/deepar/2026-04-28_0725_RID20260428_072516_909736_01_short_ctx/utils/data/train.pkl"
+      ],
+      "status": "passed",
+      "details": {
+        "dataset": "aleppo_2017",
+        "context_length": 256,
+        "prediction_rows": 96,
+        "prediction_mean": 9.650083710749945
+      }
+    },
+    {
+      "model_type": "Naive Baseline",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/naive_baseline/2026-04-28_01:37_RID20260428_013743_836040_holdout_workflow",
+      "strategy": "autogluon",
+      "venv_name": "tide",
+      "moved_count": 1,
+      "moved_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/naive_baseline/2026-04-28_01:37_RID20260428_013743_836040_holdout_workflow/utils/data/train.pkl"
+      ],
+      "status": "passed",
+      "details": {
+        "dataset": "lynch_2022",
+        "context_length": 512,
+        "prediction_rows": 96,
+        "prediction_mean": 7.939999999999999
+      }
+    },
+    {
+      "model_type": "PatchTST",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/patchtst/2026-04-28_0803_RID20260428_080348_916037_02_long_patch",
+      "strategy": "autogluon",
+      "venv_name": "tide",
+      "moved_count": 1,
+      "moved_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/patchtst/2026-04-28_0803_RID20260428_080348_916037_02_long_patch/utils/data/train.pkl"
+      ],
+      "status": "passed",
+      "details": {
+        "dataset": "aleppo_2017",
+        "context_length": 512,
+        "prediction_rows": 96,
+        "prediction_mean": 8.86236572265625
+      }
+    },
+    {
+      "model_type": "Statistical Baseline",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/statistical/2026-04-28_0308_RID20260428_030824_856335_00_autoarima_bg_only",
+      "strategy": "autogluon",
+      "venv_name": "tide",
+      "moved_count": 1,
+      "moved_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/statistical/2026-04-28_0308_RID20260428_030824_856335_00_autoarima_bg_only/utils/data/train.pkl"
+      ],
+      "status": "passed",
+      "details": {
+        "dataset": "lynch_2022",
+        "context_length": 512,
+        "prediction_rows": 96,
+        "prediction_mean": 7.978673549924696
+      }
+    },
+    {
+      "model_type": "TIDE",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/tide/2026-02-28_19:20_RID20260228_192007_481730_holdout_workflow",
+      "strategy": "factory",
+      "venv_name": "tide",
+      "moved_count": 1,
+      "moved_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/tide/2026-02-28_19:20_RID20260228_192007_481730_holdout_workflow/utils/data/train.pkl"
+      ],
+      "status": "passed",
+      "details": {
+        "dataset": "lynch_2022",
+        "context_length": 512,
+        "prediction_shape": [
+          72
+        ],
+        "prediction_mean": 6.899147033691406
+      }
+    },
+    {
+      "model_type": "TTM",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/ttm/2026-02-07_06:58_RID20260207_065833_723107_holdout_workflow",
+      "strategy": "factory",
+      "venv_name": "ttm",
+      "moved_count": 2,
+      "moved_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/ttm/2026-02-07_06:58_RID20260207_065833_723107_holdout_workflow/checkpoint-437/optimizer.pt",
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/ttm/2026-02-07_06:58_RID20260207_065833_723107_holdout_workflow/resumed_training/checkpoint-437/optimizer.pt"
+      ],
+      "status": "passed",
+      "details": {
+        "dataset": "brown_2019",
+        "context_length": 512,
+        "prediction_shape": [
+          96
+        ],
+        "prediction_mean": 7.0997160378354485
+      }
+    },
+    {
+      "model_type": "Temporal Fusion Transformer",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/tft/2026-04-28_1749_RID20260428_174925_968377_00_bg_baseline",
+      "strategy": "factory",
+      "venv_name": "tide",
+      "moved_count": 1,
+      "moved_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/tft/2026-04-28_1749_RID20260428_174925_968377_00_bg_baseline/utils/data/train.pkl"
+      ],
+      "status": "passed",
+      "details": {
+        "dataset": "aleppo_2017",
+        "context_length": 512,
+        "prediction_shape": [
+          96
+        ],
+        "prediction_mean": 8.26187515258789
+      }
+    },
+    {
+      "model_type": "TimesFM",
+      "run_dir": "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/timesfm/2026-02-26_22:20_RID20260226_222048_158764_holdout_workflow",
+      "strategy": "factory",
+      "venv_name": "timesfm",
+      "moved_count": 2,
+      "moved_files": [
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/timesfm/2026-02-26_22:20_RID20260226_222048_158764_holdout_workflow/checkpoint-332/optimizer.pt",
+        "/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/timesfm/2026-02-26_22:20_RID20260226_222048_158764_holdout_workflow/resumed_training/checkpoint-332/optimizer.pt"
+      ],
+      "status": "passed",
+      "details": {
+        "dataset": "lynch_2022",
+        "context_length": 512,
+        "prediction_shape": [
+          96
+        ],
+        "prediction_mean": 8.161458015441895
+      }
+    }
+  ],
+  "summary": {
+    "total_models_tested": 9,
+    "passed": 9,
+    "failed": 0,
+    "files_moved": 12,
+    "restored": true
+  }
+}

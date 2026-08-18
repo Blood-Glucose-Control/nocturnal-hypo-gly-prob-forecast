@@ -1,0 +1,35 @@
+model_type: tft
+forecast_length: 96
+probabilistic: true
+output_dir_template: experiments/nocturnal_forecasting_ctx_ablation/{context_length}ctx_96fh/{model_type}/{timestamp}_{dataset}_{mode}
+jobs:
+  - model_config: configs/models/tft/ctx_ablation/01_bg_wide_256ctx.yaml
+    context_length: 256
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/ctx_ablation/01_bg_wide_128ctx.yaml
+    context_length: 128
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/ctx_ablation/01_bg_wide_64ctx.yaml
+    context_length: 64
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/ctx_ablation/11_iob_high_lr_256ctx.yaml
+    context_length: 256
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/ctx_ablation/11_iob_high_lr_128ctx.yaml
+    context_length: 128
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tft/ctx_ablation/11_iob_high_lr_64ctx.yaml
+    context_length: 64
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []

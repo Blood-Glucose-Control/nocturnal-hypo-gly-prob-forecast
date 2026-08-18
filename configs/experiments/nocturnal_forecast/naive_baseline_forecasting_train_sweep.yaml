@@ -1,0 +1,6 @@
+model_type: naive_baseline
+jobs:
+  - model_config: configs/models/naive_baseline/00_naive.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/naive_baseline/01_average.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]

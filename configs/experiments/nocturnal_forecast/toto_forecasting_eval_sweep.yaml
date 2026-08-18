@@ -1,0 +1,49 @@
+model_type: toto
+forecast_length: 96
+probabilistic: true
+jobs:
+  - model_config: configs/models/toto/00_bg_only.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/toto/01_bg_iob.yaml
+    context_length: 512
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/toto/02_bg_iob_ia.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/toto/03_bg_iob_ia_high_lr.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/toto/04_bg_iob_short_ctx.yaml
+    context_length: 256
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/toto/05_bg_iob_cob.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/toto/06_bg_full_features.yaml
+    context_length: 512
+    covariate_cols: [iob, cob, insulin_availability, carb_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/toto/07_bg_iob_cob_high_lr.yaml
+    context_length: 512
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/toto/08_bg_iob_cob_short_ctx.yaml
+    context_length: 256
+    covariate_cols: [iob, cob]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []

@@ -1,0 +1,19 @@
+{
+  "dataset": "aleppo_2017",
+  "checkpoint": "/tmp/model/step_50000",
+  "timestamp": "2026-04-11T00:00:00",
+  "config": {
+    "context_length": 512,
+    "covariate_cols": [
+      "iob"
+    ]
+  },
+  "overall_rmse": 1.125,
+  "overall_wql": 0.22,
+  "overall_coverage_50": 0.505,
+  "overall_coverage_80": 0.806,
+  "overall_sharpness_50": 0.74,
+  "overall_sharpness_80": 1.3,
+  "overall_brier": 0.145,
+  "overall_dilate_g001": 0.39999999999999997
+}

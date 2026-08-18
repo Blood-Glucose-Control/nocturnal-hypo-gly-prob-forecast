@@ -1,0 +1,14 @@
+model_type: tft
+jobs:
+  - model_config: configs/models/tft/ctx_ablation/01_bg_wide_256ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/tft/ctx_ablation/01_bg_wide_128ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/tft/ctx_ablation/01_bg_wide_64ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/tft/ctx_ablation/11_iob_high_lr_256ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/tft/ctx_ablation/11_iob_high_lr_128ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/tft/ctx_ablation/11_iob_high_lr_64ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]

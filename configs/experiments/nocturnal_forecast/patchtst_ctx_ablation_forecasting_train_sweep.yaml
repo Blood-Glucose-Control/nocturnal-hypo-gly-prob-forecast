@@ -1,0 +1,8 @@
+model_type: patchtst
+jobs:
+  - model_config: configs/models/patchtst/ctx_ablation/09_high_lr_256ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/patchtst/ctx_ablation/09_high_lr_128ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/patchtst/ctx_ablation/09_high_lr_64ctx.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]

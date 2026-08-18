@@ -1,0 +1,62 @@
+{
+  "created": "2026-08-18T18:56:22.950415",
+  "figure": "plot_forecast_comparison.png",
+  "result_files": [
+    "docs/assets/visualizations/example_data/compare_results/model_a.json",
+    "docs/assets/visualizations/example_data/compare_results/model_b.json"
+  ],
+  "models": [
+    {
+      "model_type": "synthetic",
+      "checkpoint": null,
+      "label": "Model A",
+      "dataset": "aleppo_2017",
+      "config_dir": "configs/data/holdout_10pct",
+      "seed": 13,
+      "context_length": 36,
+      "forecast_length": 96,
+      "patients": [
+        "PX01",
+        "PX02",
+        "PX03"
+      ],
+      "covariate_cols": [
+        "iob"
+      ],
+      "created": "2026-04-01T00:00:00"
+    },
+    {
+      "model_type": "synthetic",
+      "checkpoint": null,
+      "label": "Model B",
+      "dataset": "aleppo_2017",
+      "config_dir": "configs/data/holdout_10pct",
+      "seed": 13,
+      "context_length": 36,
+      "forecast_length": 96,
+      "patients": [
+        "PX01",
+        "PX02",
+        "PX03"
+      ],
+      "covariate_cols": [
+        "iob"
+      ],
+      "created": "2026-04-01T00:00:00"
+    }
+  ],
+  "patients": [
+    "PX01",
+    "PX02",
+    "PX03"
+  ],
+  "percentiles": [
+    10,
+    50,
+    90
+  ],
+  "n_plots": 9,
+  "dataset": "aleppo_2017",
+  "seed": 13,
+  "forecast_length": 96
+}

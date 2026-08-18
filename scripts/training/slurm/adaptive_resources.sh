@@ -3,7 +3,7 @@
 # ADAPTIVE WORKFLOW LAUNCHER
 # ==========================
 # Rewired to the maintained forecasting workflow wrapper:
-#   scripts/experiments/run_forecasting_workflow.sh
+#   scripts/workflows/forecasting/run_forecasting_workflow.sh
 #
 # Quick start:
 #   sbatch scripts/training/slurm/adaptive_resources.sh
@@ -135,7 +135,7 @@ else
 fi
 export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
 
-WORKFLOW_SCRIPT="scripts/experiments/run_forecasting_workflow.sh"
+WORKFLOW_SCRIPT="scripts/workflows/forecasting/run_forecasting_workflow.sh"
 if [[ ! -f "$WORKFLOW_SCRIPT" ]]; then
     echo "ERROR: workflow script not found: $WORKFLOW_SCRIPT"
     exit 1

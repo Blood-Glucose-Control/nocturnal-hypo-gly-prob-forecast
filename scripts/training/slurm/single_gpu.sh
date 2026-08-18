@@ -3,7 +3,7 @@
 # PRODUCTION SINGLE-GPU WORKFLOW LAUNCHER
 # =======================================
 # Rewired to the maintained forecasting workflow wrapper:
-#   scripts/experiments/run_forecasting_workflow.sh
+#   scripts/workflows/forecasting/run_forecasting_workflow.sh
 #
 # Quick start:
 #   sbatch scripts/training/slurm/single_gpu.sh
@@ -84,7 +84,7 @@ export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-${SLURM_CPUS_PER_TASK:-8}}"
 export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
 
-WORKFLOW_SCRIPT="scripts/experiments/run_forecasting_workflow.sh"
+WORKFLOW_SCRIPT="scripts/workflows/forecasting/run_forecasting_workflow.sh"
 if [[ ! -f "$WORKFLOW_SCRIPT" ]]; then
     echo "ERROR: workflow script not found: $WORKFLOW_SCRIPT"
     exit 1

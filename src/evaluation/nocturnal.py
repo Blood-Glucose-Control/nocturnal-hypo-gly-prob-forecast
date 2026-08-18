@@ -9,8 +9,8 @@ clinical evaluation mode for this project. Context ends at midnight (00:00), and
 the model forecasts 6 hours overnight when hypoglycemia risk is highest.
 
 These functions are shared between:
-  - scripts/experiments/nocturnal_hypo_eval.py  (full evaluation script)
-  - scripts/experiments/per_patient_finetune.py (Stage 2 fine-tuning script)
+  - scripts/evaluation/nocturnal_hypo_eval.py  (full evaluation script)
+  - scripts/workflows/personalization/per_patient_finetune.py (Stage 2 fine-tuning script)
 
 Distinct from sliding-window evaluation (general forecast accuracy across all
 times of day): these two modes produce different RMSE numbers and must never

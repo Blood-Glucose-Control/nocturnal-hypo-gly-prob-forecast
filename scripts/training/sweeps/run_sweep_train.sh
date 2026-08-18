@@ -24,7 +24,7 @@ SWEEP_SPEC="${SWEEP_SPEC:-configs/experiments/nocturnal_forecast/chronos2_foreca
 TASK_FAMILY="${TASK_FAMILY:-forecasting}"
 EXPERIMENT_TYPE="${EXPERIMENT_TYPE:-nocturnal_forecast}"
 
-python scripts/experiments/sweep_train.py \
+python scripts/orchestration/sweeps/sweep_train.py \
   --task-family "$TASK_FAMILY" \
   --experiment-type "$EXPERIMENT_TYPE" \
   --model-type "$MODEL_TYPE" \

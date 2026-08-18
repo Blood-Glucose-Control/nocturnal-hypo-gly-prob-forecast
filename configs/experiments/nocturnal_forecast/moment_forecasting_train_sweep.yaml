@@ -1,0 +1,32 @@
+model_type: moment
+jobs:
+  - model_config: configs/models/moment/00_baseline.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moment/01_low_lr.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moment/02_high_lr.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moment/03_small_batch.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moment/04_short_context.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moment/05_freeze_backbone.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moment/06_wrapper_norm_on_ablation.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moment/07_stride_48.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moment/08_stride_24.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+  - model_config: configs/models/moment/09_bg_iob_insulin_availability.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moment/10_bg_iob_only_ablation.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moment/11_bg_insulin_availability_only_ablation.yaml
+    datasets: [lynch_2022, aleppo_2017, brown_2019]
+  - model_config: configs/models/moment/12_bg_cob_only_ablation.yaml
+    datasets: [lynch_2022, aleppo_2017]
+  - model_config: configs/models/moment/13_bg_carb_availability_only_ablation.yaml
+    datasets: [lynch_2022, aleppo_2017]
+  - model_config: configs/models/moment/14_bg_full_covariates.yaml
+    datasets: [lynch_2022, aleppo_2017]

@@ -14,6 +14,17 @@ Marker : dataset
 The ideal point is the origin (0, 0) — both levels perfectly calibrated.
 Dashed cross-hairs mark the ideal origin.
 
+What this visualization tells you
+---------------------------------
+- Joint calibration behavior across 50% and 80% prediction intervals.
+- Whether model-dataset runs tend to under-cover or over-cover simultaneously.
+
+What to look for
+----------------
+- Tight cluster near origin (good calibration).
+- Systematic quadrant shift (consistent over-/under-coverage bias).
+- Wide spread around origin (unstable calibration across runs).
+
 Usage
 -----
     python scripts/visualization/plot_coverage_error_2d.py

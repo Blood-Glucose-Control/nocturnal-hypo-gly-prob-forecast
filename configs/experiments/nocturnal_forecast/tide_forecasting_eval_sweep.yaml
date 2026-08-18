@@ -1,0 +1,39 @@
+model_type: tide
+forecast_length: 96
+probabilistic: true
+jobs:
+  - model_config: configs/models/tide/00_bg_only.yaml
+    context_length: 512
+    covariate_cols: []
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019, tamborlane_2008]
+    zeroshot_datasets: []
+  - model_config: configs/models/tide/01_bg_iob.yaml
+    context_length: 512
+    covariate_cols: [iob]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tide/02_bg_iob_insulin_availability.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tide/03_bg_all_covariates.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability, cob]
+    finetuned_datasets: [lynch_2022, aleppo_2017]
+    zeroshot_datasets: []
+  - model_config: configs/models/tide/04_large_arch.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tide/05_bg_iob_ia_high_lr.yaml
+    context_length: 512
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []
+  - model_config: configs/models/tide/06_bg_iob_ia_short_ctx.yaml
+    context_length: 288
+    covariate_cols: [iob, insulin_availability]
+    finetuned_datasets: [lynch_2022, aleppo_2017, brown_2019]
+    zeroshot_datasets: []

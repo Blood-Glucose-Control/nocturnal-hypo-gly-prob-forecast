@@ -20,6 +20,17 @@ for the 80 % PI:
 calibrated *and* sharp).  Rows with invalid or non-positive sharpness (e.g.
 degenerate quantile inversions) are dropped automatically.
 
+What this visualization tells you
+---------------------------------
+- Tradeoff between calibration and sharpness for each PI level.
+- Whether apparent calibration gains are coming from wider intervals.
+
+What to look for
+----------------
+- Bottom-center points (calibrated and sharp).
+- Horizontal drift from zero (coverage bias).
+- Vertical inflation at similar x-values (sharpness penalty without calibration gain).
+
 Usage
 -----
     python scripts/visualization/plot_coverage_sharpness_scatter.py

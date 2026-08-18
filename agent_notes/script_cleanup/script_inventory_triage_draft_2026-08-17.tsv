@@ -1,0 +1,114 @@
+path	top_dir	sub_dir	ext	lines	inbound_refs	docs_ref	proposed_decision	rationale
+scripts/analysis/build_best_episode_classification.py	analysis	build_best_episode_classification.py	.py	122	2	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/analysis/build_best_split_breakdown.py	analysis	build_best_split_breakdown.py	.py	105	1	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/analysis/build_dataset_cohort_variance.py	analysis	build_dataset_cohort_variance.py	.py	117	1	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/analysis/build_dataset_holdout_characteristics.py	analysis	build_dataset_holdout_characteristics.py	.py	190	1	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/analysis/build_grand_summary.py	analysis	build_grand_summary.py	.py	233	1	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/analysis/compute_cumrmse_by_timestep.py	analysis	compute_cumrmse_by_timestep.py	.py	258	1	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/analysis/count_episodes_by_gap_policy.py	analysis	count_episodes_by_gap_policy.py	.py	182	0	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/analysis/cumrmse_table.py	analysis	cumrmse_table.py	.py	207	1	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/analysis/plot_bg_histograms_by_split.py	analysis	plot_bg_histograms_by_split.py	.py	207	0	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/analysis/plot_episode_classification_curves.py	analysis	plot_episode_classification_curves.py	.py	254	0	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/analysis/relocate_768ctx_results.py	analysis	relocate_768ctx_results.py	.py	103	0	0	candidate-scratch	Appears one-off migration helper.
+scripts/analysis/summarize_experiments.py	analysis	summarize_experiments.py	.py	202	2	0	review-analysis-role	Decide if retained analysis reference or scratch-only.
+scripts/data_processing/WATGPU_FILE_TRANSFER.md	data_processing	WATGPU_FILE_TRANSFER.md	.md	41	0	0	review-data-processing-role	Classify as active pipeline helper vs archival tool.
+scripts/data_processing/compare_lynch_data_sources.py	data_processing	compare_lynch_data_sources.py	.py	221	1	0	review-data-processing-role	Classify as active pipeline helper vs archival tool.
+scripts/data_processing/export_single_episode_eval_data.py	data_processing	export_single_episode_eval_data.py	.py	515	0	0	review-data-processing-role	Classify as active pipeline helper vs archival tool.
+scripts/data_processing/generate_holdout_configs.py	data_processing	generate_holdout_configs.py	.py	202	2	0	review-data-processing-role	Classify as active pipeline helper vs archival tool.
+scripts/data_processing/loader_local_shells/aleppo_data_processing_local.sh	data_processing	loader_local_shells	.sh	43	1	0	dedup-or-scratch	Per-dataset wrappers likely replaceable with generic loader launcher.
+scripts/data_processing/loader_local_shells/brown_data_processing_local.sh	data_processing	loader_local_shells	.sh	41	0	0	dedup-or-scratch	Per-dataset wrappers likely replaceable with generic loader launcher.
+scripts/data_processing/loader_local_shells/lynch_data_processing_local.sh	data_processing	loader_local_shells	.sh	42	1	0	dedup-or-scratch	Per-dataset wrappers likely replaceable with generic loader launcher.
+scripts/data_processing/loader_local_shells/tamborlane_data_processing_local.sh	data_processing	loader_local_shells	.sh	41	0	0	dedup-or-scratch	Per-dataset wrappers likely replaceable with generic loader launcher.
+scripts/data_processing/loader_slurm_shells/aleppo_data_processing.sh	data_processing	loader_slurm_shells	.sh	32	0	0	dedup-or-scratch	Per-dataset wrappers likely replaceable with generic loader launcher.
+scripts/data_processing/loader_slurm_shells/brown_data_processing.sh	data_processing	loader_slurm_shells	.sh	30	0	0	dedup-or-scratch	Per-dataset wrappers likely replaceable with generic loader launcher.
+scripts/data_processing/loader_slurm_shells/lynch_data_processing.sh	data_processing	loader_slurm_shells	.sh	32	0	0	dedup-or-scratch	Per-dataset wrappers likely replaceable with generic loader launcher.
+scripts/data_processing/loader_slurm_shells/tamborlane_data_processing.sh	data_processing	loader_slurm_shells	.sh	30	0	0	dedup-or-scratch	Per-dataset wrappers likely replaceable with generic loader launcher.
+scripts/data_processing/validate_holdout_configs.py	data_processing	validate_holdout_configs.py	.py	109	1	0	review-data-processing-role	Classify as active pipeline helper vs archival tool.
+scripts/data_processing/verify_time_features.py	data_processing	verify_time_features.py	.py	144	1	0	review-data-processing-role	Classify as active pipeline helper vs archival tool.
+scripts/data_processing/view_data_config_registry.py	data_processing	view_data_config_registry.py	.py	212	1	0	review-data-processing-role	Classify as active pipeline helper vs archival tool.
+scripts/evaluation/sweeps/models/chronos2_long_run_step_sweep_eval.sh	evaluation	sweeps	.sh	269	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/evaluation/sweeps/models/chronos2_step_sweep_eval.sh	evaluation	sweeps	.sh	265	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/evaluation/sweeps/models/chronos2_sweep_eval.sh	evaluation	sweeps	.sh	21	0	0	keep-thin-wrapper	Already thin profile wrapper.
+scripts/evaluation/sweeps/models/deepar_sweep_eval.sh	evaluation	sweeps	.sh	19	0	0	keep-thin-wrapper	Already thin profile wrapper.
+scripts/evaluation/sweeps/models/moirai_sweep_eval.sh	evaluation	sweeps	.sh	159	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/evaluation/sweeps/models/moment_sweep_eval.sh	evaluation	sweeps	.sh	255	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/evaluation/sweeps/models/naive_baseline_sweep_eval.sh	evaluation	sweeps	.sh	213	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/evaluation/sweeps/models/patchtst_sweep_eval.sh	evaluation	sweeps	.sh	19	0	0	keep-thin-wrapper	Already thin profile wrapper.
+scripts/evaluation/sweeps/models/statistical_sweep_eval.sh	evaluation	sweeps	.sh	219	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/evaluation/sweeps/models/sundial_sweep_eval.sh	evaluation	sweeps	.sh	81	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/evaluation/sweeps/models/tft_sweep_eval.sh	evaluation	sweeps	.sh	19	0	0	keep-thin-wrapper	Already thin profile wrapper.
+scripts/evaluation/sweeps/models/tide_sweep_eval.sh	evaluation	sweeps	.sh	144	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/evaluation/sweeps/models/timesfm_sweep_eval.sh	evaluation	sweeps	.sh	185	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/evaluation/sweeps/models/toto_sweep_eval.sh	evaluation	sweeps	.sh	214	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/chronos2_ctx_ablation_eval.sh	evaluation	sweeps	.sh	325	1	0	migrate-to-spec-wrapper	Context-ablation should mirror profile-spec wrapper pattern.
+scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/deepar_ctx_ablation_eval.sh	evaluation	sweeps	.sh	257	2	0	migrate-to-spec-wrapper	Context-ablation should mirror profile-spec wrapper pattern.
+scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_eval.sh	evaluation	sweeps	.sh	257	2	0	migrate-to-spec-wrapper	Context-ablation should mirror profile-spec wrapper pattern.
+scripts/evaluation/sweeps/nocturnal_forecast/context_ablation/tft_ctx_ablation_eval.sh	evaluation	sweeps	.sh	264	2	0	migrate-to-spec-wrapper	Context-ablation should mirror profile-spec wrapper pattern.
+scripts/evaluation/sweeps/run_sweep_eval.sh	evaluation	sweeps	.sh	34	5	1	keep-core-entrypoint	Canonical generic sweep launcher.
+scripts/examples/example_data_holdout_system.py	examples	example_data_holdout_system.py	.py	309	0	1	keep-public	Onboarding/tutorial surface.
+scripts/examples/example_forecasting_workflow.py	examples	example_forecasting_workflow.py	.py	14	0	1	keep-public	Onboarding/tutorial surface.
+scripts/examples/example_load_holdout_data.py	examples	example_load_holdout_data.py	.py	189	1	0	keep-public	Onboarding/tutorial surface.
+scripts/experiments/chronos2_eval_long_run_checkpoints.sh	experiments	chronos2_eval_long_run_checkpoints.sh	.sh	129	2	0	review-experiment-surface	Likely specialized experiment runner; classify as product vs scratch.
+scripts/experiments/chronos2_finetune.py	experiments	chronos2_finetune.py	.py	186	2	0	review-experiment-surface	Likely specialized experiment runner; classify as product vs scratch.
+scripts/experiments/chronos2_time_covariate_experiment.py	experiments	chronos2_time_covariate_experiment.py	.py	561	2	0	review-experiment-surface	Likely specialized experiment runner; classify as product vs scratch.
+scripts/experiments/forecasting_workflow_orchestrator.py	experiments	forecasting_workflow_orchestrator.py	.py	9	2	1	rehome-or-rename	Core runtime surface but location/name likely mismatched with taxonomy.
+scripts/experiments/forecasting_workflow_regression_smoke.sh	experiments	forecasting_workflow_regression_smoke.sh	.sh	49	1	1	rehome-or-rename	Core runtime surface but location/name likely mismatched with taxonomy.
+scripts/experiments/nocturnal_hypo_eval.py	experiments	nocturnal_hypo_eval.py	.py	578	15	0	rehome-or-rename	Core runtime surface but location/name likely mismatched with taxonomy.
+scripts/experiments/nocturnal_hypo_eval_ctx_ablation.py	experiments	nocturnal_hypo_eval_ctx_ablation.py	.py	426	4	0	rehome-or-rename	Core runtime surface but location/name likely mismatched with taxonomy.
+scripts/experiments/per_patient_finetune.py	experiments	per_patient_finetune.py	.py	887	3	0	review-experiment-surface	Likely specialized experiment runner; classify as product vs scratch.
+scripts/experiments/run_forecasting_workflow.sh	experiments	run_forecasting_workflow.sh	.sh	291	17	1	rehome-or-rename	Core runtime surface but location/name likely mismatched with taxonomy.
+scripts/experiments/sliding_window_eval.py	experiments	sliding_window_eval.py	.py	716	1	0	review-experiment-surface	Likely specialized experiment runner; classify as product vs scratch.
+scripts/experiments/sweep_eval.py	experiments	sweep_eval.py	.py	9	1	1	rename-or-move	Generic sweep dispatcher entrypoint; experiments naming is confusing.
+scripts/experiments/sweep_train.py	experiments	sweep_train.py	.py	9	1	1	rename-or-move	Generic sweep dispatcher entrypoint; experiments naming is confusing.
+scripts/experiments/ttm_forecasting_workflow.py	experiments	ttm_forecasting_workflow.py	.py	651	1	0	review-experiment-surface	Likely specialized experiment runner; classify as product vs scratch.
+scripts/experiments/validate_predict_batch.md	experiments	validate_predict_batch.md	.md	41	0	0	candidate-scratch	No script inbound refs and no docs refs detected.
+scripts/experiments/validate_predict_batch.py	experiments	validate_predict_batch.py	.py	475	2	1	review-experiment-surface	Likely specialized experiment runner; classify as product vs scratch.
+scripts/orchestration/sweeps/chronos2_sweep.sh	orchestration	sweeps	.sh	125	1	1	keep-canonical	Canonical chain orchestration surface.
+scripts/orchestration/sweeps/run_ctx_ablation_sweeps.sh	orchestration	sweeps	.sh	87	1	1	keep-canonical	Canonical chain orchestration surface.
+scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh	orchestration	sweeps	.sh	145	1	1	keep-canonical	Canonical chain orchestration surface.
+scripts/setup_model_env.sh	setup_model_env.sh		.sh	152	3	1	keep-ops-utility	Repository operations utility, not experiment flow.
+scripts/sync_upstream_to_private.sh	sync_upstream_to_private.sh		.sh	55	1	0	keep-ops-utility	Repository operations utility, not experiment flow.
+scripts/training/analysis/analyze_logs.py	training	analysis	.py	144	0	0	merge-into-analysis	Belongs under scripts/analysis or src analysis module.
+scripts/training/analysis/analyze_resources.py	training	analysis	.py	367	0	0	merge-into-analysis	Belongs under scripts/analysis or src analysis module.
+scripts/training/slurm/README.md	training	slurm	.md	79	0	0	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/slurm/adaptive_resources.sh	training	slurm	.sh	192	2	1	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/slurm/chronos2_eval.sh	training	slurm	.sh	78	1	0	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/slurm/chronos2_finetune.sh	training	slurm	.sh	78	2	0	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/slurm/chronos2_forecasting_workflow.sh	training	slurm	.sh	116	1	0	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/slurm/chronos2_time_covariate.sh	training	slurm	.sh	99	1	0	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/slurm/multi_gpu.sh	training	slurm	.sh	177	2	1	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/slurm/per_patient_finetune.sh	training	slurm	.sh	95	1	0	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/slurm/per_patient_finetune_all.sh	training	slurm	.sh	167	1	0	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/slurm/single_gpu.sh	training	slurm	.sh	137	2	1	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/slurm/toto_eval.sh	training	slurm	.sh	68	1	0	keep-clean	Cluster launcher surface; standardize later.
+scripts/training/sweeps/models/chronos2_sweep_train.sh	training	sweeps	.sh	20	0	0	keep-thin-wrapper	Already thin profile wrapper.
+scripts/training/sweeps/models/deepar_sweep_train.sh	training	sweeps	.sh	18	0	0	keep-thin-wrapper	Already thin profile wrapper.
+scripts/training/sweeps/models/moirai_sweep_train.sh	training	sweeps	.sh	117	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/training/sweeps/models/moment_sweep_train.sh	training	sweeps	.sh	243	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/training/sweeps/models/naive_baseline_sweep_train.sh	training	sweeps	.sh	97	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/training/sweeps/models/patchtst_sweep_train.sh	training	sweeps	.sh	18	0	0	keep-thin-wrapper	Already thin profile wrapper.
+scripts/training/sweeps/models/statistical_sweep_train.sh	training	sweeps	.sh	172	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/training/sweeps/models/tft_sweep_train.sh	training	sweeps	.sh	18	0	0	keep-thin-wrapper	Already thin profile wrapper.
+scripts/training/sweeps/models/tide_sweep_train.sh	training	sweeps	.sh	108	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/training/sweeps/models/timesfm_sweep_train.sh	training	sweeps	.sh	220	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/training/sweeps/models/toto_sweep_train.sh	training	sweeps	.sh	120	1	0	dedup-to-wrapper	Heavy model-specific sweep logic likely duplicate.
+scripts/training/sweeps/nocturnal_forecast/context_ablation/deepar_ctx_ablation_train.sh	training	sweeps	.sh	216	3	0	migrate-to-spec-wrapper	Context-ablation should mirror profile-spec wrapper pattern.
+scripts/training/sweeps/nocturnal_forecast/context_ablation/patchtst_ctx_ablation_train.sh	training	sweeps	.sh	216	3	0	migrate-to-spec-wrapper	Context-ablation should mirror profile-spec wrapper pattern.
+scripts/training/sweeps/nocturnal_forecast/context_ablation/tft_ctx_ablation_train.sh	training	sweeps	.sh	222	3	0	migrate-to-spec-wrapper	Context-ablation should mirror profile-spec wrapper pattern.
+scripts/training/sweeps/run_sweep_train.sh	training	sweeps	.sh	32	7	1	keep-core-entrypoint	Canonical generic sweep launcher.
+scripts/training/ttm_finetune.sh	training	ttm_finetune.sh	.sh	311	0	0	candidate-scratch	Single-model legacy launcher likely superseded.
+scripts/visualization/compare_forecasts.py	visualization	compare_forecasts.py	.py	761	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_checkpoint_rmse_vs_steps.py	visualization	plot_checkpoint_rmse_vs_steps.py	.py	113	0	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_chronos2_forecast_grid.py	visualization	plot_chronos2_forecast_grid.py	.py	289	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_coverage_error_2d.py	visualization	plot_coverage_error_2d.py	.py	264	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_coverage_error_2d_sharpness.py	visualization	plot_coverage_error_2d_sharpness.py	.py	449	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_coverage_sharpness_scatter.py	visualization	plot_coverage_sharpness_scatter.py	.py	313	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_long_run_step_sweep.py	visualization	plot_long_run_step_sweep.py	.py	389	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_pit_combined.py	visualization	plot_pit_combined.py	.py	622	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_pit_histograms.py	visualization	plot_pit_histograms.py	.py	426	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_pit_horizon_heatmap.py	visualization	plot_pit_horizon_heatmap.py	.py	659	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_reliability_diagrams.py	visualization	plot_reliability_diagrams.py	.py	444	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_rmse_vs_horizon.py	visualization	plot_rmse_vs_horizon.py	.py	174	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_rmse_vs_horizon_grid.py	visualization	plot_rmse_vs_horizon_grid.py	.py	266	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/plot_step_sweep.py	visualization	plot_step_sweep.py	.py	352	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
+scripts/visualization/visualize_chronos2_episodes.py	visualization	visualize_chronos2_episodes.py	.py	593	1	0	review-visualization-role	Likely output/report scripts; classify keep vs scratch.
