@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
@@ -15,6 +16,26 @@ import numpy as np
 SAMPLING_INTERVAL_MINUTES = 5
 DEFAULT_BOXPLOT_QUANTILES = (10.0, 25.0, 50.0, 75.0, 90.0)
 DEFAULT_IQR_QUANTILES = (25.0, 75.0)
+DEFAULT_PROBABILISTIC_OUTER_INTERVAL = (0.10, 0.90)
+DEFAULT_PROBABILISTIC_INNER_INTERVAL = (0.25, 0.75)
+
+
+@dataclass(frozen=True)
+class VisualizationQuantileDefaults:
+    """Canonical default quantile settings shared across visualization scripts."""
+
+    boxplot_quantiles: tuple[float, float, float, float, float]
+    iqr_quantiles: tuple[float, float]
+    probabilistic_outer_interval: tuple[float, float]
+    probabilistic_inner_interval: tuple[float, float]
+
+
+VISUALIZATION_QUANTILE_DEFAULTS = VisualizationQuantileDefaults(
+    boxplot_quantiles=DEFAULT_BOXPLOT_QUANTILES,
+    iqr_quantiles=DEFAULT_IQR_QUANTILES,
+    probabilistic_outer_interval=DEFAULT_PROBABILISTIC_OUTER_INTERVAL,
+    probabilistic_inner_interval=DEFAULT_PROBABILISTIC_INNER_INTERVAL,
+)
 
 
 def resolve_forecast_results_path(path: str | Path) -> Path:

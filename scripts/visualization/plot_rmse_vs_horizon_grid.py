@@ -34,6 +34,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 
 from src.visualization.nocturnal import (
+    DEFAULT_IQR_QUANTILES,
     compute_horizon_rmse_stats,
     load_prediction_actual_arrays,
 )
@@ -169,42 +170,7 @@ def make_grid_plot(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Grid plot of RMSE vs horizon — one column per dataset, "
-        "multiple models per panel."
-    )
-    parser.add_argument(
-        "--csv",
-        default="experiments/nocturnal_forecasting/best_by_model_dataset.csv",
-        help="Path to best_by_model_dataset.csv",
-    )
-    parser.add_argument(
-        "--output",
-        default="results/figures/rmse_vs_horizon_grid.svg",
-        help="Output SVG path",
-    )
-    parser.add_argument(
-        "--no-iqr",
-        action="store_true",
-        dest="no_iqr",
-        help="Hide the per-episode IQR shaded band (cleaner when many models overlap)",
-    )
-    parser.add_argument(
-        "--cumulative",
-        action="store_true",
-        help="Plot cumulative RMSE (sqrt of running mean MSE) instead of per-step RMSE",
-    )
-    parser.add_argument(
-        "--iqr-quantiles",
-        nargs=2,
-        type=float,
-        default=(25.0, 75.0),
-        metavar=("LOW", "HIGH"),
-        help=(
-            "Lower/upper quantiles (0-100) for the shaded uncertainty band. "
-            "Default: 25 75."
-        ),
-    )
+    parser = _build_parser()
     args = parser.parse_args()
 
     best_paths = read_best_paths(Path(args.csv))
@@ -255,6 +221,46 @@ def main() -> None:
         show_iqr=not args.no_iqr,
         cumulative=args.cumulative,
     )
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Grid plot of RMSE vs horizon — one column per dataset, "
+        "multiple models per panel."
+    )
+    parser.add_argument(
+        "--csv",
+        default="experiments/nocturnal_forecasting/best_by_model_dataset.csv",
+        help="Path to best_by_model_dataset.csv",
+    )
+    parser.add_argument(
+        "--output",
+        default="results/figures/rmse_vs_horizon_grid.svg",
+        help="Output SVG path",
+    )
+    parser.add_argument(
+        "--no-iqr",
+        action="store_true",
+        dest="no_iqr",
+        help="Hide the per-episode IQR shaded band (cleaner when many models overlap)",
+    )
+    parser.add_argument(
+        "--cumulative",
+        action="store_true",
+        help="Plot cumulative RMSE (sqrt of running mean MSE) instead of per-step RMSE",
+    )
+    parser.add_argument(
+        "--iqr-quantiles",
+        nargs=2,
+        type=float,
+        default=list(DEFAULT_IQR_QUANTILES),
+        metavar=("LOW", "HIGH"),
+        help=(
+            "Lower/upper quantiles (0-100) for the shaded uncertainty band. "
+            "Default: 25 75."
+        ),
+    )
+    return parser
 
 
 if __name__ == "__main__":
