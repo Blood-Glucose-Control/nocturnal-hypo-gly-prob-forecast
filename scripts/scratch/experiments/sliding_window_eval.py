@@ -8,6 +8,6 @@ from pathlib import Path
 
 if __name__ == "__main__":
     target = (
-        Path(__file__).resolve().parents[1] / "evaluation" / "sliding_window_eval.py"
+        Path(__file__).resolve().parents[2] / "evaluation" / "sliding_window_eval.py"
     )
     runpy.run_path(str(target), run_name="__main__")
