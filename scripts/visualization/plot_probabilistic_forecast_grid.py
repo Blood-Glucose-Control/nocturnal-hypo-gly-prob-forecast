@@ -57,6 +57,8 @@ import matplotlib
 import numpy as np
 
 from src.visualization.nocturnal import (
+    DEFAULT_PROBABILISTIC_INNER_INTERVAL,
+    DEFAULT_PROBABILISTIC_OUTER_INTERVAL,
     interpolate_quantile_trace,
     load_probabilistic_forecast_arrays,
 )
@@ -67,8 +69,8 @@ import matplotlib.pyplot as plt
 DEFAULT_RUN_MAP_CSV = "experiments/nocturnal_forecasting/run_map.csv"
 DEFAULT_OUTPUT = "results/figures/probabilistic_forecast_episode_grid.png"
 DEFAULT_EPISODE_PERCENTILES = (10, 25, 50, 75, 90)
-DEFAULT_OUTER_INTERVAL = (0.10, 0.90)
-DEFAULT_INNER_INTERVAL = (0.25, 0.75)
+DEFAULT_OUTER_INTERVAL = DEFAULT_PROBABILISTIC_OUTER_INTERVAL
+DEFAULT_INNER_INTERVAL = DEFAULT_PROBABILISTIC_INNER_INTERVAL
 DEFAULT_FORECAST_STEP_MINUTES = 5
 
 PINK_DARK = "#c5449a"
@@ -97,7 +99,7 @@ class EpisodePanel:
     rmse: float
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
@@ -175,7 +177,7 @@ def parse_args() -> argparse.Namespace:
         help="Figure title.",
     )
     parser.add_argument("--dpi", type=int, default=150, help="PNG resolution.")
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def _parse_run_map(csv_path: Path) -> list[RunMapRow]:

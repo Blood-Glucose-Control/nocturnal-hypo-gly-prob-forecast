@@ -7,11 +7,17 @@
 from src.visualization.nocturnal import (
     compute_horizon_rmse_quantiles,
     compute_horizon_rmse_stats,
+    DEFAULT_BOXPLOT_QUANTILES,
+    DEFAULT_IQR_QUANTILES,
+    DEFAULT_PROBABILISTIC_INNER_INTERVAL,
+    DEFAULT_PROBABILISTIC_OUTER_INTERVAL,
     interpolate_quantile_trace,
     load_prediction_actual_arrays,
     load_probabilistic_forecast_arrays,
     resolve_forecast_npz_path,
     resolve_forecast_results_path,
+    VISUALIZATION_QUANTILE_DEFAULTS,
+    VisualizationQuantileDefaults,
 )
 
 __all__ = [
@@ -20,6 +26,12 @@ __all__ = [
     "load_prediction_actual_arrays",
     "load_probabilistic_forecast_arrays",
     "interpolate_quantile_trace",
+    "DEFAULT_BOXPLOT_QUANTILES",
+    "DEFAULT_IQR_QUANTILES",
+    "DEFAULT_PROBABILISTIC_OUTER_INTERVAL",
+    "DEFAULT_PROBABILISTIC_INNER_INTERVAL",
+    "VisualizationQuantileDefaults",
+    "VISUALIZATION_QUANTILE_DEFAULTS",
     "compute_horizon_rmse_quantiles",
     "compute_horizon_rmse_stats",
 ]

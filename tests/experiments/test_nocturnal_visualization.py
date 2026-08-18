@@ -3,11 +3,18 @@
 # For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 import json
+import runpy
+from pathlib import Path
 
 import numpy as np
 import pytest
 
 from src.visualization.nocturnal import (
+    DEFAULT_BOXPLOT_QUANTILES,
+    DEFAULT_IQR_QUANTILES,
+    DEFAULT_PROBABILISTIC_INNER_INTERVAL,
+    DEFAULT_PROBABILISTIC_OUTER_INTERVAL,
+    VISUALIZATION_QUANTILE_DEFAULTS,
     compute_horizon_rmse_quantiles,
     compute_horizon_rmse_stats,
     interpolate_quantile_trace,
@@ -140,3 +147,49 @@ def test_interpolate_quantile_trace():
     )
     q25 = interpolate_quantile_trace(quantile_forecast, quantile_levels, 0.25)
     np.testing.assert_allclose(q25, np.array([1.75, 2.75]))
+
+
+def test_visualization_quantile_defaults_bundle_is_consistent():
+    assert (
+        VISUALIZATION_QUANTILE_DEFAULTS.boxplot_quantiles == DEFAULT_BOXPLOT_QUANTILES
+    )
+    assert VISUALIZATION_QUANTILE_DEFAULTS.iqr_quantiles == DEFAULT_IQR_QUANTILES
+    assert (
+        VISUALIZATION_QUANTILE_DEFAULTS.probabilistic_outer_interval
+        == DEFAULT_PROBABILISTIC_OUTER_INTERVAL
+    )
+    assert (
+        VISUALIZATION_QUANTILE_DEFAULTS.probabilistic_inner_interval
+        == DEFAULT_PROBABILISTIC_INNER_INTERVAL
+    )
+
+
+def test_visualization_scripts_use_shared_quantile_defaults():
+    repo_root = Path(__file__).resolve().parents[2]
+
+    rmse_horizon_ns = runpy.run_path(
+        str(repo_root / "scripts/visualization/plot_rmse_vs_horizon.py")
+    )
+    rmse_horizon_parser = rmse_horizon_ns["_build_parser"]()
+    rmse_horizon_args = rmse_horizon_parser.parse_args(
+        ["--results", "run_a", "--labels", "label_a"]
+    )
+    assert tuple(rmse_horizon_args.quantiles) == DEFAULT_BOXPLOT_QUANTILES
+
+    rmse_grid_ns = runpy.run_path(
+        str(repo_root / "scripts/visualization/plot_rmse_vs_horizon_grid.py")
+    )
+    rmse_grid_parser = rmse_grid_ns["_build_parser"]()
+    rmse_grid_args = rmse_grid_parser.parse_args([])
+    assert tuple(rmse_grid_args.iqr_quantiles) == DEFAULT_IQR_QUANTILES
+
+    probabilistic_ns = runpy.run_path(
+        str(repo_root / "scripts/visualization/plot_probabilistic_forecast_grid.py")
+    )
+    probabilistic_args = probabilistic_ns["parse_args"]([])
+    assert (
+        tuple(probabilistic_args.outer_interval) == DEFAULT_PROBABILISTIC_OUTER_INTERVAL
+    )
+    assert (
+        tuple(probabilistic_args.inner_interval) == DEFAULT_PROBABILISTIC_INNER_INTERVAL
+    )

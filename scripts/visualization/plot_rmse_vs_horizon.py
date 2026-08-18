@@ -31,6 +31,7 @@ import matplotlib.ticker as ticker
 import numpy as np
 
 from src.visualization.nocturnal import (
+    DEFAULT_BOXPLOT_QUANTILES,
     compute_horizon_rmse_quantiles,
     load_prediction_actual_arrays,
 )
@@ -121,7 +122,7 @@ def make_plot(results: list[list[dict]], labels: list[str], output_path: str):
     print(f"Saved: {output_path}")
 
 
-def main():
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--results", nargs="+", required=True)
     parser.add_argument("--labels", nargs="+", required=True)
@@ -130,13 +131,18 @@ def main():
         "--quantiles",
         nargs=5,
         type=float,
-        default=(10.0, 25.0, 50.0, 75.0, 90.0),
+        default=list(DEFAULT_BOXPLOT_QUANTILES),
         metavar=("WHISKER_LOW", "BOX_LOW", "MEDIAN", "BOX_HIGH", "WHISKER_HIGH"),
         help=(
             "Five quantiles (0-100) used for whiskers/box/median, in ascending order. "
             "Default: 10 25 50 75 90."
         ),
     )
+    return parser
+
+
+def main():
+    parser = _build_parser()
     args = parser.parse_args()
 
     if len(args.results) != len(args.labels):
