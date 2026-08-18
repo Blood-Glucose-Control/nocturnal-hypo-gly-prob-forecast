@@ -24,12 +24,15 @@ This folder is now ordered by project priority using `P#-##` prefixes.
 - `P1-14_MODEL_STACK_DEEP_DIVE.md`
 - `P1-15_PYDANTIC_SCHEMA_MIGRATION_KICKOFF.md`
 - `P1-21_MODEL_RUNTIME_FLOW_AUDIT.md`
+- `P1-34_WORKSPACE_TRIAGE_AND_SIMPLIFICATION_PLAN.md`
+- `P1-37_CANONICAL_HANDOFF_AND_STATUS.md` (canonical consolidated handoff/status note)
 
 ## Historical / Archived Notes
 
 Stale handoff and interim planning artifacts were preserved (not deleted) under:
 
 - `archive_2026-08-07/`
+- `archive_2026-08-18/p1-37/` (superseded P1-37 handoff/plan variants)
 
 These are kept for traceability but should not be treated as current runbooks.
 

@@ -96,7 +96,7 @@ Shell distribution:
 - `scripts/examples`: 4
 - root-level: 2
 
-Existing cleanup proposal now lives in [`P1-37_SCRIPTS_REORG_AND_PRUNE_EXECUTION_PLAN.md`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/agent_notes/P1-37_SCRIPTS_REORG_AND_PRUNE_EXECUTION_PLAN.md) and is being executed.
+Existing cleanup summary/status now lives in [`P1-37_CANONICAL_HANDOFF_AND_STATUS.md`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/agent_notes/P1-37_CANONICAL_HANDOFF_AND_STATUS.md).
 
 ---
 
@@ -127,6 +127,6 @@ No parallel “shadow architecture” directories should remain half-populated.
 
 1. Freeze runtime core boundaries in docs/tests.
 2. Delete zero-byte and non-imported scaffolds in `src/registry`, `src/training`, `src/tuning` (single PR, reversible tag first).
-3. Execute script reorg from [`P1-37_SCRIPTS_REORG_AND_PRUNE_EXECUTION_PLAN.md`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/agent_notes/P1-37_SCRIPTS_REORG_AND_PRUNE_EXECUTION_PLAN.md), refreshed against current file set.
+3. Execute script reorg from [`P1-37_CANONICAL_HANDOFF_AND_STATUS.md`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/agent_notes/P1-37_CANONICAL_HANDOFF_AND_STATUS.md) and linked archive notes as needed.
 4. Remove dormant model-family placeholders with no runtime wiring (after explicit check against planned P1/P2 scope).
 5. Re-run focused runtime smoke flows (`per_patient_finetune`, `nocturnal_hypo_eval`, `sliding_window_eval`) plus diagnostics.
