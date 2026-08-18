@@ -16,7 +16,8 @@ This guide lists the maintained scripts in `scripts/examples/`,
 
 ## Model-specific experiment scripts
 
-These are intentionally in `scripts/experiments/` (not `scripts/examples/`):
+Model-specific one-off experiment scripts are archived under
+`scripts/scratch/experiments/` (not maintained canonical surfaces):
 
 - `chronos2_finetune.py` (Chronos-2 fine-tuning workflow)
 - `ttm_forecasting_workflow.py` (TTM-specific forecasting workflow variant)
@@ -44,7 +45,7 @@ The Python sweep CLIs are now dispatcher entrypoints keyed by:
 Currently implemented adapter:
 
 - `task-family=forecasting`, `experiment-type=nocturnal_forecast`
-- scaffolded next adapter key (not yet implemented):
+- deferred future adapter key (P4/Fall roadmap):
   - `task-family=event_detection`, `experiment-type=nocturnal_events`
 
 Discover available adapters:
@@ -113,7 +114,7 @@ sbatch --gres=gpu:2 --wrap 'cd /path/to/repo && TASK_FAMILY=forecasting EXPERIME
 
 Canonical chain/orchestration scripts now live under:
 
-- `scripts/orchestration/sweeps/chronos2_sweep.sh`
+- `scripts/orchestration/sweeps/chronos2_eval_long_run_checkpoints.sh`
 - `scripts/orchestration/sweeps/run_ctx_ablation_sweeps.sh`
 - `scripts/orchestration/sweeps/run_overnight_deep_sweeps.sh`
 
@@ -130,8 +131,9 @@ for now (they embed custom experiment semantics and are not yet generalized):
 - `scripts/evaluation/sweeps/models/chronos2_step_sweep_eval.sh`
 - `scripts/evaluation/sweeps/models/chronos2_long_run_step_sweep_eval.sh`
 
-Legacy compatibility wrappers in `scripts/experiments/` were removed for both
-model-sweep and orchestration chain scripts; use the canonical paths above.
+Legacy compatibility wrappers in `scripts/experiments/` were retired from the
+maintained surface and moved under `scripts/scratch/experiments/`; use the
+canonical paths above.
 
 ## Canonical workflow example
 

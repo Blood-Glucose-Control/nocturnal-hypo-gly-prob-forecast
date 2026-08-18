@@ -15,19 +15,19 @@
 # -----
 #   # Evaluate all datasets (default):
 #   MODEL_CONFIG=configs/models/chronos2/<config>.yaml \
-#   bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh \
+#   bash scripts/orchestration/sweeps/chronos2_eval_long_run_checkpoints.sh \
 #       trained_models/artifacts/chronos2/<run_id>_forecasting_workflow
 #
 #   # Evaluate a single dataset:
 #   DATASETS="brown_2019" \
 #   MODEL_CONFIG=configs/models/chronos2/<config>.yaml \
-#   bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh \
+#   bash scripts/orchestration/sweeps/chronos2_eval_long_run_checkpoints.sh \
 #       trained_models/artifacts/chronos2/<run_id>_forecasting_workflow
 #
 #   # Override CUDA device (default: 0):
 #   CUDA_DEVICE=1 \
 #   MODEL_CONFIG=configs/models/chronos2/<config>.yaml \
-#   bash scripts/experiments/chronos2_eval_long_run_checkpoints.sh \
+#   bash scripts/orchestration/sweeps/chronos2_eval_long_run_checkpoints.sh \
 #       trained_models/artifacts/chronos2/<run_id>_forecasting_workflow
 #
 # OUTPUT
@@ -41,6 +41,10 @@
 #       ...
 # -----------------------------------------------------------------------
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+cd "$PROJECT_ROOT"
 
 # ---------------------------------------------------------------------------
 # Arguments / defaults
