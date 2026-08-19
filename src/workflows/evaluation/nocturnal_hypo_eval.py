@@ -171,6 +171,7 @@ def parse_arguments() -> argparse.Namespace:
             "deepar",
             "patchtst",
             "tft",
+            "tsmixer",
         ],
         help="Model type to use for evaluation",
     )
@@ -360,7 +361,7 @@ def main() -> int:
             logger.error(
                 "%s does not support past covariates but --covariate-cols %s was "
                 "passed. Remove --covariate-cols or use a model that accepts "
-                "past covariates (e.g., chronos2, tft, tide).",
+                "past covariates (e.g., chronos2, tft, tsmixer).",
                 args.model,
                 requested_covariates,
             )

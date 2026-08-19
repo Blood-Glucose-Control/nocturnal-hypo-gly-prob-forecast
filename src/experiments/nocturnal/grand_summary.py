@@ -222,6 +222,19 @@ MODEL_PROPERTIES: dict[str, dict[str, Any]] = {
             "like IOB/COB cannot be used without data leakage."
         ),
     },
+    "tsmixer": {
+        "class": "deep_learning",
+        "zero_shot_capable": False,
+        "fine_tunable": True,
+        "supports_past_covariates": True,
+        "univariate_only": False,
+        "probabilistic": False,
+        "architecture_summary": (
+            "Time-Series Mixer (all-MLP): stacked temporal/feature mixing blocks "
+            "without attention. Darts-backed implementation supports past "
+            "covariate channels (e.g., IOB/COB). Point forecasts."
+        ),
+    },
     "timegrad": {
         "class": "deep_learning",
         "zero_shot_capable": False,

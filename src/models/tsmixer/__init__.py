@@ -1,5 +1,6 @@
 """TSMixer model package."""
 
-from .model import TSMixerForecaster, TSMixerConfig
+from .config import TSMixerConfig
+from .model import TSMixerForecaster
 
 __all__ = ["TSMixerForecaster", "TSMixerConfig"]

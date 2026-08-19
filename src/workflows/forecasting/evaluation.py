@@ -18,6 +18,51 @@ from src.evaluation.episode_builders import build_midnight_episodes
 logger = logging.getLogger(__name__)
 
 
+class ForecastValidationError(RuntimeError):
+    """Raised when generated forecasts fail sanity validation."""
+
+
+def _validate_forecast_values(
+    raw_predictions: Any,
+    *,
+    phase_name: str,
+    dataset_name: str,
+    patient_id: Any,
+) -> np.ndarray:
+    """Validate and normalize model forecast outputs for downstream workflow steps."""
+    predictions = np.atleast_1d(np.asarray(raw_predictions, dtype=float).squeeze())
+    if predictions.size == 0:
+        raise ForecastValidationError(
+            f"Empty forecast array for phase={phase_name}, dataset={dataset_name}, "
+            f"patient={patient_id}."
+        )
+
+    finite_mask = np.isfinite(predictions)
+    finite_count = int(finite_mask.sum())
+    non_finite_count = int(predictions.size - finite_count)
+    if finite_count == 0:
+        nan_count = int(np.isnan(predictions).sum())
+        inf_count = int(np.isinf(predictions).sum())
+        raise ForecastValidationError(
+            f"All predictions are non-finite for phase={phase_name}, "
+            f"dataset={dataset_name}, patient={patient_id} "
+            f"(nan={nan_count}, inf={inf_count}, total={predictions.size})."
+        )
+
+    if non_finite_count > 0:
+        logger.warning(
+            "Detected %d/%d non-finite predictions for phase=%s, dataset=%s, "
+            "patient=%s; proceeding with remaining finite values.",
+            non_finite_count,
+            predictions.size,
+            phase_name,
+            dataset_name,
+            patient_id,
+        )
+
+    return predictions
+
+
 def _generate_forecasts(
     model,
     training_columns: list,
@@ -26,7 +71,7 @@ def _generate_forecasts(
     output_dir: str,
     phase_name: str,
     model_config_overrides: Optional[Dict[str, Any]] = None,
-) -> Optional[Dict[str, Dict]]:
+) -> Dict[str, Dict[str, Any]]:
     """Generate per-dataset forecasting outputs for a workflow phase."""
     logger.info(f"  Generating forecasts for phase: {phase_name}")
     try:
@@ -125,11 +170,18 @@ def _generate_forecasts(
             logger.info(f"    Raw predictions shape: {predictions_raw.shape}")
 
             if len(predictions_raw.shape) == 3:
-                predictions = predictions_raw[0, :, 0]
+                extracted_predictions = predictions_raw[0, :, 0]
             elif len(predictions_raw.shape) == 2:
-                predictions = predictions_raw[:, 0]
+                extracted_predictions = predictions_raw[:, 0]
             else:
-                predictions = predictions_raw.squeeze()
+                extracted_predictions = predictions_raw.squeeze()
+
+            predictions = _validate_forecast_values(
+                extracted_predictions,
+                phase_name=phase_name,
+                dataset_name=dataset_name,
+                patient_id=first_patient,
+            )
 
             logger.info(f"    Extracted glucose predictions shape: {predictions.shape}")
             forecast_datetimes = pd.date_range(
@@ -159,6 +211,10 @@ def _generate_forecasts(
                 "raw_predictions_shape": list(predictions_raw.shape),
                 "glucose_predictions_shape": list(predictions.shape),
                 "glucose_predictions": predictions.tolist(),
+                "finite_prediction_count": int(np.isfinite(predictions).sum()),
+                "non_finite_prediction_count": int(
+                    predictions.size - np.isfinite(predictions).sum()
+                ),
                 "forecast_length": forecast_length,
                 "context_length": context_length,
             }
@@ -175,7 +231,7 @@ def _generate_forecasts(
     except Exception as e:
         logger.error(f"  ✗ Failed to generate forecasts: {e}")
         traceback.print_exc()
-        return None
+        raise
 
 
 def _plot_forecasts(
@@ -195,7 +251,13 @@ def _plot_forecasts(
 
         for dataset_name, results in forecast_results.items():
             logger.info(f"  --- Plotting forecast for dataset: {dataset_name} ---")
-            predictions = np.array(results["predictions"]).squeeze()
+            predictions = _validate_forecast_values(
+                results["predictions"],
+                phase_name=phase_name,
+                dataset_name=dataset_name,
+                patient_id=results["patient_id"],
+            )
+            finite_predictions = predictions[np.isfinite(predictions)]
             historical_glucose = results["historical_glucose"]
             actual_glucose = results["actual_glucose"]
             patient_id = results["patient_id"]
@@ -204,7 +266,8 @@ def _plot_forecasts(
 
             logger.info(f"    Predictions shape for plotting: {predictions.shape}")
             logger.info(
-                f"    Predictions range: [{predictions.min():.2f}, {predictions.max():.2f}]"
+                f"    Predictions range: "
+                f"[{finite_predictions.min():.2f}, {finite_predictions.max():.2f}]"
             )
 
             _, ax = plt.subplots(figsize=(15, 6))
@@ -348,7 +411,7 @@ def _plot_forecasts(
     except Exception as e:
         logger.error(f"  ✗ Failed to plot forecasts: {e}")
         traceback.print_exc()
-        return False
+        raise
 
 
 def evaluate_and_plot(
@@ -359,7 +422,7 @@ def evaluate_and_plot(
     output_dir: str,
     phase_name: str,
     model_config_overrides: Optional[Dict[str, Any]] = None,
-) -> Optional[Dict]:
+) -> Dict[str, Dict[str, Any]]:
     """Generate forecasts and plots for a workflow phase."""
     logger.info("-" * 40)
     logger.info(f"Evaluating and plotting for phase: {phase_name}")
@@ -373,10 +436,15 @@ def evaluate_and_plot(
         phase_name=phase_name,
         model_config_overrides=model_config_overrides,
     )
-    if forecast_results is not None:
-        _plot_forecasts(
-            forecast_results=forecast_results,
-            output_dir=output_dir,
-            phase_name=phase_name,
+    if not forecast_results:
+        raise ForecastValidationError(
+            f"No forecasts were generated for phase={phase_name}. "
+            f"Datasets requested: {dataset_names}."
         )
+
+    _plot_forecasts(
+        forecast_results=forecast_results,
+        output_dir=output_dir,
+        phase_name=phase_name,
+    )
     return forecast_results
