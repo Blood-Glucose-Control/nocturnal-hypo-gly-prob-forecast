@@ -13,6 +13,25 @@ from .base import BaseTimeSeriesFoundationModel, ModelConfig
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_MODEL_TYPES = (
+    "sundial",
+    "ttm",
+    "chronos",
+    "chronos2",
+    "moment",
+    "toto",
+    "moirai",
+    "timegrad",
+    "timesfm",
+    "tide",
+    "naive_baseline",
+    "statistical",
+    "deepar",
+    "patchtst",
+    "tft",
+    "tsmixer",
+)
+
 
 def create_model_and_config(
     model_type: str, checkpoint: Optional[str] = None, **kwargs
@@ -20,7 +39,7 @@ def create_model_and_config(
     """Factory function to create model and config based on type.
 
     Args:
-        model_type: One of 'sundial', 'ttm', 'chronos', 'tide', 'moirai', 'tsmixer'
+        model_type: One of the supported model IDs from SUPPORTED_MODEL_TYPES.
         checkpoint: Optional path to fine-tuned checkpoint
         **kwargs: Additional config parameters (e.g., num_samples, forecast_length)
 
@@ -694,6 +713,5 @@ def create_model_and_config(
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, "
-            f"tide, moment, naive_baseline, statistical, deepar, patchtst, tft, tsmixer"
+            f"Available: {', '.join(SUPPORTED_MODEL_TYPES)}"
         )

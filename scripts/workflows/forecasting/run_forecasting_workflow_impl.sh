@@ -65,7 +65,7 @@ RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 : ${MODEL_CONFIG:=""}   # Path to model YAML config (e.g., configs/models/ttm/default.yaml)
 # VENV_NAME: override the venv used for this run (default: same as MODEL_TYPE).
 # Set this when the model shares a venv with another type, e.g.
-#   VENV_NAME=chronos2 for naive_baseline / statistical / deepar / patchtst / tft
+#   VENV_NAME=autogluon for naive_baseline / statistical / deepar / patchtst / tft / chronos2
 #   VENV_NAME=darts for tsmixer
 : ${VENV_NAME:="$MODEL_TYPE"}
 

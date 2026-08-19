@@ -228,11 +228,11 @@ MODEL_PROPERTIES: dict[str, dict[str, Any]] = {
         "fine_tunable": True,
         "supports_past_covariates": True,
         "univariate_only": False,
-        "probabilistic": False,
+        "probabilistic": True,
         "architecture_summary": (
             "Time-Series Mixer (all-MLP): stacked temporal/feature mixing blocks "
             "without attention. Darts-backed implementation supports past "
-            "covariate channels (e.g., IOB/COB). Point forecasts."
+            "covariate channels (e.g., IOB/COB) and quantile forecasts."
         ),
     },
     "timegrad": {

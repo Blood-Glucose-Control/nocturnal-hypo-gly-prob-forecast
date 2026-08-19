@@ -25,6 +25,7 @@ def test_tsmixer_covariate_capability_and_smoke_profile() -> None:
     )
     assert '"tsmixer": {' in grand_summary_text
     assert '"supports_past_covariates": True' in grand_summary_text
+    assert '"probabilistic": True' in grand_summary_text
 
     smoke_cfg = Path("configs/models/tsmixer/00_iob_cob_smoke.yaml").read_text(
         encoding="utf-8"

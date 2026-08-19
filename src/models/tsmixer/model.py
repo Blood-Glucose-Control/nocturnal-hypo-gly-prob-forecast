@@ -35,9 +35,16 @@ class TSMixerForecaster(DartsGlobalModelBase):
     def supports_zero_shot(self) -> bool:
         return False
 
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        return True
+
     def _create_darts_model(self) -> Any:
         try:
             from darts.models import TSMixerModel  # type: ignore[import-not-found]
+            from darts.utils.likelihood_models import (  # type: ignore[import-not-found]
+                QuantileRegression,
+            )
         except ImportError as exc:
             raise ImportError(
                 "TSMixer requires Darts dependencies. Install with: "
@@ -48,6 +55,7 @@ class TSMixerForecaster(DartsGlobalModelBase):
         if self.config.use_cpu:
             trainer_kwargs.update({"accelerator": "cpu", "devices": 1})
 
+        quantile_levels = self.config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS
         return TSMixerModel(
             input_chunk_length=self.config.context_length,
             output_chunk_length=self.config.forecast_length,
@@ -62,6 +70,7 @@ class TSMixerForecaster(DartsGlobalModelBase):
             batch_size=self.config.batch_size,
             n_epochs=self.config.num_epochs,
             optimizer_kwargs={"lr": self.config.learning_rate},
+            likelihood=QuantileRegression(quantiles=list(quantile_levels)),
             random_state=self.config.random_state,
             pl_trainer_kwargs=trainer_kwargs,
         )
@@ -82,6 +91,7 @@ class TSMixerForecaster(DartsGlobalModelBase):
             if self.config.covariate_cols
             else ""
         )
+        q_str = f", quantiles: {self.config.quantile_levels}"
         info_print(
             f"Starting TSMixer training: "
             f"context={self.config.context_length}, "
@@ -89,5 +99,5 @@ class TSMixerForecaster(DartsGlobalModelBase):
             f"hidden={self.config.hidden_size}, ff={self.config.ff_size}, "
             f"blocks={self.config.num_blocks}, batch={self.config.batch_size}, "
             f"epochs={self.config.num_epochs}, lr={self.config.learning_rate}"
-            f"{cov_str}"
+            f"{cov_str}{q_str}"
         )

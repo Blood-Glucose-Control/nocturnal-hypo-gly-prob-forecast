@@ -37,6 +37,9 @@ class TSMixerConfig(ModelConfig):
     time_col: str = "datetime"
     interval_mins: int = 5
     covariate_cols: List[str] = field(default_factory=list)
+    quantile_levels: Optional[List[float]] = field(
+        default_factory=lambda: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    )
 
     # Gap handling
     imputation_threshold_mins: int = 45

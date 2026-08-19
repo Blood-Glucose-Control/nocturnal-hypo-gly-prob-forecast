@@ -280,10 +280,6 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
         **kwargs,
     ) -> np.ndarray:
         del kwargs
-        if quantile_levels is not None:
-            raise NotImplementedError(
-                f"{self.__class__.__name__} currently supports point forecasts only."
-            )
         if self.model is None:
             raise ValueError("Model must be fitted or loaded before prediction.")
 
@@ -295,16 +291,59 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
         }
         if past_covariates is not None:
             predict_kwargs["past_covariates"] = past_covariates
+
+        if quantile_levels is None:
+            forecast = self.model.predict(**predict_kwargs)
+            values = np.asarray(forecast.values(copy=False))
+            if values.ndim == 1:
+                return values.astype(float)
+            if values.ndim == 2 and values.shape[1] == 1:
+                return values[:, 0].astype(float)
+            raise ValueError(
+                f"Unexpected forecast shape {values.shape}; expected "
+                f"(forecast_length,) or (forecast_length, 1)."
+            )
+
+        resolved_quantiles = [float(q) for q in quantile_levels]
+        predict_kwargs["predict_likelihood_parameters"] = True
         forecast = self.model.predict(**predict_kwargs)
-        values = np.asarray(forecast.values(copy=False))
-        if values.ndim == 1:
-            return values.astype(float)
-        if values.ndim == 2 and values.shape[1] == 1:
-            return values[:, 0].astype(float)
-        raise ValueError(
-            f"Unexpected forecast shape {values.shape}; expected "
-            f"(forecast_length,) or (forecast_length, 1)."
-        )
+        quantile_values = np.asarray(forecast.values(copy=False))
+        components = [str(component) for component in forecast.components]
+
+        if quantile_values.ndim != 2:
+            raise ValueError(
+                "Unexpected quantile forecast tensor shape "
+                f"{quantile_values.shape}; expected (forecast_length, n_quantiles)."
+            )
+
+        quantile_column_lookup: Dict[float, int] = {}
+        for idx, component_name in enumerate(components):
+            if "_q" not in component_name:
+                continue
+            try:
+                q = round(float(component_name.rsplit("_q", 1)[1]), 6)
+            except ValueError:
+                continue
+            quantile_column_lookup[q] = idx
+
+        if not quantile_column_lookup:
+            raise ValueError(
+                "Quantile forecast requested, but likelihood-parameter columns were "
+                "not returned by the Darts model."
+            )
+
+        output: List[np.ndarray] = []
+        for requested_quantile in resolved_quantiles:
+            key = round(requested_quantile, 6)
+            if key not in quantile_column_lookup:
+                available = sorted(quantile_column_lookup.keys())
+                raise ValueError(
+                    f"Requested quantile {requested_quantile} not available. "
+                    f"Available quantiles: {available}"
+                )
+            output.append(quantile_values[:, quantile_column_lookup[key]].astype(float))
+
+        return np.vstack(output)
 
     def _save_checkpoint(self, output_dir: str) -> None:
         if self.model is None:
