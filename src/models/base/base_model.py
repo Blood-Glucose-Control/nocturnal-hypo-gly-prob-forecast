@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import torch
-from torch.utils.data import DataLoader
 from enum import Enum
 
 # Local imports
@@ -455,9 +454,9 @@ class BaseTimeSeriesFoundationModel(ABC):
     def _prepare_training_data(
         self,
         train_data: Any,
-    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[Any]]:
+    ) -> Tuple[Any, Optional[Any], Optional[Any]]:
         """
-        Prepare data loaders for training, validation, and testing.
+        Prepare backend-specific training inputs and optional validation inputs.
 
         Data splitting is controlled by model configuration.
 
@@ -465,9 +464,9 @@ class BaseTimeSeriesFoundationModel(ABC):
             train_data: Training dataset (will be split based on config)
 
         Returns:
-            Tuple of (train_loader, val_loader, aux_eval_data). The third
-            element is typically a test DataLoader for standard backends but
-            may be backend-specific auxiliary evaluation data.
+            Tuple of (train_input, val_input, aux_eval_data). For
+            DataLoader-based backends, the first two values are DataLoaders.
+            Custom backends may return backend-native structures instead.
         """
         pass
 

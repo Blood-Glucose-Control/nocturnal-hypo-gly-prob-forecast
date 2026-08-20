@@ -26,6 +26,7 @@ This folder is now ordered by project priority using `P#-##` prefixes.
 - `P1-21_MODEL_RUNTIME_FLOW_AUDIT.md`
 - `P1-30_CLEANUP_VALIDATION_MATRIX_KICKOFF.md`
 - `P1-32_PYLANCE_RUNTIME_DIAGNOSTICS_TRIAGE_HANDOFF.md`
+- `P1-32_WORKSPACE_PATH_REMOUNT_HANDOFF.md`
 - `P1-34_WORKSPACE_TRIAGE_AND_SIMPLIFICATION_PLAN.md`
 - `P1-37_CANONICAL_HANDOFF_AND_STATUS.md` (canonical consolidated handoff/status note)
 
