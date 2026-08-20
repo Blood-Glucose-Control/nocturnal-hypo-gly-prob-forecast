@@ -45,9 +45,9 @@ logger = logging.getLogger(__name__)
 def _validate_preprocessor_schema(preprocessor: TimeSeriesPreprocessor) -> None:
     """Validate preprocessor schema required by the current runtime.
 
-    Legacy checkpoint preprocessors are intentionally not shimmed. If a loaded
-    checkpoint does not satisfy the current schema contract, fail fast with an
-    actionable message to retrain with the current repository/runtime.
+    Unsupported checkpoint preprocessors are intentionally not shimmed. If a
+    loaded checkpoint does not satisfy the current schema contract, fail fast
+    with an actionable message to retrain with the current repository/runtime.
     """
     if not hasattr(preprocessor, "other_columns_to_scale"):
         raise ValueError(
@@ -594,15 +594,13 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             info_print(f"TTM model checkpoint loaded from {model_dir}")
 
             # Load the preprocessor if saved (critical for inference on holdout patients)
-            # Try multiple locations as save structure can vary:
+            # Try supported locations as save structure can vary:
             # 1. Direct in model_dir (new format)
             # 2. In model.pt subdirectory (HuggingFace Trainer creates this)
-            # 3. preprocessor/ subdirectory (legacy TSFM format)
             preprocessor_pkl_path = os.path.join(model_dir, "preprocessor.pkl")
             preprocessor_pkl_model_pt = os.path.join(
                 model_dir, "model.pt", "preprocessor.pkl"
             )
-            preprocessor_dir = os.path.join(model_dir, "preprocessor")
 
             if os.path.exists(preprocessor_pkl_path):
                 with open(preprocessor_pkl_path, "rb") as f:
@@ -613,14 +611,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 with open(preprocessor_pkl_model_pt, "rb") as f:
                     self.preprocessor = pickle.load(f)
                 info_print(f"Preprocessor loaded from {preprocessor_pkl_model_pt}")
-            elif os.path.exists(preprocessor_dir):
-                # Legacy format - try from_pretrained
-                self.preprocessor = TimeSeriesPreprocessor.from_pretrained(
-                    preprocessor_dir
-                )
-                info_print(
-                    f"Preprocessor loaded from {preprocessor_dir} (legacy format)"
-                )
             else:
                 logger.warning(
                     f"No preprocessor found at {model_dir}. "
