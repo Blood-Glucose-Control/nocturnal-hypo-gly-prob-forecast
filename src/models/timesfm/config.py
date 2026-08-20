@@ -126,6 +126,11 @@ class TimesFMConfig(ModelConfig):
         if self.batch_size <= 0:
             raise ValueError(f"batch_size must be positive, got {self.batch_size}")
 
+        if not 0.0 <= self.val_patient_ratio < 1.0:
+            raise ValueError(
+                "val_patient_ratio must be in [0, 1), " f"got {self.val_patient_ratio}"
+            )
+
         if self.interval_mins <= 0:
             raise ValueError(
                 f"interval_mins must be positive, got {self.interval_mins}"

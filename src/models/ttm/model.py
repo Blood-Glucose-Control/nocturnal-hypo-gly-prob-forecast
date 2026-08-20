@@ -42,6 +42,22 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _validate_preprocessor_schema(preprocessor: TimeSeriesPreprocessor) -> None:
+    """Validate preprocessor schema required by the current runtime.
+
+    Legacy checkpoint preprocessors are intentionally not shimmed. If a loaded
+    checkpoint does not satisfy the current schema contract, fail fast with an
+    actionable message to retrain with the current repository/runtime.
+    """
+    if not hasattr(preprocessor, "other_columns_to_scale"):
+        raise ValueError(
+            "TTM checkpoint preprocessor schema is unsupported by the current "
+            "runtime (missing required attribute 'other_columns_to_scale'). "
+            "Please retrain the Stage-1 checkpoint using the current repository "
+            "before running Stage-2 personalization."
+        )
+
+
 class ColumnSpecifiers(TypedDict, total=False):
     """Type definition for TimeSeriesPreprocessor column configuration.
 
@@ -439,6 +455,8 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 encode_categorical=False,
                 scaler_type=ScalerType.STANDARD.value,  # type: ignore[arg-type]
             )
+        else:
+            _validate_preprocessor_schema(self.preprocessor)
 
         # Create datasets using tsfm_public get_datasets
         # Note: get_datasets returns (train, val, test) datasets but lacks type stubs
@@ -610,6 +628,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                     "This will cause incorrect metrics if comparing to unscaled ground truth. "
                     "Ensure preprocessor.pkl was saved during training."
                 )
+
+            if self.preprocessor is not None:
+                _validate_preprocessor_schema(self.preprocessor)
 
             # Only mark as fitted if the preprocessor was also successfully loaded.
             # The fitted inference path in _predict() unconditionally dereferences

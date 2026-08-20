@@ -120,6 +120,37 @@ def test_loss_fn_no_future_values_returns_no_loss(make_trainer_model):
     assert result["loss"] is None
 
 
+def test_forward_casts_past_values_to_model_dtype():
+    import torch
+
+    from src.models.timesfm.model import TimesFMForTrainer
+
+    class _DummyHF(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.probe = torch.nn.Parameter(torch.zeros(1, dtype=torch.bfloat16))
+            self.config = types.SimpleNamespace(quantiles=_Q_LEVELS)
+            self.seen_dtypes = []
+
+        def forward(self, past_values=None, freq=None, **kwargs):
+            _ = freq, kwargs
+            self.seen_dtypes = [pv.dtype for pv in past_values]
+            b = len(past_values)
+            mean_preds = torch.zeros(b, _MODEL_HORIZON, dtype=torch.bfloat16)
+            full_preds = torch.zeros(b, _MODEL_HORIZON, _N_Q + 1, dtype=torch.bfloat16)
+            return types.SimpleNamespace(
+                mean_predictions=mean_preds,
+                full_predictions=full_preds,
+            )
+
+    hf = _DummyHF()
+    model = TimesFMForTrainer(hf, loss_fn="mse")
+    past, padding, freq, future = _make_batch(batch_size=2)
+
+    model(past, padding, freq, future_values=future)
+    assert set(hf.seen_dtypes) == {torch.bfloat16}
+
+
 # ---------------------------------------------------------------------------
 # MidTrainingEvalCallback tests
 # ---------------------------------------------------------------------------
@@ -154,6 +185,14 @@ class TestMidTrainingEvalCallback:
                 header
                 == "epoch,train_loss,wql,coverage_50,coverage_80,coverage_95,mace,rmse"
             )
+
+    def test_init_creates_output_dir_if_missing(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_dir = os.path.join(tmp_dir, "nested", "stage2_checkpoint")
+            assert not os.path.exists(output_dir)
+            self._make_callback(output_dir)
+            assert os.path.isdir(output_dir)
+            assert os.path.exists(os.path.join(output_dir, "epoch_metrics.csv"))
 
     def test_init_does_not_overwrite_existing_header(self):
         """Re-initialising the callback (e.g. after checkpoint resume) must not
