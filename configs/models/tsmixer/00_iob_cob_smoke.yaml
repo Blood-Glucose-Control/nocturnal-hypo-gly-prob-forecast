@@ -1,0 +1,35 @@
+# =============================================================================
+# TSMixer Config 00: iob_cob_smoke
+# =============================================================================
+# Lightweight integration profile for end-to-end workflow checks on aleppo_2017
+# with past covariates enabled (IOB + COB). Use EPOCHS=1 from the wrapper.
+# =============================================================================
+
+model_type: "tsmixer"
+training_mode: "from_scratch"
+
+context_length: 128
+forecast_length: 96
+
+hidden_size: 32
+ff_size: 32
+num_blocks: 1
+activation: "ReLU"
+dropout: 0.1
+norm_type: "LayerNorm"
+normalize_before: false
+use_static_covariates: false
+random_state: 42
+
+learning_rate: 0.001
+batch_size: 32
+num_epochs: 1
+quantile_levels: [0.1, 0.5, 0.9]
+
+covariate_cols: ["iob", "cob"]
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+imputation_threshold_mins: 45

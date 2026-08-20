@@ -13,6 +13,9 @@
 #   - AutoGluon-backed model aliases:
 #       autogluon, chronos2, tide, deepar, patchtst, tft, naive_baseline, statistical
 #     These all resolve to the shared .venvs/autogluon environment.
+#   - Darts-backed model aliases:
+#       darts, tsmixer
+#     These resolve to the shared .venvs/darts environment.
 
 MODEL="${1:?Usage: source scripts/setup_model_env.sh <model>}"
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "Error: Must be run from within a git repository"; return 1 2>/dev/null || exit 1; }
@@ -25,9 +28,19 @@ is_autogluon_alias() {
     esac
 }
 
+is_darts_alias() {
+    case "${1}" in
+        darts|tsmixer) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 if is_autogluon_alias "${MODEL}"; then
     VENV_NAME="autogluon"
     DEP_GROUP="autogluon"
+elif is_darts_alias "${MODEL}"; then
+    VENV_NAME="darts"
+    DEP_GROUP="darts"
 else
     VENV_NAME="${MODEL}"
     DEP_GROUP="${MODEL}"
@@ -84,6 +97,8 @@ if ! echo "${OPT_DEPS}" | grep -qF "${DEP_GROUP} = ["; then
     echo ""
     echo "AutoGluon aliases (all use .venvs/autogluon):"
     echo "  chronos2 tide deepar patchtst tft naive_baseline statistical"
+    echo "Darts aliases (all use .venvs/darts):"
+    echo "  tsmixer"
     return 1 2>/dev/null || exit 1
 fi
 

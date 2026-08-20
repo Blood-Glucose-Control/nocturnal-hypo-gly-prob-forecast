@@ -13,6 +13,25 @@ from .base import BaseTimeSeriesFoundationModel, ModelConfig
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_MODEL_TYPES = (
+    "sundial",
+    "ttm",
+    "chronos",
+    "chronos2",
+    "moment",
+    "toto",
+    "moirai",
+    "timegrad",
+    "timesfm",
+    "tide",
+    "naive_baseline",
+    "statistical",
+    "deepar",
+    "patchtst",
+    "tft",
+    "tsmixer",
+)
+
 
 def create_model_and_config(
     model_type: str, checkpoint: Optional[str] = None, **kwargs
@@ -20,7 +39,7 @@ def create_model_and_config(
     """Factory function to create model and config based on type.
 
     Args:
-        model_type: One of 'sundial', 'ttm', 'chronos', 'tide', 'moirai'
+        model_type: One of the supported model IDs from SUPPORTED_MODEL_TYPES.
         checkpoint: Optional path to fine-tuned checkpoint
         **kwargs: Additional config parameters (e.g., num_samples, forecast_length)
 
@@ -638,9 +657,61 @@ def create_model_and_config(
             model = TFTForecaster(config)
         return model, config
 
+    elif model_type == "tsmixer":
+        from .tsmixer import TSMixerConfig, TSMixerForecaster
+
+        if checkpoint:
+            model = TSMixerForecaster.load(checkpoint)
+            config = model.config
+            if "batch_size" in kwargs:
+                config.batch_size = kwargs["batch_size"]
+            if "forecast_length" in kwargs:
+                requested = kwargs["forecast_length"]
+                if requested <= config.forecast_length:
+                    config.forecast_length = requested
+                else:
+                    logger.warning(
+                        f"Cannot increase forecast_length beyond trained value "
+                        f"({config.forecast_length}). Using saved value."
+                    )
+            if "context_length" in kwargs:
+                requested = kwargs["context_length"]
+                if requested != config.context_length:
+                    logger.warning(
+                        f"context_length mismatch: requested {requested}, "
+                        f"model trained with {config.context_length}. "
+                        f"Using saved value."
+                    )
+        else:
+            config = TSMixerConfig(
+                context_length=kwargs.get("context_length", 512),
+                forecast_length=kwargs.get("forecast_length", 96),
+                batch_size=kwargs.get("batch_size", 32),
+                num_epochs=kwargs.get("num_epochs", 10),
+                learning_rate=kwargs.get("learning_rate", 1e-3),
+                covariate_cols=kwargs.get("covariate_cols", []),
+                hidden_size=kwargs.get("hidden_size", 64),
+                ff_size=kwargs.get("ff_size", 64),
+                num_blocks=kwargs.get("num_blocks", 2),
+                activation=kwargs.get("activation", "ReLU"),
+                dropout=kwargs.get("dropout", 0.1),
+                norm_type=kwargs.get("norm_type", "LayerNorm"),
+                normalize_before=kwargs.get("normalize_before", False),
+                use_static_covariates=kwargs.get("use_static_covariates", False),
+                random_state=kwargs.get("random_state", 42),
+                target_col=kwargs.get("target_col", "bg_mM"),
+                patient_col=kwargs.get("patient_col", "p_num"),
+                time_col=kwargs.get("time_col", "datetime"),
+                interval_mins=kwargs.get("interval_mins", 5),
+                imputation_threshold_mins=kwargs.get("imputation_threshold_mins", 45),
+                min_segment_length=kwargs.get("min_segment_length"),
+                use_cpu=kwargs.get("use_cpu", False),
+            )
+            model = TSMixerForecaster(config)
+        return model, config
+
     else:
         raise ValueError(
             f"Unknown model type: {model_type}. "
-            f"Available: sundial, ttm, chronos, chronos2, toto, moirai, timegrad, timesfm, "
-            f"tide, moment, naive_baseline, statistical, deepar, patchtst, tft"
+            f"Available: {', '.join(SUPPORTED_MODEL_TYPES)}"
         )

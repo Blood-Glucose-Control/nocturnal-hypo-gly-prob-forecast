@@ -348,7 +348,24 @@ def parse_arguments() -> argparse.Namespace:
         "--model",
         type=str,
         default="sundial",
-        choices=["sundial", "ttm", "chronos", "moirai", "timegrad", "timesfm", "tide"],
+        choices=[
+            "sundial",
+            "ttm",
+            "chronos",
+            "chronos2",
+            "moirai",
+            "moment",
+            "toto",
+            "timegrad",
+            "timesfm",
+            "tide",
+            "naive_baseline",
+            "statistical",
+            "deepar",
+            "patchtst",
+            "tft",
+            "tsmixer",
+        ],
         help="Model type to use for evaluation",
     )
     parser.add_argument(
@@ -557,8 +574,7 @@ def main():
 
     logger.info(f"Dataset: {args.dataset}")
     logger.info(
-        f"Context: {context_length} steps "
-        f"({context_length / STEPS_PER_HOUR:.1f} hours)"
+        f"Context: {context_length} steps ({context_length / STEPS_PER_HOUR:.1f} hours)"
     )
     logger.info(
         f"Forecast: {forecast_length} steps "

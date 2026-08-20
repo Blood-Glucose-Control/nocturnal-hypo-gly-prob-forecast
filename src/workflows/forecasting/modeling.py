@@ -80,6 +80,7 @@ class ModelFactory:
             "deepar": "",
             "patchtst": "",
             "tft": "",
+            "tsmixer": "",
         }
         return defaults.get(model_type, "")
 
@@ -329,10 +330,32 @@ class ModelFactory:
                     **extra,
                 )
             )
+        if model_type == "tsmixer":
+            try:
+                from src.models.tsmixer import TSMixerConfig, TSMixerForecaster
+            except ImportError as e:
+                raise ImportError(
+                    "TSMixer model not available. Install with: "
+                    "source scripts/setup_model_env.sh tsmixer\n"
+                    f"{e}"
+                ) from e
+
+            extra = dict(config.extra_config) if config.extra_config else {}
+            return TSMixerForecaster(
+                TSMixerConfig(
+                    context_length=config.context_length,
+                    forecast_length=config.forecast_length,
+                    batch_size=config.batch_size,
+                    num_epochs=config.num_epochs,
+                    learning_rate=config.learning_rate,
+                    covariate_cols=extra.pop("covariate_cols", []),
+                    **extra,
+                )
+            )
         raise ValueError(
             f"Unsupported model type: {model_type}. "
             "Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
-            "naive_baseline, statistical, deepar, patchtst, tft"
+            "naive_baseline, statistical, deepar, patchtst, tft, tsmixer"
         )
 
     @staticmethod
@@ -592,8 +615,12 @@ class ModelFactory:
             from src.models.tft import TFTForecaster
 
             return TFTForecaster.load(model_path)
+        if model_type_lower == "tsmixer":
+            from src.models.tsmixer import TSMixerForecaster
+
+            return TSMixerForecaster.load(model_path)
         raise ValueError(
             f"Unsupported model type for loading: {model_type}. "
             "Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
-            "naive_baseline, statistical, deepar, patchtst, tft"
+            "naive_baseline, statistical, deepar, patchtst, tft, tsmixer"
         )

@@ -524,8 +524,8 @@ def step5_train_model(
     try:
         # Train the model (fit() is implemented by each model type)
         results = model.fit(train_data=train_data_for_model, output_dir=output_dir)
-        print("\n>>> Training completed successfully\n")
-        logger.info("✓ Training completed")
+        print("\n>>> Model fitting completed; validating post-training forecasts\n")
+        logger.info("✓ Model fitting completed; validating post-training forecasts")
         logger.info(f"  Results: {list(results.keys())}")
 
         # Save model checkpoint (save() is implemented by base class)
@@ -704,8 +704,8 @@ def step7_resume_training(
         results = model.fit(
             train_data=train_data_for_model, output_dir=str(resumed_output_dir)
         )
-        print("\n>>> Resumed training completed successfully\n")
-        logger.info("✓ Resumed training completed")
+        print("\n>>> Resumed model fitting completed; validating resumed forecasts\n")
+        logger.info("✓ Resumed model fitting completed; validating resumed forecasts")
         logger.info(f"  Results: {list(results.keys())}")
 
         # Save the model after resumed training (save() is from base class)
@@ -774,6 +774,12 @@ def _safe_int_from_env(name: str) -> Optional[int]:
         return int(value)
     except ValueError:
         return None
+
+
+def _is_existing_run_directory(path: Path) -> bool:
+    """Return True when path already looks like a timestamped RID run directory."""
+    name = path.name
+    return "_RID" in name and name.endswith("_forecasting_workflow")
 
 
 def _collect_workflow_output_paths(output_dir: Path) -> Dict[str, list[str]]:
@@ -850,8 +856,9 @@ Supported Model Types:
   - timesfm: Google TimesFM 2.0 (500M)
   - timegrad: TimeGrad (GRU + diffusion, trains from scratch)
   - tide: TiDE (Time-series Dense Encoder, trains from scratch via AutoGluon)
+  - tsmixer: TSMixer (all-MLP forecaster via Darts, trains from scratch)
 
-Step 4 is auto-skipped for from-scratch models like timegrad, tide.
+Step 4 is auto-skipped for from-scratch models like timegrad, tide, tsmixer.
 
 Each evaluation phase (4, 5, 6, 7) generates predictions and plots
 stored in separate subdirectories for comparison.
@@ -876,6 +883,7 @@ stored in separate subdirectories for comparison.
             "deepar",
             "patchtst",
             "tft",
+            "tsmixer",
         ],
         help="Type of model to use (default: ttm)",
     )
@@ -963,9 +971,8 @@ def run_with_args(args: argparse.Namespace) -> int:
         skip_steps.add(4)
 
     # Set output directory
-    # Always create a unique timestamped RID subdirectory so that:
-    #   - repeated runs never clobber each other, and
-    #   - the artifacts root (e.g. trained_models/artifacts/ttm) is not polluted.
+    # Create a unique timestamped RID subdirectory unless the caller already
+    # provided a run-specific directory path.
     _now = datetime.now()
     _ts_short = _now.strftime("%Y-%m-%d_%H:%M")
     _ts_long = _now.strftime("%Y%m%d_%H%M%S")
@@ -974,7 +981,11 @@ def run_with_args(args: argparse.Namespace) -> int:
     if args.output_dir is None:
         args.output_dir = f"./trained_models/artifacts/_tsfm_testing/{_run_subdir}"
     else:
-        args.output_dir = str(Path(args.output_dir) / _run_subdir)
+        requested_output_dir = Path(args.output_dir)
+        if _is_existing_run_directory(requested_output_dir):
+            args.output_dir = str(requested_output_dir)
+        else:
+            args.output_dir = str(requested_output_dir / _run_subdir)
     output_path = Path(args.output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
