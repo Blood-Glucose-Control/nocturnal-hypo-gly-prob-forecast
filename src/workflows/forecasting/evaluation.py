@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src.data.versioning.dataset_registry import DatasetRegistry
-from src.evaluation.episode_builders import build_midnight_episodes
+from ...data.versioning.dataset_registry import DatasetRegistry
+from ...evaluation.episode_builders import build_midnight_episodes
 
 logger = logging.getLogger(__name__)
 

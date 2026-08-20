@@ -13,23 +13,68 @@ from __future__ import annotations
 import logging
 import os
 from abc import abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Protocol, Tuple, cast
 
 import numpy as np
 import pandas as pd
 
-from src.data.preprocessing.gap_handling import segment_all_patients
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.tide.utils import convert_to_patient_dict
-from src.utils.logging_helper import info_print
+from ..data.preprocessing.gap_handling import segment_all_patients
+from .base import BaseTimeSeriesFoundationModel, TrainingBackend
+from .tide.utils import convert_to_patient_dict
+from ..utils.logging_helper import info_print
 
 logger = logging.getLogger(__name__)
+
+
+class DartsRuntimeConfig(Protocol):
+    """Config contract required by DartsGlobalModelBase."""
+
+    context_length: int
+    forecast_length: int
+    batch_size: int
+    num_epochs: int
+    covariate_cols: List[str]
+    time_col: str
+    target_col: str
+    interval_mins: int
+    patient_col: str
+    min_segment_length: Optional[int]
+    imputation_threshold_mins: int
+
+
+class DartsForecast(Protocol):
+    """Minimal forecast contract returned by Darts predict()."""
+
+    @property
+    def components(self) -> Any: ...
+
+    def values(self, copy: bool = ...) -> Any: ...
+
+
+class DartsModelContract(Protocol):
+    """Minimal Darts model contract used by this base wrapper."""
+
+    def fit(self, **kwargs: Any) -> Any: ...
+
+    def predict(self, **kwargs: Any) -> DartsForecast: ...
+
+    def save(self, path: str) -> None: ...
 
 
 class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
     """Shared base for Darts global forecasting models."""
 
     _DARTS_MODEL_FILENAME = "darts_model.pkl"
+
+    @property
+    def _cfg(self) -> DartsRuntimeConfig:
+        return cast(DartsRuntimeConfig, self.config)
+
+    @property
+    def _darts_model(self) -> DartsModelContract:
+        if self.model is None:
+            raise ValueError("Model must be initialized before use.")
+        return cast(DartsModelContract, self.model)
 
     @property
     def training_backend(self) -> TrainingBackend:
@@ -52,7 +97,7 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
         """Load and return the concrete Darts model from disk."""
 
     def _train_model_info_log(self) -> None:
-        config = self.config
+        config = self._cfg
         cov_str = (
             f", covariates: {config.covariate_cols}" if config.covariate_cols else ""
         )
@@ -68,7 +113,7 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
         """Convert a per-episode/segment DataFrame into Darts TimeSeries objects."""
         from darts import TimeSeries  # type: ignore[import-not-found]
 
-        config = self.config
+        config = self._cfg
         if config.time_col in data.columns:
             frame = data.copy()
             frame[config.time_col] = pd.to_datetime(frame[config.time_col])
@@ -130,7 +175,7 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
                 f"got {type(train_data).__name__}"
             )
 
-        config = self.config
+        config = self._cfg
         patient_dict = convert_to_patient_dict(
             train_data,
             patient_col=config.patient_col,
@@ -216,6 +261,7 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
         if segment_df.empty:
             return []
 
+        config = self._cfg
         if isinstance(segment_df.index, pd.DatetimeIndex):
             ordered = segment_df.sort_index()
             ordered = ordered[~ordered.index.duplicated(keep="last")]
@@ -223,22 +269,18 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
             gap_breaks = deltas.notna() & (deltas != expected_delta)
             group_ids = gap_breaks.cumsum()
             chunks = [chunk for _, chunk in ordered.groupby(group_ids)]
-        elif self.config.time_col in segment_df.columns:
+        elif config.time_col in segment_df.columns:
             ordered = segment_df.copy()
-            ordered[self.config.time_col] = pd.to_datetime(
-                ordered[self.config.time_col]
-            )
-            ordered = ordered.sort_values(self.config.time_col)
-            ordered = ordered.drop_duplicates(
-                subset=[self.config.time_col], keep="last"
-            )
-            deltas = ordered[self.config.time_col].diff()
+            ordered[config.time_col] = pd.to_datetime(ordered[config.time_col])
+            ordered = ordered.sort_values(config.time_col)
+            ordered = ordered.drop_duplicates(subset=[config.time_col], keep="last")
+            deltas = ordered[config.time_col].diff()
             gap_breaks = deltas.notna() & (deltas != expected_delta)
             group_ids = gap_breaks.cumsum()
             chunks = [chunk for _, chunk in ordered.groupby(group_ids)]
         else:
             raise ValueError(
-                f"Expected DatetimeIndex or '{self.config.time_col}' column in segment."
+                f"Expected DatetimeIndex or '{config.time_col}' column in segment."
             )
 
         if min_chunk_length is None:
@@ -263,7 +305,7 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
             fit_kwargs["past_covariates"] = covariate_series
 
         self._train_model_info_log()
-        self.model.fit(**fit_kwargs)
+        self._darts_model.fit(**fit_kwargs)
 
         return {
             "train_metrics": {
@@ -283,9 +325,10 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
         if self.model is None:
             raise ValueError("Model must be fitted or loaded before prediction.")
 
+        config = self._cfg
         target_series, past_covariates = self._to_target_and_covariates(data)
         predict_kwargs: Dict[str, Any] = {
-            "n": self.config.forecast_length,
+            "n": config.forecast_length,
             "series": target_series,
             "verbose": False,
         }
@@ -293,7 +336,7 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
             predict_kwargs["past_covariates"] = past_covariates
 
         if quantile_levels is None:
-            forecast = self.model.predict(**predict_kwargs)
+            forecast = self._darts_model.predict(**predict_kwargs)
             values = np.asarray(forecast.values(copy=False))
             if values.ndim == 1:
                 return values.astype(float)
@@ -306,7 +349,7 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
 
         resolved_quantiles = [float(q) for q in quantile_levels]
         predict_kwargs["predict_likelihood_parameters"] = True
-        forecast = self.model.predict(**predict_kwargs)
+        forecast = self._darts_model.predict(**predict_kwargs)
         quantile_values = np.asarray(forecast.values(copy=False))
         components = [str(component) for component in forecast.components]
 
@@ -352,7 +395,7 @@ class DartsGlobalModelBase(BaseTimeSeriesFoundationModel):
             )
         os.makedirs(output_dir, exist_ok=True)
         model_path = os.path.join(output_dir, self._DARTS_MODEL_FILENAME)
-        self.model.save(model_path)
+        self._darts_model.save(model_path)
         logger.info("Darts model checkpoint saved to %s", model_path)
 
     def _load_checkpoint(self, model_dir: str) -> None:

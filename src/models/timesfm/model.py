@@ -42,6 +42,27 @@ def _longest_nan_run(mask: np.ndarray) -> int:
     return max_run
 
 
+def _split_train_val_patients(
+    patient_ids: List[str], val_patient_ratio: float, seed: int = 42
+) -> Tuple[set[str], set[str]]:
+    """Split patient IDs into train/validation with at least one train patient."""
+    if not patient_ids:
+        return set(), set()
+
+    shuffled = list(patient_ids)
+    np.random.default_rng(seed).shuffle(shuffled)
+
+    # Single-patient personalization runs must keep the lone patient in train.
+    if len(shuffled) == 1:
+        return {shuffled[0]}, set()
+
+    requested_val = int(len(shuffled) * val_patient_ratio)
+    n_val = min(max(requested_val, 1), len(shuffled) - 1)
+    val_pids = set(shuffled[:n_val])
+    train_pids = set(shuffled[n_val:])
+    return train_pids, val_pids
+
+
 class TimesFMDataset(Dataset):
     """Per-patient sliding-window dataset for TimesFM fine-tuning.
 
@@ -133,6 +154,7 @@ class TimesFMForTrainer(nn.Module):
         dilate_alpha: float = 0.5,
         dilate_gamma: float = 0.01,
         dilate_weight: float = 0.5,
+        input_dtype: Optional[torch.dtype] = None,
     ):
         super().__init__()
         self.prediction_model = hf_prediction_model
@@ -140,6 +162,7 @@ class TimesFMForTrainer(nn.Module):
         self.dilate_alpha = dilate_alpha
         self.dilate_gamma = dilate_gamma
         self.dilate_weight = dilate_weight
+        self.input_dtype = input_dtype
         q_levels = list(hf_prediction_model.config.quantiles)  # e.g. [0.1,...,0.9]
         self.register_buffer(
             "quantile_levels",
@@ -157,6 +180,23 @@ class TimesFMForTrainer(nn.Module):
         **kwargs,
     ):
         _ = past_values_padding, kwargs
+
+        model_dtype = self.input_dtype
+        if model_dtype is None:
+            with contextlib.suppress(Exception):
+                model_dtype = next(
+                    param.dtype
+                    for param in self.prediction_model.parameters()
+                    if param.is_floating_point()
+                )
+        if model_dtype is None:
+            model_dtype = torch.float32
+
+        past_values = [
+            pv.to(dtype=model_dtype) if torch.is_floating_point(pv) else pv
+            for pv in past_values
+        ]
+
         outputs = cast(
             Any,
             self.prediction_model(
@@ -312,6 +352,7 @@ class MidTrainingEvalCallback(_TrainerCallbackBase):
         device: str = "cuda",
     ):
         self.eval_dataset = eval_dataset
+        os.makedirs(output_dir, exist_ok=True)
         self.csv_path = os.path.join(output_dir, "epoch_metrics.csv")
         self.horizon = horizon
         self.quantile_levels = quantile_levels
@@ -801,12 +842,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         # Step 5: Patient-level train/val split
         pids = sorted(patient_to_segments.keys(), key=str)
-        np.random.seed(42)
-        shuffled = list(pids)
-        np.random.shuffle(shuffled)
-        n_val = max(1, int(len(shuffled) * self.config.val_patient_ratio))
-        val_pids = set(shuffled[:n_val])
-        train_pids = set(shuffled[n_val:])
+        train_pids, val_pids = _split_train_val_patients(
+            pids, self.config.val_patient_ratio, seed=42
+        )
 
         # Flatten segment arrays per split.
         # When in-training temporal eval is active, truncate each segment at the
@@ -862,16 +900,33 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             f"Windows: {len(train_dataset):,} train, {len(val_dataset):,} val"
         )
 
+        if len(train_dataset) == 0:
+            raise ValueError(
+                "TimesFM generated 0 training windows after patient split/windowing. "
+                f"patients={len(patient_to_segments)}, "
+                f"train_patients={len(train_pids)}, val_patients={len(val_pids)}, "
+                f"context_length={self.config.context_length}, "
+                f"horizon_length={self.config.horizon_length}, stride={stride}. "
+                "Try reducing context/horizon lengths or val_patient_ratio."
+            )
+
         train_loader = DataLoader(
             train_dataset,
             batch_size=self.config.batch_size,
             shuffle=True,
         )
-        val_loader = DataLoader(
-            val_dataset,
-            batch_size=self.config.batch_size,
-            shuffle=False,
-        )
+        val_loader = None
+        if len(val_dataset) > 0:
+            val_loader = DataLoader(
+                val_dataset,
+                batch_size=self.config.batch_size,
+                shuffle=False,
+            )
+        elif len(val_pids) > 0:
+            info_print(
+                "Validation patient split produced 0 windows; continuing without "
+                "patient-level validation loader."
+            )
 
         # Step 6: Temporal eval slice for in-training callback.
         # Split each series at the RAW level (before windowing) so that no eval
@@ -934,11 +989,11 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def _collate_fn(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, Any]:
         """Custom collator for HF Trainer.
 
-        HF TimesFM expects past_values as a list of 1D tensors (variable-length
-        sequences). It handles internal padding via _preprocess.
+        We return a dense [B, T] tensor for past_values so multi-GPU scattering
+        keeps past_values and freq aligned under DataParallel.
         """
         return {
-            "past_values": [item["past_values"] for item in batch],
+            "past_values": torch.stack([item["past_values"] for item in batch]),
             "past_values_padding": torch.stack(
                 [item["past_values_padding"] for item in batch]
             ),
@@ -955,12 +1010,22 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         if kwargs:
             logger.debug("Ignoring unsupported TimesFM train kwargs: %s", list(kwargs))
         info_print("Starting TimesFM finetuning with HF Trainer...")
+        os.makedirs(output_dir, exist_ok=True)
 
         train_loader, val_loader, temporal_eval_dataset = self._prepare_training_data(
             train_data
         )
         if self.hf_model is None:
             raise RuntimeError("TimesFM model is not initialized before training.")
+
+        dtype_map: Dict[str, torch.dtype] = {
+            "bfloat16": torch.bfloat16,
+            "float16": torch.float16,
+            "float32": torch.float32,
+        }
+        input_dtype = dtype_map.get(self.config.torch_dtype, torch.float32)
+        if self.device != "cuda":
+            input_dtype = torch.float32
 
         # Wrap model for normalized-space loss
         trainer_model = TimesFMForTrainer(
@@ -969,6 +1034,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             dilate_alpha=self.config.dilate_alpha,
             dilate_gamma=self.config.dilate_gamma,
             dilate_weight=self.config.dilate_weight,
+            input_dtype=input_dtype,
         )
 
         training_args = TrainingArguments(
