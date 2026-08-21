@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ...config.schemas import get_model_feature_override_columns
+from ...config.schemas.workflow_configs import get_model_feature_override_columns
 from ...data.versioning.dataset_registry import DatasetRegistry
 from ...evaluation.episode_builders import build_midnight_episodes
 

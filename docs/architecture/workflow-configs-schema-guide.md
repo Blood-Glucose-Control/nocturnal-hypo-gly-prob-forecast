@@ -28,8 +28,15 @@ Key fields:
 - `datasets`: non-empty list of dataset names.
 - `config_dir`, `output_dir`: workflow paths.
 - `skip_training`, `skip_steps`, `epochs`, `batch_size`.
-- `model_config_path`: accepts both `model_config_path` and legacy `model_config`
-  input keys via aliasing.
+- `model_config_path`: path to the model YAML override file.
+
+How this connects to CLI:
+
+- The CLI flag is still `--model-config` in the workflow parser.
+- `pipeline.py` maps that CLI value into the schema field `model_config_path`
+  before validation.
+- We keep one schema field name (`model_config_path`) as the canonical internal
+  contract.
 
 Validation behavior:
 

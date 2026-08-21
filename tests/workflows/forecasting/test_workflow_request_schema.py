@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.config.schemas import (
+from src.config.schemas.workflow_configs import (
     get_model_feature_override_columns,
     validate_forecasting_workflow_request,
 )
@@ -19,7 +19,7 @@ def test_forecasting_workflow_request_schema_valid_payload() -> None:
             "skip_steps": [4, 7],
             "epochs": 2,
             "batch_size": 32,
-            "model_config": "configs/models/tsmixer/00_iob_cob_smoke.yaml",
+            "model_config_path": "configs/models/tsmixer/00_iob_cob_smoke.yaml",
         }
     )
 

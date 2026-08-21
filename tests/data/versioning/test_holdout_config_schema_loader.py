@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from src.config.schemas import (
+from src.config.schemas.data_configs import (
     build_holdout_runtime_config,
     load_holdout_runtime_config_from_yaml,
 )

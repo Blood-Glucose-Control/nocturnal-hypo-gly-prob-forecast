@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from pydantic import AliasChoices, ConfigDict, Field, ValidationError, field_validator
+from pydantic import ConfigDict, Field, ValidationError, field_validator
 
 from .base import BaseConfigSchema
 
@@ -20,11 +20,7 @@ class ForecastingWorkflowRequestSchema(BaseConfigSchema):
     skip_steps: list[int] = Field(default_factory=list)
     epochs: Optional[int] = Field(default=None, gt=0)
     batch_size: Optional[int] = Field(default=None, gt=0)
-    model_config_path: Optional[str] = Field(
-        default=None,
-        validation_alias=AliasChoices("model_config_path", "model_config"),
-        serialization_alias="model_config",
-    )
+    model_config_path: Optional[str] = Field(default=None)
 
     @field_validator("skip_steps")
     @classmethod

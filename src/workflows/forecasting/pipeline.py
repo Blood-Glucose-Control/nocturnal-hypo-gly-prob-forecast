@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 
-from src.config.schemas import (
+from src.config.schemas.workflow_configs import (
     get_model_feature_override_columns,
     validate_forecasting_workflow_request,
 )
@@ -956,7 +956,7 @@ def run_with_args(args: argparse.Namespace) -> int:
             "skip_steps": args.skip_steps,
             "epochs": args.epochs,
             "batch_size": args.batch_size,
-            "model_config": args.model_config,
+            "model_config_path": args.model_config,
         }
     )
     args.model_type = validated_request.model_type
