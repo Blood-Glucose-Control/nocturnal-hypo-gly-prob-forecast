@@ -22,7 +22,10 @@ from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 
-from src.config.schemas import validate_forecasting_workflow_request
+from src.config.schemas import (
+    get_model_feature_override_columns,
+    validate_forecasting_workflow_request,
+)
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.data.preprocessing.dataset_combiner import (
     combine_datasets_for_training,
@@ -506,21 +509,19 @@ def step5_train_model(
     # Filter training data to only model config columns if specified
     # This ensures the preprocessor only learns scalers for the features we'll use at inference
     train_data_for_model = combined_data
-    if model_config_overrides:
-        # Guard against YAML null values converting to None
-        input_features = model_config_overrides.get("input_features") or []
-        target_features = model_config_overrides.get("target_features") or []
-        if input_features or target_features:
-            required_cols = ["p_num", "id", "datetime"]
-            model_cols = list(input_features) + list(target_features)
-            all_cols = [
-                col
-                for col in model_cols + required_cols
-                if col in combined_data.columns
-            ]
-            train_data_for_model = combined_data[all_cols].copy()
-            logger.info(f"Filtered training data to model config columns: {model_cols}")
-            logger.info(f"  Training data shape: {train_data_for_model.shape}")
+    model_feature_cols = get_model_feature_override_columns(model_config_overrides)
+    if model_feature_cols:
+        required_cols = ["p_num", "id", "datetime"]
+        all_cols = [
+            col
+            for col in model_feature_cols + required_cols
+            if col in combined_data.columns
+        ]
+        train_data_for_model = combined_data[all_cols].copy()
+        logger.info(
+            f"Filtered training data to model config columns: {model_feature_cols}"
+        )
+        logger.info(f"  Training data shape: {train_data_for_model.shape}")
 
     try:
         # Train the model (fit() is implemented by each model type)
@@ -686,19 +687,15 @@ def step7_resume_training(
 
     # Filter training data to same columns used in initial training
     train_data_for_model = combined_data
-    if model_config_overrides:
-        # Guard against YAML null values converting to None
-        input_features = model_config_overrides.get("input_features") or []
-        target_features = model_config_overrides.get("target_features") or []
-        if input_features or target_features:
-            required_cols = ["p_num", "id", "datetime"]
-            model_cols = list(input_features) + list(target_features)
-            all_cols = [
-                col
-                for col in model_cols + required_cols
-                if col in combined_data.columns
-            ]
-            train_data_for_model = combined_data[all_cols].copy()
+    model_feature_cols = get_model_feature_override_columns(model_config_overrides)
+    if model_feature_cols:
+        required_cols = ["p_num", "id", "datetime"]
+        all_cols = [
+            col
+            for col in model_feature_cols + required_cols
+            if col in combined_data.columns
+        ]
+        train_data_for_model = combined_data[all_cols].copy()
 
     try:
         # Continue training (fit() is implemented by child class)
