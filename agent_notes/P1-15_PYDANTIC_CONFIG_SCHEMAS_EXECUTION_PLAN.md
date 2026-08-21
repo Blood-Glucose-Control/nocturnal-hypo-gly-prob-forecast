@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-20
 **Task ID:** `pydantic-config-schemas`
-**Status:** Phase 1 complete; Phase 2 pilot adapter implementation in progress
+**Status:** Phase 1-3 complete; Phase 4 preparation in progress
 
 ## What this task means (plain English)
 
@@ -91,9 +91,11 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 
 ## Immediate next slice (what to implement next)
 
-1. ✅ Expand pilot coverage beyond model config load (workflow request + data holdout + evaluation feature-override schema lanes wired).
-2. ✅ Add fixture-backed regression tests against active `configs/models/tsmixer/*.yaml` profiles.
-3. Draft the Phase 3 migration table (model/data/eval ownership and target schema classes).
+1. Phase 4.1 — consolidate duplicate holdout/model-config validation entrypoints:
+   - migrate `src/experiments/nocturnal/holdout_split_analysis.py` from `HoldoutConfig.load(...)` to schema loader lane;
+   - audit workflow evaluation scripts still loading loose model YAML dicts (`src/workflows/evaluation/nocturnal_hypo_eval.py`, `src/workflows/evaluation/sliding_window_eval.py`, `src/workflows/evaluation/validate_predict_batch.py`) and route through schema helpers where applicable.
+2. Phase 4.2 — generate JSON schema artifacts from active schema modules (`model_configs.py`, `data_configs.py`, `workflow_configs.py`) into docs-visible location.
+3. Phase 4.3 — contributor doc pass: document canonical “add a schema + adapter” workflow and deprecate any stale validation guidance.
 
 ## Phase 3 migration table (draft)
 
@@ -108,3 +110,12 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 1. ✅ Data holdout schema adapter (`configs/data/holdout*` files) with parity checks against `HoldoutConfig`.
 2. ✅ Workflow request schema for `ForecastingWorkflowRequest`/CLI normalization.
 3. ✅ Evaluation override schema for the subset read in `evaluation.py` and `pipeline.py`.
+
+## Phase 4 kickoff checklist (prepared)
+
+- [x] Merge Phase 3 PR and fast-forward local `main`.
+- [x] Branch housekeeping (remove stale local Phase 3 branch).
+- [x] Create dedicated Phase 4 branch.
+- [ ] Implement validation-path consolidation changes.
+- [ ] Add JSON schema artifact generation.
+- [ ] Final contributor documentation pass for schema evolution workflow.
