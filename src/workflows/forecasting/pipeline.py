@@ -22,28 +22,28 @@ from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 
-from src.config.schemas.workflow_configs import (
+from ...config.schemas.workflow_configs import (
     get_model_feature_override_columns,
     validate_forecasting_workflow_request,
 )
-from src.data.versioning.dataset_registry import DatasetRegistry
-from src.data.preprocessing.dataset_combiner import (
+from ...data.versioning.dataset_registry import DatasetRegistry
+from ...data.preprocessing.dataset_combiner import (
     combine_datasets_for_training,
     print_dataset_column_table,
 )
-from src.workflows.forecasting.evaluation import (
+from .evaluation import (
     evaluate_and_plot as phase_evaluate_and_plot,
 )
-from src.workflows.forecasting.modeling import (
+from .modeling import (
     GenericModelConfig,
     ModelFactory,
     load_model_config_from_yaml as load_workflow_model_config_from_yaml,
 )
-from src.workflows.runtime.hardware import (
+from ..runtime.hardware import (
     clear_cuda_cache,
     get_gpu_info as runtime_get_gpu_info,
 )
-from src.workflows.runtime.manifest import (
+from ..runtime.manifest import (
     build_run_manifest,
     utc_now,
     write_run_manifest,

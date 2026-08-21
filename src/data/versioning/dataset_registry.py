@@ -15,10 +15,10 @@ from typing import Dict, Optional, Tuple, Union
 
 import pandas as pd
 
-from src.config.schemas.data_configs import load_holdout_runtime_config_from_yaml
-from src.data.diabetes_datasets.data_loader import get_loader
-from src.data.versioning.holdout_config import HoldoutConfig
-from src.data.versioning.holdout_manager import HoldoutManager
+from ...config.schemas.data_configs import load_holdout_runtime_config_from_yaml
+from ..diabetes_datasets.data_loader import get_loader
+from .holdout_config import HoldoutConfig
+from .holdout_manager import HoldoutManager
 
 logger = logging.getLogger(__name__)
 
