@@ -14,6 +14,11 @@ from src.config.schemas import (
 from src.workflows.forecasting.modeling import GenericModelConfig, ModelFactory
 from src.workflows.forecasting.modeling import load_model_config_from_yaml
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+TSMIXER_SMOKE_CONFIG_PATH = (
+    REPO_ROOT / "configs" / "models" / "tsmixer" / "00_iob_cob_smoke.yaml"
+)
+
 
 def _write(path: Path, content: str) -> str:
     path.write_text(content, encoding="utf-8")
@@ -126,6 +131,33 @@ def test_tsmixer_runtime_adapter_builds_runtime_config() -> None:
     assert runtime_config["forecast_length"] == 96
 
 
+def test_tsmixer_smoke_profile_validates_via_schema_loader() -> None:
+    loaded = load_model_config_from_yaml(
+        str(TSMIXER_SMOKE_CONFIG_PATH),
+        model_type="tsmixer",
+    )
+
+    assert loaded["model_type"] == "tsmixer"
+    assert loaded["training_mode"] == "from_scratch"
+    assert loaded["covariate_cols"] == ["iob", "cob"]
+    assert loaded["quantile_levels"] == [0.1, 0.5, 0.9]
+
+
+def test_tsmixer_smoke_profile_builds_runtime_payload() -> None:
+    loaded = load_model_config_from_yaml(
+        str(TSMIXER_SMOKE_CONFIG_PATH),
+        model_type="tsmixer",
+    )
+    runtime_config = build_model_runtime_config("tsmixer", loaded)
+
+    assert runtime_config["learning_rate"] == pytest.approx(0.001)
+    assert runtime_config["num_epochs"] == 1
+    assert runtime_config["batch_size"] == 32
+    assert runtime_config["target_col"] == "bg_mM"
+    assert runtime_config["patient_col"] == "p_num"
+    assert runtime_config["time_col"] == "datetime"
+
+
 def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
     assert "tsmixer" in get_registered_model_config_types()
     assert get_model_config_schema("tsmixer") is not None
@@ -180,3 +212,25 @@ def test_runtime_adapter_reports_registered_types_for_unknown_model() -> None:
     assert "unknown_model" in message
     assert "Registered adapter types" in message
     assert "tsmixer" in message
+
+
+def test_tsmixer_factory_path_supports_real_smoke_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_tsmixer_module(monkeypatch)
+
+    overrides = load_model_config_from_yaml(
+        str(TSMIXER_SMOKE_CONFIG_PATH),
+        model_type="tsmixer",
+    )
+    config = ModelFactory.create_finetune_config(
+        model_type="tsmixer",
+        extra_config=overrides,
+    )
+    model = ModelFactory.create_model(config)
+
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.covariate_cols == ["iob", "cob"]
+    assert model.config.num_epochs == 1
+    assert model.config.batch_size == 32
+    assert model.config.learning_rate == pytest.approx(0.001)

@@ -92,5 +92,5 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 ## Immediate next slice (what to implement next)
 
 1. Expand pilot coverage beyond model config load (wire data/eval schema contracts for one end-to-end workflow lane).
-2. Add fixture-backed regression tests against active `configs/models/tsmixer/*.yaml` profiles.
+2. ✅ Add fixture-backed regression tests against active `configs/models/tsmixer/*.yaml` profiles.
 3. Draft the Phase 3 migration table (model/data/eval ownership and target schema classes).
