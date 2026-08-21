@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
+from importlib import import_module
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import Literal, Optional
 
 from pydantic import Field, ValidationError, model_validator
 
 from .base import BaseConfigSchema
 from .loader import load_yaml_as_schema
-
-if TYPE_CHECKING:
-    from src.data.versioning.holdout_config import HoldoutConfig
 
 
 class TemporalHoldoutConfigSchema(BaseConfigSchema):
@@ -66,7 +64,13 @@ def _format_validation_details(exc: ValidationError) -> str:
     return "\n".join(details)
 
 
-def build_holdout_runtime_config(config_data: dict) -> "HoldoutConfig":
+def _to_holdout_config(validated_payload: dict):
+    holdout_module = import_module("src.data.versioning.holdout_config")
+    holdout_cls = getattr(holdout_module, "HoldoutConfig")
+    return holdout_cls.from_dict(validated_payload)
+
+
+def build_holdout_runtime_config(config_data: dict):
     """Validate and adapt mapping payload to HoldoutConfig runtime object."""
     try:
         schema = HoldoutConfigSchema.model_validate(config_data)
@@ -76,14 +80,10 @@ def build_holdout_runtime_config(config_data: dict) -> "HoldoutConfig":
             f"{_format_validation_details(exc)}"
         ) from exc
 
-    from src.data.versioning.holdout_config import HoldoutConfig
-
-    return HoldoutConfig.from_dict(schema.model_dump(exclude_none=True))
+    return _to_holdout_config(schema.model_dump(exclude_none=True))
 
 
-def load_holdout_runtime_config_from_yaml(config_path: str | Path) -> "HoldoutConfig":
+def load_holdout_runtime_config_from_yaml(config_path: str | Path):
     """Load YAML holdout config using schema validation and runtime adapter."""
     validated = load_yaml_as_schema(config_path, HoldoutConfigSchema)
-    from src.data.versioning.holdout_config import HoldoutConfig
-
-    return HoldoutConfig.from_dict(validated.model_dump(exclude_none=True))
+    return _to_holdout_config(validated.model_dump(exclude_none=True))
