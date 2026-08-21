@@ -1,5 +1,10 @@
 """Exports for config schema models and validation helpers."""
 
+from .data_configs import (
+    HoldoutConfigSchema,
+    build_holdout_runtime_config,
+    load_holdout_runtime_config_from_yaml,
+)
 from .loader import load_yaml_as_schema
 from .model_configs import (
     TSMixerModelConfigSchema,
@@ -14,12 +19,15 @@ from .workflow_configs import (
 )
 
 __all__ = [
+    "HoldoutConfigSchema",
     "TSMixerModelConfigSchema",
+    "build_holdout_runtime_config",
     "build_model_runtime_config",
     "build_tsmixer_runtime_config",
     "get_registered_model_config_types",
     "get_model_config_schema",
     "ForecastingWorkflowRequestSchema",
+    "load_holdout_runtime_config_from_yaml",
     "validate_forecasting_workflow_request",
     "load_yaml_as_schema",
 ]

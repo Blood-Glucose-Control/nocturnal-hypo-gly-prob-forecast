@@ -91,7 +91,7 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 
 ## Immediate next slice (what to implement next)
 
-1. 🔄 Expand pilot coverage beyond model config load (workflow request schema wired; data/eval schema contracts next).
+1. 🔄 Expand pilot coverage beyond model config load (workflow request + data holdout schema lanes wired; evaluation schema contract next).
 2. ✅ Add fixture-backed regression tests against active `configs/models/tsmixer/*.yaml` profiles.
 3. Draft the Phase 3 migration table (model/data/eval ownership and target schema classes).
 
@@ -100,11 +100,11 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 | Domain | Current runtime surface | Current contract path | Target schema module | Migration owner |
 |---|---|---|---|---|
 | Model config (pilot complete) | `src/workflows/forecasting/modeling.py` (`load_model_config_from_yaml`, `ModelFactory.create_model`) | `src/config/schemas/model_configs.py` route registry + adapter | `src/config/schemas/model_configs.py` | Forecasting workflow |
-| Data holdout config | `src/data/versioning/dataset_registry.py` + `src/data/versioning/holdout_manager.py` | Dataclass validation in `src/data/versioning/holdout_config.py` | `src/config/schemas/data_configs.py` (planned) | Data/versioning |
-| Workflow/evaluation request config | `src/workflows/forecasting/pipeline.py` (`ForecastingWorkflowRequest`, `argparse` in `run_with_args`) + `src/workflows/forecasting/evaluation.py` | Ad-hoc dict/arg parsing (`model_config_overrides`, CLI args) | `src/config/schemas/workflow_configs.py` (planned) | Forecasting workflow |
+| Data holdout config | `src/data/versioning/dataset_registry.py` + `src/data/versioning/holdout_manager.py` | Dataclass validation in `src/data/versioning/holdout_config.py` | `src/config/schemas/data_configs.py` (active) | Data/versioning |
+| Workflow/evaluation request config | `src/workflows/forecasting/pipeline.py` (`ForecastingWorkflowRequest`, `argparse` in `run_with_args`) + `src/workflows/forecasting/evaluation.py` | Ad-hoc dict/arg parsing (`model_config_overrides`, CLI args) | `src/config/schemas/workflow_configs.py` (active for request lane) | Forecasting workflow |
 
 ### Phase 3 rollout order
 
-1. Data holdout schema adapter (`configs/data/holdout*` files) with parity checks against `HoldoutConfig`.
-2. Workflow request schema for `ForecastingWorkflowRequest`/CLI normalization.
+1. ✅ Data holdout schema adapter (`configs/data/holdout*` files) with parity checks against `HoldoutConfig`.
+2. ✅ Workflow request schema for `ForecastingWorkflowRequest`/CLI normalization.
 3. Evaluation override schema for the subset read in `evaluation.py` and `pipeline.py`.
