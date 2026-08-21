@@ -132,7 +132,14 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 | `tft` | Active | ⏳ Pending | Add schema + adapter for TFT lane |
 | `naive_baseline` | Active | ⏳ Pending | Add minimal schema + adapter (baseline-only fields) |
 | `statistical` | Active | ⏳ Pending | Add minimal schema + adapter (method/seasonality fields) |
-| `timegpt` | Not in active factory | 🚫 Out of scope for active rollout | Track under config cleanup/disposition tasks |
+
+### Rollout execution timing
+
+- Start immediately after Phase 4.2 schema artifact generation.
+- Execute in small PR waves (2-3 model families per PR) so each wave has focused
+  fixtures + invalid-config tests and fast review cycles.
+- Target order: high-use families first (`chronos2`, `ttm`, `timesfm`, `tide`),
+  then remaining active families.
 
 ## Phase 4 kickoff checklist (prepared)
 
