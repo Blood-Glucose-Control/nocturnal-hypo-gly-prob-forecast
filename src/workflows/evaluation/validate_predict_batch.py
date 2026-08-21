@@ -67,10 +67,11 @@ from typing import Dict, List, Optional
 import numpy as np
 import pandas as pd
 
-from src.data.versioning.dataset_registry import DatasetRegistry
-from src.data.utils import get_patient_column
-from src.evaluation.episode_builders import build_midnight_episodes
-from src.models import create_model_and_config
+from ...data.utils import get_patient_column
+from ...data.versioning.dataset_registry import DatasetRegistry
+from ...evaluation.episode_builders import build_midnight_episodes
+from ...models import create_model_and_config
+from ..forecasting.modeling import load_model_config_from_yaml
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -404,14 +405,17 @@ def main():
     logger.info("Tolerance  : %.2e", args.tolerance)
 
     # --- Load model ---
-    from src.utils import load_yaml_config
-
-    config_dict = load_yaml_config(args.model_config) if args.model_config else {}
+    config_dict = (
+        load_model_config_from_yaml(args.model_config, model_type=args.model)
+        if args.model_config
+        else {}
+    )
     model_kwargs = {
         **config_dict,
         "context_length": args.context_length,
         "forecast_length": args.forecast_length,
     }
+    model_kwargs.pop("model_type", None)
     model, config = create_model_and_config(
         args.model, checkpoint=args.checkpoint, **model_kwargs
     )
