@@ -22,6 +22,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 
+from src.config.schemas import validate_forecasting_workflow_request
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.data.preprocessing.dataset_combiner import (
     combine_datasets_for_training,
@@ -947,6 +948,29 @@ def run_with_args(args: argparse.Namespace) -> int:
     exit_code = 1
     train_results: Optional[Dict[str, Any]] = None
     resumed_results: Optional[Dict[str, Any]] = None
+
+    validated_request = validate_forecasting_workflow_request(
+        {
+            "model_type": args.model_type,
+            "datasets": args.datasets,
+            "config_dir": args.config_dir,
+            "output_dir": args.output_dir,
+            "skip_training": args.skip_training,
+            "skip_steps": args.skip_steps,
+            "epochs": args.epochs,
+            "batch_size": args.batch_size,
+            "model_config": args.model_config,
+        }
+    )
+    args.model_type = validated_request.model_type
+    args.datasets = validated_request.datasets
+    args.config_dir = validated_request.config_dir
+    args.output_dir = validated_request.output_dir
+    args.skip_training = validated_request.skip_training
+    args.skip_steps = validated_request.skip_steps
+    args.epochs = validated_request.epochs
+    args.batch_size = validated_request.batch_size
+    args.model_config = validated_request.model_config_path
 
     # Load model config from YAML if provided
     model_config_overrides = None
