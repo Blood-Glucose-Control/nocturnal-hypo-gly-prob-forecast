@@ -56,6 +56,8 @@ Documentation is currently under construction.
 
 [Repository Design Handbook](architecture/repository-design-handbook.md)
 
+[Workflow Config Schemas](architecture/workflow-configs-schema-guide.md)
+
 ## MkDocs
 This documentation is made with [mkdocs.org](https://www.mkdocs.org).
 

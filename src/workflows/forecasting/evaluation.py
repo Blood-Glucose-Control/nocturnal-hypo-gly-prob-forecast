@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from ...config.schemas.workflow_configs import get_model_feature_override_columns
 from ...data.versioning.dataset_registry import DatasetRegistry
 from ...evaluation.episode_builders import build_midnight_episodes
 
@@ -79,16 +80,9 @@ def _generate_forecasts(
         forecast_length = model.config.forecast_length
         registry = DatasetRegistry(holdout_config_dir=config_dir)
 
-        if model_config_overrides:
-            input_features = model_config_overrides.get("input_features") or []
-            target_features = model_config_overrides.get("target_features") or []
-            if input_features or target_features:
-                model_features = list(input_features) + list(target_features)
-                logger.info(f"  Using model config features: {model_features}")
-            else:
-                model_features = None
-        else:
-            model_features = None
+        model_features = get_model_feature_override_columns(model_config_overrides)
+        if model_features:
+            logger.info(f"  Using model config features: {model_features}")
 
         predictions_dir = Path(output_dir) / "predictions" / phase_name
         predictions_dir.mkdir(parents=True, exist_ok=True)

@@ -2,7 +2,10 @@
 
 import pytest
 
-from src.config.schemas import validate_forecasting_workflow_request
+from src.config.schemas.workflow_configs import (
+    get_model_feature_override_columns,
+    validate_forecasting_workflow_request,
+)
 
 
 def test_forecasting_workflow_request_schema_valid_payload() -> None:
@@ -16,7 +19,7 @@ def test_forecasting_workflow_request_schema_valid_payload() -> None:
             "skip_steps": [4, 7],
             "epochs": 2,
             "batch_size": 32,
-            "model_config": "configs/models/tsmixer/00_iob_cob_smoke.yaml",
+            "model_config_path": "configs/models/tsmixer/00_iob_cob_smoke.yaml",
         }
     )
 
@@ -51,3 +54,27 @@ def test_forecasting_workflow_request_schema_rejects_empty_datasets() -> None:
         )
 
     assert "datasets" in str(exc_info.value)
+
+
+def test_model_feature_override_columns_extracts_valid_lists() -> None:
+    columns = get_model_feature_override_columns(
+        {
+            "input_features": ["iob", "cob"],
+            "target_features": ["bg_mM"],
+            "batch_size": 32,
+        }
+    )
+
+    assert columns == ["iob", "cob", "bg_mM"]
+
+
+def test_model_feature_override_columns_rejects_invalid_types() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        get_model_feature_override_columns(
+            {
+                "input_features": "iob",
+                "target_features": ["bg_mM"],
+            }
+        )
+
+    assert "input_features" in str(exc_info.value)
