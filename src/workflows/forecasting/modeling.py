@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from src.config.schemas import get_model_config_schema, load_yaml_as_schema
 from src.utils.config_loader import load_yaml_config
 
 logger = logging.getLogger(__name__)
@@ -42,16 +43,32 @@ class GenericModelConfig:
     extra_config: Dict[str, Any] = field(default_factory=dict)
 
 
-def load_model_config_from_yaml(config_path: str) -> Dict[str, Any]:
+def load_model_config_from_yaml(
+    config_path: str, model_type: Optional[str] = None
+) -> Dict[str, Any]:
     """Load a model config override dictionary from YAML."""
     config_file = Path(config_path)
     if not config_file.exists():
         raise FileNotFoundError(f"Model config file not found: {config_path}")
 
-    config = load_yaml_config(config_path)
-    if config is None:
-        logger.warning(f"Model config file is empty: {config_path}")
-        return {}
+    schema_type = get_model_config_schema(model_type) if model_type else None
+    if schema_type is not None:
+        validated = load_yaml_as_schema(config_file, schema_type)
+        config = validated.model_dump(exclude_none=True)
+        logger.info(
+            "Validated model config with schema %s for model_type=%s",
+            schema_type.__name__,
+            model_type,
+        )
+    else:
+        config = load_yaml_config(config_path)
+        if config is None:
+            logger.warning(f"Model config file is empty: {config_path}")
+            return {}
+        if not isinstance(config, dict):
+            raise ValueError(
+                f"Model config must be a YAML mapping/object: {config_path}"
+            )
 
     logger.info(f"Loaded model config from: {config_path}")
     logger.info(f"  Parameters specified: {len(config)}")

@@ -14,7 +14,7 @@ This system ensures consistent and reproducible train/holdout data splits across
 ## Directory Structure
 
 ```
-configs/data/holdout/          # Holdout configuration files
+configs/data/holdout/         # Holdout configuration files
 ├── kaggle_brisT1D.yaml       # Config for Kaggle dataset
 ├── gluroo.yaml               # Config for Gluroo dataset
 ├── aleppo.yaml               # Config for Aleppo dataset

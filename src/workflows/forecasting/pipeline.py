@@ -951,7 +951,10 @@ def run_with_args(args: argparse.Namespace) -> int:
     # Load model config from YAML if provided
     model_config_overrides = None
     if args.model_config:
-        model_config_overrides = load_workflow_model_config_from_yaml(args.model_config)
+        model_config_overrides = load_workflow_model_config_from_yaml(
+            args.model_config,
+            model_type=args.model_type,
+        )
 
     # Build the set of steps to skip
     skip_steps: set[int] = set(args.skip_steps)

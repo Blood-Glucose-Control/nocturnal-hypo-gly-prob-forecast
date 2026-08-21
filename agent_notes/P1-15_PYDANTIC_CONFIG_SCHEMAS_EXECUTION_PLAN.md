@@ -15,6 +15,7 @@ This task introduces **Pydantic v2 schemas** as the validation layer so config f
 - safer to evolve without silent misconfiguration.
 
 This is **not** a behavior rewrite of model training/eval logic; it is a config contract hardening effort.
+We do **not** need to preserve legacy functionality, we don't want to introduce other compatibility maintenance burden.
 
 ## Goals
 
@@ -22,11 +23,13 @@ This is **not** a behavior rewrite of model training/eval logic; it is a config 
 2. Keep migration incremental (no flag-day break).
 3. Preserve existing entrypoint behavior while adding strict validation boundaries.
 4. Generate machine-readable schema docs from source-of-truth models.
+5. Have consistent configuration settings across all models and datasets, with extra field handling when necessary.
+6. Reassess what the proper design pattern should be for configurations, the current organization doesn't make perfect sense, this is a good opportunity to reorganize the configuration storage structure.
+7. Clean-up and clear out old legacy configuration files and documentation that are from very old iterations of the code base. I.e. don't treat documents in /configs/ as ground truth. Update it to our current understanding of design. Treat this as a way to understand how it used to work, but all of this needs to be updated to present functionality.
 
 ## Non-goals
 
 - Rewriting all workflow logic in one pass.
-- Breaking existing YAML surfaces abruptly.
 - Introducing parallel config systems long-term.
 
 ## Proposed rollout
@@ -81,6 +84,7 @@ This is **not** a behavior rewrite of model training/eval logic; it is a config 
 
 - Canonical model/data/eval config paths validate through Pydantic schemas.
 - Existing runtime entrypoints pass targeted regression checks.
+    - A clear entrypoint document is created with the main useablility maintained entrypoints clearly defined.
 - Schema docs are generated from code and linked in docs.
 - Deprecated pre-schema validation paths are removed or explicitly sunset-tracked.
 
