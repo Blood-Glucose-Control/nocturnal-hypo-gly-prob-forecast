@@ -7,7 +7,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from src.config.schemas import get_model_config_schema, load_yaml_as_schema
+from src.config.schemas import (
+    build_model_runtime_config,
+    get_model_config_schema,
+    load_yaml_as_schema,
+)
 from src.utils.config_loader import load_yaml_config
 
 logger = logging.getLogger(__name__)
@@ -358,17 +362,26 @@ class ModelFactory:
                 ) from e
 
             extra = dict(config.extra_config) if config.extra_config else {}
-            return TSMixerForecaster(
-                TSMixerConfig(
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    learning_rate=config.learning_rate,
-                    covariate_cols=extra.pop("covariate_cols", []),
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "tsmixer",
+                    "model_path": config.model_path,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "learning_rate": config.learning_rate,
                     **extra,
-                )
+                },
             )
+            return TSMixerForecaster(TSMixerConfig(**runtime_config))
         raise ValueError(
             f"Unsupported model type: {model_type}. "
             "Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "

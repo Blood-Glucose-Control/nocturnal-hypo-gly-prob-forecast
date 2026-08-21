@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-20
 **Task ID:** `pydantic-config-schemas`
-**Status:** Planning refreshed; implementation next
+**Status:** Phase 1 complete; Phase 2 pilot adapter implementation in progress
 
 ## What this task means (plain English)
 
@@ -46,6 +46,7 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 
 - Pick one active model family as pilot (recommend Darts/TSMixer path due recent runtime hardening).
 - Add schema + adapter layer from schema object to runtime config class.
+- Standardize a shared model-config routing registry (schema + runtime adapter pairs) so each future model migration follows the same wiring pattern.
 - Cover with focused tests for valid + invalid configs.
 
 ### Phase 3 — Broaden by domain
@@ -90,8 +91,6 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 
 ## Immediate next slice (what to implement next)
 
-1. Create `src/config/schemas/` with shared base schema class and loader helper.
-2. Migrate one pilot config path end-to-end (YAML load → schema → runtime object).
-3. Add focused tests proving:
-   - valid config passes,
-   - invalid config fails early with actionable diagnostics.
+1. Expand pilot coverage beyond model config load (wire data/eval schema contracts for one end-to-end workflow lane).
+2. Add fixture-backed regression tests against active `configs/models/tsmixer/*.yaml` profiles.
+3. Draft the Phase 3 migration table (model/data/eval ownership and target schema classes).
