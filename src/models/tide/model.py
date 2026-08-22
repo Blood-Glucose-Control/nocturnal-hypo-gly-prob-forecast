@@ -25,11 +25,10 @@ from typing import Any, Dict, Sequence, Tuple
 import numpy as np
 import pandas as pd
 
-from src.data.preprocessing.gap_handling import segment_all_patients
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.utils.logging_helper import info_print, prune_stale_file_handlers
-
+from ...data.preprocessing.gap_handling import segment_all_patients
+from ...utils.logging_helper import info_print, prune_stale_file_handlers
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
 from .config import TiDEConfig
 from .utils import (
     convert_to_patient_dict,

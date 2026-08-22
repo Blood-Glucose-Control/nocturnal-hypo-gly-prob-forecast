@@ -99,7 +99,7 @@
       "type": "boolean"
     },
     "lr": {
-      "default": 0.000931,
+      "default": 0.001,
       "exclusiveMinimum": 0.0,
       "title": "Lr",
       "type": "number"

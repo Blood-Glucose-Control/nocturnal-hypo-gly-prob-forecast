@@ -12,7 +12,7 @@ TimeSeriesPredictor.
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-from src.models.base import ModelConfig, TrainingBackend
+from ..base import ModelConfig, TrainingBackend
 
 
 @dataclass
@@ -46,8 +46,8 @@ class TiDEConfig(ModelConfig):
     scaling: str = "mean"  # MeanScaler prevents discontinuity
 
     # Training
-    learning_rate: float = 9.31e-4
-    lr: float = 9.31e-4
+    learning_rate: float = 1.0e-3
+    lr: float = 1.0e-3
     num_batches_per_epoch: int = 300
     batch_size: int = 256
     gradient_clip_val: float = 1.0
@@ -138,7 +138,7 @@ class TiDEConfig(ModelConfig):
         }
 
 
-def create_default_tide_config(**overrides) -> TiDEConfig:
+def create_default_tide_config(**overrides: Any) -> TiDEConfig:
     """Create a TiDEConfig with validated defaults for from-scratch training.
 
     Args:
@@ -147,7 +147,7 @@ def create_default_tide_config(**overrides) -> TiDEConfig:
     Returns:
         TiDEConfig instance.
     """
-    defaults = {
+    defaults: dict[str, Any] = {
         "context_length": 512,
         "forecast_length": 72,
     }

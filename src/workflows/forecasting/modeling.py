@@ -7,12 +7,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from src.config.schemas import (
+from ...config.schemas import (
     build_model_runtime_config,
     get_model_config_schema,
     load_yaml_as_schema,
 )
-from src.utils.config_loader import load_yaml_config
+from ...utils.config_loader import load_yaml_config
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ class ModelFactory:
     def create_model(config: GenericModelConfig):
         model_type = config.model_type.lower()
         if model_type == "ttm":
-            from src.models.ttm import TTMConfig, TTMForecaster
+            from ...models.ttm import TTMConfig, TTMForecaster
 
             return TTMForecaster(
                 TTMConfig(
@@ -128,7 +128,7 @@ class ModelFactory:
             )
         if model_type == "chronos":
             try:
-                from src.models.chronos import ChronosConfig, ChronosForecaster
+                from ...models.chronos import ChronosConfig, ChronosForecaster
             except ImportError as e:
                 raise ImportError(
                     f"Chronos model not available. Install chronos dependencies: {e}"
@@ -148,7 +148,7 @@ class ModelFactory:
             )
         if model_type == "chronos2":
             try:
-                from src.models.chronos2 import Chronos2Config, Chronos2Forecaster
+                from ...models.chronos2 import Chronos2Config, Chronos2Forecaster
             except ImportError as e:
                 raise ImportError(
                     "Chronos-2 model not available. Install with: "
@@ -174,7 +174,7 @@ class ModelFactory:
             return Chronos2Forecaster(Chronos2Config(**runtime_config))
         if model_type == "moment":
             try:
-                from src.models.moment import MomentConfig, MomentForecaster
+                from ...models.moment import MomentConfig, MomentForecaster
             except ImportError as e:
                 raise ImportError(
                     f"MOMENT model not available. Install moment dependencies: {e}"
@@ -196,7 +196,7 @@ class ModelFactory:
             )
         if model_type == "timesfm":
             try:
-                from src.models.timesfm import TimesFMConfig, TimesFMForecaster
+                from ...models.timesfm import TimesFMConfig, TimesFMForecaster
             except ImportError as e:
                 raise ImportError(
                     f"TimesFM model not available. Install with: pip install transformers>=5.2.0: {e}"
@@ -218,7 +218,7 @@ class ModelFactory:
             )
         if model_type == "timegrad":
             try:
-                from src.models.timegrad import TimeGradConfig, TimeGradForecaster
+                from ...models.timegrad import TimeGradConfig, TimeGradForecaster
             except ImportError as e:
                 raise ImportError(
                     "TimeGrad model not available. Install with: "
@@ -238,7 +238,7 @@ class ModelFactory:
             )
         if model_type == "tide":
             try:
-                from src.models.tide import TiDEConfig, TiDEForecaster
+                from ...models.tide import TiDEConfig, TiDEForecaster
             except ImportError as e:
                 raise ImportError(
                     "TiDE model not available. Install with: "
@@ -265,7 +265,7 @@ class ModelFactory:
             return TiDEForecaster(TiDEConfig(**runtime_config))
         if model_type == "toto":
             try:
-                from src.models.toto import TotoConfig, TotoForecaster
+                from ...models.toto import TotoConfig, TotoForecaster
             except ImportError as e:
                 raise ImportError(
                     f"Toto model not available. Install with: source scripts/setup_model_env.sh toto\n{e}"
@@ -282,7 +282,7 @@ class ModelFactory:
             return TotoForecaster(TotoConfig(**toto_kwargs))
         if model_type == "moirai":
             try:
-                from src.models.moirai import MoiraiConfig, MoiraiForecaster
+                from ...models.moirai import MoiraiConfig, MoiraiForecaster
             except ImportError as e:
                 raise ImportError(
                     "Moirai model not available. Install with: "
@@ -301,7 +301,7 @@ class ModelFactory:
                 )
             )
         if model_type == "naive_baseline":
-            from src.models.naive_baseline import (
+            from ...models.naive_baseline import (
                 NaiveBaselineConfig,
                 NaiveBaselineForecaster,
             )
@@ -320,7 +320,7 @@ class ModelFactory:
             )
             return NaiveBaselineForecaster(NaiveBaselineConfig(**runtime_config))
         if model_type == "statistical":
-            from src.models.statistical import StatisticalConfig, StatisticalForecaster
+            from ...models.statistical import StatisticalConfig, StatisticalForecaster
 
             extra = dict(config.extra_config) if config.extra_config else {}
             runtime_config = build_model_runtime_config(
@@ -336,7 +336,7 @@ class ModelFactory:
             )
             return StatisticalForecaster(StatisticalConfig(**runtime_config))
         if model_type == "deepar":
-            from src.models.deepar import DeepARConfig, DeepARForecaster
+            from ...models.deepar import DeepARConfig, DeepARForecaster
 
             extra = dict(config.extra_config) if config.extra_config else {}
             runtime_config = build_model_runtime_config(
@@ -351,7 +351,7 @@ class ModelFactory:
             )
             return DeepARForecaster(DeepARConfig(**runtime_config))
         if model_type == "patchtst":
-            from src.models.patchtst import PatchTSTConfig, PatchTSTForecaster
+            from ...models.patchtst import PatchTSTConfig, PatchTSTForecaster
 
             extra = dict(config.extra_config) if config.extra_config else {}
             runtime_config = build_model_runtime_config(
@@ -366,7 +366,7 @@ class ModelFactory:
             )
             return PatchTSTForecaster(PatchTSTConfig(**runtime_config))
         if model_type == "tft":
-            from src.models.tft import TFTConfig, TFTForecaster
+            from ...models.tft import TFTConfig, TFTForecaster
 
             extra = dict(config.extra_config) if config.extra_config else {}
             runtime_config = build_model_runtime_config(
@@ -382,7 +382,7 @@ class ModelFactory:
             return TFTForecaster(TFTConfig(**runtime_config))
         if model_type == "tsmixer":
             try:
-                from src.models.tsmixer import TSMixerConfig, TSMixerForecaster
+                from ...models.tsmixer import TSMixerConfig, TSMixerForecaster
             except ImportError as e:
                 raise ImportError(
                     "TSMixer model not available. Install with: "
@@ -546,7 +546,7 @@ class ModelFactory:
     ):
         model_type_lower = model_type.lower()
         if model_type_lower == "ttm":
-            from src.models.ttm import TTMConfig, TTMForecaster
+            from ...models.ttm import TTMConfig, TTMForecaster
 
             return TTMForecaster.load(
                 model_path,
@@ -565,7 +565,7 @@ class ModelFactory:
                 ),
             )
         if model_type_lower == "chronos":
-            from src.models.chronos import ChronosConfig, ChronosForecaster
+            from ...models.chronos import ChronosConfig, ChronosForecaster
 
             return ChronosForecaster.load(
                 model_path,
@@ -582,11 +582,11 @@ class ModelFactory:
                 ),
             )
         if model_type_lower == "chronos2":
-            from src.models.chronos2 import Chronos2Forecaster
+            from ...models.chronos2 import Chronos2Forecaster
 
             return Chronos2Forecaster.load(model_path)
         if model_type_lower == "moment":
-            from src.models.moment import MomentConfig, MomentForecaster
+            from ...models.moment import MomentConfig, MomentForecaster
 
             return MomentForecaster.load(
                 model_path,
@@ -603,7 +603,7 @@ class ModelFactory:
                 ),
             )
         if model_type_lower == "timesfm":
-            from src.models.timesfm import TimesFMConfig, TimesFMForecaster
+            from ...models.timesfm import TimesFMConfig, TimesFMForecaster
 
             extra = dict(config.extra_config)
             checkpoint_path = extra.pop("checkpoint_path", None) or config.model_path
@@ -622,7 +622,7 @@ class ModelFactory:
                 ),
             )
         if model_type_lower == "timegrad":
-            from src.models.timegrad import TimeGradConfig, TimeGradForecaster
+            from ...models.timegrad import TimeGradConfig, TimeGradForecaster
 
             return TimeGradForecaster.load(
                 model_path,
@@ -638,15 +638,15 @@ class ModelFactory:
                 ),
             )
         if model_type_lower == "tide":
-            from src.models.tide import TiDEForecaster
+            from ...models.tide import TiDEForecaster
 
             return TiDEForecaster.load(model_path)
         if model_type_lower == "toto":
-            from src.models.toto import TotoForecaster
+            from ...models.toto import TotoForecaster
 
             return TotoForecaster.load(model_path)
         if model_type_lower == "moirai":
-            from src.models.moirai import MoiraiConfig, MoiraiForecaster
+            from ...models.moirai import MoiraiConfig, MoiraiForecaster
 
             moirai_kwargs = dict(config.extra_config) if config.extra_config else {}
             return MoiraiForecaster.load(
@@ -662,27 +662,27 @@ class ModelFactory:
                 ),
             )
         if model_type_lower == "naive_baseline":
-            from src.models.naive_baseline import NaiveBaselineForecaster
+            from ...models.naive_baseline import NaiveBaselineForecaster
 
             return NaiveBaselineForecaster.load(model_path)
         if model_type_lower == "statistical":
-            from src.models.statistical import StatisticalForecaster
+            from ...models.statistical import StatisticalForecaster
 
             return StatisticalForecaster.load(model_path)
         if model_type_lower == "deepar":
-            from src.models.deepar import DeepARForecaster
+            from ...models.deepar import DeepARForecaster
 
             return DeepARForecaster.load(model_path)
         if model_type_lower == "patchtst":
-            from src.models.patchtst import PatchTSTForecaster
+            from ...models.patchtst import PatchTSTForecaster
 
             return PatchTSTForecaster.load(model_path)
         if model_type_lower == "tft":
-            from src.models.tft import TFTForecaster
+            from ...models.tft import TFTForecaster
 
             return TFTForecaster.load(model_path)
         if model_type_lower == "tsmixer":
-            from src.models.tsmixer import TSMixerForecaster
+            from ...models.tsmixer import TSMixerForecaster
 
             return TSMixerForecaster.load(model_path)
         raise ValueError(

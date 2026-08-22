@@ -295,7 +295,7 @@ def test_tide_runtime_adapter_default_parity_matches_model_defaults() -> None:
 
     assert runtime_config["training_mode"] == "from_scratch"
     assert runtime_config["scaling"] == "mean"
-    assert runtime_config["lr"] == pytest.approx(9.31e-4)
+    assert runtime_config["lr"] == pytest.approx(1.0e-3)
 
 
 def test_tsmixer_model_config_reports_schema_errors(tmp_path: Path) -> None:

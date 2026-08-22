@@ -277,7 +277,7 @@ class TiDEModelConfigSchema(AutoGluonModelConfigSchema):
     scaling: Literal["mean"] = Field(default="mean")
 
     lr: float = Field(
-        default=9.31e-4,
+        default=1.0e-3,
         gt=0.0,
         validation_alias=AliasChoices("lr", "learning_rate"),
     )
