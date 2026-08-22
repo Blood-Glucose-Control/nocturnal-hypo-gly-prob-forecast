@@ -1,0 +1,223 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for TiDE (AutoGluon backend) YAML configs.",
+  "properties": {
+    "batch_size": {
+      "default": 256,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Covariate Cols",
+      "type": "array"
+    },
+    "decoder_hidden_dim": {
+      "default": 256,
+      "exclusiveMinimum": 0,
+      "title": "Decoder Hidden Dim",
+      "type": "integer"
+    },
+    "decoder_output_dim": {
+      "default": 16,
+      "exclusiveMinimum": 0,
+      "title": "Decoder Output Dim",
+      "type": "integer"
+    },
+    "distr_hidden_dim": {
+      "default": 8,
+      "exclusiveMinimum": 0,
+      "title": "Distr Hidden Dim",
+      "type": "integer"
+    },
+    "dropout": {
+      "default": 0.1,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Dropout",
+      "type": "number"
+    },
+    "early_stopping_patience": {
+      "default": 20,
+      "minimum": 0,
+      "title": "Early Stopping Patience",
+      "type": "integer"
+    },
+    "enable_ensemble": {
+      "default": false,
+      "title": "Enable Ensemble",
+      "type": "boolean"
+    },
+    "encoder_hidden_dim": {
+      "default": 256,
+      "exclusiveMinimum": 0,
+      "title": "Encoder Hidden Dim",
+      "type": "integer"
+    },
+    "eval_metric": {
+      "default": "WQL",
+      "minLength": 1,
+      "title": "Eval Metric",
+      "type": "string"
+    },
+    "forecast_length": {
+      "default": 72,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "gradient_clip_val": {
+      "default": 1.0,
+      "minimum": 0.0,
+      "title": "Gradient Clip Val",
+      "type": "number"
+    },
+    "imputation_threshold_mins": {
+      "default": 45,
+      "exclusiveMinimum": 0,
+      "title": "Imputation Threshold Mins",
+      "type": "integer"
+    },
+    "interval_mins": {
+      "default": 5,
+      "exclusiveMinimum": 0,
+      "title": "Interval Mins",
+      "type": "integer"
+    },
+    "layer_norm": {
+      "default": true,
+      "title": "Layer Norm",
+      "type": "boolean"
+    },
+    "lr": {
+      "default": 0.000931,
+      "exclusiveMinimum": 0.0,
+      "title": "Lr",
+      "type": "number"
+    },
+    "max_epochs": {
+      "default": 100,
+      "exclusiveMinimum": 0,
+      "title": "Max Epochs",
+      "type": "integer"
+    },
+    "min_segment_length": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Segment Length"
+    },
+    "model_type": {
+      "const": "tide",
+      "default": "tide",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "num_batches_per_epoch": {
+      "default": 300,
+      "exclusiveMinimum": 0,
+      "title": "Num Batches Per Epoch",
+      "type": "integer"
+    },
+    "num_layers_decoder": {
+      "default": 2,
+      "exclusiveMinimum": 0,
+      "title": "Num Layers Decoder",
+      "type": "integer"
+    },
+    "num_layers_encoder": {
+      "default": 2,
+      "exclusiveMinimum": 0,
+      "title": "Num Layers Encoder",
+      "type": "integer"
+    },
+    "patient_col": {
+      "default": "p_num",
+      "minLength": 1,
+      "title": "Patient Col",
+      "type": "string"
+    },
+    "precision": {
+      "default": "16-mixed",
+      "minLength": 1,
+      "title": "Precision",
+      "type": "string"
+    },
+    "quantile_levels": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Quantile Levels"
+    },
+    "scaling": {
+      "const": "mean",
+      "default": "mean",
+      "title": "Scaling",
+      "type": "string"
+    },
+    "target_col": {
+      "default": "bg_mM",
+      "minLength": 1,
+      "title": "Target Col",
+      "type": "string"
+    },
+    "temporal_hidden_dim": {
+      "default": 256,
+      "exclusiveMinimum": 0,
+      "title": "Temporal Hidden Dim",
+      "type": "integer"
+    },
+    "time_col": {
+      "default": "datetime",
+      "minLength": 1,
+      "title": "Time Col",
+      "type": "string"
+    },
+    "time_limit": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Time Limit"
+    },
+    "training_mode": {
+      "const": "from_scratch",
+      "default": "from_scratch",
+      "title": "Training Mode",
+      "type": "string"
+    }
+  },
+  "title": "TiDEModelConfigSchema",
+  "type": "object"
+}

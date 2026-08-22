@@ -244,15 +244,25 @@ class ModelFactory:
                     "TiDE model not available. Install with: "
                     f"pip install 'nocturnal-hypo-gly-prob-forecast[tide]': {e}"
                 ) from e
-            return TiDEForecaster(
-                TiDEConfig(
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    training_mode=config.training_mode,
-                    **config.extra_config,
-                )
+            extra = dict(config.extra_config) if config.extra_config else {}
+            has_training_mode_override = "training_mode" in extra
+            resolved_training_mode = extra.pop("training_mode", config.training_mode)
+            if not has_training_mode_override and resolved_training_mode == "fine_tune":
+                # GenericModelConfig defaults to fine_tune, but TiDE only supports
+                # from-scratch training.
+                resolved_training_mode = "from_scratch"
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "tide",
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "training_mode": resolved_training_mode,
+                    **extra,
+                },
             )
+            return TiDEForecaster(TiDEConfig(**runtime_config))
         if model_type == "toto":
             try:
                 from src.models.toto import TotoConfig, TotoForecaster
@@ -469,7 +479,7 @@ class ModelFactory:
         yaml_batch = yaml_config.pop("batch_size", None)
         yaml_epochs = yaml_config.pop("num_epochs", None)
         yaml_lr = yaml_config.pop("learning_rate", None)
-        yaml_mode = yaml_config.pop("training_mode", "fine_tune")
+        yaml_mode = yaml_config.pop("training_mode", None)
         yaml_freeze = yaml_config.pop("freeze_backbone", False)
 
         resolved_model_path = (
@@ -506,6 +516,13 @@ class ModelFactory:
         yaml_config.pop("use_cpu", None)
         yaml_config.pop("fp16", None)
 
+        default_training_mode = (
+            "from_scratch" if model_type.lower() == "tide" else "fine_tune"
+        )
+        resolved_training_mode = (
+            yaml_mode if yaml_mode is not None else default_training_mode
+        )
+
         return GenericModelConfig(
             model_type=model_type,
             model_path=resolved_model_path,
@@ -513,7 +530,7 @@ class ModelFactory:
             forecast_length=resolved_forecast,
             batch_size=resolved_batch,
             num_epochs=resolved_epochs,
-            training_mode=yaml_mode,
+            training_mode=resolved_training_mode,
             freeze_backbone=yaml_freeze,
             use_cpu=use_cpu,
             fp16=fp16,

@@ -121,7 +121,7 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 | `ttm` | Active | ⏳ Pending | Add schema + adapter; include checkpoint/preprocessor-relevant fields |
 | `chronos` | Active | ⏳ Pending | Add schema + adapter; validate zero-shot/fine-tune fields |
 | `chronos2` | Active | ✅ Completed | Schema + adapter wired; active configs validate through model schema registry |
-| `tide` | Active | ⏳ Pending | Add schema + adapter with Darts-aligned hyperparameter validation |
+| `tide` | Active | ✅ Completed | Schema + adapter wired; enforces TiDE architectural/training constraints and `learning_rate` alias normalization to `lr` |
 | `moirai` | Active | ⏳ Pending | Add schema + adapter for MOIRAI-specific args |
 | `timegrad` | Active | ⏳ Pending | Add schema + adapter for TimeGrad config lane |
 | `moment` | Active | ⏳ Pending | Add schema + adapter for MOMENT lane |

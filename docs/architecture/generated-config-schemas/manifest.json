@@ -25,6 +25,10 @@
       "source_symbol": "src.config.schemas.model_configs.TFTModelConfigSchema"
     },
     {
+      "file": "model_configs.tide.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.TiDEModelConfigSchema"
+    },
+    {
       "file": "model_configs.tsmixer.schema.json",
       "source_symbol": "src.config.schemas.model_configs.TSMixerModelConfigSchema"
     },
