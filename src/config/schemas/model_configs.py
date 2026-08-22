@@ -8,6 +8,7 @@ from typing import Any, Literal, NamedTuple, Optional
 from pydantic import (
     AliasChoices,
     Field,
+    ValidationInfo,
     ValidationError,
     field_validator,
     model_validator,
@@ -126,13 +127,15 @@ class Chronos2ModelConfigSchema(AutoGluonModelConfigSchema):
     eval_during_fine_tune: bool = Field(default=True)
     min_past: int = Field(default=1, gt=0)
     checkpoint_save_steps: Optional[int] = Field(default=None, gt=0)
+    covariate_cols: list[str] = Field(default_factory=lambda: ["iob"])
     known_covariate_cols: list[str] = Field(default_factory=list)
     joint_target_cols: list[str] = Field(default_factory=list)
 
     @field_validator("learning_rate", "fine_tune_lr", mode="before")
     @classmethod
-    def _normalize_learning_rate_fields(cls, value: Any) -> Any:
-        return _coerce_numeric_string(value, "learning_rate")
+    def _normalize_learning_rate_fields(cls, value: Any, info: ValidationInfo) -> Any:
+        field_name = info.field_name or "learning_rate"
+        return _coerce_numeric_string(value, field_name)
 
     @model_validator(mode="after")
     def _validate_joint_target_columns(self) -> "Chronos2ModelConfigSchema":

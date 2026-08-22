@@ -87,6 +87,28 @@ def _install_fake_deepar_module(monkeypatch: pytest.MonkeyPatch) -> type:
     return FakeDeepARConfig
 
 
+def _install_fake_chronos2_module(monkeypatch: pytest.MonkeyPatch) -> type:
+    fake_models_pkg = types.ModuleType("src.models")
+    fake_models_pkg.__path__ = []  # type: ignore[attr-defined]
+
+    class FakeChronos2Config:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    class FakeChronos2Forecaster:
+        def __init__(self, config):
+            self.config = config
+
+    fake_chronos2_module = types.ModuleType("src.models.chronos2")
+    fake_chronos2_module.Chronos2Config = FakeChronos2Config
+    fake_chronos2_module.Chronos2Forecaster = FakeChronos2Forecaster
+
+    monkeypatch.setitem(sys.modules, "src.models", fake_models_pkg)
+    monkeypatch.setitem(sys.modules, "src.models.chronos2", fake_chronos2_module)
+    return FakeChronos2Config
+
+
 def test_tsmixer_model_config_validates_and_loads(tmp_path: Path) -> None:
     config_path = _write(
         tmp_path / "tsmixer_valid.yaml",
@@ -158,6 +180,32 @@ def test_autogluon_model_config_normalizes_learning_rate_alias(model_type: str) 
 
     assert runtime_config["lr"] == pytest.approx(0.003)
     assert "learning_rate" not in runtime_config
+
+
+def test_chronos2_runtime_adapter_default_covariates_match_model_default() -> None:
+    runtime_config = build_model_runtime_config(
+        model_type="chronos2",
+        config_data={
+            "context_length": 128,
+            "forecast_length": 96,
+        },
+    )
+
+    assert runtime_config["covariate_cols"] == ["iob"]
+
+
+def test_chronos2_runtime_adapter_reports_field_specific_numeric_error() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        build_model_runtime_config(
+            model_type="chronos2",
+            config_data={
+                "context_length": 128,
+                "forecast_length": 96,
+                "fine_tune_lr": "not-a-number",
+            },
+        )
+
+    assert "fine_tune_lr must be a numeric value" in str(exc_info.value)
 
 
 def test_tsmixer_model_config_reports_schema_errors(tmp_path: Path) -> None:
@@ -338,6 +386,44 @@ def test_deepar_factory_path_reports_unknown_runtime_field(
         ModelFactory.create_model(config)
 
     assert "unknown_field" in str(exc_info.value)
+
+
+def test_chronos2_factory_path_uses_schema_adapter_without_num_epochs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_chronos2_module(monkeypatch)
+
+    config = GenericModelConfig(
+        model_type="chronos2",
+        model_path="autogluon/chronos-2",
+        context_length=128,
+        forecast_length=96,
+        num_epochs=7,
+        extra_config={"fine_tune_steps": 200, "covariate_cols": ["iob", "cob"]},
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.fine_tune_steps == 200
+    assert model.config.covariate_cols == ["iob", "cob"]
+    assert not hasattr(model.config, "num_epochs")
+
+
+def test_chronos2_factory_path_uses_schema_covariate_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_chronos2_module(monkeypatch)
+
+    config = GenericModelConfig(
+        model_type="chronos2",
+        model_path="autogluon/chronos-2",
+        context_length=128,
+        forecast_length=96,
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.covariate_cols == ["iob"]
 
 
 def test_runtime_adapter_reports_registered_types_for_unknown_model() -> None:

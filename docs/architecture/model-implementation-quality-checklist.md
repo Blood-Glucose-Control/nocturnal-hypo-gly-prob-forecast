@@ -125,15 +125,22 @@ Each model family should have tests covering:
 1. **Schema/config validation**
    - valid config fixture passes;
    - invalid field/type fails with actionable error;
-   - alias normalization behavior (when applicable).
+   - alias normalization behavior (when applicable);
+   - default-parity checks for shared fields where model-config defaults must
+     remain behavior-compatible (for example covariate defaults).
 2. **Factory wiring**
    - factory path routes through schema/runtime adapter;
-   - unknown/unsupported fields fail fast (no silent drops).
+   - unknown/unsupported fields fail fast (no silent drops);
+   - every schema-routed family has at least one dedicated factory-path test.
 3. **Core public behavior**
    - required properties/method expectations are satisfied;
    - load/save/predict path assumptions tested where practical.
 4. **Regression coverage**
    - at least one fixture-backed real config from `configs/models/<family>/`.
+5. **Field semantics consistency**
+   - parameters with similar names (for example `learning_rate` vs
+     `fine_tune_lr`) are either intentionally distinct and documented, or
+     normalized to one canonical field with tests.
 
 ## 8) PR acceptance checklist (must pass)
 
@@ -145,6 +152,8 @@ Each model family should have tests covering:
 - [ ] Touched files pass lint with zero warnings/errors.
 - [ ] Required family test contract is present and passing.
 - [ ] Config schema artifacts regenerated when schema contracts changed.
+- [ ] Model PR description links this checklist and states which gates were
+      validated.
 
 ## 9) Enforcement strategy
 

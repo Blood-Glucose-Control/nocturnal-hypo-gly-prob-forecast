@@ -163,7 +163,6 @@ class ModelFactory:
                     "context_length": config.context_length,
                     "forecast_length": config.forecast_length,
                     "batch_size": config.batch_size,
-                    "num_epochs": config.num_epochs,
                     "training_mode": config.training_mode,
                     "freeze_backbone": config.freeze_backbone,
                     "use_cpu": config.use_cpu,
