@@ -2,19 +2,21 @@
 # Licensed under Custom Research License (see LICENSE file)
 # For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
-import pandas as pd
-import numpy as np
-from src.data.physiological.insulin_model.constants import (
-    TMAX,
-    KE,
-    IOB_COL,
-    INSULIN_AVAIL_COL,
-)
-from src.data.physiological.carb_model.constants import (
-    TS_MIN,
-    T_ACTION_MAX_MIN,
-)
 import logging
+
+import numpy as np
+import pandas as pd
+
+from ..carb_model.constants import (
+    T_ACTION_MAX_MIN,
+    TS_MIN,
+)
+from .constants import (
+    INSULIN_AVAIL_COL,
+    IOB_COL,
+    KE,
+    TMAX,
+)
 
 logger = logging.getLogger(__name__)
 

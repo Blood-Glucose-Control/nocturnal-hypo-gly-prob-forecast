@@ -14,12 +14,12 @@ import pandas as pd
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
+from transformers import TrainerCallback as _TrainerCallbackBase
 
+from ...utils.logging_helper import error_print, info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
 from ..base.registry import ModelRegistry
 from .config import TimesFMConfig
-from ...utils.logging_helper import info_print, error_print
-from transformers import TrainerCallback as _TrainerCallbackBase
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -370,6 +370,7 @@ class MidTrainingEvalCallback(_TrainerCallbackBase):
     def on_epoch_end(self, args, state, control, model=None, **kw):
         _ = control, kw
         from torch.utils.data import DataLoader as _EvalDL
+
         from ...evaluation.metrics.probabilistic import (
             compute_coverage,
             compute_mace,
@@ -775,6 +776,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             callback (not yet wrapped in a DataLoader).
         """
         from collections import defaultdict
+
         from ...data.preprocessing.gap_handling import segment_all_patients
 
         info_print("Preparing data for TimesFM finetuning...")

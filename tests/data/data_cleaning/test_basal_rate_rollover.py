@@ -6,8 +6,8 @@ pytest tests/data/data_cleaning/test_basal_rate_rollover.py -v -s
 import pandas as pd
 import pytest
 
-from src.data.preprocessing.feature_engineering import rollover_basal_rate
 from src.data.models import ColumnNames
+from src.data.preprocessing.feature_engineering import rollover_basal_rate
 
 
 class TestRolloverBasalRate:

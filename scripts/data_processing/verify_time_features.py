@@ -13,8 +13,9 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 import pandas as pd  # noqa: E402
-from src.data.versioning.dataset_registry import DatasetRegistry  # noqa: E402
+
 from src.data.models import ColumnNames  # noqa: E402
+from src.data.versioning.dataset_registry import DatasetRegistry  # noqa: E402
 
 
 def verify_time_features():

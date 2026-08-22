@@ -2,8 +2,9 @@
 # Licensed under Custom Research License (see LICENSE file)
 # For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
-from pydantic import BaseModel, ConfigDict, Field
 from enum import Enum
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class DatasetSourceType(str, Enum):

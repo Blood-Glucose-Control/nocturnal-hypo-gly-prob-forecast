@@ -1,7 +1,8 @@
-from pydantic import BaseModel, confloat, field_validator
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
 import pandas as pd
+from pydantic import BaseModel, confloat, field_validator
 
 
 class MealRecord(BaseModel):

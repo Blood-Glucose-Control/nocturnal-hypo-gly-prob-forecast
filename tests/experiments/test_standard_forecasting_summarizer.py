@@ -17,7 +17,6 @@ import pytest
 
 from src.experiments.standard_forecasting.summarize import StandardForecastingSummarizer
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

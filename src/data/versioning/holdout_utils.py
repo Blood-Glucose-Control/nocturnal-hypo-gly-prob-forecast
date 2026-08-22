@@ -17,20 +17,20 @@ and used programmatically in workflows.
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 import pandas as pd
 from tabulate import tabulate
 
-from src.data.diabetes_datasets.data_loader import get_loader
-from src.data.versioning.holdout_config import (
+from ..diabetes_datasets.data_loader import get_loader
+from .dataset_registry import DatasetRegistry
+from .holdout_config import (
     HoldoutConfig,
     HoldoutType,
     PatientHoldoutConfig,
     TemporalHoldoutConfig,
 )
-from src.data.versioning.holdout_manager import generate_patient_holdout_list
-from src.data.versioning.dataset_registry import DatasetRegistry
+from .holdout_manager import generate_patient_holdout_list
 
 logger = logging.getLogger(__name__)
 

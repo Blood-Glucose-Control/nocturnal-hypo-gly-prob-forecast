@@ -30,13 +30,16 @@ All parameters should be present in each overload (use ... for defaults)
 The implementation signature must be a superset of all overload signatures
 """
 
-from typing import overload, Literal, Union
-from src.data.diabetes_datasets import Brown2019DataLoader
-from src.data.diabetes_datasets import BrisT1DDataLoader
-from src.data.diabetes_datasets import GlurooDataLoader
-from src.data.diabetes_datasets import Lynch2022DataLoader
-from src.data.diabetes_datasets import Aleppo2017DataLoader
-from src.data.diabetes_datasets import Tamborlane2008DataLoader
+from typing import Literal, Union, overload
+
+from . import (
+    Aleppo2017DataLoader,
+    BrisT1DDataLoader,
+    Brown2019DataLoader,
+    GlurooDataLoader,
+    Lynch2022DataLoader,
+    Tamborlane2008DataLoader,
+)
 
 
 @overload

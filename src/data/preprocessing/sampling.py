@@ -22,13 +22,15 @@ Functions:
     resample_to_frequency: Resample time series data to a specified frequency
 """
 
-from typing_extensions import deprecated
-import pandas as pd
-from typing import Literal, Tuple
-from src.data.models import ColumnNames
-from src.data.preprocessing.time_processing import get_most_common_time_interval
 import logging
+from typing import Literal, Tuple
+
 import numpy as np
+import pandas as pd
+from typing_extensions import deprecated
+
+from ..models import ColumnNames
+from .time_processing import get_most_common_time_interval
 
 logger = logging.getLogger(__name__)
 

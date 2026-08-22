@@ -33,7 +33,6 @@ from src.models.chronos2.utils import (  # noqa: E402
     format_segments_for_autogluon,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -227,6 +226,7 @@ class TestChronos2:
         unified _predict() zero-shot branch introduced in this PR.
         """
         import unittest.mock as mock
+
         import torch
 
         config = Chronos2Config(forecast_length=12, context_length=24)

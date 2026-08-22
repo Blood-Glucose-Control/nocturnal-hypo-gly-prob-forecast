@@ -22,7 +22,7 @@ Example:
     To use this module, create a subclass of DatasetBase for your specific dataset:
 
     ```python
-    from src.data.dataset_base import DatasetBase
+    from ..dataset_base import DatasetBase
 
     class MyCustomDataset(DatasetBase):
         @property
@@ -44,8 +44,9 @@ Example:
     ```
 """
 
-import pandas as pd
 from abc import ABC, abstractmethod
+
+import pandas as pd
 
 
 class DatasetBase(ABC):

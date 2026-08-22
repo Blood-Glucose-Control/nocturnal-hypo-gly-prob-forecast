@@ -14,10 +14,9 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from src.models.base.registry import ModelRegistry
-from src.models.darts_base import DartsGlobalModelBase
-from src.utils.logging_helper import info_print
-
+from ...utils.logging_helper import info_print
+from ..base.registry import ModelRegistry
+from ..darts_base import DartsGlobalModelBase
 from .config import TSMixerConfig
 
 logger = logging.getLogger(__name__)

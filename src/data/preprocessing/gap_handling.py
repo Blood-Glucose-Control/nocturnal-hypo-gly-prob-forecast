@@ -32,7 +32,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from src.data.preprocessing.time_processing import get_most_common_time_interval
+from .time_processing import get_most_common_time_interval
 
 logger = logging.getLogger(__name__)
 

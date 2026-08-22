@@ -14,12 +14,12 @@ import logging
 import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
-from enum import Enum
 
 # Local imports
 from ...utils.logging_helper import info_print
@@ -787,22 +787,22 @@ def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
 
     # Import and create the appropriate model class
     if model_type == "ttm":
-        from ..ttm import TTMForecaster, TTMConfig
+        from ..ttm import TTMConfig, TTMForecaster
 
         config = TTMConfig(**config_dict)
         return TTMForecaster(config)
     elif model_type in ("chronos", "chronos2"):
-        from ..chronos2 import Chronos2Forecaster, Chronos2Config
+        from ..chronos2 import Chronos2Config, Chronos2Forecaster
 
         config = Chronos2Config(**config_dict)
         return Chronos2Forecaster(config)
     elif model_type == "tide":
-        from ..tide import TiDEForecaster, TiDEConfig
+        from ..tide import TiDEConfig, TiDEForecaster
 
         config = TiDEConfig(**config_dict)
         return TiDEForecaster(config)
     elif model_type == "tsmixer":
-        from ..tsmixer import TSMixerForecaster, TSMixerConfig
+        from ..tsmixer import TSMixerConfig, TSMixerForecaster
 
         config = TSMixerConfig(**config_dict)
         return TSMixerForecaster(config)

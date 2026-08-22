@@ -24,9 +24,9 @@ and notebook 4.17-ss-chronos2-pipeline-validation.ipynb.
 """
 
 import json
-import pickle
 import logging
 import os
+import pickle
 import shutil
 from typing import Any, Dict, Optional, Tuple
 
@@ -34,10 +34,9 @@ import numpy as np
 import pandas as pd
 
 from ...data.preprocessing.gap_handling import segment_all_patients
+from ...utils.logging_helper import info_print, prune_stale_file_handlers
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
 from ..base.registry import ModelRegistry
-from ...utils.logging_helper import info_print, prune_stale_file_handlers
-
 from .config import Chronos2Config
 from .utils import (
     convert_to_patient_dict,
@@ -172,7 +171,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Dict with training metrics.
         """
-        from autogluon.timeseries import TimeSeriesPredictor  # type: ignore[import-not-found]
+        from autogluon.timeseries import (
+            TimeSeriesPredictor,  # type: ignore[import-not-found]
+        )
 
         config = self.config
         val_data = kwargs.pop("val_data", None)
@@ -465,7 +466,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Returns:
             TimeSeriesDataFrame ready for AutoGluon prediction.
         """
-        from autogluon.timeseries import TimeSeriesDataFrame  # type: ignore[import-not-found]
+        from autogluon.timeseries import (
+            TimeSeriesDataFrame,  # type: ignore[import-not-found]
+        )
 
         config = self.config
         context = data.copy()
@@ -546,7 +549,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             TimeSeriesDataFrame with item_id/timestamp index and one column
             per known covariate, covering forecast_length steps per episode.
         """
-        from autogluon.timeseries import TimeSeriesDataFrame  # pyright: ignore[reportMissingImports]
+        from autogluon.timeseries import (
+            TimeSeriesDataFrame,  # pyright: ignore[reportMissingImports]
+        )
 
         from ...data.preprocessing.feature_engineering import (
             generate_future_known_covariates,
@@ -907,7 +912,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         by _save_checkpoint). Falls back to loading model_dir directly as
         an AutoGluon predictor path.
         """
-        from autogluon.timeseries import TimeSeriesPredictor  # type: ignore[import-not-found]
+        from autogluon.timeseries import (
+            TimeSeriesPredictor,  # type: ignore[import-not-found]
+        )
 
         ref_path = os.path.join(model_dir, "chronos2_predictor.json")
         if os.path.exists(ref_path):

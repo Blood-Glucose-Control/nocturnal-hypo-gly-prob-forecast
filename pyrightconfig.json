@@ -2,10 +2,17 @@
   "include": [
     "src"
   ],
+  "ignore": [
+    "pyproject.toml",
+    "**/pyproject.toml"
+  ],
   "exclude": [
+    "pyproject.toml",
+    "**/.*",
     "**/__pycache__",
     "**/.venv",
     "**/.noctprob-venv",
+    "**/.noctprob-venv.backup-*",
     "**/node_modules",
     "**/.git",
     "**/cache",

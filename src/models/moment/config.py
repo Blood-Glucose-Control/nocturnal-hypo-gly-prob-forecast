@@ -5,10 +5,10 @@ This module provides configuration classes specific to Moment models,
 extending the base model configuration with Moment-specific parameters.
 """
 
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict, fields
+from dataclasses import asdict, dataclass, fields
+from typing import Any, Dict, List, Optional
 
-from src.models.base import ModelConfig, TrainingBackend
+from ..base import ModelConfig, TrainingBackend
 
 
 @dataclass

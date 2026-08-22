@@ -19,7 +19,7 @@ Splits the monolithic nocturnal_results.json into three purpose-built tiers:
 
 Usage::
 
-    from src.evaluation.storage import write_nocturnal_results
+    from .storage import write_nocturnal_results
 
     results = evaluate_nocturnal_forecasting(model, data, ..., probabilistic=True)
     metadata = {"model": "chronos2", "dataset": "brown_2019", ...}
@@ -36,7 +36,7 @@ from typing import Any, Dict, List
 import numpy as np
 import pandas as pd
 
-from src.evaluation.metrics.shape import DILATE_COLUMNS
+from .metrics.shape import DILATE_COLUMNS
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
 """Evaluation modules for the nocturnal project."""
 
-from src.evaluation.episode_builders import build_midnight_episodes
-from src.evaluation.nocturnal import (
+from .episode_builders import build_midnight_episodes
+from .nocturnal import (
     evaluate_nocturnal_forecasting,
     plot_best_worst_episodes,
     plot_stage_comparison_auto,

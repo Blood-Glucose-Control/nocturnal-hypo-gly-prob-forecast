@@ -4,10 +4,10 @@ Script to analyze SLURM resource usage and performance metrics across training r
 Helps identify optimal resource configurations for L40S GPU training.
 """
 
+import json
 import re
 from datetime import datetime
 from pathlib import Path
-import json
 from typing import Dict, Optional
 
 

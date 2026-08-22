@@ -21,17 +21,17 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Literal, Optional, Dict
-from typing_extensions import deprecated
+from typing import Dict, Literal, Optional
 
 import pandas as pd
+from typing_extensions import deprecated
 
-from src.data.dataset_configs import (
+from ..utils.os_helper import get_project_root
+from .dataset_configs import (
     DatasetConfig,
     DatasetSourceType,
     get_dataset_config,
 )
-from src.utils.os_helper import get_project_root
 
 logger = logging.getLogger(__name__)
 

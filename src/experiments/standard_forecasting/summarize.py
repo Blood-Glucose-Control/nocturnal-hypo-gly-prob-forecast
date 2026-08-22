@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any
 
 # Local imports
-from src.experiments.base.experiment import ExperimentSummarizer
+from ..base.experiment import ExperimentSummarizer
 
 log = logging.getLogger(__name__)
 

@@ -2,7 +2,7 @@
 Toto configuration classes.
 """
 
-from src.models.base import ModelConfig, TrainingBackend
+from ..base import ModelConfig, TrainingBackend
 
 
 class TotoConfig(ModelConfig):

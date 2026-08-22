@@ -9,21 +9,20 @@ import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
-
 from gluonts.dataset.common import ListDataset
 from gluonts.torch.model.predictor import PyTorchPredictor
-from pts.model.time_grad import TimeGradEstimator
 from pts import Trainer
 from pts.feature import (
     fourier_time_features_from_frequency,
     lags_for_fourier_time_features_from_frequency,
 )
+from pts.model.time_grad import TimeGradEstimator
+from torch.utils.data import DataLoader
 
-from src.models.timegrad.config import TimeGradConfig
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.utils.logging_helper import info_print
+from ...utils.logging_helper import info_print
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from .config import TimeGradConfig
 
 logger = logging.getLogger(__name__)
 

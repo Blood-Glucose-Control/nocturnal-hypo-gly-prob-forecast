@@ -10,15 +10,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import torch
-
-from toto.model.toto import Toto
 from toto.data.util.dataset import MaskedTimeseries
 from toto.inference.forecaster import TotoForecaster as _TotoForecaster
+from toto.model.toto import Toto
 
-from src.models.toto.config import TotoConfig
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.utils.logging_helper import info_print
+from ...utils.logging_helper import info_print
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from .config import TotoConfig
 
 logger = logging.getLogger(__name__)
 

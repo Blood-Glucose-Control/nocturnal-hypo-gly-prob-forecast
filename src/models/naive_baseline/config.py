@@ -15,7 +15,7 @@ on training data so AutoGluon can compute residuals for quantile synthesis.
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from src.models.base import ModelConfig, TrainingBackend
+from ..base import ModelConfig, TrainingBackend
 
 _VALID_MODEL_NAMES = frozenset({"Naive", "Average"})
 

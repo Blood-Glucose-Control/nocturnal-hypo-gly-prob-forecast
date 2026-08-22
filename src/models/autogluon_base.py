@@ -30,13 +30,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from src.data.preprocessing.gap_handling import segment_all_patients
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.chronos2.utils import (
+from ..data.preprocessing.gap_handling import segment_all_patients
+from ..utils.logging_helper import info_print, prune_stale_file_handlers
+from .base import BaseTimeSeriesFoundationModel, TrainingBackend
+from .chronos2.utils import (
     convert_to_patient_dict,
     format_segments_for_autogluon,
 )
-from src.utils.logging_helper import info_print, prune_stale_file_handlers
 
 logger = logging.getLogger(__name__)
 
@@ -171,7 +171,9 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
         Returns:
             Dict with training metrics.
         """
-        from autogluon.timeseries import TimeSeriesPredictor  # type: ignore[import-not-found]
+        from autogluon.timeseries import (
+            TimeSeriesPredictor,  # type: ignore[import-not-found]
+        )
 
         config = self.config
         ts_train, _, _ = self._prepare_training_data(train_data)
@@ -231,7 +233,9 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
         Returns:
             TimeSeriesDataFrame ready for predictor.predict().
         """
-        from autogluon.timeseries import TimeSeriesDataFrame  # type: ignore[import-not-found]
+        from autogluon.timeseries import (
+            TimeSeriesDataFrame,  # type: ignore[import-not-found]
+        )
 
         config = self.config
         context = data.copy()
@@ -342,7 +346,9 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
             Dict mapping episode_id (str) to 1-D mean array or 2-D quantile
             array per episode.
         """
-        from autogluon.timeseries import TimeSeriesDataFrame  # type: ignore[import-not-found]
+        from autogluon.timeseries import (
+            TimeSeriesDataFrame,  # type: ignore[import-not-found]
+        )
 
         if self.predictor is None:
             raise ValueError("Model must be fitted or loaded before prediction.")
@@ -406,7 +412,9 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
         Checks for the JSON reference file first (written by _save_checkpoint).
         Falls back to loading model_dir directly as an AutoGluon predictor.
         """
-        from autogluon.timeseries import TimeSeriesPredictor  # type: ignore[import-not-found]
+        from autogluon.timeseries import (
+            TimeSeriesPredictor,  # type: ignore[import-not-found]
+        )
 
         ref_path = os.path.join(model_dir, self._PREDICTOR_JSON_NAME)
         if os.path.exists(ref_path):

@@ -7,7 +7,6 @@
 import numpy as np
 import pandas as pd
 import pywt
-
 from sktime.transformations.base import BaseTransformer
 
 __author__ = ["Phiruby"]

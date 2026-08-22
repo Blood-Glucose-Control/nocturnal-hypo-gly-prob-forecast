@@ -10,8 +10,9 @@ ensuring consistent APIs across different transformation methods.
 """
 
 from abc import ABC, abstractmethod
-import pandas as pd
 from typing import Union
+
+import pandas as pd
 
 
 class BaseTransformer(ABC):

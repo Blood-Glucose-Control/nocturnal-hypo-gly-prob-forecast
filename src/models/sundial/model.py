@@ -13,11 +13,12 @@ from transformers import (
     AutoModelForCausalLM,
 )
 
+from ...utils.logging_helper import error_print, info_print
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+
 # Local imports
-from src.models.sundial.config import SundialConfig
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.utils.logging_helper import info_print, error_print
+from .config import SundialConfig
 
 logger = logging.getLogger(__name__)
 

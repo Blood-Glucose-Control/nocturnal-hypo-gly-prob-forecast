@@ -7,10 +7,10 @@ import argparse
 import os
 from typing import Callable, Dict, Sequence, Tuple
 
-from src.workflows.sweeps.tasks.event_detection.train import (
+from .tasks.event_detection.train import (
     main as event_detection_train_main,
 )
-from src.workflows.sweeps.tasks.forecasting.train import (
+from .tasks.forecasting.train import (
     main as forecasting_train_main,
 )
 

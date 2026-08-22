@@ -1,7 +1,7 @@
 """Utility modules for the nocturnal project."""
 
 from .config_loader import load_yaml_config
-from .git_info import get_git_commit_hash, get_git_branch, is_git_dirty
+from .git_info import get_git_branch, get_git_commit_hash, is_git_dirty
 from .logging_helper import (
     debug_print,
     error_print,

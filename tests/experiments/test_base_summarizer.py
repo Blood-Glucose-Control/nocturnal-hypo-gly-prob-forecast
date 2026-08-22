@@ -19,7 +19,6 @@ import pytest
 
 from src.experiments.base.experiment import ExperimentSummarizer, _validate_metric
 
-
 # ---------------------------------------------------------------------------
 # Helpers / fixtures
 # ---------------------------------------------------------------------------

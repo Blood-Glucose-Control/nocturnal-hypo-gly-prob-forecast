@@ -34,11 +34,12 @@ Functions:
     get_train_validation_split: Create robust train and validation sets for a single patient with DatetimeIndex requirement for optimal performance
 """
 
-from typing import Generator, cast, Any
-from typing_extensions import deprecated
-import pandas as pd
+from typing import Any, Generator, cast
 
-from src.data.models import ColumnNames
+import pandas as pd
+from typing_extensions import deprecated
+
+from ..models import ColumnNames
 
 
 def create_datetime_index(

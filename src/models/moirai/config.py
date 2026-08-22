@@ -8,7 +8,7 @@ extending the base model configuration with Moirai-specific parameters.
 from dataclasses import dataclass, fields
 from typing import Dict, List, Optional
 
-from src.models.base import ModelConfig
+from ..base import ModelConfig
 
 
 @dataclass

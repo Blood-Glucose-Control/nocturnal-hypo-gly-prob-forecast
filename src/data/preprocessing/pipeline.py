@@ -57,8 +57,8 @@ from typing import Literal
 
 import pandas as pd
 
-from src.data.preprocessing.feature_engineering import create_physiological_features
-from src.data.preprocessing.validation import validate_required_columns
+from .feature_engineering import create_physiological_features
+from .validation import validate_required_columns
 
 logger = logging.getLogger(__name__)
 

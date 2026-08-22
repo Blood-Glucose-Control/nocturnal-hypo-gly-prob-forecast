@@ -2,17 +2,18 @@
 # Licensed under Custom Research License (see LICENSE file)
 # For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
-import pandas as pd
-import numpy as np
-
-from src.data.physiological.carb_model.constants import (
-    CARB_ABSORPTION,
-    TS_MIN,
-    T_ACTION_MAX_MIN,
-    COB_COL,
-    CARB_AVAIL_COL,
-)
 import logging
+
+import numpy as np
+import pandas as pd
+
+from .constants import (
+    CARB_ABSORPTION,
+    CARB_AVAIL_COL,
+    COB_COL,
+    T_ACTION_MAX_MIN,
+    TS_MIN,
+)
 
 logger = logging.getLogger(__name__)
 

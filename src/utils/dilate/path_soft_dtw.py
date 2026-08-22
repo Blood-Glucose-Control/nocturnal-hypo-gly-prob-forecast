@@ -3,8 +3,8 @@
 # Modifications: none (upstream code preserved verbatim).
 import numpy as np
 import torch
-from torch.autograd import Function
 from numba import jit
+from torch.autograd import Function
 
 
 @jit(nopython=True)

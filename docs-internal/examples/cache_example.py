@@ -6,8 +6,9 @@ data fetching and centralized caching.
 """
 
 import logging
-from src.data.diabetes_datasets.data_loader import get_loader
+
 from src.data.cache_manager import get_cache_manager
+from src.data.diabetes_datasets.data_loader import get_loader
 
 # Set up logging to see what's happening
 logging.basicConfig(level=logging.INFO)

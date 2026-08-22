@@ -7,10 +7,10 @@ import argparse
 import os
 from typing import Callable, Dict, Sequence, Tuple
 
-from src.workflows.sweeps.tasks.event_detection.eval import (
+from .tasks.event_detection.eval import (
     main as event_detection_eval_main,
 )
-from src.workflows.sweeps.tasks.forecasting.eval import main as forecasting_eval_main
+from .tasks.forecasting.eval import main as forecasting_eval_main
 
 EvalAdapter = Callable[[Sequence[str] | None], int]
 

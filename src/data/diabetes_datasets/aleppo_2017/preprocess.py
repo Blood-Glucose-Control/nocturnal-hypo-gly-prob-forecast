@@ -2,12 +2,14 @@
 # Licensed under Custom Research License (see LICENSE file)
 # For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
-import pandas as pd
-import os
 import logging
-from src.utils.os_helper import get_project_root
+import os
 import sqlite3
 from pathlib import Path
+
+import pandas as pd
+
+from ....utils.os_helper import get_project_root
 
 """
 Note from the readme:

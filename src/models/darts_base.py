@@ -19,9 +19,9 @@ import numpy as np
 import pandas as pd
 
 from ..data.preprocessing.gap_handling import segment_all_patients
+from ..utils.logging_helper import info_print
 from .base import BaseTimeSeriesFoundationModel, TrainingBackend
 from .tide.utils import convert_to_patient_dict
-from ..utils.logging_helper import info_print
 
 logger = logging.getLogger(__name__)
 

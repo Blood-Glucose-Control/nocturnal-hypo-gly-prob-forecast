@@ -10,10 +10,11 @@ such as moving averages, exponential smoothing, and other techniques to reduce
 noise and highlight trends.
 """
 
-import pandas as pd
-from typing import Union, Optional
+from typing import Optional, Union
 
-from src.data.transformers.base import BaseTransformer
+import pandas as pd
+
+from .base import BaseTransformer
 
 
 class MovingAverageTransformer(BaseTransformer):

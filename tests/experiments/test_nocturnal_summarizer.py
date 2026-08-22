@@ -19,7 +19,6 @@ import pytest
 
 from src.experiments.nocturnal.summarize import NocturnalSummarizer
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

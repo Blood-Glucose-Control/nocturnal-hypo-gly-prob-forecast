@@ -16,7 +16,7 @@ clinical hypoglycemia goal):
 
 Usage
 -----
-    from src.evaluation.metrics.probabilistic import compute_wql, compute_brier_score
+    from .probabilistic import compute_wql, compute_brier_score
 
     # quantile_forecasts: np.ndarray shape (n_quantiles, forecast_length)
     # actuals:            np.ndarray shape (forecast_length,)

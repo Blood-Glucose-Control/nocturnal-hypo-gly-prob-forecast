@@ -59,11 +59,11 @@ import logging
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 from ...data.utils import get_patient_column
 from ...data.versioning.dataset_registry import DatasetRegistry

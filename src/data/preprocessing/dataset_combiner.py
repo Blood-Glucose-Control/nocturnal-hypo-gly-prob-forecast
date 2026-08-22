@@ -5,9 +5,10 @@ This module provides functions to combine multiple datasets into a single
 training set, handling column alignment and validation.
 """
 
-import pandas as pd
-from typing import List, Tuple, Dict
 import logging
+from typing import Dict, List, Tuple
+
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
