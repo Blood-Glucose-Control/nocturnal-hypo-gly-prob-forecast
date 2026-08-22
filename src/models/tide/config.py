@@ -46,7 +46,8 @@ class TiDEConfig(ModelConfig):
     scaling: str = "mean"  # MeanScaler prevents discontinuity
 
     # Training
-    lr: float = 0.000931
+    learning_rate: float = 9.31e-4
+    lr: float = 9.31e-4
     num_batches_per_epoch: int = 300
     batch_size: int = 256
     gradient_clip_val: float = 1.0
@@ -89,11 +90,14 @@ class TiDEConfig(ModelConfig):
                 f"got {self.encoder_hidden_dim} != {self.decoder_hidden_dim}. "
                 f"This is a hard architectural constraint (see GluonTS source)."
             )
-        learning_rate_default = ModelConfig.learning_rate
-        if self.learning_rate != learning_rate_default:
-            if self.lr == 9.31e-4:
+        lr_default = type(self).lr
+        learning_rate_default = type(self).learning_rate
+        if self.lr != self.learning_rate:
+            if self.lr == lr_default and self.learning_rate != learning_rate_default:
                 self.lr = self.learning_rate
-            elif self.lr != self.learning_rate:
+            elif self.learning_rate == learning_rate_default and self.lr != lr_default:
+                self.learning_rate = self.lr
+            else:
                 raise ValueError(
                     f"Conflicting lr ({self.lr}) and learning_rate ({self.learning_rate}) "
                     "for TiDEConfig"

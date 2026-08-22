@@ -31,7 +31,6 @@ from src.models.base.registry import ModelRegistry
 from src.utils.logging_helper import info_print, prune_stale_file_handlers
 
 from .config import TiDEConfig
-
 from .utils import (
     convert_to_patient_dict,
     format_segments_for_autogluon,

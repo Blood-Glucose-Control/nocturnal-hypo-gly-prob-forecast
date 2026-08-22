@@ -1,8 +1,8 @@
 """Tests for schema-validated model config loading."""
 
-from pathlib import Path
 import sys
 import types
+from pathlib import Path
 
 import pytest
 
@@ -11,8 +11,11 @@ from src.config.schemas import (
     get_model_config_schema,
     get_registered_model_config_types,
 )
-from src.workflows.forecasting.modeling import GenericModelConfig, ModelFactory
-from src.workflows.forecasting.modeling import load_model_config_from_yaml
+from src.workflows.forecasting.modeling import (
+    GenericModelConfig,
+    ModelFactory,
+    load_model_config_from_yaml,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TSMIXER_SMOKE_CONFIG_PATH = (
