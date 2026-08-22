@@ -109,6 +109,33 @@ def _install_fake_chronos2_module(monkeypatch: pytest.MonkeyPatch) -> type:
     return FakeChronos2Config
 
 
+def _install_fake_model_family_module(
+    monkeypatch: pytest.MonkeyPatch,
+    module_name: str,
+    config_class_name: str,
+    forecaster_class_name: str,
+) -> type:
+    fake_models_pkg = types.ModuleType("src.models")
+    fake_models_pkg.__path__ = []  # type: ignore[attr-defined]
+
+    class FakeConfig:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    class FakeForecaster:
+        def __init__(self, config):
+            self.config = config
+
+    fake_module = types.ModuleType(f"src.models.{module_name}")
+    setattr(fake_module, config_class_name, FakeConfig)
+    setattr(fake_module, forecaster_class_name, FakeForecaster)
+
+    monkeypatch.setitem(sys.modules, "src.models", fake_models_pkg)
+    monkeypatch.setitem(sys.modules, f"src.models.{module_name}", fake_module)
+    return FakeConfig
+
+
 def test_tsmixer_model_config_validates_and_loads(tmp_path: Path) -> None:
     config_path = _write(
         tmp_path / "tsmixer_valid.yaml",
@@ -424,6 +451,160 @@ def test_chronos2_factory_path_uses_schema_covariate_default(
     model = ModelFactory.create_model(config)
     assert isinstance(model.config, fake_config_class)
     assert model.config.covariate_cols == ["iob"]
+
+
+@pytest.mark.parametrize(
+    (
+        "model_type",
+        "module_name",
+        "config_class_name",
+        "forecaster_class_name",
+        "extra_config",
+        "expected_model_name",
+        "expected_covariates",
+        "expected_lr",
+    ),
+    [
+        pytest.param(
+            "naive_baseline",
+            "naive_baseline",
+            "NaiveBaselineConfig",
+            "NaiveBaselineForecaster",
+            {},
+            "Naive",
+            [],
+            None,
+            id="naive_baseline-default-model-name",
+        ),
+        pytest.param(
+            "statistical",
+            "statistical",
+            "StatisticalConfig",
+            "StatisticalForecaster",
+            {},
+            "AutoARIMA",
+            [],
+            None,
+            id="statistical-default-model-name",
+        ),
+        pytest.param(
+            "patchtst",
+            "patchtst",
+            "PatchTSTConfig",
+            "PatchTSTForecaster",
+            {"learning_rate": 0.002, "covariate_cols": ["iob"]},
+            None,
+            ["iob"],
+            pytest.approx(0.002),
+            id="patchtst-learning-rate-alias",
+        ),
+        pytest.param(
+            "tft",
+            "tft",
+            "TFTConfig",
+            "TFTForecaster",
+            {"learning_rate": 0.003, "covariate_cols": ["iob"]},
+            None,
+            ["iob"],
+            pytest.approx(0.003),
+            id="tft-learning-rate-alias",
+        ),
+    ],
+)
+def test_autogluon_family_factory_paths_use_schema_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+    model_type: str,
+    module_name: str,
+    config_class_name: str,
+    forecaster_class_name: str,
+    extra_config: dict[str, object],
+    expected_model_name: str | None,
+    expected_covariates: list[str],
+    expected_lr: object | None,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name=module_name,
+        config_class_name=config_class_name,
+        forecaster_class_name=forecaster_class_name,
+    )
+
+    config = GenericModelConfig(
+        model_type=model_type,
+        model_path="",
+        context_length=128,
+        forecast_length=96,
+        extra_config=extra_config,
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    if expected_model_name is not None:
+        assert model.config.model_name == expected_model_name
+    assert model.config.covariate_cols == expected_covariates
+    if expected_lr is not None:
+        assert model.config.lr == expected_lr
+
+
+@pytest.mark.parametrize(
+    ("model_type", "module_name", "config_class_name", "forecaster_class_name"),
+    [
+        pytest.param(
+            "naive_baseline",
+            "naive_baseline",
+            "NaiveBaselineConfig",
+            "NaiveBaselineForecaster",
+            id="naive_baseline",
+        ),
+        pytest.param(
+            "statistical",
+            "statistical",
+            "StatisticalConfig",
+            "StatisticalForecaster",
+            id="statistical",
+        ),
+        pytest.param(
+            "patchtst",
+            "patchtst",
+            "PatchTSTConfig",
+            "PatchTSTForecaster",
+            id="patchtst",
+        ),
+        pytest.param(
+            "tft",
+            "tft",
+            "TFTConfig",
+            "TFTForecaster",
+            id="tft",
+        ),
+    ],
+)
+def test_autogluon_family_factory_paths_report_unknown_runtime_field(
+    monkeypatch: pytest.MonkeyPatch,
+    model_type: str,
+    module_name: str,
+    config_class_name: str,
+    forecaster_class_name: str,
+) -> None:
+    _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name=module_name,
+        config_class_name=config_class_name,
+        forecaster_class_name=forecaster_class_name,
+    )
+
+    config = GenericModelConfig(
+        model_type=model_type,
+        model_path="",
+        context_length=128,
+        forecast_length=96,
+        extra_config={"unknown_field": True},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ModelFactory.create_model(config)
+
+    assert "unknown_field" in str(exc_info.value)
 
 
 def test_runtime_adapter_reports_registered_types_for_unknown_model() -> None:
