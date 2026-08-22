@@ -94,3 +94,16 @@ Usage in repo:
 
 This keeps strict validation at boundaries without relocating model-owned runtime
 config classes from `src/models/*/config.py`.
+
+## JSON schema artifact tie-in
+
+The schema classes documented here are also exported as JSON schema artifacts in
+[`docs/architecture/generated-config-schemas/`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas)
+via:
+
+```bash
+python -m src.config.schemas.json_schema_artifacts
+```
+
+This keeps human-readable architecture docs and machine-readable schema contracts
+in sync during review.
