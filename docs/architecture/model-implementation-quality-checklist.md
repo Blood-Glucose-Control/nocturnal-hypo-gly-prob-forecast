@@ -151,3 +151,9 @@ Each model family should have tests covering:
 Use this checklist as a gating review rubric for every model-related PR wave.
 When practical, convert checklist items into automated tests (contract tests and
 schema/fixture validation) so quality does not rely only on manual review.
+
+Current automated contract entrypoint:
+
+```bash
+pytest -q tests/models/test_model_family_contract_suite.py
+```
