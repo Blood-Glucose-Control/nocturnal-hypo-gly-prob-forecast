@@ -11,6 +11,7 @@ nav:
   - Architecture:
       - Repository Design Handbook: architecture/repository-design-handbook.md
       - Workflow Config Schemas: architecture/workflow-configs-schema-guide.md
+      - Config Schema Artifacts: architecture/config-schema-artifacts.md
   - User Guide:
       - Usage: user-guide/usage.md
       - Getting Started: user-guide/getting-started.md

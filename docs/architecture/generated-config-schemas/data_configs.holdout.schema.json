@@ -1,0 +1,149 @@
+{
+  "$defs": {
+    "PatientHoldoutConfigSchema": {
+      "additionalProperties": false,
+      "description": "Schema contract for patient holdout config section.",
+      "properties": {
+        "holdout_patients": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Holdout Patients",
+          "type": "array"
+        },
+        "holdout_percentage": {
+          "anyOf": [
+            {
+              "exclusiveMaximum": 1.0,
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Holdout Percentage"
+        },
+        "min_holdout_patients": {
+          "exclusiveMinimum": 0,
+          "title": "Min Holdout Patients",
+          "type": "integer"
+        },
+        "min_train_patients": {
+          "exclusiveMinimum": 0,
+          "title": "Min Train Patients",
+          "type": "integer"
+        },
+        "random_seed": {
+          "default": 42,
+          "title": "Random Seed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "min_train_patients",
+        "min_holdout_patients"
+      ],
+      "title": "PatientHoldoutConfigSchema",
+      "type": "object"
+    },
+    "TemporalHoldoutConfigSchema": {
+      "additionalProperties": false,
+      "description": "Schema contract for temporal holdout config section.",
+      "properties": {
+        "holdout_percentage": {
+          "exclusiveMaximum": 1.0,
+          "exclusiveMinimum": 0.0,
+          "title": "Holdout Percentage",
+          "type": "number"
+        },
+        "min_holdout_samples": {
+          "exclusiveMinimum": 0,
+          "title": "Min Holdout Samples",
+          "type": "integer"
+        },
+        "min_train_samples": {
+          "exclusiveMinimum": 0,
+          "title": "Min Train Samples",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "holdout_percentage",
+        "min_train_samples",
+        "min_holdout_samples"
+      ],
+      "title": "TemporalHoldoutConfigSchema",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Schema contract for full holdout configuration YAML.",
+  "properties": {
+    "created_date": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created Date"
+    },
+    "dataset_name": {
+      "minLength": 1,
+      "title": "Dataset Name",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "holdout_type": {
+      "enum": [
+        "temporal",
+        "patient_based",
+        "hybrid"
+      ],
+      "title": "Holdout Type",
+      "type": "string"
+    },
+    "patient_config": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PatientHoldoutConfigSchema"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "temporal_config": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TemporalHoldoutConfigSchema"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "version": {
+      "default": "1.0",
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "dataset_name",
+    "holdout_type"
+  ],
+  "title": "HoldoutConfigSchema",
+  "type": "object"
+}

@@ -1,0 +1,93 @@
+{
+  "additionalProperties": false,
+  "description": "Validated request contract for forecasting workflow entrypoints.",
+  "properties": {
+    "batch_size": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Batch Size"
+    },
+    "config_dir": {
+      "default": "configs/data/holdout_10pct",
+      "minLength": 1,
+      "title": "Config Dir",
+      "type": "string"
+    },
+    "datasets": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Datasets",
+      "type": "array"
+    },
+    "epochs": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Epochs"
+    },
+    "model_config_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Config Path"
+    },
+    "model_type": {
+      "minLength": 1,
+      "title": "Model Type",
+      "type": "string"
+    },
+    "output_dir": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Output Dir"
+    },
+    "skip_steps": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Skip Steps",
+      "type": "array"
+    },
+    "skip_training": {
+      "default": false,
+      "title": "Skip Training",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "model_type",
+    "datasets"
+  ],
+  "title": "ForecastingWorkflowRequestSchema",
+  "type": "object"
+}

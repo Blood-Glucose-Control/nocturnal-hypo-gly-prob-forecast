@@ -1,0 +1,187 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for TSMixer model YAML configs.",
+  "properties": {
+    "activation": {
+      "default": "ReLU",
+      "title": "Activation",
+      "type": "string"
+    },
+    "batch_size": {
+      "default": 32,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Covariate Cols",
+      "type": "array"
+    },
+    "dropout": {
+      "default": 0.1,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Dropout",
+      "type": "number"
+    },
+    "ff_size": {
+      "default": 64,
+      "exclusiveMinimum": 0,
+      "title": "Ff Size",
+      "type": "integer"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "fp16": {
+      "default": true,
+      "title": "Fp16",
+      "type": "boolean"
+    },
+    "freeze_backbone": {
+      "default": false,
+      "title": "Freeze Backbone",
+      "type": "boolean"
+    },
+    "hidden_size": {
+      "default": 64,
+      "exclusiveMinimum": 0,
+      "title": "Hidden Size",
+      "type": "integer"
+    },
+    "imputation_threshold_mins": {
+      "default": 45,
+      "exclusiveMinimum": 0,
+      "title": "Imputation Threshold Mins",
+      "type": "integer"
+    },
+    "interval_mins": {
+      "default": 5,
+      "exclusiveMinimum": 0,
+      "title": "Interval Mins",
+      "type": "integer"
+    },
+    "learning_rate": {
+      "default": 0.001,
+      "exclusiveMinimum": 0.0,
+      "title": "Learning Rate",
+      "type": "number"
+    },
+    "min_segment_length": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Segment Length"
+    },
+    "model_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Path"
+    },
+    "model_type": {
+      "default": "tsmixer",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "norm_type": {
+      "default": "LayerNorm",
+      "title": "Norm Type",
+      "type": "string"
+    },
+    "normalize_before": {
+      "default": false,
+      "title": "Normalize Before",
+      "type": "boolean"
+    },
+    "num_blocks": {
+      "default": 2,
+      "exclusiveMinimum": 0,
+      "title": "Num Blocks",
+      "type": "integer"
+    },
+    "num_epochs": {
+      "default": 10,
+      "exclusiveMinimum": 0,
+      "title": "Num Epochs",
+      "type": "integer"
+    },
+    "patient_col": {
+      "default": "p_num",
+      "title": "Patient Col",
+      "type": "string"
+    },
+    "quantile_levels": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Quantile Levels"
+    },
+    "random_state": {
+      "default": 42,
+      "title": "Random State",
+      "type": "integer"
+    },
+    "target_col": {
+      "default": "bg_mM",
+      "title": "Target Col",
+      "type": "string"
+    },
+    "time_col": {
+      "default": "datetime",
+      "title": "Time Col",
+      "type": "string"
+    },
+    "training_mode": {
+      "default": "from_scratch",
+      "title": "Training Mode",
+      "type": "string"
+    },
+    "use_cpu": {
+      "default": false,
+      "title": "Use Cpu",
+      "type": "boolean"
+    },
+    "use_static_covariates": {
+      "default": false,
+      "title": "Use Static Covariates",
+      "type": "boolean"
+    }
+  },
+  "title": "TSMixerModelConfigSchema",
+  "type": "object"
+}
