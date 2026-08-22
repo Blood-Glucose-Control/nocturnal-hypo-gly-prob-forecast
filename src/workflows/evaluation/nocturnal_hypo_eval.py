@@ -41,21 +41,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from src.data.versioning.dataset_registry import DatasetRegistry
-from src.data.utils import get_patient_column
-from src.evaluation.nocturnal import (
+from ...data.utils import get_patient_column
+from ...data.versioning.dataset_registry import DatasetRegistry
+from ...evaluation.nocturnal import (
     evaluate_nocturnal_forecasting,
     plot_best_worst_episodes,
     STEPS_PER_HOUR,
 )
-from src.evaluation.storage import write_nocturnal_results
-from src.experiments.nocturnal.grand_summary import (
+from ...evaluation.storage import write_nocturnal_results
+from ...experiments.nocturnal.grand_summary import (
     bucket_from_covariates,
     model_supports_past_covariates,
 )
-from src.models import create_model_and_config
-from src.utils import get_git_commit_hash, setup_file_logging, load_yaml_config
-from src.workflows.runtime.manifest import (
+from ...models import create_model_and_config
+from ...utils import get_git_commit_hash, setup_file_logging
+from ..forecasting.modeling import load_model_config_from_yaml
+from ..runtime.manifest import (
     build_run_manifest,
     utc_now,
     write_run_manifest,
@@ -342,7 +343,11 @@ def main() -> int:
     log_file = setup_file_logging(output_path, "nocturnal_evaluation.log")
 
     # Load config from file if provided
-    config_dict = load_yaml_config(args.model_config) if args.model_config else {}
+    config_dict = (
+        load_model_config_from_yaml(args.model_config, model_type=args.model)
+        if args.model_config
+        else {}
+    )
 
     try:
         # Prepare model kwargs — pop model_type to avoid collision with the
@@ -432,12 +437,9 @@ def main() -> int:
         # Fine-tuned models (e.g., Chronos-2 with IOB) need the same columns at
         # predict time as were present during training.
         covariate_cols = args.covariate_cols
-        if (
-            covariate_cols is None
-            and hasattr(config, "covariate_cols")
-            and config.covariate_cols
-        ):
-            covariate_cols = config.covariate_cols
+        config_covariates = getattr(config, "covariate_cols", None)
+        if covariate_cols is None and config_covariates:
+            covariate_cols = config_covariates
             logger.info("Using covariates from model config: %s", covariate_cols)
 
         # Build resolved config dict once (used in experiment_config.json and results)

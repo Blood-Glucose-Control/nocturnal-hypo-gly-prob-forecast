@@ -65,12 +65,13 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from src.data.versioning.dataset_registry import DatasetRegistry
-from src.data.utils import get_patient_column
-from src.evaluation.metrics import compute_regression_metrics
-from src.models import create_model_and_config
-from src.models.base import BaseTimeSeriesFoundationModel
-from src.utils import get_git_commit_hash, setup_file_logging, load_yaml_config
+from ...data.utils import get_patient_column
+from ...data.versioning.dataset_registry import DatasetRegistry
+from ...evaluation.metrics import compute_regression_metrics
+from ...models import create_model_and_config
+from ...models.base import BaseTimeSeriesFoundationModel
+from ...utils import get_git_commit_hash, setup_file_logging
+from ..forecasting.modeling import load_model_config_from_yaml
 
 # Constants
 SAMPLING_INTERVAL_MINUTES = 5
@@ -543,10 +544,15 @@ def main():
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.cuda_device)
 
     # Load config from file if provided
-    config_dict = load_yaml_config(args.model_config) if args.model_config else {}
+    config_dict = (
+        load_model_config_from_yaml(args.model_config, model_type=args.model)
+        if args.model_config
+        else {}
+    )
 
     # Prepare model kwargs - only include CLI args if explicitly specified
     model_kwargs = {**config_dict}
+    model_kwargs.pop("model_type", None)
     if args.context_length is not None:
         model_kwargs["context_length"] = args.context_length
     if args.forecast_length is not None:

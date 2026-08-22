@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-20
 **Task ID:** `pydantic-config-schemas`
-**Status:** Phase 1 complete; Phase 2 pilot adapter implementation in progress
+**Status:** Phase 1-3 complete; Phase 4.1 consolidation in progress
 
 ## What this task means (plain English)
 
@@ -91,9 +91,12 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 
 ## Immediate next slice (what to implement next)
 
-1. ✅ Expand pilot coverage beyond model config load (workflow request + data holdout + evaluation feature-override schema lanes wired).
-2. ✅ Add fixture-backed regression tests against active `configs/models/tsmixer/*.yaml` profiles.
-3. Draft the Phase 3 migration table (model/data/eval ownership and target schema classes).
+1. ✅ Phase 4.1 — consolidate duplicate holdout/model-config validation entrypoints:
+   - migrated `src/experiments/nocturnal/holdout_split_analysis.py` from `HoldoutConfig.load(...)` to schema loader lane;
+   - migrated workflow evaluation scripts that were still loading loose model YAML dicts (`src/workflows/evaluation/nocturnal_hypo_eval.py`, `src/workflows/evaluation/sliding_window_eval.py`, `src/workflows/evaluation/validate_predict_batch.py`) to shared model-config schema loader path.
+2. Phase 4.2 — generate JSON schema artifacts from active schema modules (`model_configs.py`, `data_configs.py`, `workflow_configs.py`) into docs-visible location.
+3. Phase 4.3 — contributor doc pass: document canonical “add a schema + adapter” workflow and deprecate any stale validation guidance.
+4. Phase 4.x follow-on — execute model-family schema rollout backlog (table below) so all active model IDs use registry-backed schema adapters.
 
 ## Phase 3 migration table (draft)
 
@@ -108,3 +111,41 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 1. ✅ Data holdout schema adapter (`configs/data/holdout*` files) with parity checks against `HoldoutConfig`.
 2. ✅ Workflow request schema for `ForecastingWorkflowRequest`/CLI normalization.
 3. ✅ Evaluation override schema for the subset read in `evaluation.py` and `pipeline.py`.
+
+## Model-family schema rollout matrix (explicit backlog)
+
+| Model ID | Runtime factory support | Schema adapter status | Next action |
+|---|---|---|---|
+| `tsmixer` | Active | ✅ Completed (pilot) | Keep as reference implementation for adapter pattern |
+| `sundial` | Active | ⏳ Pending | Add schema + adapter; wire into registry; add fixture and invalid-config tests |
+| `ttm` | Active | ⏳ Pending | Add schema + adapter; include checkpoint/preprocessor-relevant fields |
+| `chronos` | Active | ⏳ Pending | Add schema + adapter; validate zero-shot/fine-tune fields |
+| `chronos2` | Active | ⏳ Pending | Add schema + adapter; align with covariate + checkpoint behavior |
+| `tide` | Active | ⏳ Pending | Add schema + adapter with Darts-aligned hyperparameter validation |
+| `moirai` | Active | ⏳ Pending | Add schema + adapter for MOIRAI-specific args |
+| `timegrad` | Active | ⏳ Pending | Add schema + adapter for TimeGrad config lane |
+| `moment` | Active | ⏳ Pending | Add schema + adapter for MOMENT lane |
+| `toto` | Active | ⏳ Pending | Add schema + adapter for Toto lane |
+| `timesfm` | Active | ⏳ Pending | Add schema + adapter for TimesFM lane |
+| `deepar` | Active | ⏳ Pending | Add schema + adapter for DeepAR lane |
+| `patchtst` | Active | ⏳ Pending | Add schema + adapter for PatchTST lane |
+| `tft` | Active | ⏳ Pending | Add schema + adapter for TFT lane |
+| `naive_baseline` | Active | ⏳ Pending | Add minimal schema + adapter (baseline-only fields) |
+| `statistical` | Active | ⏳ Pending | Add minimal schema + adapter (method/seasonality fields) |
+
+### Rollout execution timing
+
+- Start immediately after Phase 4.2 schema artifact generation.
+- Execute in small PR waves (2-3 model families per PR) so each wave has focused
+  fixtures + invalid-config tests and fast review cycles.
+- Target order: high-use families first (`chronos2`, `ttm`, `timesfm`, `tide`),
+  then remaining active families.
+
+## Phase 4 kickoff checklist (prepared)
+
+- [x] Merge Phase 3 PR and fast-forward local `main`.
+- [x] Branch housekeeping (remove stale local Phase 3 branch).
+- [x] Create dedicated Phase 4 branch.
+- [x] Implement validation-path consolidation changes.
+- [ ] Add JSON schema artifact generation.
+- [ ] Final contributor documentation pass for schema evolution workflow.
