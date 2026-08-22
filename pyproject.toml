@@ -110,6 +110,3 @@ pythonpath = ["."]
 markers = [
     "slow: marks tests that are slower/integration-heavy (deselect with '-m \"not slow\"')",
 ]
-
-[tool.ruff.lint]
-extend-select = ["I"]
