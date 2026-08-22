@@ -58,6 +58,8 @@ Documentation is currently under construction.
 
 [Workflow Config Schemas](architecture/workflow-configs-schema-guide.md)
 
+[Config Schema Artifacts](architecture/config-schema-artifacts.md)
+
 ## MkDocs
 This documentation is made with [mkdocs.org](https://www.mkdocs.org).
 

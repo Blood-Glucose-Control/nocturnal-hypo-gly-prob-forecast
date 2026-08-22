@@ -1,0 +1,20 @@
+{
+  "schemas": [
+    {
+      "file": "model_configs.tsmixer.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.TSMixerModelConfigSchema"
+    },
+    {
+      "file": "data_configs.holdout.schema.json",
+      "source_symbol": "src.config.schemas.data_configs.HoldoutConfigSchema"
+    },
+    {
+      "file": "workflow_configs.forecasting_request.schema.json",
+      "source_symbol": "src.config.schemas.workflow_configs.ForecastingWorkflowRequestSchema"
+    },
+    {
+      "file": "workflow_configs.feature_override_envelope.schema.json",
+      "source_symbol": "src.config.schemas.workflow_configs.EvaluationFeatureOverrideEnvelope"
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "additionalProperties": true,
+  "description": "Envelope schema that validates feature override keys while allowing extras.",
+  "properties": {
+    "input_features": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Input Features"
+    },
+    "target_features": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Features"
+    }
+  },
+  "title": "EvaluationFeatureOverrideEnvelope",
+  "type": "object"
+}
