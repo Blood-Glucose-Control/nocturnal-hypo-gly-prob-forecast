@@ -8,7 +8,15 @@ from typing import Any, NamedTuple
 
 from .base import BaseConfigSchema
 from .data_configs import HoldoutConfigSchema
-from .model_configs import TSMixerModelConfigSchema
+from .model_configs import (
+    Chronos2ModelConfigSchema,
+    DeepARModelConfigSchema,
+    NaiveBaselineModelConfigSchema,
+    PatchTSTModelConfigSchema,
+    StatisticalModelConfigSchema,
+    TFTModelConfigSchema,
+    TSMixerModelConfigSchema,
+)
 from .workflow_configs import (
     EvaluationFeatureOverrideEnvelope,
     ForecastingWorkflowRequestSchema,
@@ -24,6 +32,36 @@ class SchemaArtifactSpec(NamedTuple):
 
 
 SCHEMA_ARTIFACT_SPECS: tuple[SchemaArtifactSpec, ...] = (
+    SchemaArtifactSpec(
+        filename="model_configs.chronos2.schema.json",
+        schema_type=Chronos2ModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.Chronos2ModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.deepar.schema.json",
+        schema_type=DeepARModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.DeepARModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.naive_baseline.schema.json",
+        schema_type=NaiveBaselineModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.NaiveBaselineModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.patchtst.schema.json",
+        schema_type=PatchTSTModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.PatchTSTModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.statistical.schema.json",
+        schema_type=StatisticalModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.StatisticalModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.tft.schema.json",
+        schema_type=TFTModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.TFTModelConfigSchema",
+    ),
     SchemaArtifactSpec(
         filename="model_configs.tsmixer.schema.json",
         schema_type=TSMixerModelConfigSchema,

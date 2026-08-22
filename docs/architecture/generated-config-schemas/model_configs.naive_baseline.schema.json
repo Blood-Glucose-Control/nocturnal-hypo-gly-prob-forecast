@@ -1,0 +1,129 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for Naive/Average AutoGluon baseline configs.",
+  "properties": {
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Covariate Cols",
+      "type": "array"
+    },
+    "enable_ensemble": {
+      "default": false,
+      "title": "Enable Ensemble",
+      "type": "boolean"
+    },
+    "eval_metric": {
+      "default": "WQL",
+      "minLength": 1,
+      "title": "Eval Metric",
+      "type": "string"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "imputation_threshold_mins": {
+      "default": 45,
+      "exclusiveMinimum": 0,
+      "title": "Imputation Threshold Mins",
+      "type": "integer"
+    },
+    "interval_mins": {
+      "default": 5,
+      "exclusiveMinimum": 0,
+      "title": "Interval Mins",
+      "type": "integer"
+    },
+    "min_segment_length": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Segment Length"
+    },
+    "model_name": {
+      "default": "Naive",
+      "enum": [
+        "Naive",
+        "Average"
+      ],
+      "title": "Model Name",
+      "type": "string"
+    },
+    "model_type": {
+      "const": "naive_baseline",
+      "default": "naive_baseline",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "patient_col": {
+      "default": "p_num",
+      "minLength": 1,
+      "title": "Patient Col",
+      "type": "string"
+    },
+    "quantile_levels": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Quantile Levels"
+    },
+    "target_col": {
+      "default": "bg_mM",
+      "minLength": 1,
+      "title": "Target Col",
+      "type": "string"
+    },
+    "time_col": {
+      "default": "datetime",
+      "minLength": 1,
+      "title": "Time Col",
+      "type": "string"
+    },
+    "time_limit": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Time Limit"
+    },
+    "training_mode": {
+      "default": "from_scratch",
+      "title": "Training Mode",
+      "type": "string"
+    }
+  },
+  "title": "NaiveBaselineModelConfigSchema",
+  "type": "object"
+}

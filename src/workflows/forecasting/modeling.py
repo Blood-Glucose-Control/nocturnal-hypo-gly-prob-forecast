@@ -154,20 +154,25 @@ class ModelFactory:
                     "Chronos-2 model not available. Install with: "
                     f"pip install 'nocturnal-hypo-gly-prob-forecast[chronos2]': {e}"
                 ) from e
-            return Chronos2Forecaster(
-                Chronos2Config(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    use_cpu=config.use_cpu,
-                    fp16=config.fp16,
-                    learning_rate=config.learning_rate,
-                    **config.extra_config,
-                )
+            extra = dict(config.extra_config) if config.extra_config else {}
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "chronos2",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
             )
+            return Chronos2Forecaster(Chronos2Config(**runtime_config))
         if model_type == "moment":
             try:
                 from src.models.moment import MomentConfig, MomentForecaster
@@ -293,64 +298,79 @@ class ModelFactory:
             )
 
             extra = dict(config.extra_config) if config.extra_config else {}
-            return NaiveBaselineForecaster(
-                NaiveBaselineConfig(
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    model_name=extra.pop("model_name", "Naive"),
-                    covariate_cols=extra.pop("covariate_cols", []),
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "naive_baseline",
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "model_name": extra.pop("model_name", "Naive"),
+                    "covariate_cols": extra.pop("covariate_cols", []),
                     **extra,
-                )
+                },
             )
+            return NaiveBaselineForecaster(NaiveBaselineConfig(**runtime_config))
         if model_type == "statistical":
             from src.models.statistical import StatisticalConfig, StatisticalForecaster
 
             extra = dict(config.extra_config) if config.extra_config else {}
-            return StatisticalForecaster(
-                StatisticalConfig(
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    model_name=extra.pop("model_name", "AutoARIMA"),
-                    covariate_cols=extra.pop("covariate_cols", []),
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "statistical",
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "model_name": extra.pop("model_name", "AutoARIMA"),
+                    "covariate_cols": extra.pop("covariate_cols", []),
                     **extra,
-                )
+                },
             )
+            return StatisticalForecaster(StatisticalConfig(**runtime_config))
         if model_type == "deepar":
             from src.models.deepar import DeepARConfig, DeepARForecaster
 
             extra = dict(config.extra_config) if config.extra_config else {}
-            return DeepARForecaster(
-                DeepARConfig(
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    covariate_cols=extra.pop("covariate_cols", []),
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "deepar",
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "covariate_cols": extra.pop("covariate_cols", []),
                     **extra,
-                )
+                },
             )
+            return DeepARForecaster(DeepARConfig(**runtime_config))
         if model_type == "patchtst":
             from src.models.patchtst import PatchTSTConfig, PatchTSTForecaster
 
             extra = dict(config.extra_config) if config.extra_config else {}
-            return PatchTSTForecaster(
-                PatchTSTConfig(
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    covariate_cols=extra.pop("covariate_cols", []),
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "patchtst",
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "covariate_cols": extra.pop("covariate_cols", []),
                     **extra,
-                )
+                },
             )
+            return PatchTSTForecaster(PatchTSTConfig(**runtime_config))
         if model_type == "tft":
             from src.models.tft import TFTConfig, TFTForecaster
 
             extra = dict(config.extra_config) if config.extra_config else {}
-            return TFTForecaster(
-                TFTConfig(
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    covariate_cols=extra.pop("covariate_cols", []),
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "tft",
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "covariate_cols": extra.pop("covariate_cols", []),
                     **extra,
-                )
+                },
             )
+            return TFTForecaster(TFTConfig(**runtime_config))
         if model_type == "tsmixer":
             try:
                 from src.models.tsmixer import TSMixerConfig, TSMixerForecaster

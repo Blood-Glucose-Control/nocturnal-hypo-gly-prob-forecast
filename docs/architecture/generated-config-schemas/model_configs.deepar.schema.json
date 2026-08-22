@@ -1,0 +1,175 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for DeepAR AutoGluon configs.",
+  "properties": {
+    "batch_size": {
+      "default": 128,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Covariate Cols",
+      "type": "array"
+    },
+    "dropout_rate": {
+      "default": 0.1,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Dropout Rate",
+      "type": "number"
+    },
+    "early_stopping_patience": {
+      "default": 20,
+      "minimum": 0,
+      "title": "Early Stopping Patience",
+      "type": "integer"
+    },
+    "enable_ensemble": {
+      "default": false,
+      "title": "Enable Ensemble",
+      "type": "boolean"
+    },
+    "eval_metric": {
+      "default": "WQL",
+      "minLength": 1,
+      "title": "Eval Metric",
+      "type": "string"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "gradient_clip_val": {
+      "default": 10.0,
+      "minimum": 0.0,
+      "title": "Gradient Clip Val",
+      "type": "number"
+    },
+    "hidden_size": {
+      "default": 64,
+      "exclusiveMinimum": 0,
+      "title": "Hidden Size",
+      "type": "integer"
+    },
+    "imputation_threshold_mins": {
+      "default": 45,
+      "exclusiveMinimum": 0,
+      "title": "Imputation Threshold Mins",
+      "type": "integer"
+    },
+    "interval_mins": {
+      "default": 5,
+      "exclusiveMinimum": 0,
+      "title": "Interval Mins",
+      "type": "integer"
+    },
+    "lr": {
+      "default": 0.001,
+      "exclusiveMinimum": 0.0,
+      "title": "Lr",
+      "type": "number"
+    },
+    "max_epochs": {
+      "default": 100,
+      "exclusiveMinimum": 0,
+      "title": "Max Epochs",
+      "type": "integer"
+    },
+    "min_segment_length": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Segment Length"
+    },
+    "model_type": {
+      "const": "deepar",
+      "default": "deepar",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "num_batches_per_epoch": {
+      "default": 50,
+      "exclusiveMinimum": 0,
+      "title": "Num Batches Per Epoch",
+      "type": "integer"
+    },
+    "num_layers": {
+      "default": 2,
+      "exclusiveMinimum": 0,
+      "title": "Num Layers",
+      "type": "integer"
+    },
+    "patient_col": {
+      "default": "p_num",
+      "minLength": 1,
+      "title": "Patient Col",
+      "type": "string"
+    },
+    "quantile_levels": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Quantile Levels"
+    },
+    "target_col": {
+      "default": "bg_mM",
+      "minLength": 1,
+      "title": "Target Col",
+      "type": "string"
+    },
+    "time_col": {
+      "default": "datetime",
+      "minLength": 1,
+      "title": "Time Col",
+      "type": "string"
+    },
+    "time_limit": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Time Limit"
+    },
+    "training_mode": {
+      "default": "from_scratch",
+      "title": "Training Mode",
+      "type": "string"
+    }
+  },
+  "title": "DeepARModelConfigSchema",
+  "type": "object"
+}

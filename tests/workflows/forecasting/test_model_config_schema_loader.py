@@ -18,6 +18,22 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 TSMIXER_SMOKE_CONFIG_PATH = (
     REPO_ROOT / "configs" / "models" / "tsmixer" / "00_iob_cob_smoke.yaml"
 )
+AUTOGLUON_SCHEMA_SMOKE_CONFIGS = {
+    "chronos2": REPO_ROOT / "configs" / "models" / "chronos2" / "00_bg_only.yaml",
+    "deepar": REPO_ROOT / "configs" / "models" / "deepar" / "00_baseline.yaml",
+    "naive_baseline": REPO_ROOT
+    / "configs"
+    / "models"
+    / "naive_baseline"
+    / "00_naive.yaml",
+    "patchtst": REPO_ROOT / "configs" / "models" / "patchtst" / "00_baseline.yaml",
+    "statistical": REPO_ROOT
+    / "configs"
+    / "models"
+    / "statistical"
+    / "00_autoarima_bg_only.yaml",
+    "tft": REPO_ROOT / "configs" / "models" / "tft" / "00_bg_baseline.yaml",
+}
 
 
 def _write(path: Path, content: str) -> str:
@@ -49,6 +65,28 @@ def _install_fake_tsmixer_module(monkeypatch: pytest.MonkeyPatch) -> type:
     return FakeTSMixerConfig
 
 
+def _install_fake_deepar_module(monkeypatch: pytest.MonkeyPatch) -> type:
+    fake_models_pkg = types.ModuleType("src.models")
+    fake_models_pkg.__path__ = []  # type: ignore[attr-defined]
+
+    class FakeDeepARConfig:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    class FakeDeepARForecaster:
+        def __init__(self, config):
+            self.config = config
+
+    fake_deepar_module = types.ModuleType("src.models.deepar")
+    fake_deepar_module.DeepARConfig = FakeDeepARConfig
+    fake_deepar_module.DeepARForecaster = FakeDeepARForecaster
+
+    monkeypatch.setitem(sys.modules, "src.models", fake_models_pkg)
+    monkeypatch.setitem(sys.modules, "src.models.deepar", fake_deepar_module)
+    return FakeDeepARConfig
+
+
 def test_tsmixer_model_config_validates_and_loads(tmp_path: Path) -> None:
     config_path = _write(
         tmp_path / "tsmixer_valid.yaml",
@@ -77,6 +115,20 @@ imputation_threshold_mins: 45
     assert loaded["covariate_cols"] == ["iob", "cob"]
 
 
+@pytest.mark.parametrize(
+    ("model_type", "config_path"),
+    tuple(AUTOGLUON_SCHEMA_SMOKE_CONFIGS.items()),
+)
+def test_autogluon_model_configs_validate_via_schema_loader(
+    model_type: str, config_path: Path
+) -> None:
+    loaded = load_model_config_from_yaml(str(config_path), model_type=model_type)
+
+    assert loaded["model_type"] == model_type
+    assert loaded["context_length"] > 0
+    assert loaded["forecast_length"] > 0
+
+
 def test_tsmixer_model_config_normalizes_lr_alias(tmp_path: Path) -> None:
     config_path = _write(
         tmp_path / "tsmixer_lr_alias.yaml",
@@ -91,6 +143,21 @@ lr: 0.004
     loaded = load_model_config_from_yaml(config_path, model_type="tsmixer")
     assert loaded["learning_rate"] == pytest.approx(0.004)
     assert "lr" not in loaded
+
+
+@pytest.mark.parametrize("model_type", ["deepar", "patchtst", "tft"])
+def test_autogluon_model_config_normalizes_learning_rate_alias(model_type: str) -> None:
+    runtime_config = build_model_runtime_config(
+        model_type=model_type,
+        config_data={
+            "context_length": 128,
+            "forecast_length": 96,
+            "learning_rate": 0.003,
+        },
+    )
+
+    assert runtime_config["lr"] == pytest.approx(0.003)
+    assert "learning_rate" not in runtime_config
 
 
 def test_tsmixer_model_config_reports_schema_errors(tmp_path: Path) -> None:
@@ -110,6 +177,26 @@ unknown_field: true
     assert config_path in message
     assert "context_length" in message
     assert "unknown_field" in message
+
+
+def test_chronos2_model_config_reports_joint_target_schema_errors(
+    tmp_path: Path,
+) -> None:
+    config_path = _write(
+        tmp_path / "chronos2_invalid_joint_target.yaml",
+        """
+model_type: chronos2
+context_length: 512
+forecast_length: 96
+joint_target_cols: [iob]
+target_col: bg_mM
+""".strip(),
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        load_model_config_from_yaml(config_path, model_type="chronos2")
+
+    assert "joint_target_cols" in str(exc_info.value)
 
 
 def test_tsmixer_runtime_adapter_builds_runtime_config() -> None:
@@ -159,8 +246,19 @@ def test_tsmixer_smoke_profile_builds_runtime_payload() -> None:
 
 
 def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
-    assert "tsmixer" in get_registered_model_config_types()
+    registered = get_registered_model_config_types()
+    for model_type in [
+        "chronos2",
+        "deepar",
+        "naive_baseline",
+        "patchtst",
+        "statistical",
+        "tft",
+        "tsmixer",
+    ]:
+        assert model_type in registered
     assert get_model_config_schema("tsmixer") is not None
+    assert get_model_config_schema("deepar") is not None
 
 
 def test_tsmixer_factory_path_uses_schema_adapter_for_lr_alias(
@@ -192,6 +290,44 @@ def test_tsmixer_factory_path_reports_unknown_runtime_field(
 
     config = GenericModelConfig(
         model_type="tsmixer",
+        model_path="",
+        context_length=128,
+        forecast_length=96,
+        extra_config={"unknown_field": True},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ModelFactory.create_model(config)
+
+    assert "unknown_field" in str(exc_info.value)
+
+
+def test_deepar_factory_path_uses_schema_adapter_for_learning_rate_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_deepar_module(monkeypatch)
+
+    config = GenericModelConfig(
+        model_type="deepar",
+        model_path="",
+        context_length=128,
+        forecast_length=96,
+        extra_config={"learning_rate": 0.002, "covariate_cols": ["iob"]},
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.lr == pytest.approx(0.002)
+    assert model.config.covariate_cols == ["iob"]
+
+
+def test_deepar_factory_path_reports_unknown_runtime_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_deepar_module(monkeypatch)
+
+    config = GenericModelConfig(
+        model_type="deepar",
         model_path="",
         context_length=128,
         forecast_length=96,

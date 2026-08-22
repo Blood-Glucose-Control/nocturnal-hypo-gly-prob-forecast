@@ -1,0 +1,186 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for PatchTST AutoGluon configs.",
+  "properties": {
+    "batch_size": {
+      "default": 256,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Covariate Cols",
+      "type": "array"
+    },
+    "d_model": {
+      "default": 128,
+      "exclusiveMinimum": 0,
+      "title": "D Model",
+      "type": "integer"
+    },
+    "early_stopping_patience": {
+      "default": 20,
+      "minimum": 0,
+      "title": "Early Stopping Patience",
+      "type": "integer"
+    },
+    "enable_ensemble": {
+      "default": false,
+      "title": "Enable Ensemble",
+      "type": "boolean"
+    },
+    "eval_metric": {
+      "default": "WQL",
+      "minLength": 1,
+      "title": "Eval Metric",
+      "type": "string"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "imputation_threshold_mins": {
+      "default": 45,
+      "exclusiveMinimum": 0,
+      "title": "Imputation Threshold Mins",
+      "type": "integer"
+    },
+    "interval_mins": {
+      "default": 5,
+      "exclusiveMinimum": 0,
+      "title": "Interval Mins",
+      "type": "integer"
+    },
+    "lr": {
+      "default": 0.0001,
+      "exclusiveMinimum": 0.0,
+      "title": "Lr",
+      "type": "number"
+    },
+    "max_epochs": {
+      "default": 100,
+      "exclusiveMinimum": 0,
+      "title": "Max Epochs",
+      "type": "integer"
+    },
+    "min_segment_length": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Segment Length"
+    },
+    "model_type": {
+      "const": "patchtst",
+      "default": "patchtst",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "nhead": {
+      "default": 16,
+      "exclusiveMinimum": 0,
+      "title": "Nhead",
+      "type": "integer"
+    },
+    "num_batches_per_epoch": {
+      "default": 100,
+      "exclusiveMinimum": 0,
+      "title": "Num Batches Per Epoch",
+      "type": "integer"
+    },
+    "num_encoder_layers": {
+      "default": 3,
+      "exclusiveMinimum": 0,
+      "title": "Num Encoder Layers",
+      "type": "integer"
+    },
+    "patch_len": {
+      "default": 16,
+      "exclusiveMinimum": 0,
+      "title": "Patch Len",
+      "type": "integer"
+    },
+    "patient_col": {
+      "default": "p_num",
+      "minLength": 1,
+      "title": "Patient Col",
+      "type": "string"
+    },
+    "quantile_levels": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Quantile Levels"
+    },
+    "stride": {
+      "default": 8,
+      "exclusiveMinimum": 0,
+      "title": "Stride",
+      "type": "integer"
+    },
+    "target_col": {
+      "default": "bg_mM",
+      "minLength": 1,
+      "title": "Target Col",
+      "type": "string"
+    },
+    "time_col": {
+      "default": "datetime",
+      "minLength": 1,
+      "title": "Time Col",
+      "type": "string"
+    },
+    "time_limit": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Time Limit"
+    },
+    "training_mode": {
+      "default": "from_scratch",
+      "title": "Training Mode",
+      "type": "string"
+    },
+    "weight_decay": {
+      "default": 1e-08,
+      "minimum": 0.0,
+      "title": "Weight Decay",
+      "type": "number"
+    }
+  },
+  "title": "PatchTSTModelConfigSchema",
+  "type": "object"
+}
