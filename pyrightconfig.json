@@ -3,6 +3,7 @@
     "src"
   ],
   "exclude": [
+    "pyproject.toml",
     "**/__pycache__",
     "**/.venv",
     "**/.noctprob-venv",
