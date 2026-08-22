@@ -1,0 +1,177 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for AutoGluon statistical model configs.",
+  "properties": {
+    "autoarima_D": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Autoarima D"
+    },
+    "autoarima_d": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Autoarima D"
+    },
+    "autoarima_max_p": {
+      "default": 3,
+      "exclusiveMinimum": 0,
+      "title": "Autoarima Max P",
+      "type": "integer"
+    },
+    "autoarima_max_q": {
+      "default": 3,
+      "exclusiveMinimum": 0,
+      "title": "Autoarima Max Q",
+      "type": "integer"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Covariate Cols",
+      "type": "array"
+    },
+    "enable_ensemble": {
+      "default": false,
+      "title": "Enable Ensemble",
+      "type": "boolean"
+    },
+    "eval_metric": {
+      "default": "WQL",
+      "minLength": 1,
+      "title": "Eval Metric",
+      "type": "string"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "imputation_threshold_mins": {
+      "default": 45,
+      "exclusiveMinimum": 0,
+      "title": "Imputation Threshold Mins",
+      "type": "integer"
+    },
+    "interval_mins": {
+      "default": 5,
+      "exclusiveMinimum": 0,
+      "title": "Interval Mins",
+      "type": "integer"
+    },
+    "min_segment_length": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Segment Length"
+    },
+    "model_name": {
+      "default": "AutoARIMA",
+      "enum": [
+        "AutoARIMA",
+        "Theta",
+        "NPTS"
+      ],
+      "title": "Model Name",
+      "type": "string"
+    },
+    "model_type": {
+      "const": "statistical",
+      "default": "statistical",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "patient_col": {
+      "default": "p_num",
+      "minLength": 1,
+      "title": "Patient Col",
+      "type": "string"
+    },
+    "quantile_levels": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Quantile Levels"
+    },
+    "target_col": {
+      "default": "bg_mM",
+      "minLength": 1,
+      "title": "Target Col",
+      "type": "string"
+    },
+    "theta_decomposition_type": {
+      "default": "additive",
+      "enum": [
+        "additive",
+        "multiplicative"
+      ],
+      "title": "Theta Decomposition Type",
+      "type": "string"
+    },
+    "time_col": {
+      "default": "datetime",
+      "minLength": 1,
+      "title": "Time Col",
+      "type": "string"
+    },
+    "time_limit": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Time Limit"
+    },
+    "training_mode": {
+      "default": "from_scratch",
+      "title": "Training Mode",
+      "type": "string"
+    }
+  },
+  "title": "StatisticalModelConfigSchema",
+  "type": "object"
+}

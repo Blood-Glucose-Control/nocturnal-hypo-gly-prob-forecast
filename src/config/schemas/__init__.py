@@ -7,11 +7,23 @@ from .data_configs import (
 )
 from .loader import load_yaml_as_schema
 from .model_configs import (
+    Chronos2ModelConfigSchema,
+    DeepARModelConfigSchema,
+    NaiveBaselineModelConfigSchema,
+    PatchTSTModelConfigSchema,
+    StatisticalModelConfigSchema,
+    TFTModelConfigSchema,
     TSMixerModelConfigSchema,
+    build_chronos2_runtime_config,
+    build_deepar_runtime_config,
     build_model_runtime_config,
+    build_naive_baseline_runtime_config,
+    build_patchtst_runtime_config,
+    build_statistical_runtime_config,
+    build_tft_runtime_config,
     build_tsmixer_runtime_config,
-    get_registered_model_config_types,
     get_model_config_schema,
+    get_registered_model_config_types,
 )
 from .workflow_configs import (
     ForecastingWorkflowRequestSchema,
@@ -21,9 +33,21 @@ from .workflow_configs import (
 
 __all__ = [
     "HoldoutConfigSchema",
+    "Chronos2ModelConfigSchema",
+    "DeepARModelConfigSchema",
+    "NaiveBaselineModelConfigSchema",
+    "PatchTSTModelConfigSchema",
+    "StatisticalModelConfigSchema",
+    "TFTModelConfigSchema",
     "TSMixerModelConfigSchema",
     "build_holdout_runtime_config",
+    "build_chronos2_runtime_config",
+    "build_deepar_runtime_config",
     "build_model_runtime_config",
+    "build_naive_baseline_runtime_config",
+    "build_patchtst_runtime_config",
+    "build_statistical_runtime_config",
+    "build_tft_runtime_config",
     "build_tsmixer_runtime_config",
     "get_registered_model_config_types",
     "get_model_config_schema",

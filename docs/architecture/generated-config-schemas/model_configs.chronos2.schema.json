@@ -1,0 +1,242 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for Chronos-2 (AutoGluon backend) YAML configs.",
+  "properties": {
+    "batch_size": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Batch Size"
+    },
+    "checkpoint_save_steps": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Checkpoint Save Steps"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Covariate Cols",
+      "type": "array"
+    },
+    "enable_ensemble": {
+      "default": false,
+      "title": "Enable Ensemble",
+      "type": "boolean"
+    },
+    "eval_during_fine_tune": {
+      "default": true,
+      "title": "Eval During Fine Tune",
+      "type": "boolean"
+    },
+    "eval_metric": {
+      "default": "WQL",
+      "minLength": 1,
+      "title": "Eval Metric",
+      "type": "string"
+    },
+    "fine_tune_batch_size": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fine Tune Batch Size"
+    },
+    "fine_tune_logging_steps": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fine Tune Logging Steps"
+    },
+    "fine_tune_lr": {
+      "default": 1e-05,
+      "exclusiveMinimum": 0.0,
+      "title": "Fine Tune Lr",
+      "type": "number"
+    },
+    "fine_tune_steps": {
+      "default": 15000,
+      "exclusiveMinimum": 0,
+      "title": "Fine Tune Steps",
+      "type": "integer"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "fp16": {
+      "default": true,
+      "title": "Fp16",
+      "type": "boolean"
+    },
+    "freeze_backbone": {
+      "default": false,
+      "title": "Freeze Backbone",
+      "type": "boolean"
+    },
+    "imputation_threshold_mins": {
+      "default": 45,
+      "exclusiveMinimum": 0,
+      "title": "Imputation Threshold Mins",
+      "type": "integer"
+    },
+    "interval_mins": {
+      "default": 5,
+      "exclusiveMinimum": 0,
+      "title": "Interval Mins",
+      "type": "integer"
+    },
+    "joint_target_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Joint Target Cols",
+      "type": "array"
+    },
+    "known_covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Known Covariate Cols",
+      "type": "array"
+    },
+    "learning_rate": {
+      "default": 0.0001,
+      "exclusiveMinimum": 0.0,
+      "title": "Learning Rate",
+      "type": "number"
+    },
+    "min_past": {
+      "default": 1,
+      "exclusiveMinimum": 0,
+      "title": "Min Past",
+      "type": "integer"
+    },
+    "min_segment_length": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Min Segment Length"
+    },
+    "model_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": "autogluon/chronos-2",
+      "title": "Model Path"
+    },
+    "model_type": {
+      "const": "chronos2",
+      "default": "chronos2",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "patient_col": {
+      "default": "p_num",
+      "minLength": 1,
+      "title": "Patient Col",
+      "type": "string"
+    },
+    "quantile_levels": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Quantile Levels"
+    },
+    "target_col": {
+      "default": "bg_mM",
+      "minLength": 1,
+      "title": "Target Col",
+      "type": "string"
+    },
+    "time_col": {
+      "default": "datetime",
+      "minLength": 1,
+      "title": "Time Col",
+      "type": "string"
+    },
+    "time_limit": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Time Limit"
+    },
+    "training_mode": {
+      "default": "fine_tune",
+      "title": "Training Mode",
+      "type": "string"
+    },
+    "use_cpu": {
+      "default": false,
+      "title": "Use Cpu",
+      "type": "boolean"
+    }
+  },
+  "title": "Chronos2ModelConfigSchema",
+  "type": "object"
+}
