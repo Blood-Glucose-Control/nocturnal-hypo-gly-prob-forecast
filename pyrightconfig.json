@@ -13,8 +13,6 @@
     "**/.venv",
     "**/.noctprob-venv",
     "**/.noctprob-venv.backup-*",
-    ".noctprob-venv.backup-20260820-223939",
-    ".noctprob-venv.backup-py314-20260820-224646",
     "**/node_modules",
     "**/.git",
     "**/cache",
