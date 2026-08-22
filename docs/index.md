@@ -60,6 +60,8 @@ Documentation is currently under construction.
 
 [Config Schema Artifacts](architecture/config-schema-artifacts.md)
 
+[Model Implementation Quality Checklist](architecture/model-implementation-quality-checklist.md)
+
 ## MkDocs
 This documentation is made with [mkdocs.org](https://www.mkdocs.org).
 
