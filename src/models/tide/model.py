@@ -20,18 +20,16 @@ Two separate pipelines exist in this class:
 import json
 import logging
 import os
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
-from src.data.preprocessing.gap_handling import segment_all_patients
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.utils.logging_helper import info_print, prune_stale_file_handlers
-
+from ...data.preprocessing.gap_handling import segment_all_patients
+from ...utils.logging_helper import info_print, prune_stale_file_handlers
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
 from .config import TiDEConfig
-
 from .utils import (
     convert_to_patient_dict,
     format_segments_for_autogluon,
@@ -191,7 +189,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     def _predict(
         self,
         data: pd.DataFrame,
-        quantile_levels=None,
+        quantile_levels: Sequence[float] | None = None,
         **kwargs,
     ) -> np.ndarray:
         """Make predictions for a single episode using the fitted predictor.
@@ -215,48 +213,13 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         if self.predictor is None:
             raise ValueError("Model must be fitted or loaded before prediction")
 
-        config = self.config
-        context = data.copy()
-        context["item_id"] = "ep_0"
-        if config.time_col in context.columns:
-            context["timestamp"] = pd.to_datetime(context[config.time_col])
-        else:
-            context["timestamp"] = context.index
-        context = context.rename(columns={config.target_col: "target"})
-
-        # Zero-fill missing covariates (predictor expects same columns as training)
-        for cov_col in config.covariate_cols:
-            if cov_col not in context.columns:
-                logger.warning(
-                    "Covariate '%s' missing from input data; filling with zeros",
-                    cov_col,
-                )
-                context[cov_col] = 0.0
-
-        ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
-        ag_cols = [c for c in ag_cols if c in context.columns]
-        context = context[ag_cols].set_index(["item_id", "timestamp"])
+        context = self._build_prediction_context(data, item_id_column=None)
         ts_data = TimeSeriesDataFrame(context)
-
         ag_predictions = self.predictor.predict(ts_data)
 
         if quantile_levels is not None:
             ep_preds = ag_predictions.loc["ep_0"]
-            available = [float(c) for c in ep_preds.columns if c != "mean"]
-            missing = [
-                q
-                for q in quantile_levels
-                if round(q, 8) not in [round(a, 8) for a in available]
-            ]
-            if missing:
-                raise ValueError(
-                    f"Quantile levels {missing} not in TiDE predictor "
-                    f"(available: {sorted(available)}). Retrain with "
-                    f"DEFAULT_QUANTILE_LEVELS to get all 9 levels."
-                )
-            return np.stack(
-                [ep_preds[str(q)].values for q in quantile_levels], axis=0
-            )  # (n_quantiles, forecast_length)
+            return self._extract_quantile_predictions(ep_preds, quantile_levels)
 
         return ag_predictions.loc["ep_0"]["mean"].values
 
@@ -264,7 +227,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         self,
         data: pd.DataFrame,
         episode_col: str,
-        quantile_levels=None,
+        quantile_levels: Sequence[float] | None = None,
     ) -> Dict[str, np.ndarray]:
         """Native batch prediction using a single AutoGluon predictor call.
 
@@ -288,30 +251,8 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         if self.predictor is None:
             raise ValueError("Model must be fitted or loaded before prediction")
 
-        config = self.config
-        context = data.copy()
-
-        context["item_id"] = context[episode_col].astype(str)
-        if config.time_col in context.columns:
-            context["timestamp"] = pd.to_datetime(context[config.time_col])
-        else:
-            context["timestamp"] = context.index
-        context = context.rename(columns={config.target_col: "target"})
-
-        # Zero-fill missing covariates (predictor expects same columns as training)
-        for cov_col in config.covariate_cols:
-            if cov_col not in context.columns:
-                logger.warning(
-                    "Covariate '%s' missing from input data; filling with zeros",
-                    cov_col,
-                )
-                context[cov_col] = 0.0
-
-        ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
-        ag_cols = [c for c in ag_cols if c in context.columns]
-        context = context[ag_cols].set_index(["item_id", "timestamp"])
+        context = self._build_prediction_context(data, item_id_column=episode_col)
         ts_data = TimeSeriesDataFrame(context)
-
         ag_predictions = self.predictor.predict(ts_data)
 
         episode_ids = data[episode_col].astype(str).unique().tolist()
@@ -325,21 +266,9 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
                 continue
             ep_preds = ag_predictions.loc[item_id]
             if quantile_levels is not None:
-                available = [float(c) for c in ep_preds.columns if c != "mean"]
-                missing = [
-                    q
-                    for q in quantile_levels
-                    if round(q, 8) not in [round(a, 8) for a in available]
-                ]
-                if missing:
-                    raise ValueError(
-                        f"Quantile levels {missing} not in TiDE predictor "
-                        f"(available: {sorted(available)}). Retrain with "
-                        f"DEFAULT_QUANTILE_LEVELS to get all 9 levels."
-                    )
-                results[item_id] = np.stack(
-                    [ep_preds[str(q)].values for q in quantile_levels], axis=0
-                )  # 2-D: (n_quantiles, forecast_length)
+                results[item_id] = self._extract_quantile_predictions(
+                    ep_preds, quantile_levels
+                )
             else:
                 results[item_id] = ep_preds["mean"].values  # 1-D: (forecast_length,)
         return results
@@ -358,7 +287,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         if self.predictor is not None:
             ref_path = os.path.join(output_dir, "tide_predictor.json")
             os.makedirs(output_dir, exist_ok=True)
-            with open(ref_path, "w") as f:
+            with open(ref_path, "w", encoding="utf-8") as f:
                 json.dump({"predictor_path": str(self.predictor.path)}, f, indent=2)
             self.logger.info("Predictor reference saved to %s", ref_path)
 
@@ -373,7 +302,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
         ref_path = os.path.join(model_dir, "tide_predictor.json")
         if os.path.exists(ref_path):
-            with open(ref_path) as f:
+            with open(ref_path, encoding="utf-8") as f:
                 predictor_path = json.load(f)["predictor_path"]
             pkl_file = os.path.join(predictor_path, "predictor.pkl")
             if not os.path.exists(pkl_file):
@@ -391,3 +320,58 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         self.predictor = TimeSeriesPredictor.load(predictor_path)
         self.is_fitted = True
         self.logger.info("Predictor loaded from %s", predictor_path)
+
+    def _build_prediction_context(
+        self,
+        data: pd.DataFrame,
+        item_id_column: str | None,
+    ) -> pd.DataFrame:
+        """Build AutoGluon context frame with item/timestamp index."""
+        config = self.config
+        context = data.copy()
+        if item_id_column is None:
+            context["item_id"] = "ep_0"
+        else:
+            context["item_id"] = context[item_id_column].astype(str)
+
+        if config.time_col in context.columns:
+            context["timestamp"] = pd.to_datetime(context[config.time_col])
+        else:
+            context["timestamp"] = context.index
+
+        context = context.rename(columns={config.target_col: "target"})
+        for cov_col in config.covariate_cols:
+            if cov_col not in context.columns:
+                logger.warning(
+                    "Covariate '%s' missing from input data; filling with zeros",
+                    cov_col,
+                )
+                context[cov_col] = 0.0
+
+        ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
+        ag_cols = [col for col in ag_cols if col in context.columns]
+        return context[ag_cols].set_index(["item_id", "timestamp"])
+
+    def _extract_quantile_predictions(
+        self,
+        episode_predictions: pd.DataFrame,
+        quantile_levels: Sequence[float],
+    ) -> np.ndarray:
+        """Return quantile predictions and fail if requested levels are unavailable."""
+        available = [float(col) for col in episode_predictions.columns if col != "mean"]
+        available_rounded = [round(level, 8) for level in available]
+        missing = [
+            quantile
+            for quantile in quantile_levels
+            if round(float(quantile), 8) not in available_rounded
+        ]
+        if missing:
+            raise ValueError(
+                f"Quantile levels {missing} not in TiDE predictor "
+                f"(available: {sorted(available)}). Retrain with "
+                f"DEFAULT_QUANTILE_LEVELS to get all 9 levels."
+            )
+        return np.stack(
+            [episode_predictions[str(quantile)].values for quantile in quantile_levels],
+            axis=0,
+        )

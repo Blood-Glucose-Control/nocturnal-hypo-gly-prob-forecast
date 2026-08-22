@@ -10,9 +10,6 @@
     "**/.git",
     "**/cache",
     "**/results",
-    "**/models/ttm",
-    "**/models/ARIMA",
-    "**/mlflow_experiments",
     "tests"
   ],
   "defineConstant": {
@@ -53,8 +50,7 @@
       "pythonVersion": "3.12",
       "pythonPlatform": "Linux",
       "extraPaths": [
-        ".",
-        "src"
+        "."
       ]
     }
   ]

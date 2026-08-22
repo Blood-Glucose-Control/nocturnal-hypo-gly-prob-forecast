@@ -10,9 +10,9 @@ TimeSeriesPredictor.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
-from src.models.base import ModelConfig, TrainingBackend
+from ..base import ModelConfig, TrainingBackend
 
 
 @dataclass
@@ -23,6 +23,7 @@ class TiDEConfig(ModelConfig):
     AutoGluon training, gap handling, and covariate configuration.
 
     Critical constraints:
+      - training_mode MUST be "from_scratch"
       - encoder_hidden_dim MUST equal decoder_hidden_dim
       - scaling MUST be "mean" (MeanScaler prevents discontinuity)
     """
@@ -45,7 +46,8 @@ class TiDEConfig(ModelConfig):
     scaling: str = "mean"  # MeanScaler prevents discontinuity
 
     # Training
-    lr: float = 0.000931
+    learning_rate: float = 1.0e-3
+    lr: float = 1.0e-3
     num_batches_per_epoch: int = 300
     batch_size: int = 256
     gradient_clip_val: float = 1.0
@@ -75,17 +77,36 @@ class TiDEConfig(ModelConfig):
     enable_ensemble: bool = False
     time_limit: Optional[int] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        if self.training_mode != "from_scratch":
+            raise ValueError(
+                f"TiDE supports only from_scratch training_mode, got {self.training_mode!r}"
+            )
+        if self.scaling != "mean":
+            raise ValueError(f"TiDE requires scaling='mean', got {self.scaling!r}")
         if self.encoder_hidden_dim != self.decoder_hidden_dim:
             raise ValueError(
                 f"TiDE requires encoder_hidden_dim == decoder_hidden_dim, "
                 f"got {self.encoder_hidden_dim} != {self.decoder_hidden_dim}. "
                 f"This is a hard architectural constraint (see GluonTS source)."
             )
+        lr_default = type(self).lr
+        learning_rate_default = type(self).learning_rate
+        if self.lr != self.learning_rate:
+            if self.lr == lr_default and self.learning_rate != learning_rate_default:
+                self.lr = self.learning_rate
+            elif self.learning_rate == learning_rate_default and self.lr != lr_default:
+                self.learning_rate = self.lr
+            else:
+                raise ValueError(
+                    f"Conflicting lr ({self.lr}) and learning_rate ({self.learning_rate}) "
+                    "for TiDEConfig"
+                )
+        self.learning_rate = self.lr
         if self.min_segment_length is None:
             self.min_segment_length = self.context_length + self.forecast_length
 
-    def get_autogluon_hyperparameters(self) -> Dict:
+    def get_autogluon_hyperparameters(self) -> Dict[str, Dict[str, Any]]:
         """Build hyperparameters dict for TimeSeriesPredictor.fit().
 
         Returns:
@@ -117,7 +138,7 @@ class TiDEConfig(ModelConfig):
         }
 
 
-def create_default_tide_config(**overrides) -> TiDEConfig:
+def create_default_tide_config(**overrides: Any) -> TiDEConfig:
     """Create a TiDEConfig with validated defaults for from-scratch training.
 
     Args:
@@ -126,7 +147,7 @@ def create_default_tide_config(**overrides) -> TiDEConfig:
     Returns:
         TiDEConfig instance.
     """
-    defaults = {
+    defaults: dict[str, Any] = {
         "context_length": 512,
         "forecast_length": 72,
     }

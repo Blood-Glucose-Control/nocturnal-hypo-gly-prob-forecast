@@ -15,6 +15,7 @@ from .model_configs import (
     PatchTSTModelConfigSchema,
     StatisticalModelConfigSchema,
     TFTModelConfigSchema,
+    TiDEModelConfigSchema,
     TSMixerModelConfigSchema,
 )
 from .workflow_configs import (
@@ -61,6 +62,11 @@ SCHEMA_ARTIFACT_SPECS: tuple[SchemaArtifactSpec, ...] = (
         filename="model_configs.tft.schema.json",
         schema_type=TFTModelConfigSchema,
         source_symbol="src.config.schemas.model_configs.TFTModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.tide.schema.json",
+        schema_type=TiDEModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.TiDEModelConfigSchema",
     ),
     SchemaArtifactSpec(
         filename="model_configs.tsmixer.schema.json",

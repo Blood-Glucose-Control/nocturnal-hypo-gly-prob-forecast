@@ -8,8 +8,8 @@ from typing import Any, Literal, NamedTuple, Optional
 from pydantic import (
     AliasChoices,
     Field,
-    ValidationInfo,
     ValidationError,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -258,6 +258,50 @@ class TFTModelConfigSchema(AutoGluonModelConfigSchema):
         return _coerce_numeric_string(value, "lr")
 
 
+class TiDEModelConfigSchema(AutoGluonModelConfigSchema):
+    """Schema contract for TiDE (AutoGluon backend) YAML configs."""
+
+    model_type: Literal["tide"] = Field(default="tide")
+    training_mode: Literal["from_scratch"] = Field(default="from_scratch")
+    forecast_length: int = Field(default=72, gt=0)
+
+    encoder_hidden_dim: int = Field(default=256, gt=0)
+    decoder_hidden_dim: int = Field(default=256, gt=0)
+    temporal_hidden_dim: int = Field(default=256, gt=0)
+    num_layers_encoder: int = Field(default=2, gt=0)
+    num_layers_decoder: int = Field(default=2, gt=0)
+    distr_hidden_dim: int = Field(default=8, gt=0)
+    layer_norm: bool = Field(default=True)
+    decoder_output_dim: int = Field(default=16, gt=0)
+    dropout: float = Field(default=0.1, ge=0.0, le=1.0)
+    scaling: Literal["mean"] = Field(default="mean")
+
+    lr: float = Field(
+        default=1.0e-3,
+        gt=0.0,
+        validation_alias=AliasChoices("lr", "learning_rate"),
+    )
+    num_batches_per_epoch: int = Field(default=300, gt=0)
+    batch_size: int = Field(default=256, gt=0)
+    gradient_clip_val: float = Field(default=1.0, ge=0.0)
+    precision: str = Field(default="16-mixed", min_length=1)
+    early_stopping_patience: int = Field(default=20, ge=0)
+    max_epochs: int = Field(default=100, gt=0)
+
+    @field_validator("lr", mode="before")
+    @classmethod
+    def _normalize_lr(cls, value: Any) -> Any:
+        return _coerce_numeric_string(value, "lr")
+
+    @model_validator(mode="after")
+    def _validate_encoder_decoder_dims(self) -> "TiDEModelConfigSchema":
+        if self.encoder_hidden_dim != self.decoder_hidden_dim:
+            raise ValueError(
+                "encoder_hidden_dim must equal decoder_hidden_dim for TiDE"
+            )
+        return self
+
+
 RuntimeConfigAdapter = Callable[[dict[str, Any]], dict[str, Any]]
 
 
@@ -333,6 +377,11 @@ def build_tft_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     return _build_runtime_config("tft", TFTModelConfigSchema, config_data)
 
 
+def build_tide_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize TiDE runtime config values."""
+    return _build_runtime_config("tide", TiDEModelConfigSchema, config_data)
+
+
 MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
     "chronos2": ModelConfigRoute(
         schema_type=Chronos2ModelConfigSchema,
@@ -357,6 +406,10 @@ MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
     "tft": ModelConfigRoute(
         schema_type=TFTModelConfigSchema,
         runtime_adapter=build_tft_runtime_config,
+    ),
+    "tide": ModelConfigRoute(
+        schema_type=TiDEModelConfigSchema,
+        runtime_adapter=build_tide_runtime_config,
     ),
     "tsmixer": ModelConfigRoute(
         schema_type=TSMixerModelConfigSchema,

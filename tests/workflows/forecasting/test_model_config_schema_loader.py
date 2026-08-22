@@ -1,8 +1,8 @@
 """Tests for schema-validated model config loading."""
 
-from pathlib import Path
 import sys
 import types
+from pathlib import Path
 
 import pytest
 
@@ -11,13 +11,17 @@ from src.config.schemas import (
     get_model_config_schema,
     get_registered_model_config_types,
 )
-from src.workflows.forecasting.modeling import GenericModelConfig, ModelFactory
-from src.workflows.forecasting.modeling import load_model_config_from_yaml
+from src.workflows.forecasting.modeling import (
+    GenericModelConfig,
+    ModelFactory,
+    load_model_config_from_yaml,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 TSMIXER_SMOKE_CONFIG_PATH = (
     REPO_ROOT / "configs" / "models" / "tsmixer" / "00_iob_cob_smoke.yaml"
 )
+TIDE_SMOKE_CONFIG_PATH = REPO_ROOT / "configs" / "models" / "tide" / "00_bg_only.yaml"
 AUTOGLUON_SCHEMA_SMOKE_CONFIGS = {
     "chronos2": REPO_ROOT / "configs" / "models" / "chronos2" / "00_bg_only.yaml",
     "deepar": REPO_ROOT / "configs" / "models" / "deepar" / "00_baseline.yaml",
@@ -33,6 +37,7 @@ AUTOGLUON_SCHEMA_SMOKE_CONFIGS = {
     / "statistical"
     / "00_autoarima_bg_only.yaml",
     "tft": REPO_ROOT / "configs" / "models" / "tft" / "00_bg_baseline.yaml",
+    "tide": TIDE_SMOKE_CONFIG_PATH,
 }
 
 
@@ -194,7 +199,7 @@ lr: 0.004
     assert "lr" not in loaded
 
 
-@pytest.mark.parametrize("model_type", ["deepar", "patchtst", "tft"])
+@pytest.mark.parametrize("model_type", ["deepar", "patchtst", "tft", "tide"])
 def test_autogluon_model_config_normalizes_learning_rate_alias(model_type: str) -> None:
     runtime_config = build_model_runtime_config(
         model_type=model_type,
@@ -207,6 +212,50 @@ def test_autogluon_model_config_normalizes_learning_rate_alias(model_type: str) 
 
     assert runtime_config["lr"] == pytest.approx(0.003)
     assert "learning_rate" not in runtime_config
+
+
+def test_tide_runtime_adapter_enforces_encoder_decoder_dim_parity() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        build_model_runtime_config(
+            model_type="tide",
+            config_data={
+                "context_length": 128,
+                "forecast_length": 96,
+                "encoder_hidden_dim": 256,
+                "decoder_hidden_dim": 128,
+            },
+        )
+
+    assert "encoder_hidden_dim" in str(exc_info.value)
+    assert "decoder_hidden_dim" in str(exc_info.value)
+
+
+def test_tide_runtime_adapter_enforces_from_scratch_training_mode() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        build_model_runtime_config(
+            model_type="tide",
+            config_data={
+                "context_length": 128,
+                "forecast_length": 96,
+                "training_mode": "fine_tune",
+            },
+        )
+
+    assert "training_mode" in str(exc_info.value)
+
+
+def test_tide_runtime_adapter_enforces_mean_scaling() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        build_model_runtime_config(
+            model_type="tide",
+            config_data={
+                "context_length": 128,
+                "forecast_length": 96,
+                "scaling": "std",
+            },
+        )
+
+    assert "scaling" in str(exc_info.value)
 
 
 def test_chronos2_runtime_adapter_default_covariates_match_model_default() -> None:
@@ -233,6 +282,20 @@ def test_chronos2_runtime_adapter_reports_field_specific_numeric_error() -> None
         )
 
     assert "fine_tune_lr must be a numeric value" in str(exc_info.value)
+
+
+def test_tide_runtime_adapter_default_parity_matches_model_defaults() -> None:
+    runtime_config = build_model_runtime_config(
+        model_type="tide",
+        config_data={
+            "context_length": 128,
+            "forecast_length": 96,
+        },
+    )
+
+    assert runtime_config["training_mode"] == "from_scratch"
+    assert runtime_config["scaling"] == "mean"
+    assert runtime_config["lr"] == pytest.approx(1.0e-3)
 
 
 def test_tsmixer_model_config_reports_schema_errors(tmp_path: Path) -> None:
@@ -329,6 +392,7 @@ def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
         "patchtst",
         "statistical",
         "tft",
+        "tide",
         "tsmixer",
     ]:
         assert model_type in registered
@@ -509,6 +573,17 @@ def test_chronos2_factory_path_uses_schema_covariate_default(
             pytest.approx(0.003),
             id="tft-learning-rate-alias",
         ),
+        pytest.param(
+            "tide",
+            "tide",
+            "TiDEConfig",
+            "TiDEForecaster",
+            {"learning_rate": 0.004, "covariate_cols": ["iob"]},
+            None,
+            ["iob"],
+            pytest.approx(0.004),
+            id="tide-learning-rate-alias",
+        ),
     ],
 )
 def test_autogluon_family_factory_paths_use_schema_adapter(
@@ -577,6 +652,13 @@ def test_autogluon_family_factory_paths_use_schema_adapter(
             "TFTForecaster",
             id="tft",
         ),
+        pytest.param(
+            "tide",
+            "tide",
+            "TiDEConfig",
+            "TiDEForecaster",
+            id="tide",
+        ),
     ],
 )
 def test_autogluon_family_factory_paths_report_unknown_runtime_field(
@@ -605,6 +687,39 @@ def test_autogluon_family_factory_paths_report_unknown_runtime_field(
         ModelFactory.create_model(config)
 
     assert "unknown_field" in str(exc_info.value)
+
+
+def test_tide_factory_path_supports_real_smoke_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="tide",
+        config_class_name="TiDEConfig",
+        forecaster_class_name="TiDEForecaster",
+    )
+
+    overrides = load_model_config_from_yaml(
+        str(TIDE_SMOKE_CONFIG_PATH),
+        model_type="tide",
+    )
+    config = ModelFactory.create_finetune_config(
+        model_type="tide",
+        extra_config=overrides,
+    )
+    model = ModelFactory.create_model(config)
+
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.training_mode == "from_scratch"
+    assert model.config.scaling == "mean"
+    assert model.config.lr == pytest.approx(9.31e-4)
+    assert model.config.batch_size == 256
+    assert model.config.forecast_length == 96
+
+
+def test_tide_create_finetune_config_defaults_to_from_scratch_mode() -> None:
+    config = ModelFactory.create_finetune_config(model_type="tide")
+    assert config.training_mode == "from_scratch"
 
 
 def test_runtime_adapter_reports_registered_types_for_unknown_model() -> None:
