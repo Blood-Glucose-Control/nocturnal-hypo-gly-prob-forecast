@@ -1,9 +1,10 @@
 """Functions for splitting or combining patient dataframes."""
 
 import pandas as pd
-from src.data.preprocessing.imputation import impute_missing_values
-from src.utils.time_series_helper import get_interval_minutes
-from src.utils.logging_helper import info_print, debug_print
+
+from ...utils.logging_helper import debug_print, info_print
+from ...utils.time_series_helper import get_interval_minutes
+from .imputation import impute_missing_values
 
 
 def reduce_features_multi_patient(patients_dict, resolution_min, x_features, y_feature):

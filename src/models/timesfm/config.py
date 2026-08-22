@@ -1,9 +1,9 @@
 """Configuration for TimesFM model (HuggingFace Transformers)."""
 
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import List, Optional
 
-from src.models.base import ModelConfig
+from ..base import ModelConfig
 
 
 @dataclass

@@ -43,10 +43,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
-from matplotlib.gridspec import GridSpec
-from matplotlib.transforms import blended_transform_factory
 import numpy as np
 import pandas as pd
+from matplotlib.gridspec import GridSpec
+from matplotlib.transforms import blended_transform_factory
+
 from src.evaluation.metrics.probabilistic import compute_pit_values
 
 # ---------------------------------------------------------------------------

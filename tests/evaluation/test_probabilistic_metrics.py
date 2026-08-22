@@ -4,18 +4,17 @@ import numpy as np
 import pytest
 
 from src.evaluation.metrics.probabilistic import (
-    compute_wql,
     compute_brier_score,
     compute_coverage,
     compute_coverage_by_step,
-    compute_sharpness,
-    compute_sharpness_by_step,
+    compute_ece,
     compute_mace,
     compute_pit_values,
     compute_reliability_curve,
-    compute_ece,
+    compute_sharpness,
+    compute_sharpness_by_step,
+    compute_wql,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

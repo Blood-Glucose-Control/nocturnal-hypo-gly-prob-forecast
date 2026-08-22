@@ -10,15 +10,15 @@ import io
 import os
 import sys
 import unittest
-from unittest.mock import patch, MagicMock
 from contextlib import redirect_stderr
+from unittest.mock import MagicMock, patch
 
 # Import the functions we want to test
 from src.utils.logging_helper import (
-    info_print,
-    error_print,
-    debug_print,
     _get_caller_name,
+    debug_print,
+    error_print,
+    info_print,
 )
 
 

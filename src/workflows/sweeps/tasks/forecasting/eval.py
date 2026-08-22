@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
-from src.utils.config_loader import load_yaml_config
+from .....utils.config_loader import load_yaml_config
 
 
 @dataclass(frozen=True)

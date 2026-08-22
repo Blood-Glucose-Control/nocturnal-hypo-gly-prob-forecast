@@ -4,6 +4,5 @@
 
 from src.workflows.evaluation.validate_predict_batch import main
 
-
 if __name__ == "__main__":
     main()

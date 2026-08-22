@@ -9,12 +9,13 @@ dedicated holdout_eval.py script instead.
 """
 
 from typing import Dict, List, Optional
+
 import numpy as np
 import pandas as pd
 
-from src.models.base import BaseTimeSeriesFoundationModel
-from src.evaluation.metrics import compute_regression_metrics
-from src.utils.logging_helper import error_print
+from ..models.base import BaseTimeSeriesFoundationModel
+from ..utils.logging_helper import error_print
+from .metrics import compute_regression_metrics
 
 
 class ModelEvaluator:

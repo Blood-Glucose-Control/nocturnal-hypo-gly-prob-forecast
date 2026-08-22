@@ -16,7 +16,7 @@ Memory estimates on Blackwell 6000 (96 GB VRAM):
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from src.models.base import ModelConfig, TrainingBackend
+from ..base import ModelConfig, TrainingBackend
 
 
 @dataclass

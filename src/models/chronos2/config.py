@@ -13,7 +13,7 @@ so training parameters map to AutoGluon's API rather than transformers.Trainer.
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from src.models.base import ModelConfig, TrainingBackend
+from ..base import ModelConfig, TrainingBackend
 
 
 @dataclass

@@ -12,7 +12,7 @@ from typing import Any, Optional, Protocol, TypeVar, runtime_checkable
 import numpy as np
 import pandas as pd
 
-from src.models.base import ModelConfig
+from .base import ModelConfig
 
 ConfigT = TypeVar("ConfigT", bound=ModelConfig)
 

@@ -14,10 +14,9 @@ Blackwell GPU is safe.
 
 import logging
 
+from ...utils.logging_helper import info_print
 from ..autogluon_base import AutoGluonBaseModel
 from ..base.registry import ModelRegistry
-from ...utils.logging_helper import info_print
-
 from .config import PatchTSTConfig
 
 logger = logging.getLogger(__name__)

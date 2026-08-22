@@ -5,8 +5,8 @@ This module provides a concrete implementation of Moirai that inherits from
 the base TSFM framework, integrating Salesforce's uni2ts library.
 """
 
-import os
 import json
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -14,13 +14,14 @@ import pandas as pd
 import torch
 from gluonts.dataset.common import ListDataset
 from torch.utils.data import DataLoader, Dataset
+from uni2ts.model.moirai import MoiraiFinetune, MoiraiForecast, MoiraiModule
+
+from ...utils.logging_helper import info_print
 
 # Local imports
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.base.registry import ModelRegistry
-from src.models.moirai.config import MoiraiConfig
-from src.utils.logging_helper import info_print
-from uni2ts.model.moirai import MoiraiForecast, MoiraiFinetune, MoiraiModule
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from .config import MoiraiConfig
 
 
 class _MoiraiPatchedDataset(Dataset):

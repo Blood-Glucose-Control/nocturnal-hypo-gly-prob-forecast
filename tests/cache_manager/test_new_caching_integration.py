@@ -5,8 +5,9 @@ This test verifies that the updated cache manager and BrisT1D dataset work corre
 with the new approach of storing processed data before splits and serialized train/val data.
 """
 
-import tempfile
 import shutil
+import tempfile
+
 import pandas as pd
 import pytest
 

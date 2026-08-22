@@ -3,9 +3,11 @@
 # For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 from typing import cast
-from src.data.models import ColumnNames
+
 import pandas as pd
-from src.utils.unit import mg_dl_to_mmol_l
+
+from ....utils.unit import mg_dl_to_mmol_l
+from ...models import ColumnNames
 
 
 def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:

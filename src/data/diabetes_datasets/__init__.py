@@ -3,16 +3,16 @@
 # For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 # Import existing dataset loaders
-from src.data.diabetes_datasets.kaggle_bris_t1d.bris_t1d import BrisT1DDataLoader
-from src.data.diabetes_datasets.gluroo.gluroo import GlurooDataLoader
-from src.data.diabetes_datasets.lynch_2022.lynch_2022 import (
-    Lynch2022DataLoader,
-)
-from src.data.diabetes_datasets.brown_2019.brown_2019 import (
+from .aleppo_2017.aleppo_2017 import Aleppo2017DataLoader
+from .brown_2019.brown_2019 import (
     Brown2019DataLoader,
 )
-from src.data.diabetes_datasets.aleppo_2017.aleppo_2017 import Aleppo2017DataLoader
-from src.data.diabetes_datasets.tamborlane_2008.tamborlane_2008 import (
+from .gluroo.gluroo import GlurooDataLoader
+from .kaggle_bris_t1d.bris_t1d import BrisT1DDataLoader
+from .lynch_2022.lynch_2022 import (
+    Lynch2022DataLoader,
+)
+from .tamborlane_2008.tamborlane_2008 import (
     Tamborlane2008DataLoader,
 )
 

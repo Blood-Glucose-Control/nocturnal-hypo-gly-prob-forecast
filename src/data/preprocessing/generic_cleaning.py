@@ -18,7 +18,8 @@ Key functionality includes:
 """
 
 import pandas as pd
-from src.data.models import ColumnNames
+
+from ..models import ColumnNames
 
 
 def erase_consecutive_nan_values(

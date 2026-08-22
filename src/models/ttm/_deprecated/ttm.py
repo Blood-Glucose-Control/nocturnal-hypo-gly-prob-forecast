@@ -23,12 +23,12 @@ from tsfm_public import (
 from tsfm_public.toolkit.get_model import get_model
 from tsfm_public.toolkit.lr_finder import optimal_lr_finder
 
-from src.data.cache_manager import get_cache_manager
-from src.data.preprocessing.split_or_combine_patients import (
+from ....data.cache_manager import get_cache_manager
+from ....data.preprocessing.split_or_combine_patients import (
     reduce_features_multi_patient,
 )
-from src.utils.os_helper import get_project_root
-from src.utils.logging_helper import info_print, debug_print
+from ....utils.logging_helper import debug_print, info_print
+from ....utils.os_helper import get_project_root
 
 CONTEXT_LENGTH = 512
 PREDICTION_LENGTH = 96

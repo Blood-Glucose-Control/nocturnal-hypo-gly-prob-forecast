@@ -3,8 +3,7 @@
 
 """Reference ModelAdapter port for NaiveBaselineForecaster."""
 
-from src.models.adapter import ModelAdapter, assert_model_adapter
-
+from ..adapter import ModelAdapter, assert_model_adapter
 from .config import NaiveBaselineConfig
 from .model import NaiveBaselineForecaster
 

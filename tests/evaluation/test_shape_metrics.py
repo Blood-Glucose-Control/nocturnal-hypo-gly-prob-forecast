@@ -4,11 +4,10 @@ import numpy as np
 import pytest
 
 from src.evaluation.metrics.shape import (
+    DILATE_COLUMNS,
     compute_dilate_metrics,
     compute_dilate_metrics_batch,
-    DILATE_COLUMNS,
 )
-
 
 # ---------------------------------------------------------------------------
 # Test cases

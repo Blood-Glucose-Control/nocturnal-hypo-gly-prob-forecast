@@ -31,8 +31,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from src.data.preprocessing.gap_handling import interpolate_small_gaps
-from src.data.utils import get_patient_column
+from ..data.preprocessing.gap_handling import interpolate_small_gaps
+from ..data.utils import get_patient_column
 
 # Default holdout config directory (can be overridden by callers)
 DEFAULT_HOLDOUT_CONFIG_DIR = "configs/data/holdout_10pct"
@@ -213,7 +213,7 @@ def get_holdout_patients(
     config_dir: str = DEFAULT_HOLDOUT_CONFIG_DIR,
 ) -> List[str]:
     """Return the holdout patient list for a dataset."""
-    from src.data.versioning.dataset_registry import DatasetRegistry
+    from ..data.versioning.dataset_registry import DatasetRegistry
 
     hc = DatasetRegistry(holdout_config_dir=config_dir).get_holdout_config(dataset)
     if hc is None or hc.patient_config is None:

@@ -12,8 +12,11 @@ import pytest
 
 pytest.importorskip("autogluon.timeseries")
 
-from src.models.statistical import StatisticalConfig, StatisticalForecaster  # noqa: E402
 from src.models.base.registry import ModelRegistry  # noqa: E402
+from src.models.statistical import (  # noqa: E402
+    StatisticalConfig,
+    StatisticalForecaster,
+)
 
 
 class TestStatisticalConfig:

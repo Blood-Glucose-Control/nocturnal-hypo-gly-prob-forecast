@@ -9,17 +9,17 @@ import json
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-from src.models.base.registry import ModelRegistry
 import numpy as np
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader, Dataset
 
 # Local imports
-from src.data.models import ColumnNames
-from src.models.base import BaseTimeSeriesFoundationModel, TrainingBackend
-from src.models.moment.config import MomentConfig
-from src.utils.logging_helper import info_print, error_print
+from ...data.models import ColumnNames
+from ...utils.logging_helper import error_print, info_print
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from .config import MomentConfig
 
 # MOMENT sequence length limit (from notebook)
 MOMENT_MAX_LEN = 512
@@ -443,7 +443,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                     return
 
         if isinstance(data, str):
-            from src.data.diabetes_datasets.data_loader import get_loader
+            from ...data.diabetes_datasets.data_loader import get_loader
 
             # Type checker sees overloads with Literal types, but we accept any str at runtime
             loader = get_loader(  # type: ignore[call-overload, assignment]
@@ -465,7 +465,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
         if isinstance(data, dict):
             # patient_id -> DataFrame
-            from src.data.preprocessing.time_processing import (
+            from ...data.preprocessing.time_processing import (
                 iter_daily_context_forecast_splits,
             )
 
@@ -513,7 +513,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                     tgt = mat[-fcast_len:, 0]
                     pairs.append((ctx.astype(np.float32), tgt.astype(np.float32)))
             else:
-                from src.data.preprocessing.time_processing import (
+                from ...data.preprocessing.time_processing import (
                     iter_daily_context_forecast_splits,
                 )
 

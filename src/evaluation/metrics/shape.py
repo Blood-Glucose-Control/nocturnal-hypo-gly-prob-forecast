@@ -30,7 +30,7 @@ Reference:
 
 Usage::
 
-    from src.evaluation.metrics.shape import compute_dilate_metrics
+    from .shape import compute_dilate_metrics
 
     # pred, actual: 1-D numpy arrays of shape (forecast_length,)
     metrics = compute_dilate_metrics(pred, actual)
@@ -41,7 +41,7 @@ Usage::
     # }
 
     # Batch mode — preds/actuals are 2-D arrays of shape (B, forecast_length):
-    from src.evaluation.metrics.shape import compute_dilate_metrics_batch
+    from .shape import compute_dilate_metrics_batch
     batch_metrics = compute_dilate_metrics_batch(preds_2d, actuals_2d)
     # Each value is a 1-D array of shape (B,).
 """

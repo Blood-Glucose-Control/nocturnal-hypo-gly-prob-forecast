@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from src.utils import get_git_branch, get_git_commit_hash, is_git_dirty
+from ...utils import get_git_branch, get_git_commit_hash, is_git_dirty
 
 
 def utc_now() -> datetime:

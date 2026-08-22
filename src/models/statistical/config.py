@@ -23,7 +23,7 @@ Design decisions:
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from src.models.base import ModelConfig, TrainingBackend
+from ..base import ModelConfig, TrainingBackend
 
 _VALID_MODEL_NAMES = frozenset({"AutoARIMA", "Theta", "NPTS"})
 

@@ -1,6 +1,7 @@
-import pytest
 import numpy as np
 import pandas as pd
+import pytest
+
 from src.data.preprocessing.signal_processing import apply_moving_average
 
 

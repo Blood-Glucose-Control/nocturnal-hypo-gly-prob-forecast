@@ -16,7 +16,6 @@ What to look for
 from __future__ import annotations
 
 import argparse
-
 import json
 import re
 from pathlib import Path

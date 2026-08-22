@@ -10,12 +10,11 @@ import pandas as pd
 import pytest
 
 from src.data.preprocessing.gap_handling import (
-    segment_all_patients,
     _detect_interval,
     _find_nan_runs,
     interpolate_small_gaps,
+    segment_all_patients,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -5,8 +5,8 @@
 #     (B, horizon) float tensors in original data space and handles the
 #     unsqueeze to (B, horizon, 1) that the upstream code expects.
 import torch
-from . import soft_dtw
-from . import path_soft_dtw
+
+from . import path_soft_dtw, soft_dtw
 
 
 def dilate_loss(outputs, targets, alpha, gamma, device):

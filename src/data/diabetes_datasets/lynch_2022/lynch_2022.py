@@ -10,9 +10,9 @@ mirroring the structure of the Kaggle Bristol T1D loader. It handles both train
 and test datasets with caching and preprocessing pipelines.
 """
 
-import logging
 import functools
 import gzip
+import logging
 import pickle
 from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -20,18 +20,18 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import pandas as pd
 from tqdm import tqdm
 
-from src.data.cache_manager import get_cache_manager
-from src.data.dataset_configs import get_dataset_config
-from src.data.diabetes_datasets.dataset_base import DatasetBase
-from src.data.diabetes_datasets.lynch_2022.data_cleaner import (
+from ...cache_manager import get_cache_manager
+from ...dataset_configs import get_dataset_config
+from ...preprocessing.data_splitting import split_multipatient_dataframe
+from ...preprocessing.time_processing import get_train_validation_split
+from ..dataset_base import DatasetBase
+from .data_cleaner import (
     clean_lynch2022_test_data,
     clean_lynch2022_train_data,
     load_lynch2022_raw_dataset,
     process_patient_prediction_instances,
     process_single_patient_data,
 )
-from src.data.preprocessing.data_splitting import split_multipatient_dataframe
-from src.data.preprocessing.time_processing import get_train_validation_split
 
 logger = logging.getLogger(__name__)
 

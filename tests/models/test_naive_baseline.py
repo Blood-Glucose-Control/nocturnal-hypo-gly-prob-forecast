@@ -12,8 +12,11 @@ import pytest
 
 pytest.importorskip("autogluon.timeseries")
 
-from src.models.naive_baseline import NaiveBaselineConfig, NaiveBaselineForecaster  # noqa: E402
 from src.models.base.registry import ModelRegistry  # noqa: E402
+from src.models.naive_baseline import (  # noqa: E402
+    NaiveBaselineConfig,
+    NaiveBaselineForecaster,
+)
 
 
 class TestNaiveBaselineConfig:

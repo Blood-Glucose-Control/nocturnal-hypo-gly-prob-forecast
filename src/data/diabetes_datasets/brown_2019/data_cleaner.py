@@ -29,14 +29,14 @@ from typing import Optional
 
 import pandas as pd
 
-from src.data.models import ColumnNames
-from src.data.preprocessing.data_splitting import split_multipatient_dataframe
-from src.data.preprocessing.sampling import (
+from ....utils.os_helper import get_project_root
+from ....utils.unit import mg_dl_to_mmol_l
+from ...models import ColumnNames
+from ...preprocessing.data_splitting import split_multipatient_dataframe
+from ...preprocessing.sampling import (
     ensure_regular_time_intervals_with_aggregation,
 )
-from src.data.utils.patient_id import format_patient_id
-from src.utils.os_helper import get_project_root
-from src.utils.unit import mg_dl_to_mmol_l
+from ...utils.patient_id import format_patient_id
 
 logger = logging.getLogger(__name__)
 
@@ -352,7 +352,7 @@ def process_single_patient(
     Returns:
         Processed DataFrame with additional derived columns.
     """
-    from src.data.preprocessing.pipeline import preprocessing_pipeline
+    from ...preprocessing.pipeline import preprocessing_pipeline
 
     logger.info(f"Processing patient {p_num} through preprocessing pipeline...")
 

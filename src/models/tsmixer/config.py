@@ -6,7 +6,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from src.models.base import ModelConfig, TrainingBackend
+from ..base import ModelConfig, TrainingBackend
 
 
 @dataclass

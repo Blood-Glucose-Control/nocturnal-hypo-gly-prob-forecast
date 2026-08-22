@@ -51,7 +51,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src.evaluation.metrics.probabilistic import compute_reliability_curve, compute_ece
+from src.evaluation.metrics.probabilistic import compute_ece, compute_reliability_curve
 
 
 # NumPy 2 removed np.trapz in favor of np.trapezoid.

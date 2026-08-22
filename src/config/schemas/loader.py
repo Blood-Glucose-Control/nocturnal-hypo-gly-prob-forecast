@@ -7,7 +7,7 @@ from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
-from src.utils.config_loader import load_yaml_config
+from ...utils.config_loader import load_yaml_config
 
 SchemaT = TypeVar("SchemaT", bound=BaseModel)
 

@@ -10,7 +10,6 @@ from src.models.base.base_model import (
     TrainingBackend,
 )
 
-
 # ---------------------------------------------------------------------------
 # Minimal concrete subclasses for testing
 # ---------------------------------------------------------------------------

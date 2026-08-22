@@ -10,8 +10,9 @@ TTMConfig directly, override with YAML/CLI dicts via standard merge:
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from src.models.base import ModelConfig, TrainingBackend
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
+
+from ..base import ModelConfig, TrainingBackend
 
 
 @dataclass

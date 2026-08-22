@@ -37,7 +37,7 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
-from src.experiments.nocturnal.grand_summary import (
+from .grand_summary import (
     DATASETS,
     MODEL_PROPERTIES,
     attach_covariate_bucket,
@@ -45,7 +45,7 @@ from src.experiments.nocturnal.grand_summary import (
     load_summary,
     pick_best,
 )
-from src.experiments.nocturnal.holdout_split_analysis import (
+from .holdout_split_analysis import (
     HYPO_THRESHOLD_MMOL,
     SPLIT_PATIENT,
     SPLIT_TEMPORAL,

@@ -12,8 +12,7 @@ for each dataset type.
 
 from typing import Dict
 
-from src.data.models import DatasetConfig, DatasetSourceType
-
+from .models import DatasetConfig, DatasetSourceType
 
 # Configuration for the Kaggle Bristol T1D dataset
 KAGGLE_BRIST1D_CONFIG: DatasetConfig = DatasetConfig(

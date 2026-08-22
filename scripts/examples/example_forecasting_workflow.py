@@ -9,6 +9,5 @@ while delegating implementation to the maintained orchestrator core.
 
 from src.workflows.forecasting.pipeline import main
 
-
 if __name__ == "__main__":
     raise SystemExit(main())

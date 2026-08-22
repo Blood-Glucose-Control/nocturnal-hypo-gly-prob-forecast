@@ -6,10 +6,11 @@ The data format includes columns like RecID, PtID, DeviceDate, DeviceTime, Gluco
 """
 
 import logging
-import pandas as pd
-from typing import Dict, Tuple, Any
+from typing import Any, Dict, Tuple
 
-from src.data.utils.patient_id import format_patient_id
+import pandas as pd
+
+from ...utils.patient_id import format_patient_id
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +187,7 @@ def process_single_patient_tamborlane(
 
     # Store intermediate data if requested
     if store_intermediate_data:
-        from src.data.cache_manager import get_cache_manager
+        from ...cache_manager import get_cache_manager
 
         cache_manager = get_cache_manager()
         dir_path = (
@@ -198,7 +199,7 @@ def process_single_patient_tamborlane(
 
     # Run preprocessing pipeline if available
     try:
-        from src.data.preprocessing.preprocessing_pipeline import preprocessing_pipeline
+        from ...preprocessing.preprocessing_pipeline import preprocessing_pipeline
 
         processed_data = preprocessing_pipeline(p_num, data_copy)
     except ImportError:

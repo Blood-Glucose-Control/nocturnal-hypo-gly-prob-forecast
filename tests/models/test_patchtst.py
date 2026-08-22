@@ -11,8 +11,8 @@ import pytest
 
 pytest.importorskip("autogluon.timeseries")
 
-from src.models.patchtst import PatchTSTConfig, PatchTSTForecaster  # noqa: E402
 from src.models.base.registry import ModelRegistry  # noqa: E402
+from src.models.patchtst import PatchTSTConfig, PatchTSTForecaster  # noqa: E402
 
 
 class TestPatchTSTConfig:
