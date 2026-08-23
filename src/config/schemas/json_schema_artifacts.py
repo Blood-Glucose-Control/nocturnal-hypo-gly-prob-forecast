@@ -20,6 +20,7 @@ from .model_configs import (
     TFTModelConfigSchema,
     TiDEModelConfigSchema,
     TimeGradModelConfigSchema,
+    TimesFMModelConfigSchema,
     TotoModelConfigSchema,
     TSMixerModelConfigSchema,
     TTMModelConfigSchema,
@@ -93,6 +94,11 @@ SCHEMA_ARTIFACT_SPECS: tuple[SchemaArtifactSpec, ...] = (
         filename="model_configs.timegrad.schema.json",
         schema_type=TimeGradModelConfigSchema,
         source_symbol="src.config.schemas.model_configs.TimeGradModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.timesfm.schema.json",
+        schema_type=TimesFMModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.TimesFMModelConfigSchema",
     ),
     SchemaArtifactSpec(
         filename="model_configs.toto.schema.json",

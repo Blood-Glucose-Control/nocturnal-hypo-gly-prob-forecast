@@ -45,6 +45,10 @@
       "source_symbol": "src.config.schemas.model_configs.TimeGradModelConfigSchema"
     },
     {
+      "file": "model_configs.timesfm.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.TimesFMModelConfigSchema"
+    },
+    {
       "file": "model_configs.toto.schema.json",
       "source_symbol": "src.config.schemas.model_configs.TotoModelConfigSchema"
     },

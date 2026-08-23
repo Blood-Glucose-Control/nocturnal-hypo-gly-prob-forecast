@@ -38,6 +38,9 @@ TIMEGRAD_SMOKE_CONFIG_PATH = (
 TOTO_SMOKE_CONFIG_PATH = (
     REPO_ROOT / "configs" / "models" / "toto" / "bg_only_smoke_test.yaml"
 )
+TIMESFM_SMOKE_CONFIG_PATH = (
+    REPO_ROOT / "configs" / "models" / "timesfm" / "00_long_run.yaml"
+)
 AUTOGLUON_SCHEMA_SMOKE_CONFIGS = {
     "chronos2": REPO_ROOT / "configs" / "models" / "chronos2" / "00_bg_only.yaml",
     "deepar": REPO_ROOT / "configs" / "models" / "deepar" / "00_baseline.yaml",
@@ -285,6 +288,18 @@ def test_toto_model_config_validates_via_schema_loader() -> None:
     assert loaded["max_steps"] == 100
 
 
+def test_timesfm_model_config_validates_via_schema_loader() -> None:
+    loaded = load_model_config_from_yaml(
+        str(TIMESFM_SMOKE_CONFIG_PATH),
+        model_type="timesfm",
+    )
+
+    assert loaded["model_type"] == "timesfm"
+    assert loaded["training_mode"] == "fine_tune"
+    assert loaded["forecast_length"] == 96
+    assert loaded["torch_dtype"] == "bfloat16"
+
+
 @pytest.mark.parametrize("model_type", ["deepar", "patchtst", "tft", "tide"])
 def test_autogluon_model_config_normalizes_learning_rate_alias(model_type: str) -> None:
     runtime_config = build_model_runtime_config(
@@ -395,6 +410,33 @@ def test_toto_runtime_adapter_maps_learning_rate_alias_to_lr() -> None:
 
     assert runtime_config["lr"] == pytest.approx(0.0006)
     assert "learning_rate" not in runtime_config
+
+
+def test_timesfm_runtime_adapter_normalizes_checkpoint_and_horizon() -> None:
+    runtime_config = build_model_runtime_config(
+        model_type="timesfm",
+        config_data={
+            "context_length": 128,
+            "forecast_length": 96,
+            "model_path": "google/timesfm-2.0-500m-pytorch",
+            "learning_rate": 0.0002,
+        },
+    )
+
+    assert runtime_config["checkpoint_path"] == "google/timesfm-2.0-500m-pytorch"
+    assert runtime_config["model_path"] == "google/timesfm-2.0-500m-pytorch"
+    assert runtime_config["horizon_length"] == 96
+    assert runtime_config["learning_rate"] == pytest.approx(0.0002)
+
+
+def test_timesfm_runtime_adapter_reports_unknown_field() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        build_model_runtime_config(
+            model_type="timesfm",
+            config_data={"context_length": 128, "forecast_length": 96, "unknown": 1},
+        )
+
+    assert "unknown" in str(exc_info.value)
 
 
 def test_moirai_runtime_adapter_enforces_covariate_dim_parity() -> None:
@@ -595,6 +637,7 @@ def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
         "sundial",
         "tft",
         "tide",
+        "timesfm",
         "timegrad",
         "toto",
         "ttm",
@@ -606,6 +649,7 @@ def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
     assert get_model_config_schema("deepar") is not None
     assert get_model_config_schema("ttm") is not None
     assert get_model_config_schema("moment") is not None
+    assert get_model_config_schema("timesfm") is not None
     assert get_model_config_schema("timegrad") is not None
     assert get_model_config_schema("toto") is not None
 
@@ -900,6 +944,58 @@ def test_timegrad_factory_path_reports_unknown_runtime_field(
     config = GenericModelConfig(
         model_type="timegrad",
         model_path="",
+        context_length=128,
+        forecast_length=96,
+        extra_config={"unknown_field": True},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ModelFactory.create_model(config)
+
+    assert "unknown_field" in str(exc_info.value)
+
+
+def test_timesfm_factory_path_uses_schema_adapter_for_checkpoint_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="timesfm",
+        config_class_name="TimesFMConfig",
+        forecaster_class_name="TimesFMForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="timesfm",
+        model_path="google/timesfm-2.0-500m-pytorch",
+        context_length=128,
+        forecast_length=96,
+        batch_size=16,
+        num_epochs=2,
+        learning_rate=1e-4,
+        extra_config={"checkpoint_path": "google/timesfm-2.0-500m-pytorch"},
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.checkpoint_path == "google/timesfm-2.0-500m-pytorch"
+    assert model.config.model_path == "google/timesfm-2.0-500m-pytorch"
+    assert model.config.horizon_length == 96
+
+
+def test_timesfm_factory_path_reports_unknown_runtime_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="timesfm",
+        config_class_name="TimesFMConfig",
+        forecaster_class_name="TimesFMForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="timesfm",
+        model_path="google/timesfm-2.0-500m-pytorch",
         context_length=128,
         forecast_length=96,
         extra_config={"unknown_field": True},
@@ -1436,3 +1532,30 @@ def test_toto_factory_path_supports_real_smoke_profile(
     assert model.config.training_mode == "fine_tune"
     assert model.config.max_steps == 100
     assert model.config.lr == pytest.approx(1.0e-4)
+
+
+def test_timesfm_factory_path_supports_real_smoke_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="timesfm",
+        config_class_name="TimesFMConfig",
+        forecaster_class_name="TimesFMForecaster",
+    )
+
+    overrides = load_model_config_from_yaml(
+        str(TIMESFM_SMOKE_CONFIG_PATH),
+        model_type="timesfm",
+    )
+    config = ModelFactory.create_finetune_config(
+        model_type="timesfm",
+        extra_config=overrides,
+    )
+    model = ModelFactory.create_model(config)
+
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.model_type == "timesfm"
+    assert model.config.training_mode == "fine_tune"
+    assert model.config.learning_rate == pytest.approx(1.0e-5)
+    assert model.config.horizon_length == model.config.forecast_length

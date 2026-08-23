@@ -141,6 +141,26 @@ ttm            -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/ttm/b
 sundial        -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/sundial/bin/python
 ```
 
+#### Schema evolution workflow (required for config/model changes)
+
+When changing config contracts (`src/config/schemas/`) or model-family runtime
+paths (`src/models/`, `src/workflows/forecasting/modeling.py`), use this
+workflow:
+
+1. Update schema + runtime adapter together in
+   `src/config/schemas/model_configs.py` and keep registry wiring in sync.
+2. Add/update loader + factory-path tests in
+   `tests/workflows/forecasting/test_model_config_schema_loader.py`.
+3. Regenerate JSON schema artifacts:
+   `python -m src.config.schemas.json_schema_artifacts`.
+4. If you touch model implementation code, run through
+   `docs/architecture/model-implementation-quality-checklist.md` before opening
+   a PR.
+5. Final gate: run Pylance diagnostics on all touched Python files in the
+   canonical workspace root path
+   (`/data/home/<you>/nocturnal-hypo-gly-prob-forecast`, not symlink aliases),
+   then rerun diagnostics if formatting/hooks changed code.
+
 **PyCharm**
 - Set Python interpreter to your venv environment
 - Install Ruff plugin for linting/formatting

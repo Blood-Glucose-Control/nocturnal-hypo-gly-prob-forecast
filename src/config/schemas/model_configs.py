@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Literal, NamedTuple, Optional
+from typing import Any, Literal, NamedTuple, Optional, cast
 
 from pydantic import (
     AliasChoices,
@@ -274,6 +274,86 @@ class TotoModelConfigSchema(BaseConfigSchema):
     def _normalize_lr_fields(cls, value: Any, info: ValidationInfo) -> Any:
         field_name = info.field_name or "lr"
         return _coerce_numeric_string(value, field_name)
+
+
+class TimesFMModelConfigSchema(BaseConfigSchema):
+    """Schema contract for TimesFM model YAML configs."""
+
+    model_type: Literal["timesfm"] = Field(default="timesfm")
+    model_path: Optional[str] = Field(default=None)
+    checkpoint_path: Optional[str] = Field(default=None)
+
+    training_mode: str = Field(default="fine_tune")
+    freeze_backbone: bool = Field(default=False)
+    use_cpu: bool = Field(default=False)
+    fp16: bool = Field(default=True)
+
+    context_length: int = Field(default=512, gt=0)
+    forecast_length: int = Field(default=96, gt=0)
+    horizon_length: Optional[int] = Field(default=None, gt=0)
+
+    batch_size: int = Field(default=32, gt=0)
+    num_epochs: int = Field(default=10, ge=0)
+    learning_rate: float = Field(
+        default=1e-5,
+        gt=0.0,
+        validation_alias=AliasChoices("learning_rate", "lr"),
+    )
+    weight_decay: float = Field(default=0.01, ge=0.0)
+    gradient_accumulation_steps: int = Field(default=4, gt=0)
+    torch_dtype: Literal["bfloat16", "float16", "float32"] = Field(default="bfloat16")
+
+    loss_fn: Literal[
+        "pinball",
+        "mse",
+        "joint",
+        "dilate",
+        "dilate_pinball",
+        "dilate_pinball_median",
+    ] = Field(default="pinball")
+    dilate_alpha: float = Field(default=0.5, ge=0.0, le=1.0)
+    dilate_gamma: float = Field(default=0.01, gt=0.0)
+    dilate_weight: float = Field(default=0.5, ge=0.0)
+
+    target_col: str = Field(default="bg_mM", min_length=1)
+    interval_mins: int = Field(default=5, gt=0)
+    imputation_threshold_mins: int = Field(default=45, gt=0)
+    freq_type: int = Field(default=0, ge=0)
+
+    eval_during_training: bool = Field(default=True)
+    eval_temporal_frac: float = Field(default=0.10, gt=0.0, lt=1.0)
+    eval_subsample: Optional[int] = Field(default=None, gt=0)
+
+    quantiles: list[float] = Field(default_factory=lambda: [0.1, 0.5, 0.9])
+    val_patient_ratio: float = Field(default=0.2, ge=0.0, lt=1.0)
+    window_stride: Optional[int] = Field(default=None, gt=0)
+
+    @field_validator(
+        "learning_rate",
+        "weight_decay",
+        "dilate_alpha",
+        "dilate_gamma",
+        "dilate_weight",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_numeric_fields(cls, value: Any, info: ValidationInfo) -> Any:
+        field_name = info.field_name or "numeric_field"
+        return _coerce_numeric_string(value, field_name)
+
+    @field_validator("quantiles")
+    @classmethod
+    def _validate_quantiles(cls, levels: list[float]) -> list[float]:
+        if not levels:
+            raise ValueError("quantiles must not be empty")
+        if levels != sorted(levels):
+            raise ValueError("quantiles must be sorted in ascending order")
+        if len(set(levels)) != len(levels):
+            raise ValueError("quantiles must not contain duplicates")
+        for level in levels:
+            if level <= 0.0 or level >= 1.0:
+                raise ValueError(f"quantiles entries must be in (0, 1), got {level}")
+        return levels
 
 
 class AutoGluonModelConfigSchema(BaseConfigSchema):
@@ -624,13 +704,37 @@ def _build_runtime_config(
     config_data: dict[str, Any],
 ) -> dict[str, Any]:
     try:
-        schema = schema_type.model_validate(config_data)
+        model_validate = getattr(schema_type, "model_validate", None)
+        if callable(model_validate):
+            schema_obj = model_validate(config_data)
+        else:
+            parse_obj = getattr(schema_type, "parse_obj", None)
+            if not callable(parse_obj):
+                raise TypeError(
+                    f"{schema_type.__name__} does not expose model_validate/parse_obj"
+                )
+            schema_obj = parse_obj(config_data)
+        schema = cast(BaseConfigSchema, schema_obj)
     except ValidationError as exc:
         raise ValueError(
             f"Invalid runtime config for model_type={model_type} via "
             f"{schema_type.__name__}:\n{_format_validation_details(exc)}"
         ) from exc
-    return schema.model_dump(exclude_none=True)
+    model_dump = getattr(schema, "model_dump", None)
+    if callable(model_dump):
+        raw = model_dump(exclude_none=True)
+    else:
+        legacy_dump = getattr(schema, "dict", None)
+        if not callable(legacy_dump):
+            raise ValueError(
+                f"Runtime schema object cannot be dumped for model_type={model_type}"
+            )
+        raw = legacy_dump(exclude_none=True)
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"Runtime schema dump must be a mapping for model_type={model_type}"
+        )
+    return dict(raw)
 
 
 def build_tsmixer_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
@@ -661,6 +765,20 @@ def build_moment_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
 def build_toto_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize Toto runtime config values."""
     return _build_runtime_config("toto", TotoModelConfigSchema, config_data)
+
+
+def build_timesfm_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize TimesFM runtime config values."""
+    runtime = _build_runtime_config("timesfm", TimesFMModelConfigSchema, config_data)
+
+    checkpoint_path = runtime.get("checkpoint_path") or runtime.get("model_path")
+    if checkpoint_path:
+        runtime["checkpoint_path"] = checkpoint_path
+        if not runtime.get("model_path"):
+            runtime["model_path"] = checkpoint_path
+
+    runtime["horizon_length"] = runtime["forecast_length"]
+    return runtime
 
 
 def build_chronos2_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
@@ -729,6 +847,10 @@ MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
     "moment": ModelConfigRoute(
         schema_type=MomentModelConfigSchema,
         runtime_adapter=build_moment_runtime_config,
+    ),
+    "timesfm": ModelConfigRoute(
+        schema_type=TimesFMModelConfigSchema,
+        runtime_adapter=build_timesfm_runtime_config,
     ),
     "patchtst": ModelConfigRoute(
         schema_type=PatchTSTModelConfigSchema,

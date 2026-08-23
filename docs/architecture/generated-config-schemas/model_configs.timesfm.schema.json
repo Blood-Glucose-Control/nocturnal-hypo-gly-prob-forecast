@@ -1,0 +1,231 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for TimesFM model YAML configs.",
+  "properties": {
+    "batch_size": {
+      "default": 32,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "checkpoint_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Checkpoint Path"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "dilate_alpha": {
+      "default": 0.5,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Dilate Alpha",
+      "type": "number"
+    },
+    "dilate_gamma": {
+      "default": 0.01,
+      "exclusiveMinimum": 0.0,
+      "title": "Dilate Gamma",
+      "type": "number"
+    },
+    "dilate_weight": {
+      "default": 0.5,
+      "minimum": 0.0,
+      "title": "Dilate Weight",
+      "type": "number"
+    },
+    "eval_during_training": {
+      "default": true,
+      "title": "Eval During Training",
+      "type": "boolean"
+    },
+    "eval_subsample": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Eval Subsample"
+    },
+    "eval_temporal_frac": {
+      "default": 0.1,
+      "exclusiveMaximum": 1.0,
+      "exclusiveMinimum": 0.0,
+      "title": "Eval Temporal Frac",
+      "type": "number"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "fp16": {
+      "default": true,
+      "title": "Fp16",
+      "type": "boolean"
+    },
+    "freeze_backbone": {
+      "default": false,
+      "title": "Freeze Backbone",
+      "type": "boolean"
+    },
+    "freq_type": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Freq Type",
+      "type": "integer"
+    },
+    "gradient_accumulation_steps": {
+      "default": 4,
+      "exclusiveMinimum": 0,
+      "title": "Gradient Accumulation Steps",
+      "type": "integer"
+    },
+    "horizon_length": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Horizon Length"
+    },
+    "imputation_threshold_mins": {
+      "default": 45,
+      "exclusiveMinimum": 0,
+      "title": "Imputation Threshold Mins",
+      "type": "integer"
+    },
+    "interval_mins": {
+      "default": 5,
+      "exclusiveMinimum": 0,
+      "title": "Interval Mins",
+      "type": "integer"
+    },
+    "learning_rate": {
+      "default": 1e-05,
+      "exclusiveMinimum": 0.0,
+      "title": "Learning Rate",
+      "type": "number"
+    },
+    "loss_fn": {
+      "default": "pinball",
+      "enum": [
+        "pinball",
+        "mse",
+        "joint",
+        "dilate",
+        "dilate_pinball",
+        "dilate_pinball_median"
+      ],
+      "title": "Loss Fn",
+      "type": "string"
+    },
+    "model_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Path"
+    },
+    "model_type": {
+      "const": "timesfm",
+      "default": "timesfm",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "num_epochs": {
+      "default": 10,
+      "minimum": 0,
+      "title": "Num Epochs",
+      "type": "integer"
+    },
+    "quantiles": {
+      "items": {
+        "type": "number"
+      },
+      "title": "Quantiles",
+      "type": "array"
+    },
+    "target_col": {
+      "default": "bg_mM",
+      "minLength": 1,
+      "title": "Target Col",
+      "type": "string"
+    },
+    "torch_dtype": {
+      "default": "bfloat16",
+      "enum": [
+        "bfloat16",
+        "float16",
+        "float32"
+      ],
+      "title": "Torch Dtype",
+      "type": "string"
+    },
+    "training_mode": {
+      "default": "fine_tune",
+      "title": "Training Mode",
+      "type": "string"
+    },
+    "use_cpu": {
+      "default": false,
+      "title": "Use Cpu",
+      "type": "boolean"
+    },
+    "val_patient_ratio": {
+      "default": 0.2,
+      "exclusiveMaximum": 1.0,
+      "minimum": 0.0,
+      "title": "Val Patient Ratio",
+      "type": "number"
+    },
+    "weight_decay": {
+      "default": 0.01,
+      "minimum": 0.0,
+      "title": "Weight Decay",
+      "type": "number"
+    },
+    "window_stride": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Window Stride"
+    }
+  },
+  "title": "TimesFMModelConfigSchema",
+  "type": "object"
+}
