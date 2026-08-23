@@ -262,7 +262,7 @@ class TiDEModelConfigSchema(AutoGluonModelConfigSchema):
     """Schema contract for TiDE (AutoGluon backend) YAML configs."""
 
     model_type: Literal["tide"] = Field(default="tide")
-    training_mode: Literal["from_scratch"] = Field(default="from_scratch")
+    training_mode: str = Field(default="from_scratch")
     forecast_length: int = Field(default=72, gt=0)
 
     encoder_hidden_dim: int = Field(default=256, gt=0)
@@ -299,6 +299,8 @@ class TiDEModelConfigSchema(AutoGluonModelConfigSchema):
             raise ValueError(
                 "encoder_hidden_dim must equal decoder_hidden_dim for TiDE"
             )
+        if self.training_mode != "from_scratch":
+            raise ValueError("training_mode must be 'from_scratch' for TiDE")
         return self
 
 
