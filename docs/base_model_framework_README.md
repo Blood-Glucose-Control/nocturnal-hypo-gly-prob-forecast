@@ -1,47 +1,87 @@
-# Base Time-Series Model Framework
+# Base Model Framework and Extension Contract
 
-This repository uses a shared model framework so all forecasting families follow
-the same lifecycle contracts (config → initialize → fit → predict → save/load),
-while still owning family-specific implementation details.
+**Date:** 2026-08-13
+**Update Date:** 2026-08-23
+**Task ID:** `model-extension-contract-doc`
+**Status:** Active contributor contract (published)
 
-## Core framework components
+This document is the canonical contract for adding or modifying model families.
 
-- [`BaseTimeSeriesFoundationModel`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/base_model.py)
-  defines the common lifecycle APIs and persistence behavior.
-- [`ModelConfig`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/base_model.py)
-  defines shared training/runtime fields used by model families.
-- [`TrainingBackend`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/base_model.py)
-  captures backend style (`transformers`, `pytorch`, `custom`).
-- [`ModelRegistry`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/registry.py)
-  provides family registration/discovery.
-- [`ModelFactory`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py)
-  wires workflow config loading to model-family constructors.
+---
 
-## Configuration and schema validation
+## 1) Runtime constructor graph (authoritative)
 
-Workflow model YAMLs are validated by strict Pydantic schemas before runtime:
+### Primary evaluation runtime (most important)
 
-- schema definitions: [`src/config/schemas/model_configs.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/config/schemas/model_configs.py)
-- workflow loader path: [`load_model_config_from_yaml`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py:50)
-- generated schema artifacts: [`docs/architecture/generated-config-schemas/`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas)
+[`src/workflows/evaluation/nocturnal_hypo_eval.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/nocturnal_hypo_eval.py)
+[`src/workflows/evaluation/sliding_window_eval.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/sliding_window_eval.py)
 
-This keeps config contracts explicit and prevents drift between docs and runtime.
+Current flow:
+1. YAML overrides load through [`load_model_config_from_yaml`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py:50).
+2. Model creation goes through [`create_model_and_config`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/factory.py:35).
+3. Concrete model classes run lifecycle via [`BaseTimeSeriesFoundationModel`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/base_model.py).
 
-## Adding a new model family
+### Forecasting pipeline runtime
 
-1. Implement family config/model classes in `src/models/<family>/`.
-2. Ensure the model class binds `config_class = <FamilyConfig>` so base load paths deserialize correctly.
-3. Register the model with [`ModelRegistry`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/registry.py).
-4. Add schema + runtime adapter entry in [`MODEL_CONFIG_ROUTES`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/config/schemas/model_configs.py).
-5. Add focused schema/factory tests in
-   [`tests/workflows/forecasting/test_model_config_schema_loader.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/workflows/forecasting/test_model_config_schema_loader.py).
+[`src/workflows/forecasting/pipeline.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/pipeline.py)
 
-## Validation commands
+Flow:
+1. Build workflow config wrapper (`GenericModelConfig`).
+2. Construct/load via [`ModelFactory.create_model`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py:124) and [`ModelFactory.load_model`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py:601).
+3. Route all model runtime payloads through schema adapters in [`MODEL_CONFIG_ROUTES`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/config/schemas/model_configs.py:830).
 
-Use targeted checks for touched files/families:
+### Registry role
+
+[`ModelRegistry`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/registry.py) is for registration/discovery and tests.
+It is not a separate user-facing constructor path for runtime entrypoints.
+
+---
+
+## 2) Required implementation checklist for a new model family
+
+1. Add family module(s) under [`src/models/`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models).
+2. Ensure forecaster class sets `config_class = <FamilyConfig>`.
+3. Register forecaster class with [`ModelRegistry.register`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/registry.py:32).
+4. Add schema + runtime adapter route in [`src/config/schemas/model_configs.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/config/schemas/model_configs.py).
+5. Wire constructor handling:
+   - current required path: [`create_model_and_config`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/factory.py:35),
+   - schema-routed workflow path: [`ModelFactory`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py:99).
+6. Add/extend tests:
+   - [`tests/workflows/forecasting/test_model_config_schema_loader.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/workflows/forecasting/test_model_config_schema_loader.py)
+   - [`tests/models/test_model_family_contract_suite.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_model_family_contract_suite.py)
+   - family-specific tests in [`tests/models/`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models).
+
+---
+
+## 3) Keep / wire policy
+
+- Keep runtime-core surfaces that are exercised by primary entrypoints.
+- Do not reintroduce removed base-level LoRA/Distributed scaffolding unless there is a concrete runtime owner and regression coverage.
+- Treat specialty/experimental scripts as non-authoritative unless promoted explicitly into runtime-core workflows.
+
+---
+
+## 4) Validation gate for model/runtime changes
+
+Run focused checks for touched families/surfaces:
 
 ```bash
-ruff check src/config/schemas src/workflows/forecasting src/models/<family>
+ruff check src/config/schemas src/workflows/forecasting src/workflows/evaluation src/models/<family>
 pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py
 pytest -q tests/models/test_model_family_contract_suite.py
 ```
+
+Then run final Pylance diagnostics on touched files from canonical workspace root:
+`/data/home/<you>/nocturnal-hypo-gly-prob-forecast`.
+
+---
+
+## 5) Wrap-up complete summary
+
+This contract resolves the open `model-extension-contract-doc` handoff by
+documenting one contributor-facing model extension path, explicit constructor-role
+boundaries (factory vs registry), and mandatory validation surfaces.
+
+Follow-on work passed to other tasks:
+- constructor dedup/unification: `model-runtime-consolidation-wave`,
+- broader runtime boundary governance: `runtime-core-boundary-lock`.

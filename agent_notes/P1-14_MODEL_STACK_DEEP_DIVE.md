@@ -1,8 +1,10 @@
 # P1-14 Model Stack Deep Dive (Base/Factory/AutoGluon)
 
 **Date:** 2026-08-13
+**Update Date:** 2026-08-23
 **Scope:** `src/models/base/`, `src/models/factory.py`, `src/models/autogluon_base.py`
 **Why this exists:** confirm architecture quality before expanding adapter/protocol work and set a runtime-first pruning policy.
+**Status:** Historical deep-dive completed; superseded by refreshed runtime evidence in `P1-21`.
 
 ---
 
@@ -98,3 +100,14 @@ The following P1 tasks were added in [`project_tracking.csv`](/data/home/cjrisi/
 - `model-runtime-flow-audit` ✅ (artifact: [`P1-21_MODEL_RUNTIME_FLOW_AUDIT.md`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/agent_notes/P1-21_MODEL_RUNTIME_FLOW_AUDIT.md))
 - `model-runtime-surface-prune`
 - `model-extension-contract-doc`
+
+---
+
+## 8) Wrap-up complete summary
+
+This deep-dive established the runtime-first pruning policy and directly spawned
+the P1-21 audit/prune workstream. As of 2026-08-23, the
+`model-extension-contract-doc` handoff has been completed (published at
+[`docs/base_model_framework_README.md`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/base_model_framework_README.md)).
+Remaining follow-on work from this lineage is constructor-logic
+dedup/unification under `model-runtime-consolidation-wave`.
