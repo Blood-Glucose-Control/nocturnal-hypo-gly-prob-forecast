@@ -3,7 +3,7 @@
 import logging
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -96,6 +96,7 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
     probabilistic forecasts via diffusion sampling.
     """
 
+    config_class = TimeGradConfig
     config: TimeGradConfig
 
     def __init__(self, config: TimeGradConfig):
@@ -180,7 +181,7 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
         if bg_col not in data.columns:
             raise ValueError(f"DataFrame must contain '{bg_col}' column")
 
-        context = data[bg_col].values.astype(np.float64)
+        context = np.asarray(data[bg_col].to_numpy(dtype=np.float64), dtype=np.float64)
 
         # TimeGrad expects 2D targets: (target_dim, timesteps)
         context_2d = context.reshape(1, -1)
@@ -199,7 +200,10 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
         forecast = next(forecast_it)
 
         # samples shape: (num_samples, prediction_length, target_dim)
-        samples = forecast.samples.squeeze(-1)  # -> (num_samples, prediction_length)
+        forecast_samples = getattr(forecast, "samples", None)
+        if forecast_samples is None:
+            raise TypeError("TimeGrad predictor returned forecast without samples")
+        samples = np.asarray(forecast_samples).squeeze(-1)
 
         if quantile_levels is not None:
             # shape: (len(quantile_levels), forecast_length)
@@ -254,7 +258,7 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
 
         entries = []
         for pid, group in df.groupby(patient_col):
-            bg = group[bg_col].values.astype(np.float64)
+            bg = np.asarray(group[bg_col].to_numpy(dtype=np.float64), dtype=np.float64)
 
             if len(bg) < self.config.context_length + self.config.forecast_length:
                 logger.warning(
@@ -313,12 +317,14 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
         # Reconstruct predictor structure from estimator
         transformation = self.estimator.create_transformation()
         dummy_net = self.estimator.create_training_network(device)
-        self.predictor = self.estimator.create_predictor(
-            transformation, dummy_net, device
+        predictor = cast(
+            PyTorchPredictor,
+            self.estimator.create_predictor(transformation, dummy_net, device),
         )
+        self.predictor = predictor
 
         # Load actual trained weights
-        self.predictor.prediction_net.load_state_dict(
+        predictor.prediction_net.load_state_dict(
             torch.load(weights_path, map_location=device)
         )
         info_print(f"TimeGrad predictor loaded from {checkpoint_dir}")

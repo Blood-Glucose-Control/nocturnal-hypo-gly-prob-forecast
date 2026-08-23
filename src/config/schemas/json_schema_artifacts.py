@@ -12,12 +12,15 @@ from .model_configs import (
     Chronos2ModelConfigSchema,
     DeepARModelConfigSchema,
     MoiraiModelConfigSchema,
+    MomentModelConfigSchema,
     NaiveBaselineModelConfigSchema,
     PatchTSTModelConfigSchema,
     StatisticalModelConfigSchema,
     SundialModelConfigSchema,
     TFTModelConfigSchema,
     TiDEModelConfigSchema,
+    TimeGradModelConfigSchema,
+    TotoModelConfigSchema,
     TSMixerModelConfigSchema,
     TTMModelConfigSchema,
 )
@@ -52,6 +55,11 @@ SCHEMA_ARTIFACT_SPECS: tuple[SchemaArtifactSpec, ...] = (
         source_symbol="src.config.schemas.model_configs.MoiraiModelConfigSchema",
     ),
     SchemaArtifactSpec(
+        filename="model_configs.moment.schema.json",
+        schema_type=MomentModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.MomentModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
         filename="model_configs.naive_baseline.schema.json",
         schema_type=NaiveBaselineModelConfigSchema,
         source_symbol="src.config.schemas.model_configs.NaiveBaselineModelConfigSchema",
@@ -80,6 +88,16 @@ SCHEMA_ARTIFACT_SPECS: tuple[SchemaArtifactSpec, ...] = (
         filename="model_configs.tide.schema.json",
         schema_type=TiDEModelConfigSchema,
         source_symbol="src.config.schemas.model_configs.TiDEModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.timegrad.schema.json",
+        schema_type=TimeGradModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.TimeGradModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.toto.schema.json",
+        schema_type=TotoModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.TotoModelConfigSchema",
     ),
     SchemaArtifactSpec(
         filename="model_configs.ttm.schema.json",

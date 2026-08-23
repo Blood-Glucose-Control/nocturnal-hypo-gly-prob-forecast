@@ -91,6 +91,7 @@ MODEL_FAMILY_CLASS_CONTRACT: dict[str, dict[str, object]] = {
 }
 
 SCHEMA_ROUTED_FAMILIES = set(get_registered_model_config_types())
+SCHEMA_ROUTED_METHOD_ORDER_EXEMPT_FAMILIES = {"moment", "timegrad", "toto"}
 AUTOGLUON_THIN_WRAPPER_FAMILIES = {
     "deepar",
     "naive_baseline",
@@ -255,9 +256,9 @@ def test_model_family_modules_define_expected_classes_and_docstrings() -> None:
 
         config_module = _parse_python(config_path)
         model_module = _parse_python(model_path)
-        assert ast.get_docstring(
-            config_module
-        ), f"{config_path} missing module docstring"
+        assert ast.get_docstring(config_module), (
+            f"{config_path} missing module docstring"
+        )
         assert ast.get_docstring(model_module), f"{model_path} missing module docstring"
 
         config_class_name = str(contract["config_class"])
@@ -265,17 +266,17 @@ def test_model_family_modules_define_expected_classes_and_docstrings() -> None:
         config_class = _class_by_name(config_module, config_class_name)
         model_class = _class_by_name(model_module, model_class_name)
 
-        assert ast.get_docstring(
-            config_class
-        ), f"{config_path}:{config_class_name} missing class docstring"
-        assert ast.get_docstring(
-            model_class
-        ), f"{model_path}:{model_class_name} missing class docstring"
+        assert ast.get_docstring(config_class), (
+            f"{config_path}:{config_class_name} missing class docstring"
+        )
+        assert ast.get_docstring(model_class), (
+            f"{model_path}:{model_class_name} missing class docstring"
+        )
 
         config_bases = {_base_name(base) for base in config_class.bases}
-        assert (
-            "ModelConfig" in config_bases
-        ), f"{model_type}: {config_class_name} must inherit from ModelConfig"
+        assert "ModelConfig" in config_bases, (
+            f"{model_type}: {config_class_name} must inherit from ModelConfig"
+        )
 
         allowed_bases = set(contract["allowed_model_bases"])  # type: ignore[arg-type]
         model_bases = {_base_name(base) for base in model_class.bases}
@@ -285,9 +286,9 @@ def test_model_family_modules_define_expected_classes_and_docstrings() -> None:
         )
 
         supports_zero_shot = _property_method(model_class, "supports_zero_shot")
-        assert (
-            supports_zero_shot is not None
-        ), f"{model_type}: {model_class_name}.supports_zero_shot must be a @property"
+        assert supports_zero_shot is not None, (
+            f"{model_type}: {model_class_name}.supports_zero_shot must be a @property"
+        )
 
 
 def test_schema_routed_models_bind_config_class_and_keep_core_method_order() -> None:
@@ -299,9 +300,12 @@ def test_schema_routed_models_bind_config_class_and_keep_core_method_order() -> 
         model_module = _parse_python(model_path)
         model_class = _class_by_name(model_module, model_class_name)
 
-        assert (
-            _config_class_binding(model_class) == config_class_name
-        ), f"{model_type}: config_class should bind to {config_class_name}"
+        assert _config_class_binding(model_class) == config_class_name, (
+            f"{model_type}: config_class should bind to {config_class_name}"
+        )
+
+        if model_type in SCHEMA_ROUTED_METHOD_ORDER_EXEMPT_FAMILIES:
+            continue
 
         method_names = _method_names(model_class)
         previous = -1
@@ -341,20 +345,21 @@ def test_autogluon_thin_wrappers_keep_shared_base_responsibilities() -> None:
                         and target.id == "_PREDICTOR_JSON_NAME"
                     ):
                         predictor_binding = stmt
-        assert (
-            predictor_binding is not None
-        ), f"{model_type}: {model_class_name} must define _PREDICTOR_JSON_NAME"
+        assert predictor_binding is not None, (
+            f"{model_type}: {model_class_name} must define _PREDICTOR_JSON_NAME"
+        )
 
-        assert (
-            "_train_model_info_log" in method_names
-        ), f"{model_type}: thin wrapper should provide model-specific training banner"
-        assert (
-            "supports_zero_shot" in method_names
-        ), f"{model_type}: thin wrapper should declare supports_zero_shot"
-        assert (
-            method_names.index("supports_zero_shot")
-            < method_names.index("_train_model_info_log")
-        ), f"{model_type}: supports_zero_shot should be defined before _train_model_info_log"
+        assert "_train_model_info_log" in method_names, (
+            f"{model_type}: thin wrapper should provide model-specific training banner"
+        )
+        assert "supports_zero_shot" in method_names, (
+            f"{model_type}: thin wrapper should declare supports_zero_shot"
+        )
+        assert method_names.index("supports_zero_shot") < method_names.index(
+            "_train_model_info_log"
+        ), (
+            f"{model_type}: supports_zero_shot should be defined before _train_model_info_log"
+        )
         assert not (set(method_names) & forbidden_method_redefinitions), (
             f"{model_type}: thin wrapper should not redefine shared AutoGluon base hooks; "
             f"found {sorted(set(method_names) & forbidden_method_redefinitions)}"

@@ -125,6 +125,157 @@ class MoiraiModelConfigSchema(BaseConfigSchema):
         return self
 
 
+class TimeGradModelConfigSchema(BaseConfigSchema):
+    """Schema contract for TimeGrad model YAML configs."""
+
+    model_type: Literal["timegrad"] = Field(default="timegrad")
+    model_path: Optional[str] = Field(default=None)
+    context_length: int = Field(default=512, gt=0)
+    forecast_length: int = Field(default=96, gt=0)
+    training_mode: str = Field(default="from_scratch")
+    freeze_backbone: bool = Field(default=False)
+    use_cpu: bool = Field(default=False)
+    fp16: bool = Field(default=True)
+    learning_rate: float = Field(
+        default=1e-4,
+        gt=0.0,
+        validation_alias=AliasChoices("learning_rate", "lr"),
+    )
+    batch_size: int = Field(default=64, gt=0)
+    num_epochs: int = Field(default=10, ge=0)
+
+    input_features: list[str] = Field(default_factory=list)
+    target_features: list[str] = Field(default_factory=lambda: ["bg_mM"])
+    scaler_type: str = Field(default="standard", min_length=1)
+    resolution_min: int = Field(default=5, gt=0)
+    split_config: Optional[dict[str, float]] = Field(default=None)
+
+    diff_steps: int = Field(default=100, gt=0)
+    beta_end: float = Field(default=0.1, gt=0.0)
+    beta_schedule: str = Field(default="linear", min_length=1)
+    loss_type: str = Field(default="l2", min_length=1)
+    cell_type: str = Field(default="GRU", min_length=1)
+    num_cells: int = Field(default=40, gt=0)
+    num_layers: int = Field(default=2, gt=0)
+    residual_layers: int = Field(default=8, gt=0)
+    residual_channels: int = Field(default=8, gt=0)
+    num_samples: int = Field(default=50, gt=0)
+    scaling: bool = Field(default=True)
+    num_batches_per_epoch: int = Field(default=100, gt=0)
+    freq: str = Field(default="5T", min_length=1)
+
+    @field_validator("learning_rate", "beta_end", mode="before")
+    @classmethod
+    def _normalize_numeric_fields(cls, value: Any, info: ValidationInfo) -> Any:
+        field_name = info.field_name or "numeric_field"
+        return _coerce_numeric_string(value, field_name)
+
+    @field_validator("target_features")
+    @classmethod
+    def _validate_target_features(cls, target_features: list[str]) -> list[str]:
+        if not target_features:
+            raise ValueError("target_features cannot be empty")
+        return target_features
+
+    @model_validator(mode="after")
+    def _validate_split_config(self) -> "TimeGradModelConfigSchema":
+        if self.split_config is None:
+            return self
+        required_keys = {"train", "val", "test"}
+        provided_keys = set(self.split_config)
+        if provided_keys != required_keys:
+            raise ValueError(
+                "split_config must include exactly train, val, and test keys"
+            )
+        split_sum = (
+            self.split_config["train"]
+            + self.split_config["val"]
+            + self.split_config["test"]
+        )
+        if abs(split_sum - 1.0) > 1e-6:
+            raise ValueError(f"split_config must sum to 1.0, got {split_sum}")
+        return self
+
+
+class MomentModelConfigSchema(BaseConfigSchema):
+    """Schema contract for MOMENT model YAML configs."""
+
+    model_type: Literal["moment"] = Field(default="moment")
+    model_path: str = Field(default="AutonLab/MOMENT-1-small", min_length=1)
+    training_mode: str = Field(default="fine_tune")
+    context_length: int = Field(default=512, gt=0)
+    forecast_length: int = Field(default=96, gt=0)
+    freeze_backbone: bool = Field(default=False)
+    use_cpu: bool = Field(default=False)
+    fp16: bool = Field(default=True)
+
+    learning_rate: float = Field(
+        default=1e-4,
+        gt=0.0,
+        validation_alias=AliasChoices("learning_rate", "lr"),
+    )
+    batch_size: int = Field(default=64, gt=0)
+    num_epochs: int = Field(default=10, ge=0)
+
+    d_model: int = Field(default=512, gt=0)
+    n_heads: int = Field(default=8, gt=0)
+    n_layers: int = Field(default=6, gt=0)
+    dropout: float = Field(default=0.1, ge=0.0, le=1.0)
+    mask_ratio: float = Field(default=0.15, ge=0.0, le=1.0)
+    covariate_cols: list[str] = Field(default_factory=list)
+    use_wrapper_normalization: bool = Field(default=False)
+    target_col: Optional[str] = Field(default="bg_mM")
+    interval_mins: Optional[int] = Field(default=5, gt=0)
+    window_stride: Optional[int] = Field(default=None, gt=0)
+    max_train_windows: Optional[int] = Field(default=None, gt=0)
+    training_config: Optional[dict[str, Any]] = Field(default=None)
+    data_config: Optional[dict[str, Any]] = Field(default=None)
+
+    @field_validator("learning_rate", mode="before")
+    @classmethod
+    def _normalize_learning_rate(cls, value: Any) -> Any:
+        return _coerce_numeric_string(value, "learning_rate")
+
+
+class TotoModelConfigSchema(BaseConfigSchema):
+    """Schema contract for Toto model YAML configs."""
+
+    model_type: Literal["toto"] = Field(default="toto")
+    model_path: str = Field(default="Datadog/Toto-Open-Base-1.0", min_length=1)
+    training_mode: str = Field(default="fine_tune")
+    context_length: int = Field(default=512, gt=0)
+    forecast_length: int = Field(default=96, gt=0)
+    freeze_backbone: bool = Field(default=False)
+    use_cpu: bool = Field(default=False)
+    fp16: bool = Field(default=True)
+
+    lr: float = Field(
+        default=1e-4,
+        gt=0.0,
+        validation_alias=AliasChoices("lr", "learning_rate"),
+    )
+    batch_size: int = Field(default=64, gt=0)
+    num_epochs: Optional[int] = Field(default=None, ge=0)
+    max_steps: Optional[int] = Field(default=None, gt=0)
+    min_lr: float = Field(default=1e-5, ge=0.0)
+    warmup_steps: int = Field(default=200, ge=0)
+    stable_steps: int = Field(default=1000, ge=0)
+    decay_steps: int = Field(default=1000, ge=0)
+    train_batch_size: int = Field(default=4, gt=0)
+    val_batch_size: int = Field(default=1, gt=0)
+    val_prediction_len: int = Field(default=96, gt=0)
+    num_samples: Optional[int] = Field(default=None, gt=0)
+    samples_per_batch: int = Field(default=10, gt=0)
+    eval_batch_size: Optional[int] = Field(default=64, gt=0)
+    covariate_cols: list[str] = Field(default_factory=list)
+
+    @field_validator("lr", "min_lr", mode="before")
+    @classmethod
+    def _normalize_lr_fields(cls, value: Any, info: ValidationInfo) -> Any:
+        field_name = info.field_name or "lr"
+        return _coerce_numeric_string(value, field_name)
+
+
 class AutoGluonModelConfigSchema(BaseConfigSchema):
     """Shared schema surface for AutoGluon-backed model families."""
 
@@ -497,6 +648,21 @@ def build_moirai_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     return _build_runtime_config("moirai", MoiraiModelConfigSchema, config_data)
 
 
+def build_timegrad_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize TimeGrad runtime config values."""
+    return _build_runtime_config("timegrad", TimeGradModelConfigSchema, config_data)
+
+
+def build_moment_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize MOMENT runtime config values."""
+    return _build_runtime_config("moment", MomentModelConfigSchema, config_data)
+
+
+def build_toto_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize Toto runtime config values."""
+    return _build_runtime_config("toto", TotoModelConfigSchema, config_data)
+
+
 def build_chronos2_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize Chronos-2 runtime config values."""
     return _build_runtime_config("chronos2", Chronos2ModelConfigSchema, config_data)
@@ -560,6 +726,10 @@ MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
         schema_type=MoiraiModelConfigSchema,
         runtime_adapter=build_moirai_runtime_config,
     ),
+    "moment": ModelConfigRoute(
+        schema_type=MomentModelConfigSchema,
+        runtime_adapter=build_moment_runtime_config,
+    ),
     "patchtst": ModelConfigRoute(
         schema_type=PatchTSTModelConfigSchema,
         runtime_adapter=build_patchtst_runtime_config,
@@ -579,6 +749,14 @@ MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
     "tide": ModelConfigRoute(
         schema_type=TiDEModelConfigSchema,
         runtime_adapter=build_tide_runtime_config,
+    ),
+    "timegrad": ModelConfigRoute(
+        schema_type=TimeGradModelConfigSchema,
+        runtime_adapter=build_timegrad_runtime_config,
+    ),
+    "toto": ModelConfigRoute(
+        schema_type=TotoModelConfigSchema,
+        runtime_adapter=build_toto_runtime_config,
     ),
     "ttm": ModelConfigRoute(
         schema_type=TTMModelConfigSchema,

@@ -1,0 +1,191 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for MOMENT model YAML configs.",
+  "properties": {
+    "batch_size": {
+      "default": 64,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Covariate Cols",
+      "type": "array"
+    },
+    "d_model": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "D Model",
+      "type": "integer"
+    },
+    "data_config": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Data Config"
+    },
+    "dropout": {
+      "default": 0.1,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Dropout",
+      "type": "number"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "fp16": {
+      "default": true,
+      "title": "Fp16",
+      "type": "boolean"
+    },
+    "freeze_backbone": {
+      "default": false,
+      "title": "Freeze Backbone",
+      "type": "boolean"
+    },
+    "interval_mins": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": 5,
+      "title": "Interval Mins"
+    },
+    "learning_rate": {
+      "default": 0.0001,
+      "exclusiveMinimum": 0.0,
+      "title": "Learning Rate",
+      "type": "number"
+    },
+    "mask_ratio": {
+      "default": 0.15,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Mask Ratio",
+      "type": "number"
+    },
+    "max_train_windows": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Train Windows"
+    },
+    "model_path": {
+      "default": "AutonLab/MOMENT-1-small",
+      "minLength": 1,
+      "title": "Model Path",
+      "type": "string"
+    },
+    "model_type": {
+      "const": "moment",
+      "default": "moment",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "n_heads": {
+      "default": 8,
+      "exclusiveMinimum": 0,
+      "title": "N Heads",
+      "type": "integer"
+    },
+    "n_layers": {
+      "default": 6,
+      "exclusiveMinimum": 0,
+      "title": "N Layers",
+      "type": "integer"
+    },
+    "num_epochs": {
+      "default": 10,
+      "minimum": 0,
+      "title": "Num Epochs",
+      "type": "integer"
+    },
+    "target_col": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": "bg_mM",
+      "title": "Target Col"
+    },
+    "training_config": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Training Config"
+    },
+    "training_mode": {
+      "default": "fine_tune",
+      "title": "Training Mode",
+      "type": "string"
+    },
+    "use_cpu": {
+      "default": false,
+      "title": "Use Cpu",
+      "type": "boolean"
+    },
+    "use_wrapper_normalization": {
+      "default": false,
+      "title": "Use Wrapper Normalization",
+      "type": "boolean"
+    },
+    "window_stride": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Window Stride"
+    }
+  },
+  "title": "MomentModelConfigSchema",
+  "type": "object"
+}

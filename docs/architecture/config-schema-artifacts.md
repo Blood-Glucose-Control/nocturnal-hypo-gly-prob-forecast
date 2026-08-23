@@ -63,6 +63,7 @@ This command writes JSON schema files into
 
 - `model_configs.chronos2.schema.json`
 - `model_configs.deepar.schema.json`
+- `model_configs.moment.schema.json`
 - `model_configs.moirai.schema.json`
 - `model_configs.naive_baseline.schema.json`
 - `model_configs.patchtst.schema.json`
@@ -70,6 +71,8 @@ This command writes JSON schema files into
 - `model_configs.sundial.schema.json`
 - `model_configs.tft.schema.json`
 - `model_configs.tide.schema.json`
+- `model_configs.timegrad.schema.json`
+- `model_configs.toto.schema.json`
 - `model_configs.ttm.schema.json`
 - `model_configs.tsmixer.schema.json`
 - `data_configs.holdout.schema.json`
@@ -93,6 +96,7 @@ contract delta.
 - [manifest.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/manifest.json)
 - [model_configs.chronos2.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.chronos2.schema.json)
 - [model_configs.deepar.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.deepar.schema.json)
+- [model_configs.moment.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.moment.schema.json)
 - [model_configs.moirai.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.moirai.schema.json)
 - [model_configs.naive_baseline.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.naive_baseline.schema.json)
 - [model_configs.patchtst.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.patchtst.schema.json)
@@ -100,6 +104,8 @@ contract delta.
 - [model_configs.sundial.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.sundial.schema.json)
 - [model_configs.tft.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.tft.schema.json)
 - [model_configs.tide.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.tide.schema.json)
+- [model_configs.timegrad.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.timegrad.schema.json)
+- [model_configs.toto.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.toto.schema.json)
 - [model_configs.ttm.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.ttm.schema.json)
 - [model_configs.tsmixer.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.tsmixer.schema.json)
 - [data_configs.holdout.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/data_configs.holdout.schema.json)

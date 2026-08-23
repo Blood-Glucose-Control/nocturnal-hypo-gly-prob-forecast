@@ -29,6 +29,15 @@ SUNDIAL_SMOKE_CONFIG_PATH = (
 MOIRAI_SMOKE_CONFIG_PATH = (
     REPO_ROOT / "configs" / "models" / "moirai" / "bg_only_smoke_test.yaml"
 )
+MOMENT_SMOKE_CONFIG_PATH = (
+    REPO_ROOT / "configs" / "models" / "moment" / "00_baseline.yaml"
+)
+TIMEGRAD_SMOKE_CONFIG_PATH = (
+    REPO_ROOT / "configs" / "models" / "timegrad" / "cgm_only.yaml"
+)
+TOTO_SMOKE_CONFIG_PATH = (
+    REPO_ROOT / "configs" / "models" / "toto" / "bg_only_smoke_test.yaml"
+)
 AUTOGLUON_SCHEMA_SMOKE_CONFIGS = {
     "chronos2": REPO_ROOT / "configs" / "models" / "chronos2" / "00_bg_only.yaml",
     "deepar": REPO_ROOT / "configs" / "models" / "deepar" / "00_baseline.yaml",
@@ -240,6 +249,42 @@ def test_moirai_model_config_validates_via_schema_loader() -> None:
     assert loaded["past_covariate_dim"] == 0
 
 
+def test_moment_model_config_validates_via_schema_loader() -> None:
+    loaded = load_model_config_from_yaml(
+        str(MOMENT_SMOKE_CONFIG_PATH),
+        model_type="moment",
+    )
+
+    assert loaded["model_type"] == "moment"
+    assert loaded["model_path"] == "AutonLab/MOMENT-1-small"
+    assert loaded["use_wrapper_normalization"] is False
+    assert loaded["covariate_cols"] == []
+
+
+def test_timegrad_model_config_validates_via_schema_loader() -> None:
+    loaded = load_model_config_from_yaml(
+        str(TIMEGRAD_SMOKE_CONFIG_PATH),
+        model_type="timegrad",
+    )
+
+    assert loaded["model_type"] == "timegrad"
+    assert loaded["training_mode"] == "from_scratch"
+    assert loaded["target_features"] == ["bg_mM"]
+    assert loaded["split_config"] == {"train": 0.9, "val": 0.05, "test": 0.05}
+
+
+def test_toto_model_config_validates_via_schema_loader() -> None:
+    loaded = load_model_config_from_yaml(
+        str(TOTO_SMOKE_CONFIG_PATH),
+        model_type="toto",
+    )
+
+    assert loaded["model_type"] == "toto"
+    assert loaded["training_mode"] == "fine_tune"
+    assert loaded["lr"] == pytest.approx(1.0e-4)
+    assert loaded["max_steps"] == 100
+
+
 @pytest.mark.parametrize("model_type", ["deepar", "patchtst", "tft", "tide"])
 def test_autogluon_model_config_normalizes_learning_rate_alias(model_type: str) -> None:
     runtime_config = build_model_runtime_config(
@@ -308,6 +353,48 @@ def test_moirai_runtime_adapter_normalizes_learning_rate_alias() -> None:
 
     assert runtime_config["learning_rate"] == pytest.approx(0.0007)
     assert "lr" not in runtime_config
+
+
+def test_moment_runtime_adapter_normalizes_learning_rate_alias() -> None:
+    runtime_config = build_model_runtime_config(
+        model_type="moment",
+        config_data={
+            "context_length": 128,
+            "forecast_length": 96,
+            "lr": 0.0009,
+        },
+    )
+
+    assert runtime_config["learning_rate"] == pytest.approx(0.0009)
+    assert "lr" not in runtime_config
+
+
+def test_timegrad_runtime_adapter_normalizes_learning_rate_alias() -> None:
+    runtime_config = build_model_runtime_config(
+        model_type="timegrad",
+        config_data={
+            "context_length": 128,
+            "forecast_length": 96,
+            "lr": 0.0008,
+        },
+    )
+
+    assert runtime_config["learning_rate"] == pytest.approx(0.0008)
+    assert "lr" not in runtime_config
+
+
+def test_toto_runtime_adapter_maps_learning_rate_alias_to_lr() -> None:
+    runtime_config = build_model_runtime_config(
+        model_type="toto",
+        config_data={
+            "context_length": 128,
+            "forecast_length": 96,
+            "learning_rate": 0.0006,
+        },
+    )
+
+    assert runtime_config["lr"] == pytest.approx(0.0006)
+    assert "learning_rate" not in runtime_config
 
 
 def test_moirai_runtime_adapter_enforces_covariate_dim_parity() -> None:
@@ -500,6 +587,7 @@ def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
     for model_type in [
         "chronos2",
         "deepar",
+        "moment",
         "moirai",
         "naive_baseline",
         "patchtst",
@@ -507,6 +595,8 @@ def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
         "sundial",
         "tft",
         "tide",
+        "timegrad",
+        "toto",
         "ttm",
         "tsmixer",
     ]:
@@ -515,6 +605,9 @@ def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
     assert get_model_config_schema("tsmixer") is not None
     assert get_model_config_schema("deepar") is not None
     assert get_model_config_schema("ttm") is not None
+    assert get_model_config_schema("moment") is not None
+    assert get_model_config_schema("timegrad") is not None
+    assert get_model_config_schema("toto") is not None
 
 
 def test_tsmixer_factory_path_uses_schema_adapter_for_lr_alias(
@@ -705,6 +798,159 @@ def test_moirai_factory_path_reports_unknown_runtime_field(
     config = GenericModelConfig(
         model_type="moirai",
         model_path="Salesforce/moirai-1.0-R-small",
+        context_length=128,
+        forecast_length=96,
+        extra_config={"unknown_field": True},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ModelFactory.create_model(config)
+
+    assert "unknown_field" in str(exc_info.value)
+
+
+def test_moment_factory_path_uses_schema_adapter_for_lr_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="moment",
+        config_class_name="MomentConfig",
+        forecaster_class_name="MomentForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="moment",
+        model_path="AutonLab/MOMENT-1-small",
+        context_length=128,
+        forecast_length=96,
+        batch_size=16,
+        num_epochs=2,
+        learning_rate=1e-4,
+        extra_config={"lr": 0.0007, "covariate_cols": ["iob"]},
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.learning_rate == pytest.approx(0.0007)
+    assert model.config.covariate_cols == ["iob"]
+
+
+def test_moment_factory_path_reports_unknown_runtime_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="moment",
+        config_class_name="MomentConfig",
+        forecaster_class_name="MomentForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="moment",
+        model_path="AutonLab/MOMENT-1-small",
+        context_length=128,
+        forecast_length=96,
+        extra_config={"unknown_field": True},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ModelFactory.create_model(config)
+
+    assert "unknown_field" in str(exc_info.value)
+
+
+def test_timegrad_factory_path_uses_schema_adapter_for_lr_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="timegrad",
+        config_class_name="TimeGradConfig",
+        forecaster_class_name="TimeGradForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="timegrad",
+        model_path="",
+        context_length=128,
+        forecast_length=96,
+        batch_size=16,
+        num_epochs=2,
+        learning_rate=1e-4,
+        extra_config={"lr": 0.0012, "target_features": ["bg_mM"]},
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.learning_rate == pytest.approx(0.0012)
+    assert model.config.target_features == ["bg_mM"]
+
+
+def test_timegrad_factory_path_reports_unknown_runtime_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="timegrad",
+        config_class_name="TimeGradConfig",
+        forecaster_class_name="TimeGradForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="timegrad",
+        model_path="",
+        context_length=128,
+        forecast_length=96,
+        extra_config={"unknown_field": True},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ModelFactory.create_model(config)
+
+    assert "unknown_field" in str(exc_info.value)
+
+
+def test_toto_factory_path_uses_schema_adapter_for_lr_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="toto",
+        config_class_name="TotoConfig",
+        forecaster_class_name="TotoForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="toto",
+        model_path="Datadog/Toto-Open-Base-1.0",
+        context_length=128,
+        forecast_length=96,
+        batch_size=16,
+        num_epochs=2,
+        learning_rate=1e-4,
+        extra_config={"lr": 0.0005, "covariate_cols": ["iob"]},
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.lr == pytest.approx(0.0005)
+    assert model.config.covariate_cols == ["iob"]
+
+
+def test_toto_factory_path_reports_unknown_runtime_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="toto",
+        config_class_name="TotoConfig",
+        forecaster_class_name="TotoForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="toto",
+        model_path="Datadog/Toto-Open-Base-1.0",
         context_length=128,
         forecast_length=96,
         extra_config={"unknown_field": True},
@@ -1109,3 +1355,84 @@ def test_moirai_factory_path_supports_real_smoke_profile(
     assert model.config.num_samples == 50
     assert model.config.past_covariate_dim == 0
     assert model.config.covariate_cols == []
+
+
+def test_moment_factory_path_supports_real_smoke_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="moment",
+        config_class_name="MomentConfig",
+        forecaster_class_name="MomentForecaster",
+    )
+
+    overrides = load_model_config_from_yaml(
+        str(MOMENT_SMOKE_CONFIG_PATH),
+        model_type="moment",
+    )
+    config = ModelFactory.create_finetune_config(
+        model_type="moment",
+        extra_config=overrides,
+    )
+    model = ModelFactory.create_model(config)
+
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.model_type == "moment"
+    assert model.config.model_path == "AutonLab/MOMENT-1-small"
+    assert model.config.training_mode == "fine_tune"
+    assert model.config.covariate_cols == []
+
+
+def test_timegrad_factory_path_supports_real_smoke_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="timegrad",
+        config_class_name="TimeGradConfig",
+        forecaster_class_name="TimeGradForecaster",
+    )
+
+    overrides = load_model_config_from_yaml(
+        str(TIMEGRAD_SMOKE_CONFIG_PATH),
+        model_type="timegrad",
+    )
+    config = ModelFactory.create_finetune_config(
+        model_type="timegrad",
+        extra_config=overrides,
+    )
+    model = ModelFactory.create_model(config)
+
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.model_type == "timegrad"
+    assert model.config.training_mode == "from_scratch"
+    assert model.config.target_features == ["bg_mM"]
+    assert model.config.diff_steps == 10
+
+
+def test_toto_factory_path_supports_real_smoke_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="toto",
+        config_class_name="TotoConfig",
+        forecaster_class_name="TotoForecaster",
+    )
+
+    overrides = load_model_config_from_yaml(
+        str(TOTO_SMOKE_CONFIG_PATH),
+        model_type="toto",
+    )
+    config = ModelFactory.create_finetune_config(
+        model_type="toto",
+        extra_config=overrides,
+    )
+    model = ModelFactory.create_model(config)
+
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.model_type == "toto"
+    assert model.config.training_mode == "fine_tune"
+    assert model.config.max_steps == 100
+    assert model.config.lr == pytest.approx(1.0e-4)

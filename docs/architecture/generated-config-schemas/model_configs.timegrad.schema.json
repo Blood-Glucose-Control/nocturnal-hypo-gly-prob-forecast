@@ -1,0 +1,194 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for TimeGrad model YAML configs.",
+  "properties": {
+    "batch_size": {
+      "default": 64,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "beta_end": {
+      "default": 0.1,
+      "exclusiveMinimum": 0.0,
+      "title": "Beta End",
+      "type": "number"
+    },
+    "beta_schedule": {
+      "default": "linear",
+      "minLength": 1,
+      "title": "Beta Schedule",
+      "type": "string"
+    },
+    "cell_type": {
+      "default": "GRU",
+      "minLength": 1,
+      "title": "Cell Type",
+      "type": "string"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "diff_steps": {
+      "default": 100,
+      "exclusiveMinimum": 0,
+      "title": "Diff Steps",
+      "type": "integer"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "fp16": {
+      "default": true,
+      "title": "Fp16",
+      "type": "boolean"
+    },
+    "freeze_backbone": {
+      "default": false,
+      "title": "Freeze Backbone",
+      "type": "boolean"
+    },
+    "freq": {
+      "default": "5T",
+      "minLength": 1,
+      "title": "Freq",
+      "type": "string"
+    },
+    "input_features": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Input Features",
+      "type": "array"
+    },
+    "learning_rate": {
+      "default": 0.0001,
+      "exclusiveMinimum": 0.0,
+      "title": "Learning Rate",
+      "type": "number"
+    },
+    "loss_type": {
+      "default": "l2",
+      "minLength": 1,
+      "title": "Loss Type",
+      "type": "string"
+    },
+    "model_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Path"
+    },
+    "model_type": {
+      "const": "timegrad",
+      "default": "timegrad",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "num_batches_per_epoch": {
+      "default": 100,
+      "exclusiveMinimum": 0,
+      "title": "Num Batches Per Epoch",
+      "type": "integer"
+    },
+    "num_cells": {
+      "default": 40,
+      "exclusiveMinimum": 0,
+      "title": "Num Cells",
+      "type": "integer"
+    },
+    "num_epochs": {
+      "default": 10,
+      "minimum": 0,
+      "title": "Num Epochs",
+      "type": "integer"
+    },
+    "num_layers": {
+      "default": 2,
+      "exclusiveMinimum": 0,
+      "title": "Num Layers",
+      "type": "integer"
+    },
+    "num_samples": {
+      "default": 50,
+      "exclusiveMinimum": 0,
+      "title": "Num Samples",
+      "type": "integer"
+    },
+    "residual_channels": {
+      "default": 8,
+      "exclusiveMinimum": 0,
+      "title": "Residual Channels",
+      "type": "integer"
+    },
+    "residual_layers": {
+      "default": 8,
+      "exclusiveMinimum": 0,
+      "title": "Residual Layers",
+      "type": "integer"
+    },
+    "resolution_min": {
+      "default": 5,
+      "exclusiveMinimum": 0,
+      "title": "Resolution Min",
+      "type": "integer"
+    },
+    "scaler_type": {
+      "default": "standard",
+      "minLength": 1,
+      "title": "Scaler Type",
+      "type": "string"
+    },
+    "scaling": {
+      "default": true,
+      "title": "Scaling",
+      "type": "boolean"
+    },
+    "split_config": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Split Config"
+    },
+    "target_features": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Target Features",
+      "type": "array"
+    },
+    "training_mode": {
+      "default": "from_scratch",
+      "title": "Training Mode",
+      "type": "string"
+    },
+    "use_cpu": {
+      "default": false,
+      "title": "Use Cpu",
+      "type": "boolean"
+    }
+  },
+  "title": "TimeGradModelConfigSchema",
+  "type": "object"
+}

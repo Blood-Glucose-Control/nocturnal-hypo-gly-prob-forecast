@@ -56,9 +56,19 @@ def load_model_config_from_yaml(
         raise FileNotFoundError(f"Model config file not found: {config_path}")
 
     schema_type = get_model_config_schema(model_type) if model_type else None
+    config: Dict[str, Any]
     if schema_type is not None:
         validated = load_yaml_as_schema(config_file, schema_type)
-        config = validated.model_dump(exclude_none=True)
+        model_dump = getattr(validated, "model_dump", None)
+        if callable(model_dump):
+            raw_config = model_dump(exclude_none=True)
+        else:
+            raw_config = validated.dict(exclude_none=True)
+        if not isinstance(raw_config, dict):
+            raise ValueError(
+                f"Model config must be a YAML mapping/object: {config_path}"
+            )
+        config = dict(raw_config)
         logger.info(
             "Validated model config with schema %s for model_type=%s",
             schema_type.__name__,
@@ -184,21 +194,27 @@ class ModelFactory:
                 raise ImportError(
                     f"MOMENT model not available. Install moment dependencies: {e}"
                 ) from e
-            return MomentForecaster(
-                MomentConfig(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    freeze_backbone=config.freeze_backbone,
-                    use_cpu=config.use_cpu,
-                    fp16=config.fp16,
-                    learning_rate=config.learning_rate,
-                    **config.extra_config,
-                )
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "moment",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
             )
+            return MomentForecaster(MomentConfig(**runtime_config))
         if model_type == "timesfm":
             try:
                 from ...models.timesfm import TimesFMConfig, TimesFMForecaster
@@ -229,18 +245,27 @@ class ModelFactory:
                     "TimeGrad model not available. Install with: "
                     f"source scripts/setup_model_env.sh timegrad\n{e}"
                 ) from e
-            return TimeGradForecaster(
-                TimeGradConfig(
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    use_cpu=config.use_cpu,
-                    learning_rate=config.learning_rate,
-                    **config.extra_config,
-                )
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "timegrad",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
             )
+            return TimeGradForecaster(TimeGradConfig(**runtime_config))
         if model_type == "tide":
             try:
                 from ...models.tide import TiDEConfig, TiDEForecaster
@@ -275,16 +300,27 @@ class ModelFactory:
                 raise ImportError(
                     f"Toto model not available. Install with: source scripts/setup_model_env.sh toto\n{e}"
                 ) from e
-            toto_kwargs = dict(config.extra_config) if config.extra_config else {}
-            toto_kwargs.setdefault("context_length", config.context_length)
-            toto_kwargs.setdefault("forecast_length", config.forecast_length)
-            toto_kwargs.setdefault("batch_size", config.batch_size)
-            if config.num_epochs is not None:
-                toto_kwargs.setdefault("num_epochs", config.num_epochs)
-            if config.learning_rate is not None and "lr" not in toto_kwargs:
-                toto_kwargs["lr"] = config.learning_rate
-            toto_kwargs.setdefault("use_cpu", config.use_cpu)
-            return TotoForecaster(TotoConfig(**toto_kwargs))
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "toto",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
+            )
+            return TotoForecaster(TotoConfig(**runtime_config))
         if model_type == "moirai":
             try:
                 from ...models.moirai import MoiraiConfig, MoiraiForecaster
@@ -615,19 +651,29 @@ class ModelFactory:
         if model_type_lower == "moment":
             from ...models.moment import MomentConfig, MomentForecaster
 
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type_lower,
+                config_data={
+                    "model_type": "moment",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
+            )
             return MomentForecaster.load(
                 model_path,
-                MomentConfig(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    use_cpu=config.use_cpu,
-                    fp16=config.fp16,
-                    **config.extra_config,
-                ),
+                MomentConfig(**runtime_config),
             )
         if model_type_lower == "timesfm":
             from ...models.timesfm import TimesFMConfig, TimesFMForecaster
@@ -651,18 +697,29 @@ class ModelFactory:
         if model_type_lower == "timegrad":
             from ...models.timegrad import TimeGradConfig, TimeGradForecaster
 
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type_lower,
+                config_data={
+                    "model_type": "timegrad",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
+            )
             return TimeGradForecaster.load(
                 model_path,
-                TimeGradConfig(
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    use_cpu=config.use_cpu,
-                    learning_rate=config.learning_rate,
-                    **config.extra_config,
-                ),
+                TimeGradConfig(**runtime_config),
             )
         if model_type_lower == "tide":
             from ...models.tide import TiDEForecaster
