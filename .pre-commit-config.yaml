@@ -16,8 +16,15 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.0
+    rev: v0.16.4
     hooks:
-      - id: ruff-format
       - id: ruff
         args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.411
+    hooks:
+      - id: pyright
+        args: [--project=pyrightconfig.json]
+        files: ^(src|tests)/.*\.py$

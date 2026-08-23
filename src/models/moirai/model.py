@@ -5,9 +5,11 @@ This module provides a concrete implementation of Moirai that inherits from
 the base TSFM framework, integrating Salesforce's uni2ts library.
 """
 
+from __future__ import annotations
+
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -48,7 +50,7 @@ class _MoiraiPatchedDataset(Dataset):
     def __len__(self) -> int:
         return len(self.target)
 
-    def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         return {
             "target": self.target[idx],
             "observed_mask": self.observed_mask[idx],
@@ -134,8 +136,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         self.config: MoiraiConfig = self.config
 
         # Lazily initialised GluonTS predictor
-        self.predictor: Optional[Any] = None
-        self._predictor_batch_size: Optional[int] = None
+        self.predictor: Any | None = None
+        self._predictor_batch_size: int | None = None
 
     @property
     def training_backend(self) -> TrainingBackend:
@@ -204,8 +206,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     def _predict_impl(
         self,
         data: Any,
-        quantile_levels: Optional[List[float]] = None,
-        batch_size: Optional[int] = None,
+        quantile_levels: list[float] | None = None,
+        batch_size: int | None = None,
         **kwargs,
     ) -> np.ndarray:
         """Run inference and return mean forecasts.
@@ -279,8 +281,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         return means[0] if single else means
 
     def _prepare_training_data(
-        self, train_data: Any, split: Optional[str] = None
-    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
+        self, train_data: Any, split: str | None = None
+    ) -> tuple[DataLoader, DataLoader | None, DataLoader | None]:
         """Base-class compatibility stub (not used by Moirai).
 
         Moirai's ``_train_model()`` calls ``_prepare_training_tensors()``
@@ -297,7 +299,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
     def _train_model(
         self, train_data: Any, output_dir: str, **kwargs
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Fine-tune Moirai using its native ``MoiraiFinetune`` Lightning module.
 
         Converts training data to the patched tensor format via
@@ -452,7 +454,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             f"({total_steps} steps, lr={self.config.learning_rate})..."
         )
         best_loss = float("inf")
-        best_state: Optional[Dict[str, torch.Tensor]] = None
+        best_state: dict[str, torch.Tensor] | None = None
 
         finetune_module.train()
         global_step = 0
@@ -531,8 +533,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     def _predict(
         self,
         data: Any,
-        quantile_levels: Optional[List[float]] = None,
-        batch_size: Optional[int] = None,
+        quantile_levels: list[float] | None = None,
+        batch_size: int | None = None,
         **kwargs,
     ) -> np.ndarray:
         """Run inference and return mean or quantile forecasts."""
@@ -585,7 +587,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         with open(config_path) as f:
             config_dict = json.load(f)
 
-        self.config = MoiraiConfig.from_dict(config_dict)
+        self.config = cast(MoiraiConfig, MoiraiConfig.from_dict(config_dict))
 
         weights_path = os.path.join(model_dir, "moirai_finetuned.pt")
         if os.path.exists(weights_path):
@@ -616,7 +618,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         self,
         episodes: list,
         target_col: str,
-        covariate_cols: Optional[List[str]] = None,
+        covariate_cols: list[str] | None = None,
     ) -> ListDataset:
         """Build a GluonTS ``ListDataset`` from a list of episode dicts.
 
@@ -657,7 +659,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
         for ep in episodes:
             ctx = ep["context_df"]
-            entry: Dict[str, Any] = {
+            entry: dict[str, Any] = {
                 "start": ctx.index[0],
                 "target": ctx[target_col].to_numpy(dtype=np.float32),
             }
@@ -679,9 +681,9 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     def predict_episodes(
         self,
         episodes: list,
-        target_col: Optional[str] = None,
-        covariate_cols: Optional[List[str]] = None,
-        batch_size: Optional[int] = None,
+        target_col: str | None = None,
+        covariate_cols: list[str] | None = None,
+        batch_size: int | None = None,
     ) -> pd.DataFrame:
         """Evaluate Moirai on a list of episodes and return per-episode metrics.
 
@@ -735,9 +737,9 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     def evaluate_probabilistic(
         self,
         episodes: list,
-        target_col: Optional[str] = None,
-        covariate_cols: Optional[List[str]] = None,
-        batch_size: Optional[int] = None,
+        target_col: str | None = None,
+        covariate_cols: list[str] | None = None,
+        batch_size: int | None = None,
         hypo_threshold: float = 3.9,
     ) -> pd.DataFrame:
         """Evaluate Moirai with full probabilistic outputs.
@@ -867,7 +869,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 )
 
         freq = f"{self.config.interval_mins}min"
-        entry: Dict[str, Any] = {
+        entry: dict[str, Any] = {
             "start": df.index[0],
             "target": df[self.config.target_col].to_numpy(dtype=np.float32),
         }
@@ -913,15 +915,15 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
     def _prepare_training_tensors(
         self, train_data: Any
-    ) -> Tuple[
+    ) -> tuple[
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
-        Optional[torch.Tensor],
-        Optional[torch.Tensor],
+        torch.Tensor | None,
+        torch.Tensor | None,
     ]:
         """Convert training data to aligned tensor batches on CPU.
 
@@ -939,9 +941,9 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         target_col = self.config.target_col
         cov_cols = self.config.covariate_cols or []
 
-        contexts: List[np.ndarray] = []
-        targets: List[np.ndarray] = []
-        covariates: List[np.ndarray] = []
+        contexts: list[np.ndarray] = []
+        targets: list[np.ndarray] = []
+        covariates: list[np.ndarray] = []
 
         if isinstance(train_data, pd.DataFrame):
             if cov_cols:
@@ -966,7 +968,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                         covariates.append(cov[s : s + ctx_len])
 
         elif isinstance(train_data, dict):
-            for _pid, episodes in train_data.items():
+            for episodes in train_data.values():
                 if not isinstance(episodes, list):
                     episodes = [episodes]
                 for ep in episodes:
@@ -1040,8 +1042,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         past_is_pad = torch.zeros(len(contexts), ctx_len, dtype=torch.long)
         future_is_pad = torch.zeros(len(targets), fh_len, dtype=torch.long)
 
-        past_covariates: Optional[torch.Tensor] = None
-        past_observed_covariates: Optional[torch.Tensor] = None
+        past_covariates: torch.Tensor | None = None
+        past_observed_covariates: torch.Tensor | None = None
         if covariates and len(covariates) == len(contexts):
             past_covariates = torch.tensor(np.stack(covariates), dtype=torch.float32)
             past_observed_covariates = ~torch.isnan(past_covariates)
@@ -1064,8 +1066,8 @@ def create_moirai_model(
     context_length: int = 512,
     forecast_length: int = 72,
     past_covariate_dim: int = 0,
-    covariate_cols: Optional[List[str]] = None,
-    checkpoint_path: Optional[str] = None,
+    covariate_cols: list[str] | None = None,
+    checkpoint_path: str | None = None,
     num_samples: int = 100,
     patch_size: str = "auto",
     interval_mins: int = 5,
