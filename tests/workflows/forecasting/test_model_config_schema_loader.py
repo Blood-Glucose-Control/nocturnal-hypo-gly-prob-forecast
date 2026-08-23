@@ -22,6 +22,7 @@ TSMIXER_SMOKE_CONFIG_PATH = (
     REPO_ROOT / "configs" / "models" / "tsmixer" / "00_iob_cob_smoke.yaml"
 )
 TIDE_SMOKE_CONFIG_PATH = REPO_ROOT / "configs" / "models" / "tide" / "00_bg_only.yaml"
+TTM_SMOKE_CONFIG_PATH = REPO_ROOT / "configs" / "models" / "ttm" / "00_zs_cgm_only.yaml"
 AUTOGLUON_SCHEMA_SMOKE_CONFIGS = {
     "chronos2": REPO_ROOT / "configs" / "models" / "chronos2" / "00_bg_only.yaml",
     "deepar": REPO_ROOT / "configs" / "models" / "deepar" / "00_baseline.yaml",
@@ -199,6 +200,17 @@ lr: 0.004
     assert "lr" not in loaded
 
 
+def test_ttm_model_config_validates_via_schema_loader() -> None:
+    loaded = load_model_config_from_yaml(
+        str(TTM_SMOKE_CONFIG_PATH),
+        model_type="ttm",
+    )
+
+    assert loaded["model_type"] == "ttm"
+    assert loaded["training_mode"] == "zero_shot"
+    assert loaded["target_features"] == ["bg_mM"]
+
+
 @pytest.mark.parametrize("model_type", ["deepar", "patchtst", "tft", "tide"])
 def test_autogluon_model_config_normalizes_learning_rate_alias(model_type: str) -> None:
     runtime_config = build_model_runtime_config(
@@ -212,6 +224,30 @@ def test_autogluon_model_config_normalizes_learning_rate_alias(model_type: str) 
 
     assert runtime_config["lr"] == pytest.approx(0.003)
     assert "learning_rate" not in runtime_config
+
+
+def test_ttm_runtime_adapter_normalizes_learning_rate_alias() -> None:
+    runtime_config = build_model_runtime_config(
+        model_type="ttm",
+        config_data={
+            "context_length": 128,
+            "forecast_length": 96,
+            "lr": 0.0025,
+        },
+    )
+
+    assert runtime_config["learning_rate"] == pytest.approx(0.0025)
+    assert "lr" not in runtime_config
+
+
+def test_ttm_runtime_adapter_reports_unknown_field() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        build_model_runtime_config(
+            model_type="ttm",
+            config_data={"context_length": 128, "forecast_length": 96, "unknown": 1},
+        )
+
+    assert "unknown" in str(exc_info.value)
 
 
 def test_tide_runtime_adapter_enforces_encoder_decoder_dim_parity() -> None:
@@ -393,11 +429,13 @@ def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
         "statistical",
         "tft",
         "tide",
+        "ttm",
         "tsmixer",
     ]:
         assert model_type in registered
     assert get_model_config_schema("tsmixer") is not None
     assert get_model_config_schema("deepar") is not None
+    assert get_model_config_schema("ttm") is not None
 
 
 def test_tsmixer_factory_path_uses_schema_adapter_for_lr_alias(
@@ -430,6 +468,57 @@ def test_tsmixer_factory_path_reports_unknown_runtime_field(
     config = GenericModelConfig(
         model_type="tsmixer",
         model_path="",
+        context_length=128,
+        forecast_length=96,
+        extra_config={"unknown_field": True},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ModelFactory.create_model(config)
+
+    assert "unknown_field" in str(exc_info.value)
+
+
+def test_ttm_factory_path_uses_schema_adapter_for_lr_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="ttm",
+        config_class_name="TTMConfig",
+        forecaster_class_name="TTMForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="ttm",
+        model_path="ibm-granite/granite-timeseries-ttm-r2",
+        context_length=128,
+        forecast_length=96,
+        batch_size=32,
+        num_epochs=3,
+        learning_rate=1e-4,
+        extra_config={"lr": 0.002, "target_features": ["bg_mM"]},
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.learning_rate == pytest.approx(0.002)
+    assert model.config.target_features == ["bg_mM"]
+
+
+def test_ttm_factory_path_reports_unknown_runtime_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="ttm",
+        config_class_name="TTMConfig",
+        forecaster_class_name="TTMForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="ttm",
+        model_path="ibm-granite/granite-timeseries-ttm-r2",
         context_length=128,
         forecast_length=96,
         extra_config={"unknown_field": True},
@@ -730,6 +819,33 @@ def test_runtime_adapter_reports_registered_types_for_unknown_model() -> None:
     assert "unknown_model" in message
     assert "Registered adapter types" in message
     assert "tsmixer" in message
+
+
+def test_ttm_factory_path_supports_real_smoke_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="ttm",
+        config_class_name="TTMConfig",
+        forecaster_class_name="TTMForecaster",
+    )
+
+    overrides = load_model_config_from_yaml(
+        str(TTM_SMOKE_CONFIG_PATH),
+        model_type="ttm",
+    )
+    config = ModelFactory.create_finetune_config(
+        model_type="ttm",
+        extra_config=overrides,
+    )
+    model = ModelFactory.create_model(config)
+
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.training_mode == "zero_shot"
+    assert model.config.freeze_backbone is True
+    assert model.config.num_epochs == 0
+    assert model.config.target_features == ["bg_mM"]
 
 
 def test_tsmixer_factory_path_supports_real_smoke_profile(

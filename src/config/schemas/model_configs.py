@@ -302,6 +302,91 @@ class TiDEModelConfigSchema(AutoGluonModelConfigSchema):
         return self
 
 
+class TTMSplitConfigSchema(BaseConfigSchema):
+    """Schema contract for TTM train/val/test split configuration."""
+
+    train: float = Field(default=0.9, ge=0.0, le=1.0)
+    val: float = Field(default=0.05, ge=0.0, le=1.0)
+    test: float = Field(default=0.05, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _validate_split_sum(self) -> "TTMSplitConfigSchema":
+        split_sum = self.train + self.val + self.test
+        if abs(split_sum - 1.0) > 1e-6:
+            raise ValueError(f"split_config must sum to 1.0, got {split_sum}")
+        return self
+
+
+class TTMModelConfigSchema(BaseConfigSchema):
+    """Schema contract for TTM (TinyTimeMixer) YAML configs."""
+
+    model_type: Literal["ttm"] = Field(default="ttm")
+    model_path: str = Field(
+        default="ibm-granite/granite-timeseries-ttm-r2", min_length=1
+    )
+    context_length: int = Field(default=512, gt=0)
+    forecast_length: int = Field(default=96, gt=0)
+    num_input_channels: int = Field(default=1, gt=0)
+    num_output_channels: int = Field(default=1, gt=0)
+    prediction_filter_length: Optional[int] = Field(default=None, gt=0)
+
+    training_mode: Literal["zero_shot", "fine_tune", "from_scratch"] = Field(
+        default="fine_tune"
+    )
+    freeze_backbone: bool = Field(default=False)
+    learning_rate: float = Field(
+        default=1e-4,
+        gt=0.0,
+        validation_alias=AliasChoices("learning_rate", "lr"),
+    )
+    batch_size: int = Field(default=64, gt=0)
+    num_epochs: int = Field(default=10, ge=0)
+    warmup_steps: int = Field(default=1000, ge=0)
+    weight_decay: float = Field(default=0.01, ge=0.0)
+    gradient_clip_val: float = Field(default=1.0, ge=0.0)
+    eval_strategy: Literal["steps", "epoch", "no"] = Field(default="steps")
+    eval_steps: int = Field(default=1000, gt=0)
+    save_steps: int = Field(default=2000, gt=0)
+    logging_steps: int = Field(default=100, gt=0)
+    early_stopping_patience: int = Field(default=10, ge=0)
+    metric_for_best_model: str = Field(default="eval_loss", min_length=1)
+    greater_is_better: bool = Field(default=False)
+    fp16: bool = Field(default=True)
+    dataloader_num_workers: int = Field(default=2, ge=0)
+    use_cpu: bool = Field(default=False)
+    loss_function: Literal["mse", "mae", "huber", "pinball"] = Field(default="mse")
+
+    scaler_type: Literal["standard", "minmax"] = Field(default="standard")
+    use_tracking_callback: bool = Field(default=True)
+    find_optimal_lr: bool = Field(default=False)
+    fewshot_percent: int = Field(default=5, ge=0, le=100)
+    logging_dir: Optional[str] = Field(default=None)
+    input_features: list[str] = Field(
+        default_factory=lambda: [
+            "cob",
+            "carb_availability",
+            "insulin_availability",
+            "iob",
+            "steps",
+        ]
+    )
+    target_features: list[str] = Field(default_factory=lambda: ["bg_mM"])
+    resolution_min: int = Field(default=5, gt=0)
+    split_config: TTMSplitConfigSchema = Field(default_factory=TTMSplitConfigSchema)
+
+    @field_validator("learning_rate", mode="before")
+    @classmethod
+    def _normalize_learning_rate(cls, value: Any) -> Any:
+        return _coerce_numeric_string(value, "learning_rate")
+
+    @field_validator("target_features")
+    @classmethod
+    def _validate_target_features(cls, target_features: list[str]) -> list[str]:
+        if not target_features:
+            raise ValueError("target_features cannot be empty")
+        return target_features
+
+
 RuntimeConfigAdapter = Callable[[dict[str, Any]], dict[str, Any]]
 
 
@@ -382,6 +467,11 @@ def build_tide_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     return _build_runtime_config("tide", TiDEModelConfigSchema, config_data)
 
 
+def build_ttm_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize TTM runtime config values."""
+    return _build_runtime_config("ttm", TTMModelConfigSchema, config_data)
+
+
 MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
     "chronos2": ModelConfigRoute(
         schema_type=Chronos2ModelConfigSchema,
@@ -410,6 +500,10 @@ MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
     "tide": ModelConfigRoute(
         schema_type=TiDEModelConfigSchema,
         runtime_adapter=build_tide_runtime_config,
+    ),
+    "ttm": ModelConfigRoute(
+        schema_type=TTMModelConfigSchema,
+        runtime_adapter=build_ttm_runtime_config,
     ),
     "tsmixer": ModelConfigRoute(
         schema_type=TSMixerModelConfigSchema,

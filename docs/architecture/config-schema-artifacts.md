@@ -68,6 +68,7 @@ This command writes JSON schema files into
 - `model_configs.statistical.schema.json`
 - `model_configs.tft.schema.json`
 - `model_configs.tide.schema.json`
+- `model_configs.ttm.schema.json`
 - `model_configs.tsmixer.schema.json`
 - `data_configs.holdout.schema.json`
 - `workflow_configs.forecasting_request.schema.json`
@@ -95,6 +96,7 @@ contract delta.
 - [model_configs.statistical.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.statistical.schema.json)
 - [model_configs.tft.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.tft.schema.json)
 - [model_configs.tide.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.tide.schema.json)
+- [model_configs.ttm.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.ttm.schema.json)
 - [model_configs.tsmixer.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.tsmixer.schema.json)
 - [data_configs.holdout.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/data_configs.holdout.schema.json)
 - [workflow_configs.forecasting_request.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/workflow_configs.forecasting_request.schema.json)

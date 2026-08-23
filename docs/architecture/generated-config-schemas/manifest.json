@@ -29,6 +29,10 @@
       "source_symbol": "src.config.schemas.model_configs.TiDEModelConfigSchema"
     },
     {
+      "file": "model_configs.ttm.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.TTMModelConfigSchema"
+    },
+    {
       "file": "model_configs.tsmixer.schema.json",
       "source_symbol": "src.config.schemas.model_configs.TSMixerModelConfigSchema"
     },

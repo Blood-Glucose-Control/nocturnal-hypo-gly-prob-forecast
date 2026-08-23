@@ -17,6 +17,7 @@ from .model_configs import (
     TFTModelConfigSchema,
     TiDEModelConfigSchema,
     TSMixerModelConfigSchema,
+    TTMModelConfigSchema,
 )
 from .workflow_configs import (
     EvaluationFeatureOverrideEnvelope,
@@ -67,6 +68,11 @@ SCHEMA_ARTIFACT_SPECS: tuple[SchemaArtifactSpec, ...] = (
         filename="model_configs.tide.schema.json",
         schema_type=TiDEModelConfigSchema,
         source_symbol="src.config.schemas.model_configs.TiDEModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.ttm.schema.json",
+        schema_type=TTMModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.TTMModelConfigSchema",
     ),
     SchemaArtifactSpec(
         filename="model_configs.tsmixer.schema.json",

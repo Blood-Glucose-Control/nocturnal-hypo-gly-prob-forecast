@@ -111,21 +111,27 @@ class ModelFactory:
         if model_type == "ttm":
             from ...models.ttm import TTMConfig, TTMForecaster
 
-            return TTMForecaster(
-                TTMConfig(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    freeze_backbone=config.freeze_backbone,
-                    use_cpu=config.use_cpu,
-                    fp16=config.fp16,
-                    learning_rate=config.learning_rate,
-                    **config.extra_config,
-                )
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "ttm",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
             )
+            return TTMForecaster(TTMConfig(**runtime_config))
         if model_type == "chronos":
             try:
                 from ...models.chronos import ChronosConfig, ChronosForecaster
@@ -548,21 +554,29 @@ class ModelFactory:
         if model_type_lower == "ttm":
             from ...models.ttm import TTMConfig, TTMForecaster
 
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type_lower,
+                config_data={
+                    "model_type": "ttm",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
+            )
             return TTMForecaster.load(
                 model_path,
-                TTMConfig(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    freeze_backbone=config.freeze_backbone,
-                    use_cpu=config.use_cpu,
-                    fp16=config.fp16,
-                    learning_rate=config.learning_rate,
-                    **config.extra_config,
-                ),
+                TTMConfig(**runtime_config),
             )
         if model_type_lower == "chronos":
             from ...models.chronos import ChronosConfig, ChronosForecaster

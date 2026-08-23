@@ -1,8 +1,8 @@
 """
 TTM (TinyTimeMixer) configuration.
 
-Single source of truth for TTM defaults. No factory functions — construct
-TTMConfig directly, override with YAML/CLI dicts via standard merge:
+Single source of truth for TTM defaults. Construct TTMConfig directly and
+override with YAML/CLI dicts via standard merge:
 
     config = TTMConfig(**{**yaml_overrides, **cli_overrides})
 """
@@ -13,6 +13,12 @@ from typing import Dict, List, Optional
 from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 from ..base import ModelConfig, TrainingBackend
+
+VALID_TTM_TRAINING_MODES = {"zero_shot", "fine_tune", "from_scratch"}
+SCALER_TYPE_MAP = {
+    "standard": ScalerType.STANDARD,
+    "minmax": ScalerType.MINMAX,
+}
 
 
 @dataclass
@@ -84,13 +90,18 @@ class TTMConfig(ModelConfig):
         default_factory=lambda: {"train": 0.9, "val": 0.05, "test": 0.05}
     )
 
+    def __post_init__(self) -> None:
+        self.validate()
+
     def get_scaler_type(self) -> ScalerType:
         """Convert string scaler_type to TSFM ScalerType enum."""
-        mapping = {
-            "standard": ScalerType.STANDARD,
-            "minmax": ScalerType.MINMAX,
-        }
-        return mapping.get(self.scaler_type, ScalerType.STANDARD)
+        try:
+            return SCALER_TYPE_MAP[self.scaler_type]
+        except KeyError as exc:
+            allowed = ", ".join(sorted(SCALER_TYPE_MAP))
+            raise ValueError(
+                f"scaler_type must be one of [{allowed}], got {self.scaler_type}"
+            ) from exc
 
     def validate(self) -> None:
         """Validate configuration. Raises ValueError if invalid."""
@@ -102,18 +113,52 @@ class TTMConfig(ModelConfig):
             errors.append("context_length must be positive")
         if self.forecast_length <= 0:
             errors.append("forecast_length must be positive")
+        if self.training_mode not in VALID_TTM_TRAINING_MODES:
+            allowed_modes = ", ".join(sorted(VALID_TTM_TRAINING_MODES))
+            errors.append(
+                f"training_mode must be one of [{allowed_modes}], got {self.training_mode}"
+            )
+        if self.learning_rate <= 0:
+            errors.append("learning_rate must be positive")
+        if self.batch_size <= 0:
+            errors.append("batch_size must be positive")
+        if self.num_epochs < 0:
+            errors.append("num_epochs must be >= 0")
+        if self.resolution_min <= 0:
+            errors.append("resolution_min must be positive")
+        if self.num_input_channels <= 0:
+            errors.append("num_input_channels must be positive")
+        if self.num_output_channels <= 0:
+            errors.append("num_output_channels must be positive")
+        if not (0 <= self.fewshot_percent <= 100):
+            errors.append("fewshot_percent must be between 0 and 100")
         if self.input_features is None:
             errors.append("input_features must be a list (can be empty for univariate)")
         if not self.target_features:
             errors.append("target_features cannot be empty")
         if self.split_config:
+            required_keys = {"train", "val", "test"}
+            missing = required_keys - set(self.split_config)
+            extra = set(self.split_config) - required_keys
+            if missing:
+                errors.append(f"split_config missing required keys: {sorted(missing)}")
+            if extra:
+                errors.append(f"split_config has unsupported keys: {sorted(extra)}")
+            for split_name, split_value in self.split_config.items():
+                if split_value < 0 or split_value > 1:
+                    errors.append(
+                        f"split_config[{split_name}] must be in [0, 1], got {split_value}"
+                    )
             split_sum = sum(self.split_config.values())
             if abs(split_sum - 1.0) > 1e-6:
                 errors.append(f"split_config must sum to 1.0, got {split_sum}")
-        if self.scaler_type not in ("standard", "minmax"):
+        if self.scaler_type not in SCALER_TYPE_MAP:
+            allowed_scalers = ", ".join(sorted(SCALER_TYPE_MAP))
             errors.append(
-                f"scaler_type must be standard/minmax, got {self.scaler_type}"
+                f"scaler_type must be one of [{allowed_scalers}], got {self.scaler_type}"
             )
+        if self.training_mode == "zero_shot" and self.num_epochs != 0:
+            errors.append("training_mode=zero_shot requires num_epochs=0")
 
         if errors:
             raise ValueError(
@@ -128,9 +173,7 @@ class TTMConfig(ModelConfig):
 
 def create_default_ttm_config(**overrides) -> TTMConfig:
     """DEPRECATED: Use TTMConfig(**overrides) directly."""
-    config = TTMConfig(**overrides)
-    config.validate()
-    return config
+    return TTMConfig(**overrides)
 
 
 def create_ttm_fine_tuning_config(**overrides) -> TTMConfig:

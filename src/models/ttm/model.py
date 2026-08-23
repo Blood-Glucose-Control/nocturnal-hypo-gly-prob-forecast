@@ -24,7 +24,6 @@ from tsfm_public import (
     get_datasets,
 )
 from tsfm_public.toolkit.get_model import get_model
-from tsfm_public.toolkit.time_series_preprocessor import ScalerType
 
 from ...data.models import ColumnNames
 from ...data.preprocessing.split_or_combine_patients import (
@@ -33,13 +32,10 @@ from ...data.preprocessing.split_or_combine_patients import (
 from ...utils.logging_helper import debug_print, error_print, info_print
 
 # Local imports
-from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base import BaseTimeSeriesFoundationModel, ModelConfig, TrainingBackend
 from ..base.registry import ModelRegistry
 from .config import TTMConfig
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 
@@ -97,25 +93,22 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         TTM does not support LoRA fine-tuning (no transformer attention layers)
     """
 
+    config_class = TTMConfig
+
     def __init__(self, config: TTMConfig):
         """Initialize the TTM forecaster.
 
         Args:
             config: TTM configuration object
         """
-        # Use the config as-is if it's already a TTMConfig
-        # Only convert if we receive a different type
         if not isinstance(config, TTMConfig):
-            # Create a basic TTMConfig from the essential parameters
-            essential_params = {
-                "model_path": getattr(config, "model_path", None),
-                "context_length": getattr(config, "context_length", 512),
-                "forecast_length": getattr(config, "forecast_length", 96),
-                "learning_rate": getattr(config, "learning_rate", 1e-4),
-                "batch_size": getattr(config, "batch_size", 64),
-                "num_epochs": getattr(config, "num_epochs", 10),
-            }
-            config = TTMConfig(**essential_params)
+            if isinstance(config, ModelConfig):
+                config = TTMConfig.from_dict(config.to_dict())
+            else:
+                raise TypeError(
+                    "TTMForecaster requires a TTMConfig (or ModelConfig-compatible) "
+                    f"instance, got {type(config)}"
+                )
 
         super().__init__(config)
 
@@ -143,8 +136,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         return True
 
     # Abstract method implementations
-    ## Abstract implemented public methods
-    def _predict(
+    def _predict_impl(
         self,
         data: Any,
         quantile_levels: Optional[List[float]] = None,
@@ -310,32 +302,27 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             # Only inverse scale the target channel(s) - typically just channel 0
             predictions_2d = predictions[:, :, 0].reshape(-1, 1)
         else:
-            info_print(f"Unexpected prediction shape {original_shape}, returning as-is")
-            return predictions
+            raise ValueError(
+                "Unsupported prediction shape for inverse scaling: "
+                f"{original_shape}. Expected 1D, 2D, or 3D array."
+            )
 
         # Inverse transform using the scaler
-        try:
-            predictions_unscaled = scaler.inverse_transform(predictions_2d)
+        predictions_unscaled = scaler.inverse_transform(predictions_2d)
 
-            # Reshape back to original shape
-            if len(original_shape) == 1:
-                return predictions_unscaled.flatten()
-            if len(original_shape) == 2:
-                return predictions_unscaled.reshape(
-                    original_shape[0], original_shape[1]
-                )
-            if len(original_shape) == 3:
-                # Put unscaled values back into channel 0, keep other channels as-is
-                result = predictions.copy()
-                result[:, :, 0] = predictions_unscaled.reshape(
-                    original_shape[0], original_shape[1]
-                )
-                return result
-            return predictions
-
-        except Exception as e:
-            error_print(f"Failed to inverse scale predictions: {e}")
-            return predictions
+        # Reshape back to original shape
+        if len(original_shape) == 1:
+            return predictions_unscaled.flatten()
+        if len(original_shape) == 2:
+            return predictions_unscaled.reshape(original_shape[0], original_shape[1])
+        if len(original_shape) == 3:
+            # Put unscaled values back into channel 0, keep other channels as-is
+            result = predictions.copy()
+            result[:, :, 0] = predictions_unscaled.reshape(
+                original_shape[0], original_shape[1]
+            )
+            return result
+        return predictions
 
     ## Abstract implemented private methods
     def _initialize_model(self) -> None:
@@ -454,7 +441,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 scaling=True,
                 scaling_id_columns=[],  # Use global scaler for all patients (supports holdout/new patients)
                 encode_categorical=False,
-                scaler_type=ScalerType.STANDARD.value,  # type: ignore[arg-type]
+                scaler_type=self.config.get_scaler_type().value,  # type: ignore[arg-type]
             )
         else:
             _validate_preprocessor_schema(self.preprocessor)
@@ -514,7 +501,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             error_print(f"Failed to prepare data: {str(e)}")
             raise
 
-    def _save_checkpoint(self, output_dir: str) -> None:
+    def _save_checkpoint_impl(self, output_dir: str) -> None:
         """Save model checkpoint and preprocessor.
 
         Args:
@@ -552,7 +539,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 "This will cause inference to return scaled predictions instead of original units."
             )
 
-    def _load_checkpoint(self, model_dir: str) -> None:
+    def _load_checkpoint_impl(self, model_dir: str) -> None:
         """Load model checkpoint.
 
         Args:
@@ -766,6 +753,23 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             "training_history": training_history,
         }
 
+    def _predict(
+        self,
+        data: Any,
+        quantile_levels: Optional[List[float]] = None,
+        *,
+        batch_size: Optional[int] = None,
+        inverse_scale: bool = True,
+        **kwargs,
+    ) -> np.ndarray:
+        return self._predict_impl(
+            data=data,
+            quantile_levels=quantile_levels,
+            batch_size=batch_size,
+            inverse_scale=inverse_scale,
+            **kwargs,
+        )
+
     # TTM-specific public methods
     # NOTE: evaluate() is inherited from BaseTimeSeriesFoundationModel
     # It calls predict() and computes metrics using _compute_metrics()
@@ -844,6 +848,12 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
 
         # Fitted path: delegate to base class sequential loop.
         return super()._predict_batch(data, episode_col)
+
+    def _save_checkpoint(self, output_dir: str) -> None:
+        self._save_checkpoint_impl(output_dir)
+
+    def _load_checkpoint(self, model_dir: str) -> None:
+        self._load_checkpoint_impl(model_dir)
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.

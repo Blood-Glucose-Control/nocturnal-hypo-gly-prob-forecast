@@ -1,225 +1,47 @@
-# Base Time Series Foundation Model Framework
+# Base Time-Series Model Framework
 
-This document explains the comprehensive base model framework implementation that goes far beyond the simple outline in the reorganization plan.
+This repository uses a shared model framework so all forecasting families follow
+the same lifecycle contracts (config → initialize → fit → predict → save/load),
+while still owning family-specific implementation details.
 
-## Framework Overview
+## Core framework components
 
-The base model framework provides a production-ready foundation for implementing and managing time series foundation models (TSFMs) with the following key capabilities:
+- [`BaseTimeSeriesFoundationModel`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/base_model.py)
+  defines the common lifecycle APIs and persistence behavior.
+- [`ModelConfig`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/base_model.py)
+  defines shared training/runtime fields used by model families.
+- [`TrainingBackend`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/base_model.py)
+  captures backend style (`transformers`, `pytorch`, `custom`).
+- [`ModelRegistry`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/registry.py)
+  provides family registration/discovery.
+- [`ModelFactory`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py)
+  wires workflow config loading to model-family constructors.
 
-### 🏗️ **Architecture Components**
+## Configuration and schema validation
 
-1. **`BaseTimeSeriesFoundationModel`** - Abstract base class for all time series foundation models
-2. **`ModelConfig`** - Comprehensive configuration management with 30+ parameters
-3. **`TrainingBackend`** - Explicit backend contract for model implementations
-4. **`ModelRegistry`** - Registration helper for discoverability and tests
+Workflow model YAMLs are validated by strict Pydantic schemas before runtime:
 
-## Key Features
+- schema definitions: [`src/config/schemas/model_configs.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/config/schemas/model_configs.py)
+- workflow loader path: [`load_model_config_from_yaml`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py:50)
+- generated schema artifacts: [`docs/architecture/generated-config-schemas/`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas)
 
-### 🚀 **Production-Ready Capabilities**
+This keeps config contracts explicit and prevents drift between docs and runtime.
 
-- **Unified Interface**: All models inherit from `BaseTimeSeriesFoundationModel` for consistent API
-- **Model-specific Training**: Each model owns its training path behind a common lifecycle
-- **Model Management**: Save/load, versioning, metadata tracking
-- **Configuration Management**: YAML-based, hierarchical configurations
-- **Error Handling**: Comprehensive error handling and logging
-- **Metrics & Evaluation**: Extensible metrics framework
+## Adding a new model family
 
-### 🔧 **Training Features**
+1. Implement family config/model classes in `src/models/<family>/`.
+2. Ensure the model class binds `config_class = <FamilyConfig>` so base load paths deserialize correctly.
+3. Register the model with [`ModelRegistry`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/registry.py).
+4. Add schema + runtime adapter entry in [`MODEL_CONFIG_ROUTES`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/config/schemas/model_configs.py).
+5. Add focused schema/factory tests in
+   [`tests/workflows/forecasting/test_model_config_schema_loader.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/workflows/forecasting/test_model_config_schema_loader.py).
 
-```python
-# Example: TTM training via unified base lifecycle
-config = TTMConfig(
-    model_path="ibm-granite/granite-timeseries-ttm-r2",
-    context_length=512,
-    forecast_length=96,
-    batch_size=64,
-    learning_rate=1e-4,
-    early_stopping_patience=10,
-    gradient_clip_val=1.0,
-    fp16=True,
-)
+## Validation commands
 
-model = TTMForecaster(config)
-results = model.fit(
-    train_data="kaggle_brisT1D",
-    output_dir="./models/ttm_run_001",
-    resume_from_checkpoint=None
-)
-```
-
-## File Structure
-
-```
-src/models/base/
-├── __init__.py           # Exports all framework components
-├── base_model.py         # Core BaseTimeSeriesFoundationModel class (500+ lines)
-└── registry.py           # Model registration helpers
-
-src/models/ttm/
-├── __init__.py           # TTM package exports
-└── model.py              # TTM implementation using base framework (400+ lines)
-```
-
-## Complexity Comparison
-
-### Simple Plan vs. Actual Implementation
-
-**Plan (Document)**:
-```python
-class BaseTimeSeriesFoundationModel(ABC):
-    def __init__(self, config: ModelConfig):
-        self.config = config
-        self.distributed_strategy = None
-        self.lora_config = None
-
-    @abstractmethod
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        pass
-```
-
-**Actual Implementation**:
-```python
-class BaseTimeSeriesFoundationModel(ABC):
-    """1,200+ line comprehensive implementation with:"""
-
-    # Configuration management
-    def __init__(self, config)
-
-    # Abstract methods for model-specific implementation
-    def _initialize_model(self) -> None
-    def _prepare_training_data(self, train_data, val_data, test_data)
-    def _create_training_arguments(self, output_dir)
-    def _compute_metrics(self, eval_pred)
-    def _load_model_weights(self, model_dir)
-
-    # Training pipeline
-    def fit(self, train_data, val_data, test_data, output_dir, resume_from_checkpoint)
-    def predict(self, data, batch_size, return_dict)
-    def evaluate(self, data_loader)
-
-    # Model management
-    def save(self, output_dir, save_config, save_metadata)
-    def load(cls, model_dir, config)
-
-    # Introspection + metadata
-    def get_model_info(self)
-    def _save_training_metadata(self, output_dir, metrics)
-```
-
-## Real-World Integration
-
-### TTM Implementation Example
-
-The framework integrates with your existing TTM code:
-
-```python
-class TTMForecaster(BaseTimeSeriesFoundationModel):
-    """Integrates with existing tsfm_public, transformers, your data loaders"""
-
-    def _initialize_model(self):
-        # Uses your existing get_model() function
-        self.model = get_model(
-            model_path=self.config.model_path,
-            context_length=self.config.context_length,
-            freeze_backbone=self.config.freeze_backbone,
-        )
-
-    def _prepare_training_data(self, train_data, val_data, test_data):
-        # Integrates with your existing data pipeline
-        loader = get_loader(data_source_name=train_data, use_cached=True)
-        data = loader.processed_data
-
-        # Uses your existing preprocessor
-        dset_train, dset_val, dset_test = get_datasets(
-            data=data,
-            preprocessor=self.preprocessor,
-        )
-        return train_loader, val_loader, test_loader
-```
-
-## Configuration Management
-
-### Hierarchical Configuration System
-
-```yaml
-# configs/models/ttm/fine_tune.yaml
-model_type: ttm
-model_path: "ibm-granite/granite-timeseries-ttm-r2"
-
-architecture:
-  context_length: 512
-  forecast_length: 96
-  freeze_backbone: false
-
-training:
-  learning_rate: 1e-4
-  batch_size: 64
-  num_epochs: 10
-  early_stopping_patience: 5
-  fp16: true
-
-lora:
-  enabled: true
-  rank: 16
-  alpha: 32
-  target_modules: ["q_proj", "v_proj", "mixer"]
-
-distributed:
-  enabled: false
-  strategy: "ddp"
-```
-
-## Testing & Validation
-
-Use maintained scripts:
+Use targeted checks for touched files/families:
 
 ```bash
-# Data holdout API sanity checks
-python scripts/examples/example_data_holdout_system.py
-
-# Generic model workflow CLI (production entrypoint)
-python scripts/workflows/forecasting/forecasting_workflow_orchestrator.py --help
-
-# Batch prediction consistency check
-python scripts/evaluation/validate_predict_batch.py --help
+ruff check src/config/schemas src/workflows/forecasting src/models/<family>
+pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py
+pytest -q tests/models/test_model_family_contract_suite.py
 ```
-
-## Migration Strategy
-
-### From Existing TTM Code
-
-1. **Extract Configuration**: Move parameters to `TTMConfig`
-2. **Wrap Training Logic**: Implement `_prepare_training_data()` and `_compute_metrics()`
-3. **Preserve Existing Code**: Framework calls your existing functions
-4. **Add New Features**: Extend behavior via shared model/factory interfaces
-
-### Benefits
-
-- **Immediate**: Your existing TTM code works with minimal changes
-- **Progressive**: Add new features (LoRA, distributed) incrementally
-- **Scalable**: Easy to add new models (Chronos, TimeGPT) with same interface
-- **Maintainable**: Centralized configuration, logging, error handling
-
-## Next Steps
-
-1. **Test Framework**: Run `scripts/workflows/forecasting/forecasting_workflow_orchestrator.py --help`
-2. **Integrate Data**: Adapt `_prepare_training_data()` to your specific data format
-3. **Test Training**: Run actual training with your datasets
-4. **Add Models**: Implement Chronos, TimeGPT using same pattern
-5. **Experiment Management**: Add experiment tracking and model registry
-
-## Summary
-
-The base model framework is **not** a simple abstract class as shown in the plan. It's a **comprehensive, production-ready system** with:
-
-- ✅ 1,200+ lines of production code
-- ✅ Full distributed training support
-- ✅ Memory-efficient LoRA implementation
-- ✅ Comprehensive configuration management
-- ✅ Model lifecycle management
-- ✅ Integration with your existing code
-- ✅ Extensible architecture for new models
-- ✅ Error handling and logging
-- ✅ Testing framework
-
-This provides the solid foundation you need for serious time series foundation model research while maintaining compatibility with your existing codebase.
