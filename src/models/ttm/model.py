@@ -322,7 +322,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 original_shape[0], original_shape[1]
             )
             return result
-        return predictions
 
     ## Abstract implemented private methods
     def _initialize_model(self) -> None:

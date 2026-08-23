@@ -119,6 +119,11 @@ Likely homes:
 
 - Refactor TTM first as the proving slice.
 - Keep behavior stable; reduce method size by delegating helper logic.
+- Remove pass-through `_impl` indirection wrappers where they only preserve
+  ordering (for example `_predict`/`_save_checkpoint`/`_load_checkpoint` in
+  [ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py)),
+  by relocating canonical abstract-method bodies into order and defining each
+  method once.
 - Add explicit regression coverage for:
   - checkpoint + preprocessor loading assumptions
   - inverse scaling behavior
