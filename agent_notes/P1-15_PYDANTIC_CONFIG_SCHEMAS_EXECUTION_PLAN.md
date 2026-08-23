@@ -119,7 +119,6 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 | `tsmixer` | Active | ✅ Completed (pilot) | Keep as reference implementation for adapter pattern |
 | `sundial` | Active | ✅ Completed | Schema + adapter wired; includes zero-shot-only validation plus fixture + invalid-config tests |
 | `ttm` | Active | ✅ Completed | Schema + adapter wired; includes strict split/target validation and workflow factory routing |
-| `chronos` | Active | ⏳ Pending | Add schema + adapter; validate zero-shot/fine-tune fields |
 | `chronos2` | Active | ✅ Completed | Schema + adapter wired; active configs validate through model schema registry |
 | `tide` | Active | ✅ Completed | Schema + adapter wired; enforces TiDE architectural/training constraints and `learning_rate` alias normalization to `lr` |
 | `moirai` | Active | ⏳ Pending | Add schema + adapter for MOIRAI-specific args |
