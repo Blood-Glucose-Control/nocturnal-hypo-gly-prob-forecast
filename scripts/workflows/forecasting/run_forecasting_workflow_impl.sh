@@ -12,7 +12,7 @@
 #   DATASETS="lynch_2022 brown_2019" ./scripts/workflows/forecasting/run_forecasting_workflow.sh
 #
 # With specific model type:
-#   MODEL_TYPE="chronos" ./scripts/workflows/forecasting/run_forecasting_workflow.sh
+#   MODEL_TYPE="chronos2" ./scripts/workflows/forecasting/run_forecasting_workflow.sh
 #   MODEL_TYPE="moment" DATASETS="lynch_2022 aleppo_2017" ./scripts/workflows/forecasting/run_forecasting_workflow.sh
 #
 # With specific config directory (e.g., different holdout percentage):
@@ -21,11 +21,11 @@
 #
 # Combining model type and config location:
 #   MODEL_TYPE="ttm" CONFIG_DIR="configs/data/holdout_10pct" ./scripts/workflows/forecasting/run_forecasting_workflow.sh
-#   MODEL_TYPE="chronos" CONFIG_DIR="configs/data/holdout" DATASETS="lynch_2022 brown_2019" ./scripts/workflows/forecasting/run_forecasting_workflow.sh
+#   MODEL_TYPE="chronos2" CONFIG_DIR="configs/data/holdout" DATASETS="lynch_2022 brown_2019" ./scripts/workflows/forecasting/run_forecasting_workflow.sh
 #
 # With specific GPU (useful on multi-GPU machines):
 #   CUDA_VISIBLE_DEVICES=0 ./scripts/workflows/forecasting/run_forecasting_workflow.sh
-#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="chronos" ./scripts/workflows/forecasting/run_forecasting_workflow.sh
+#   CUDA_VISIBLE_DEVICES=1 MODEL_TYPE="chronos2" ./scripts/workflows/forecasting/run_forecasting_workflow.sh
 #
 # With model config YAML (specify TTM parameters like features, scaler, split, etc.):
 #   MODEL_CONFIG="configs/models/ttm/default.yaml" ./scripts/workflows/forecasting/run_forecasting_workflow.sh
@@ -61,7 +61,7 @@ RUN_ID="${RUN_ID:-$(date +%Y%m%d_%H%M%S)_$$}"
 : ${SKIP_STEPS:=""}      # Space-separated step numbers to skip (e.g., SKIP_STEPS="7" or SKIP_STEPS="4 7")
 : ${EPOCHS:=""}          # Leave empty to use YAML config value; set to override (e.g., EPOCHS=10)
 : ${BATCH_SIZE:=""}      # Leave empty to use YAML config value; set to override (e.g., BATCH_SIZE=4096)
-: ${MODEL_TYPE:="ttm"}  # Model type: ttm, chronos, moment, etc.
+: ${MODEL_TYPE:="ttm"}  # Model type: ttm, chronos2, moment, etc.
 : ${MODEL_CONFIG:=""}   # Path to model YAML config (e.g., configs/models/ttm/default.yaml)
 # VENV_NAME: override the venv used for this run (default: same as MODEL_TYPE).
 # Set this when the model shares a venv with another type, e.g.

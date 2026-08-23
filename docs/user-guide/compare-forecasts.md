@@ -12,8 +12,8 @@ first listed model). Default 5 patients × 4 columns = 20 subplots.
 
 ## Why two stages?
 
-Different models require incompatible Python environments (e.g. TTM and Chronos2
-pin different versions of `transformers`). The script splits work into:
+Some model combinations require different Python environments (for example,
+Chronos2 vs TimesFM dependency stacks). The script splits work into:
 
 - **Stage 1 — Inference:** run once per model in its own env; results cached to
   `results/forecast_comparisons/<hash>.json`
@@ -36,10 +36,10 @@ python scripts/visualization/plot_forecast_comparison.py \
     --no-plot
 # → Results cached at: results/forecast_comparisons/a3f82c1d.json
 
-# TTM (in its own env)
-source scripts/setup_model_env.sh ttm
+# TimesFM (in its own env)
+source scripts/setup_model_env.sh timesfm
 python scripts/visualization/plot_forecast_comparison.py \
-    --model ttm::TTM \
+    --model timesfm::TimesFM \
     --no-plot
 # → Results cached at: results/forecast_comparisons/9b14e702.json
 ```
@@ -61,8 +61,8 @@ python scripts/visualization/plot_forecast_comparison.py \
 
 Output saved to `images/figures/forecast_comparisons/`:
 ```
-20260311_143022_Chronos2_vs_TTM_5pat.png   ← figure
-20260311_143022_Chronos2_vs_TTM_5pat.json  ← sidecar (reproducibility metadata)
+20260311_143022_Chronos2_vs_TimesFM_5pat.png   ← figure
+20260311_143022_Chronos2_vs_TimesFM_5pat.json  ← sidecar (reproducibility metadata)
 ```
 
 ---
@@ -74,10 +74,10 @@ When comparing two checkpoints of the same model type (same env), both can run
 in one command and the plot is generated automatically:
 
 ```bash
-source scripts/setup_model_env.sh ttm
+source scripts/setup_model_env.sh tide
 python scripts/visualization/plot_forecast_comparison.py \
-    --model ttm::TTM-zeroshot \
-    --model ttm:trained_models/artifacts/ttm-ft-iob:TTM-IOB
+    --model tide::TiDE-ZS \
+    --model tide:trained_models/artifacts/tide-ft-run42:TiDE-FT
 ```
 
 ### Specific patients
@@ -96,15 +96,15 @@ python scripts/visualization/plot_forecast_comparison.py \
     --percentiles 95 75 50 25 5
 ```
 
-### Fine-tuned vs zero-shot (cross-env)
+### Fine-tuned vs zero-shot (same family)
 ```bash
-# Stage 1a: zero-shot TTM
-source scripts/setup_model_env.sh ttm
-python scripts/visualization/plot_forecast_comparison.py --model ttm::TTM-ZS --no-plot
+# Stage 1a: zero-shot Chronos2
+source scripts/setup_model_env.sh autogluon
+python scripts/visualization/plot_forecast_comparison.py --model chronos2::Chronos2-ZS --no-plot
 
-# Stage 1b: fine-tuned TTM checkpoint (same env)
+# Stage 1b: fine-tuned Chronos2 checkpoint (same env)
 python scripts/visualization/plot_forecast_comparison.py \
-    --model ttm:trained_models/artifacts/ttm-ft-run42:TTM-FT \
+    --model chronos2:trained_models/artifacts/chronos2-ft-run42:Chronos2-FT \
     --no-plot
 
 # Stage 2

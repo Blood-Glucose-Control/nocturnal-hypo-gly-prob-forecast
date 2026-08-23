@@ -88,7 +88,6 @@ class ModelFactory:
     def get_default_model_path(model_type: str) -> str:
         defaults = {
             "ttm": "ibm-granite/granite-timeseries-ttm-r2",
-            "chronos": "amazon/chronos-t5-small",
             "chronos2": "autogluon/chronos-2",
             "moment": "AutonLab/MOMENT-1-small",
             "timesfm": "google/timesfm-2.0-500m-pytorch",
@@ -111,41 +110,27 @@ class ModelFactory:
         if model_type == "ttm":
             from ...models.ttm import TTMConfig, TTMForecaster
 
-            return TTMForecaster(
-                TTMConfig(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    freeze_backbone=config.freeze_backbone,
-                    use_cpu=config.use_cpu,
-                    fp16=config.fp16,
-                    learning_rate=config.learning_rate,
-                    **config.extra_config,
-                )
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "ttm",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
             )
-        if model_type == "chronos":
-            try:
-                from ...models.chronos import ChronosConfig, ChronosForecaster
-            except ImportError as e:
-                raise ImportError(
-                    f"Chronos model not available. Install chronos dependencies: {e}"
-                ) from e
-            return ChronosForecaster(
-                ChronosConfig(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    use_cpu=config.use_cpu,
-                    fp16=config.fp16,
-                    **config.extra_config,
-                )
-            )
+            return TTMForecaster(TTMConfig(**runtime_config))
         if model_type == "chronos2":
             try:
                 from ...models.chronos2 import Chronos2Config, Chronos2Forecaster
@@ -413,7 +398,7 @@ class ModelFactory:
             return TSMixerForecaster(TSMixerConfig(**runtime_config))
         raise ValueError(
             f"Unsupported model type: {model_type}. "
-            "Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
+            "Supported types: ttm, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
             "naive_baseline, statistical, deepar, patchtst, tft, tsmixer"
         )
 
@@ -548,38 +533,29 @@ class ModelFactory:
         if model_type_lower == "ttm":
             from ...models.ttm import TTMConfig, TTMForecaster
 
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type_lower,
+                config_data={
+                    "model_type": "ttm",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
+            )
             return TTMForecaster.load(
                 model_path,
-                TTMConfig(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    freeze_backbone=config.freeze_backbone,
-                    use_cpu=config.use_cpu,
-                    fp16=config.fp16,
-                    learning_rate=config.learning_rate,
-                    **config.extra_config,
-                ),
-            )
-        if model_type_lower == "chronos":
-            from ...models.chronos import ChronosConfig, ChronosForecaster
-
-            return ChronosForecaster.load(
-                model_path,
-                ChronosConfig(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    training_mode=config.training_mode,
-                    use_cpu=config.use_cpu,
-                    fp16=config.fp16,
-                    **config.extra_config,
-                ),
+                TTMConfig(**runtime_config),
             )
         if model_type_lower == "chronos2":
             from ...models.chronos2 import Chronos2Forecaster
@@ -687,6 +663,6 @@ class ModelFactory:
             return TSMixerForecaster.load(model_path)
         raise ValueError(
             f"Unsupported model type for loading: {model_type}. "
-            "Supported types: ttm, chronos, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
+            "Supported types: ttm, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
             "naive_baseline, statistical, deepar, patchtst, tft, tsmixer"
         )

@@ -119,16 +119,13 @@ class TestChronos2:
         # Factory routing — pipeline depends on this
         from src.models.base.base_model import create_model_from_config
 
-        for model_type in ("chronos2", "chronos"):
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".json", delete=False
-            ) as f:
-                json.dump({"model_type": model_type}, f)
-                tmp = f.name
-            try:
-                assert isinstance(create_model_from_config(tmp), Chronos2Forecaster)
-            finally:
-                os.unlink(tmp)
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            json.dump({"model_type": "chronos2"}, f)
+            tmp = f.name
+        try:
+            assert isinstance(create_model_from_config(tmp), Chronos2Forecaster)
+        finally:
+            os.unlink(tmp)
 
     def test_flat_df_to_patient_dict(self):
         """Registry flat df → patient dict. Regression: float 1.0 → key "1" not "1.0"."""

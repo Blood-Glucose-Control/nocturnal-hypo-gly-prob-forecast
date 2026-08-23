@@ -365,7 +365,7 @@ def step4_zero_shot_evaluation(
     with freeze_backbone=True and num_epochs=0.
 
     Args:
-        model_type: Type of model to use (ttm, chronos, moment, timesfm)
+        model_type: Type of model to use (ttm, chronos2, moment, timesfm)
         dataset_names: List of dataset names
         training_columns: Column names from training data
         config_dir: Holdout config directory
@@ -456,7 +456,7 @@ def step5_train_model(
     Creates a fresh model configured for fine-tuning (not zero-shot).
 
     Args:
-        model_type: Type of model to use (ttm, chronos, moment)
+        model_type: Type of model to use (ttm, chronos2, moment)
         combined_data: Combined training DataFrame
         dataset_names: List of dataset names
         training_columns: Column names from training data
@@ -575,7 +575,7 @@ def step6_load_checkpoint(
     This step demonstrates that the model can be saved and loaded correctly.
 
     Args:
-        model_type: Type of model (ttm, chronos, moment)
+        model_type: Type of model (ttm, chronos2, moment)
         model_path: Path to the saved model checkpoint
         config: GenericModelConfig for loading the model
         training_columns: Column names from training data
@@ -853,7 +853,7 @@ Workflow Steps:
 
 Supported Model Types:
   - ttm: IBM Granite TTM (TinyTimeMixer)
-  - chronos: Amazon Chronos
+  - chronos2: AutoGluon Chronos-2
   - moment: AutonLab MOMENT
   - timesfm: Google TimesFM 2.0 (500M)
   - timegrad: TimeGrad (GRU + diffusion, trains from scratch)
@@ -872,7 +872,6 @@ stored in separate subdirectories for comparison.
         default="ttm",
         choices=[
             "ttm",
-            "chronos",
             "chronos2",
             "moment",
             "timesfm",

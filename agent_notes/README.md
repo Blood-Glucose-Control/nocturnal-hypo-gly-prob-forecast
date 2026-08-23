@@ -30,6 +30,7 @@ This folder is now ordered by project priority using `P#-##` prefixes.
 - `P1-32_WORKSPACE_PATH_REMOUNT_HANDOFF.md`
 - `P1-34_WORKSPACE_TRIAGE_AND_SIMPLIFICATION_PLAN.md`
 - `P1-37_CANONICAL_HANDOFF_AND_STATUS.md` (canonical consolidated handoff/status note)
+- `P1-38_MODEL_RUNTIME_CONSOLIDATION_PLAN.md`
 
 ## Historical / Archived Notes
 

@@ -18,7 +18,7 @@ freeze_backbone: true
 num_epochs: 0
 batch_size: 4096
 
-input_features:
+input_features: []
 
 target_features:
   - bg_mM

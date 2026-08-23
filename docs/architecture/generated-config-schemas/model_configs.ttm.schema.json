@@ -1,0 +1,272 @@
+{
+  "$defs": {
+    "TTMSplitConfigSchema": {
+      "additionalProperties": false,
+      "description": "Schema contract for TTM train/val/test split configuration.",
+      "properties": {
+        "test": {
+          "default": 0.05,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Test",
+          "type": "number"
+        },
+        "train": {
+          "default": 0.9,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Train",
+          "type": "number"
+        },
+        "val": {
+          "default": 0.05,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Val",
+          "type": "number"
+        }
+      },
+      "title": "TTMSplitConfigSchema",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Schema contract for TTM (TinyTimeMixer) YAML configs.",
+  "properties": {
+    "batch_size": {
+      "default": 64,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "dataloader_num_workers": {
+      "default": 2,
+      "minimum": 0,
+      "title": "Dataloader Num Workers",
+      "type": "integer"
+    },
+    "early_stopping_patience": {
+      "default": 10,
+      "minimum": 0,
+      "title": "Early Stopping Patience",
+      "type": "integer"
+    },
+    "eval_steps": {
+      "default": 1000,
+      "exclusiveMinimum": 0,
+      "title": "Eval Steps",
+      "type": "integer"
+    },
+    "eval_strategy": {
+      "default": "steps",
+      "enum": [
+        "steps",
+        "epoch",
+        "no"
+      ],
+      "title": "Eval Strategy",
+      "type": "string"
+    },
+    "fewshot_percent": {
+      "default": 5,
+      "maximum": 100,
+      "minimum": 0,
+      "title": "Fewshot Percent",
+      "type": "integer"
+    },
+    "find_optimal_lr": {
+      "default": false,
+      "title": "Find Optimal Lr",
+      "type": "boolean"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "fp16": {
+      "default": true,
+      "title": "Fp16",
+      "type": "boolean"
+    },
+    "freeze_backbone": {
+      "default": false,
+      "title": "Freeze Backbone",
+      "type": "boolean"
+    },
+    "gradient_clip_val": {
+      "default": 1.0,
+      "minimum": 0.0,
+      "title": "Gradient Clip Val",
+      "type": "number"
+    },
+    "greater_is_better": {
+      "default": false,
+      "title": "Greater Is Better",
+      "type": "boolean"
+    },
+    "input_features": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Input Features",
+      "type": "array"
+    },
+    "learning_rate": {
+      "default": 0.0001,
+      "exclusiveMinimum": 0.0,
+      "title": "Learning Rate",
+      "type": "number"
+    },
+    "logging_dir": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Logging Dir"
+    },
+    "logging_steps": {
+      "default": 100,
+      "exclusiveMinimum": 0,
+      "title": "Logging Steps",
+      "type": "integer"
+    },
+    "loss_function": {
+      "default": "mse",
+      "enum": [
+        "mse",
+        "mae",
+        "huber",
+        "pinball"
+      ],
+      "title": "Loss Function",
+      "type": "string"
+    },
+    "metric_for_best_model": {
+      "default": "eval_loss",
+      "minLength": 1,
+      "title": "Metric For Best Model",
+      "type": "string"
+    },
+    "model_path": {
+      "default": "ibm-granite/granite-timeseries-ttm-r2",
+      "minLength": 1,
+      "title": "Model Path",
+      "type": "string"
+    },
+    "model_type": {
+      "const": "ttm",
+      "default": "ttm",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "num_epochs": {
+      "default": 10,
+      "minimum": 0,
+      "title": "Num Epochs",
+      "type": "integer"
+    },
+    "num_input_channels": {
+      "default": 1,
+      "exclusiveMinimum": 0,
+      "title": "Num Input Channels",
+      "type": "integer"
+    },
+    "num_output_channels": {
+      "default": 1,
+      "exclusiveMinimum": 0,
+      "title": "Num Output Channels",
+      "type": "integer"
+    },
+    "prediction_filter_length": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Prediction Filter Length"
+    },
+    "resolution_min": {
+      "default": 5,
+      "exclusiveMinimum": 0,
+      "title": "Resolution Min",
+      "type": "integer"
+    },
+    "save_steps": {
+      "default": 2000,
+      "exclusiveMinimum": 0,
+      "title": "Save Steps",
+      "type": "integer"
+    },
+    "scaler_type": {
+      "default": "standard",
+      "enum": [
+        "standard",
+        "minmax"
+      ],
+      "title": "Scaler Type",
+      "type": "string"
+    },
+    "split_config": {
+      "$ref": "#/$defs/TTMSplitConfigSchema"
+    },
+    "target_features": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Target Features",
+      "type": "array"
+    },
+    "training_mode": {
+      "default": "fine_tune",
+      "enum": [
+        "zero_shot",
+        "fine_tune",
+        "from_scratch"
+      ],
+      "title": "Training Mode",
+      "type": "string"
+    },
+    "use_cpu": {
+      "default": false,
+      "title": "Use Cpu",
+      "type": "boolean"
+    },
+    "use_tracking_callback": {
+      "default": true,
+      "title": "Use Tracking Callback",
+      "type": "boolean"
+    },
+    "warmup_steps": {
+      "default": 1000,
+      "minimum": 0,
+      "title": "Warmup Steps",
+      "type": "integer"
+    },
+    "weight_decay": {
+      "default": 0.01,
+      "minimum": 0.0,
+      "title": "Weight Decay",
+      "type": "number"
+    }
+  },
+  "title": "TTMModelConfigSchema",
+  "type": "object"
+}
