@@ -56,9 +56,19 @@ def load_model_config_from_yaml(
         raise FileNotFoundError(f"Model config file not found: {config_path}")
 
     schema_type = get_model_config_schema(model_type) if model_type else None
+    config: Dict[str, Any]
     if schema_type is not None:
         validated = load_yaml_as_schema(config_file, schema_type)
-        config = validated.model_dump(exclude_none=True)
+        model_dump = getattr(validated, "model_dump", None)
+        if callable(model_dump):
+            raw_config = model_dump(exclude_none=True)
+        else:
+            raw_config = validated.dict(exclude_none=True)
+        if not isinstance(raw_config, dict):
+            raise ValueError(
+                f"Model config must be a YAML mapping/object: {config_path}"
+            )
+        config = dict(raw_config)
         logger.info(
             "Validated model config with schema %s for model_type=%s",
             schema_type.__name__,
