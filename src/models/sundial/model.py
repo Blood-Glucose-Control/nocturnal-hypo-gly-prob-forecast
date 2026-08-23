@@ -3,7 +3,7 @@ Sundial model implementation using the base TSFM framework.
 """
 
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -64,24 +64,27 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         if self.model is None:
             error_print("Failed to load Sundial model.")
             raise ValueError("Model loading failed.")
+        model = cast(Any, self.model)
 
         use_cuda = torch.cuda.is_available() and not getattr(
             self.config, "use_cpu", False
         )
         self.device = "cuda" if use_cuda else "cpu"
-        self.model.to(self.device)
-        self.model.eval()
+        model.to(self.device)
+        model.eval()
 
         info_print(f"Sundial model initialized on {self.device}")
 
     def _prepare_training_data(
         self, train_data: Any
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
+        del train_data
         raise NotImplementedError("Sundial zero-shot mode does not support training")
 
     def _train_model(
         self, train_data: Any, output_dir: str, **kwargs
     ) -> Dict[str, Any]:
+        del train_data, output_dir, kwargs
         raise NotImplementedError("Sundial zero-shot mode does not support training")
 
     def _predict(
@@ -104,8 +107,10 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
             shape (len(quantile_levels), forecast_length) when quantile_levels
             is set.
         """
+        del kwargs
         if self.model is None:
             raise ValueError("Model not initialized. Call _initialize_model first.")
+        model = cast(Any, self.model)
 
         forecast_length = self.config.forecast_length
 
@@ -120,7 +125,7 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         seqs = torch.tensor(context, dtype=torch.float32).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            samples = self.model.generate(
+            samples = model.generate(
                 seqs,
                 max_new_tokens=forecast_length,
                 num_samples=self.config.num_samples,
@@ -136,7 +141,9 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         return np.median(samples, axis=0)
 
     def _save_checkpoint(self, output_dir: str) -> None:
+        del output_dir
         pass  # No-op for zero-shot
 
     def _load_checkpoint(self, model_dir: str) -> None:
+        del model_dir
         pass  # No-op for zero-shot
