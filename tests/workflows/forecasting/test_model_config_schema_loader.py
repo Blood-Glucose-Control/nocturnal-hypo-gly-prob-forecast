@@ -26,6 +26,9 @@ TTM_SMOKE_CONFIG_PATH = REPO_ROOT / "configs" / "models" / "ttm" / "00_zs_cgm_on
 SUNDIAL_SMOKE_CONFIG_PATH = (
     REPO_ROOT / "configs" / "models" / "sundial" / "00_baseline.yaml"
 )
+MOIRAI_SMOKE_CONFIG_PATH = (
+    REPO_ROOT / "configs" / "models" / "moirai" / "bg_only_smoke_test.yaml"
+)
 AUTOGLUON_SCHEMA_SMOKE_CONFIGS = {
     "chronos2": REPO_ROOT / "configs" / "models" / "chronos2" / "00_bg_only.yaml",
     "deepar": REPO_ROOT / "configs" / "models" / "deepar" / "00_baseline.yaml",
@@ -225,6 +228,18 @@ def test_sundial_model_config_validates_via_schema_loader() -> None:
     assert loaded["training_mode"] == "zero_shot"
 
 
+def test_moirai_model_config_validates_via_schema_loader() -> None:
+    loaded = load_model_config_from_yaml(
+        str(MOIRAI_SMOKE_CONFIG_PATH),
+        model_type="moirai",
+    )
+
+    assert loaded["model_type"] == "moirai"
+    assert loaded["patch_size"] == "auto"
+    assert loaded["num_samples"] == 50
+    assert loaded["past_covariate_dim"] == 0
+
+
 @pytest.mark.parametrize("model_type", ["deepar", "patchtst", "tft", "tide"])
 def test_autogluon_model_config_normalizes_learning_rate_alias(model_type: str) -> None:
     runtime_config = build_model_runtime_config(
@@ -277,6 +292,38 @@ def test_sundial_runtime_adapter_enforces_zero_shot_mode() -> None:
 
     assert "training_mode" in str(exc_info.value)
     assert "zero_shot" in str(exc_info.value)
+
+
+def test_moirai_runtime_adapter_normalizes_learning_rate_alias() -> None:
+    runtime_config = build_model_runtime_config(
+        model_type="moirai",
+        config_data={
+            "context_length": 128,
+            "forecast_length": 96,
+            "lr": 0.0007,
+            "past_covariate_dim": 0,
+            "covariate_cols": [],
+        },
+    )
+
+    assert runtime_config["learning_rate"] == pytest.approx(0.0007)
+    assert "lr" not in runtime_config
+
+
+def test_moirai_runtime_adapter_enforces_covariate_dim_parity() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        build_model_runtime_config(
+            model_type="moirai",
+            config_data={
+                "context_length": 128,
+                "forecast_length": 96,
+                "past_covariate_dim": 1,
+                "covariate_cols": [],
+            },
+        )
+
+    assert "past_covariate_dim" in str(exc_info.value)
+    assert "covariate_cols" in str(exc_info.value)
 
 
 def test_tide_runtime_adapter_enforces_encoder_decoder_dim_parity() -> None:
@@ -453,6 +500,7 @@ def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
     for model_type in [
         "chronos2",
         "deepar",
+        "moirai",
         "naive_baseline",
         "patchtst",
         "statistical",
@@ -602,6 +650,63 @@ def test_sundial_factory_path_reports_unknown_runtime_field(
         context_length=128,
         forecast_length=96,
         training_mode="zero_shot",
+        extra_config={"unknown_field": True},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ModelFactory.create_model(config)
+
+    assert "unknown_field" in str(exc_info.value)
+
+
+def test_moirai_factory_path_uses_schema_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="moirai",
+        config_class_name="MoiraiConfig",
+        forecaster_class_name="MoiraiForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="moirai",
+        model_path="Salesforce/moirai-1.0-R-small",
+        context_length=128,
+        forecast_length=96,
+        batch_size=32,
+        num_epochs=2,
+        learning_rate=1e-4,
+        training_mode="fine_tune",
+        extra_config={
+            "lr": 0.0009,
+            "past_covariate_dim": 0,
+            "covariate_cols": [],
+        },
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.learning_rate == pytest.approx(0.0009)
+    assert model.config.past_covariate_dim == 0
+    assert model.config.covariate_cols == []
+
+
+def test_moirai_factory_path_reports_unknown_runtime_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="moirai",
+        config_class_name="MoiraiConfig",
+        forecaster_class_name="MoiraiForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="moirai",
+        model_path="Salesforce/moirai-1.0-R-small",
+        context_length=128,
+        forecast_length=96,
         extra_config={"unknown_field": True},
     )
 
@@ -976,3 +1081,31 @@ def test_sundial_factory_path_supports_real_smoke_profile(
     assert model.config.training_mode == "zero_shot"
     assert model.config.context_length == 512
     assert model.config.forecast_length == 96
+
+
+def test_moirai_factory_path_supports_real_smoke_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="moirai",
+        config_class_name="MoiraiConfig",
+        forecaster_class_name="MoiraiForecaster",
+    )
+
+    overrides = load_model_config_from_yaml(
+        str(MOIRAI_SMOKE_CONFIG_PATH),
+        model_type="moirai",
+    )
+    config = ModelFactory.create_finetune_config(
+        model_type="moirai",
+        extra_config=overrides,
+    )
+    model = ModelFactory.create_model(config)
+
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.model_type == "moirai"
+    assert model.config.patch_size == "auto"
+    assert model.config.num_samples == 50
+    assert model.config.past_covariate_dim == 0
+    assert model.config.covariate_cols == []

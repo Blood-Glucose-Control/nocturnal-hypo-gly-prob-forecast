@@ -201,7 +201,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         info_print("  Moirai loaded successfully")
         return self.model
 
-    def _predict(
+    def _predict_impl(
         self,
         data: Any,
         quantile_levels: Optional[List[float]] = None,
@@ -241,6 +241,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             for a single DataFrame, ``(N, len(quantile_levels), forecast_length)``
             for a batch.
         """
+        del kwargs
         if self.model is None:
             self.model = self._initialize_model()
 
@@ -278,7 +279,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         return means[0] if single else means
 
     def _prepare_training_data(
-        self, data: Any, split: Optional[str] = None
+        self, train_data: Any, split: Optional[str] = None
     ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
         """Base-class compatibility stub (not used by Moirai).
 
@@ -286,6 +287,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         directly to produce the patched tensor format that
         ``MoiraiFinetune`` expects, so this method is never invoked.
         """
+        del train_data, split
         dataset = ListDataset(
             [{"target": np.array([0.0])} for _ in range(10)],
             freq=f"{self.config.interval_mins}min",
@@ -321,6 +323,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Dict with ``status``, ``samples``, ``best_loss``, ``epochs``.
         """
+        del kwargs
         info_print("👉 Starting Moirai fine-tuning")
         info_print(f"   Output directory: {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
@@ -524,6 +527,21 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             "best_loss": best_loss,
             "epochs": num_epochs,
         }
+
+    def _predict(
+        self,
+        data: Any,
+        quantile_levels: Optional[List[float]] = None,
+        batch_size: Optional[int] = None,
+        **kwargs,
+    ) -> np.ndarray:
+        """Run inference and return mean or quantile forecasts."""
+        return self._predict_impl(
+            data=data,
+            quantile_levels=quantile_levels,
+            batch_size=batch_size,
+            **kwargs,
+        )
 
     def _save_checkpoint(self, output_dir: str) -> None:
         """Save the fine-tuned MoiraiModule weights to ``output_dir``.

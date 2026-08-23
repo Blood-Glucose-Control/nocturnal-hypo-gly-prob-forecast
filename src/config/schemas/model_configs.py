@@ -80,6 +80,51 @@ class SundialModelConfigSchema(BaseConfigSchema):
     fp16: bool = Field(default=True)
 
 
+class MoiraiModelConfigSchema(BaseConfigSchema):
+    """Schema contract for Moirai model YAML configs."""
+
+    model_type: Literal["moirai"] = Field(default="moirai")
+    model_path: str = Field(default="Salesforce/moirai-1.0-R-small", min_length=1)
+    context_length: int = Field(default=512, gt=0)
+    forecast_length: int = Field(default=96, gt=0)
+
+    training_mode: Literal["zero_shot", "fine_tune"] = Field(default="fine_tune")
+    freeze_backbone: bool = Field(default=False)
+    use_cpu: bool = Field(default=False)
+    fp16: bool = Field(default=True)
+
+    learning_rate: float = Field(
+        default=1e-4,
+        gt=0.0,
+        validation_alias=AliasChoices("learning_rate", "lr"),
+    )
+    batch_size: int = Field(default=64, gt=0)
+    num_epochs: int = Field(default=10, ge=0)
+
+    patch_size: int | Literal["auto"] = Field(default="auto")
+    num_samples: int = Field(default=100, gt=0)
+    past_covariate_dim: int = Field(default=0, ge=0)
+    checkpoint_path: Optional[str] = Field(default=None)
+    finetune_pattern: Literal["full", "freeze_ffn", "head_only"] = Field(default="full")
+    interval_mins: int = Field(default=5, gt=0)
+    target_col: str = Field(default="bg_mM", min_length=1)
+    covariate_cols: list[str] = Field(default_factory=list)
+
+    @field_validator("learning_rate", mode="before")
+    @classmethod
+    def _normalize_learning_rate(cls, value: Any) -> Any:
+        return _coerce_numeric_string(value, "learning_rate")
+
+    @model_validator(mode="after")
+    def _validate_covariate_dim(self) -> "MoiraiModelConfigSchema":
+        if len(self.covariate_cols) != self.past_covariate_dim:
+            raise ValueError(
+                f"len(covariate_cols)={len(self.covariate_cols)} does not match "
+                f"past_covariate_dim={self.past_covariate_dim}"
+            )
+        return self
+
+
 class AutoGluonModelConfigSchema(BaseConfigSchema):
     """Shared schema surface for AutoGluon-backed model families."""
 
@@ -447,6 +492,11 @@ def build_sundial_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     return _build_runtime_config("sundial", SundialModelConfigSchema, config_data)
 
 
+def build_moirai_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize Moirai runtime config values."""
+    return _build_runtime_config("moirai", MoiraiModelConfigSchema, config_data)
+
+
 def build_chronos2_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize Chronos-2 runtime config values."""
     return _build_runtime_config("chronos2", Chronos2ModelConfigSchema, config_data)
@@ -505,6 +555,10 @@ MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
     "naive_baseline": ModelConfigRoute(
         schema_type=NaiveBaselineModelConfigSchema,
         runtime_adapter=build_naive_baseline_runtime_config,
+    ),
+    "moirai": ModelConfigRoute(
+        schema_type=MoiraiModelConfigSchema,
+        runtime_adapter=build_moirai_runtime_config,
     ),
     "patchtst": ModelConfigRoute(
         schema_type=PatchTSTModelConfigSchema,

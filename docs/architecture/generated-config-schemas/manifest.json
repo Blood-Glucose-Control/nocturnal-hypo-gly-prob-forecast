@@ -9,6 +9,10 @@
       "source_symbol": "src.config.schemas.model_configs.DeepARModelConfigSchema"
     },
     {
+      "file": "model_configs.moirai.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.MoiraiModelConfigSchema"
+    },
+    {
       "file": "model_configs.naive_baseline.schema.json",
       "source_symbol": "src.config.schemas.model_configs.NaiveBaselineModelConfigSchema"
     },

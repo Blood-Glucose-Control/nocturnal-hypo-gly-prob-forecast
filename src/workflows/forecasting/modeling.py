@@ -294,17 +294,26 @@ class ModelFactory:
                     f"pip install 'nocturnal-hypo-gly-prob-forecast[moirai]'\n{e}"
                 ) from e
             moirai_kwargs = dict(config.extra_config) if config.extra_config else {}
-            return MoiraiForecaster(
-                MoiraiConfig(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    learning_rate=config.learning_rate,
+            if "lr" in moirai_kwargs and "learning_rate" not in moirai_kwargs:
+                moirai_kwargs["learning_rate"] = moirai_kwargs.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "moirai",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
                     **moirai_kwargs,
-                )
+                },
             )
+            return MoiraiForecaster(MoiraiConfig(**runtime_config))
         if model_type == "naive_baseline":
             from ...models.naive_baseline import (
                 NaiveBaselineConfig,
@@ -667,17 +676,28 @@ class ModelFactory:
             from ...models.moirai import MoiraiConfig, MoiraiForecaster
 
             moirai_kwargs = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in moirai_kwargs and "learning_rate" not in moirai_kwargs:
+                moirai_kwargs["learning_rate"] = moirai_kwargs.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type_lower,
+                config_data={
+                    "model_type": "moirai",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **moirai_kwargs,
+                },
+            )
             return MoiraiForecaster.load(
                 model_path,
-                MoiraiConfig(
-                    model_path=config.model_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    learning_rate=config.learning_rate,
-                    **moirai_kwargs,
-                ),
+                MoiraiConfig(**runtime_config),
             )
         if model_type_lower == "naive_baseline":
             from ...models.naive_baseline import NaiveBaselineForecaster
