@@ -109,6 +109,38 @@ This project is committed to providing a welcoming and inclusive environment for
 
 **Important**: Do not add `python.analysis.diagnosticSeverityOverrides` to VS Code settings when `pyrightconfig.json` exists, as this will cause configuration conflicts.
 
+#### Model-family interpreters (recommended workflow)
+
+This repository contains model families with conflicting dependency trees. A
+single Python environment may not satisfy all model imports at once.
+
+Recommended practice:
+
+1. Use `.noctprob-venv` as your default environment for shared/core work.
+2. Switch VS Code's Python interpreter when working in a model family that uses
+   its own environment.
+3. Treat pre-commit/CI as the source of truth for cross-family checks.
+
+Switching interpreter in VS Code:
+
+1. Open a file in the model family you are editing.
+2. `Ctrl+Shift+P` → `Python: Select Interpreter`.
+3. If prompted with "Select one or more projects, folders or scripts", choose
+   the repository root.
+4. Pick that model family's interpreter (or use "Enter interpreter path").
+
+Model-family → interpreter mapping template:
+
+```text
+# Keep this in your local notes (not committed), update paths for your machine.
+default/shared -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/python
+moirai         -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/moirai/bin/python
+moment         -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/moment/bin/python
+timesm         -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/timesm/bin/python
+ttm            -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/ttm/bin/python
+sundial        -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/sundial/bin/python
+```
+
 **PyCharm**
 - Set Python interpreter to your venv environment
 - Install Ruff plugin for linting/formatting
@@ -766,7 +798,9 @@ See [Data Documentation](https://probabilistic-forecasting-of-nocturnal-hypoglyc
 **Problem**: Red underlines everywhere / Import resolution issues
 
 **Solution**:
-1. Ensure your Python interpreter is set to `.noctprob-venv/bin/python`
+1. Ensure your Python interpreter is set to the environment for the code you
+   are editing (shared `.noctprob-venv` for core paths, model-specific env for
+   model-specific imports).
 2. Check that `pyrightconfig.json` includes your `src` directory
 3. Restart Python language server: `Ctrl+Shift+P` → "Python: Restart Language Server"
 

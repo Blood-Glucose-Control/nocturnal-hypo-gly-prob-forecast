@@ -253,6 +253,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         if self.predictor is None or bs != self._predictor_batch_size:
             self.predictor = self.model.create_predictor(batch_size=bs)  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
             self._predictor_batch_size = bs
+        predictor = cast(Any, self.predictor)
 
         if isinstance(data, pd.DataFrame):
             # Single-episode DataFrame path (called from base class predict())
@@ -267,7 +268,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             dataset = data
             single = False
 
-        forecasts = list(self.predictor.predict(dataset))
+        forecasts = list(predictor.predict(dataset))
 
         if quantile_levels is not None:
             # fc.samples: (num_samples, horizon) — extract requested quantiles
@@ -332,6 +333,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
         if self.model is None:
             self.model = self._initialize_model()
+        model = cast(Any, self.model)
 
         device = torch.device(
             "cuda" if torch.cuda.is_available() and not self.config.use_cpu else "cpu"
@@ -383,7 +385,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 if past_observed_covariates is not None
                 else None
             )
-            tgt, obs, sid, tid, vid, pmask = self.model._convert(
+            tgt, obs, sid, tid, vid, pmask = model._convert(
                 patch_size,
                 past_target=past_target[sl],
                 past_observed_target=past_observed[sl],
@@ -426,7 +428,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         warmup_steps = min(self.config.warmup_steps, max(1, total_steps // 5))
 
         finetune_module = MoiraiFinetune(
-            module=self.model.module,
+            module=model.module,
             min_patches=2,
             min_mask_ratio=0.15,
             max_mask_ratio=0.5,
@@ -562,7 +564,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             return
 
         weights_path = os.path.join(output_dir, "moirai_finetuned.pt")
-        torch.save(self.model.module.state_dict(), weights_path)
+        module = cast(Any, self.model.module)
+        torch.save(module.state_dict(), weights_path)
         info_print(f"Saved fine-tuned Moirai weights: {weights_path}")
 
     def _load_checkpoint(self, model_dir: str) -> None:
@@ -793,8 +796,9 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         if self.predictor is None or bs != self._predictor_batch_size:
             self.predictor = self.model.create_predictor(batch_size=bs)  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
             self._predictor_batch_size = bs
+        predictor = cast(Any, self.predictor)
 
-        forecasts = list(self.predictor.predict(dataset))
+        forecasts = list(predictor.predict(dataset))
 
         records = []
         for ep, fc in zip(episodes, forecasts):
@@ -906,8 +910,11 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         """
         if isinstance(self.config.patch_size, int):
             return self.config.patch_size
+        if self.model is None:
+            raise ValueError("Model must be initialized before selecting patch size")
+        model = cast(Any, self.model)
         ctx = self.config.context_length
-        available = sorted(self.model.module.patch_sizes, reverse=True)
+        available = sorted(cast(Any, model.module.patch_sizes), reverse=True)
         for ps in available:
             if ctx // ps >= 4:
                 return ps
@@ -959,8 +966,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 elif not isinstance(pat_df.index, pd.DatetimeIndex):
                     continue
                 pat_df = pat_df.dropna(subset=[target_col])
-                bg = pat_df[target_col].values
-                cov = pat_df[cov_cols].values if cov_cols else None
+                bg = pat_df[target_col].to_numpy(dtype=np.float32)
+                cov = pat_df[cov_cols].to_numpy(dtype=np.float32) if cov_cols else None
                 for s in range(0, len(bg) - total_len + 1, total_len):
                     contexts.append(bg[s : s + ctx_len])
                     targets.append(bg[s + ctx_len : s + total_len])
