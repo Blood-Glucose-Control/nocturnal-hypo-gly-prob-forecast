@@ -118,3 +118,37 @@ Task completes when:
 2. All temporary diff-scoped Ruff workarounds are removed.
 3. Pyright remains intentionally diff-scoped (documented rationale retained).
 4. Contributor docs reflect the final lint policy and workflow.
+
+---
+
+## 8) Explicit configuration items to assess in P1-39
+
+As part of PR-R0, explicitly evaluate and either ratify or revise the current
+pre-commit entries in
+[.pre-commit-config.yaml](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/.pre-commit-config.yaml):
+
+```yaml
+      - id: ruff
+        args: ["--fix", "--select=E4,E7,E9,F,I"]
+        types_or: [python, pyi]
+      - id: ruff-format
+        types_or: [python, pyi]
+
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.411
+    hooks:
+      - id: pyright
+        args: [--project=pyrightconfig.json]
+        files: ^(src|tests)/.*\.py$
+```
+
+Assessment checklist:
+
+1. Confirm whether `--select=E4,E7,E9,F,I` remains the intended long-term Ruff
+   policy or is a temporary baseline clamp during cleanup.
+2. Confirm `types_or: [python, pyi]` stays in place to prevent notebook/content
+   parsing churn during repo-wide runs.
+3. Confirm Pyright `files: ^(src|tests)/.*\.py$` remains the correct scope for
+   changed-file CI checks under multi-venv constraints.
+4. Document final keep/change decisions in this plan and mirror them in
+   contributor-facing docs once P1-39 closes.

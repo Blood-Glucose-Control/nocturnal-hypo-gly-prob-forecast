@@ -136,7 +136,7 @@ Model-family → interpreter mapping template:
 default/shared -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.noctprob-venv/bin/python
 moirai         -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/moirai/bin/python
 moment         -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/moment/bin/python
-timesm         -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/timesm/bin/python
+timesfm        -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/timesfm/bin/python
 ttm            -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/ttm/bin/python
 sundial        -> /data/home/<you>/nocturnal-hypo-gly-prob-forecast/.venvs/sundial/bin/python
 ```
