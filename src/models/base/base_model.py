@@ -41,7 +41,7 @@ class ModelConfig:
     train, and evaluate a time series foundation model.
 
     Attributes:
-        model_type: Identifier for the model type (e.g., "ttm", "chronos").
+        model_type: Identifier for the model type (e.g., "ttm", "chronos2").
         model_path: Path to pre-trained model weights or HuggingFace model ID.
         context_length: Number of historical time steps used as input.
         forecast_length: Number of future time steps to predict.
@@ -791,7 +791,7 @@ def create_model_from_config(config_path: str) -> BaseTimeSeriesFoundationModel:
 
         config = TTMConfig(**config_dict)
         return TTMForecaster(config)
-    elif model_type in ("chronos", "chronos2"):
+    elif model_type == "chronos2":
         from ..chronos2 import Chronos2Config, Chronos2Forecaster
 
         config = Chronos2Config(**config_dict)

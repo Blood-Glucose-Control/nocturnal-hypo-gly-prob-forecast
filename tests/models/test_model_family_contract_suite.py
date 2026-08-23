@@ -98,7 +98,7 @@ AUTOGLUON_THIN_WRAPPER_FAMILIES = {
     "statistical",
     "tft",
 }
-FACTORY_NOT_IMPLEMENTED_FAMILIES = {"chronos"}
+FACTORY_NOT_IMPLEMENTED_FAMILIES: set[str] = set()
 ORDERED_CORE_METHODS = [
     "__init__",
     "training_backend",

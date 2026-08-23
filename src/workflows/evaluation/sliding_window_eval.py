@@ -352,7 +352,6 @@ def parse_arguments() -> argparse.Namespace:
         choices=[
             "sundial",
             "ttm",
-            "chronos",
             "chronos2",
             "moirai",
             "moment",

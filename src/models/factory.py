@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 SUPPORTED_MODEL_TYPES = (
     "sundial",
     "ttm",
-    "chronos",
     "chronos2",
     "moment",
     "toto",
@@ -183,9 +182,6 @@ def create_model_and_config(
             )
             model = TTMForecaster(config)
         return model, config
-
-    elif model_type == "chronos":
-        raise NotImplementedError("Chronos model not yet implemented")
 
     elif model_type == "chronos2":
         from .chronos2 import Chronos2Config, Chronos2Forecaster
