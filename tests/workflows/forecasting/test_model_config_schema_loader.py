@@ -23,6 +23,9 @@ TSMIXER_SMOKE_CONFIG_PATH = (
 )
 TIDE_SMOKE_CONFIG_PATH = REPO_ROOT / "configs" / "models" / "tide" / "00_bg_only.yaml"
 TTM_SMOKE_CONFIG_PATH = REPO_ROOT / "configs" / "models" / "ttm" / "00_zs_cgm_only.yaml"
+SUNDIAL_SMOKE_CONFIG_PATH = (
+    REPO_ROOT / "configs" / "models" / "sundial" / "00_baseline.yaml"
+)
 AUTOGLUON_SCHEMA_SMOKE_CONFIGS = {
     "chronos2": REPO_ROOT / "configs" / "models" / "chronos2" / "00_bg_only.yaml",
     "deepar": REPO_ROOT / "configs" / "models" / "deepar" / "00_baseline.yaml",
@@ -211,6 +214,17 @@ def test_ttm_model_config_validates_via_schema_loader() -> None:
     assert loaded["target_features"] == ["bg_mM"]
 
 
+def test_sundial_model_config_validates_via_schema_loader() -> None:
+    loaded = load_model_config_from_yaml(
+        str(SUNDIAL_SMOKE_CONFIG_PATH),
+        model_type="sundial",
+    )
+
+    assert loaded["model_type"] == "sundial"
+    assert loaded["num_samples"] == 50
+    assert loaded["training_mode"] == "zero_shot"
+
+
 @pytest.mark.parametrize("model_type", ["deepar", "patchtst", "tft", "tide"])
 def test_autogluon_model_config_normalizes_learning_rate_alias(model_type: str) -> None:
     runtime_config = build_model_runtime_config(
@@ -248,6 +262,21 @@ def test_ttm_runtime_adapter_reports_unknown_field() -> None:
         )
 
     assert "unknown" in str(exc_info.value)
+
+
+def test_sundial_runtime_adapter_enforces_zero_shot_mode() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        build_model_runtime_config(
+            model_type="sundial",
+            config_data={
+                "context_length": 128,
+                "forecast_length": 96,
+                "training_mode": "fine_tune",
+            },
+        )
+
+    assert "training_mode" in str(exc_info.value)
+    assert "zero_shot" in str(exc_info.value)
 
 
 def test_tide_runtime_adapter_enforces_encoder_decoder_dim_parity() -> None:
@@ -427,12 +456,14 @@ def test_model_config_registry_exposes_tsmixer_schema_and_adapter() -> None:
         "naive_baseline",
         "patchtst",
         "statistical",
+        "sundial",
         "tft",
         "tide",
         "ttm",
         "tsmixer",
     ]:
         assert model_type in registered
+    assert get_model_config_schema("sundial") is not None
     assert get_model_config_schema("tsmixer") is not None
     assert get_model_config_schema("deepar") is not None
     assert get_model_config_schema("ttm") is not None
@@ -521,6 +552,56 @@ def test_ttm_factory_path_reports_unknown_runtime_field(
         model_path="ibm-granite/granite-timeseries-ttm-r2",
         context_length=128,
         forecast_length=96,
+        extra_config={"unknown_field": True},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        ModelFactory.create_model(config)
+
+    assert "unknown_field" in str(exc_info.value)
+
+
+def test_sundial_factory_path_uses_schema_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="sundial",
+        config_class_name="SundialConfig",
+        forecaster_class_name="SundialForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="sundial",
+        model_path="thuml/sundial-base-128m",
+        context_length=128,
+        forecast_length=72,
+        training_mode="zero_shot",
+        extra_config={"num_samples": 77},
+    )
+
+    model = ModelFactory.create_model(config)
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.num_samples == 77
+    assert model.config.training_mode == "zero_shot"
+
+
+def test_sundial_factory_path_reports_unknown_runtime_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="sundial",
+        config_class_name="SundialConfig",
+        forecaster_class_name="SundialForecaster",
+    )
+
+    config = GenericModelConfig(
+        model_type="sundial",
+        model_path="thuml/sundial-base-128m",
+        context_length=128,
+        forecast_length=96,
+        training_mode="zero_shot",
         extra_config={"unknown_field": True},
     )
 
@@ -868,3 +949,30 @@ def test_tsmixer_factory_path_supports_real_smoke_profile(
     assert model.config.num_epochs == 1
     assert model.config.batch_size == 32
     assert model.config.learning_rate == pytest.approx(0.001)
+
+
+def test_sundial_factory_path_supports_real_smoke_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_config_class = _install_fake_model_family_module(
+        monkeypatch=monkeypatch,
+        module_name="sundial",
+        config_class_name="SundialConfig",
+        forecaster_class_name="SundialForecaster",
+    )
+
+    overrides = load_model_config_from_yaml(
+        str(SUNDIAL_SMOKE_CONFIG_PATH),
+        model_type="sundial",
+    )
+    config = ModelFactory.create_zero_shot_config(
+        model_type="sundial",
+        extra_config=overrides,
+    )
+    model = ModelFactory.create_model(config)
+
+    assert isinstance(model.config, fake_config_class)
+    assert model.config.num_samples == 50
+    assert model.config.training_mode == "zero_shot"
+    assert model.config.context_length == 512
+    assert model.config.forecast_length == 96

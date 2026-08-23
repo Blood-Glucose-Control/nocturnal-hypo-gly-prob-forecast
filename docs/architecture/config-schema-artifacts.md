@@ -66,6 +66,7 @@ This command writes JSON schema files into
 - `model_configs.naive_baseline.schema.json`
 - `model_configs.patchtst.schema.json`
 - `model_configs.statistical.schema.json`
+- `model_configs.sundial.schema.json`
 - `model_configs.tft.schema.json`
 - `model_configs.tide.schema.json`
 - `model_configs.ttm.schema.json`
@@ -94,6 +95,7 @@ contract delta.
 - [model_configs.naive_baseline.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.naive_baseline.schema.json)
 - [model_configs.patchtst.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.patchtst.schema.json)
 - [model_configs.statistical.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.statistical.schema.json)
+- [model_configs.sundial.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.sundial.schema.json)
 - [model_configs.tft.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.tft.schema.json)
 - [model_configs.tide.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.tide.schema.json)
 - [model_configs.ttm.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.ttm.schema.json)

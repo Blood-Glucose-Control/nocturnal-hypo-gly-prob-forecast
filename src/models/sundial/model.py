@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 class SundialForecaster(BaseTimeSeriesFoundationModel):
     """Sundial forecaster implementation."""
 
+    config_class = SundialConfig
     config: SundialConfig  # Override base class typing
 
     def __init__(self, config: SundialConfig):
@@ -36,6 +37,18 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         """
         # Call parent (this will call _initialize_model)
         super().__init__(config)
+
+    @property
+    def training_backend(self) -> TrainingBackend:
+        return TrainingBackend.TRANSFORMERS
+
+    @property
+    def supports_zero_shot(self) -> bool:
+        return True
+
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        return True
 
     def _initialize_model(self) -> None:
         """Load the Sundial model from HuggingFace."""
@@ -61,18 +74,15 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
 
         info_print(f"Sundial model initialized on {self.device}")
 
-    # Properties
-    @property
-    def training_backend(self) -> TrainingBackend:
-        return TrainingBackend.TRANSFORMERS
+    def _prepare_training_data(
+        self, train_data: Any
+    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
+        raise NotImplementedError("Sundial zero-shot mode does not support training")
 
-    @property
-    def supports_zero_shot(self) -> bool:
-        return True
-
-    @property
-    def supports_probabilistic_forecast(self) -> bool:
-        return True
+    def _train_model(
+        self, train_data: Any, output_dir: str, **kwargs
+    ) -> Dict[str, Any]:
+        raise NotImplementedError("Sundial zero-shot mode does not support training")
 
     def _predict(
         self, data: pd.DataFrame, quantile_levels=None, **kwargs
@@ -125,19 +135,8 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         # Return median of samples (point forecast)
         return np.median(samples, axis=0)
 
-    # Stub implementations for abstract methods (zero-shot only)
-    def _prepare_training_data(
-        self, train_data: Any
-    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
-        raise NotImplementedError("Sundial zero-shot mode does not support training")
-
     def _save_checkpoint(self, output_dir: str) -> None:
         pass  # No-op for zero-shot
 
     def _load_checkpoint(self, model_dir: str) -> None:
         pass  # No-op for zero-shot
-
-    def _train_model(
-        self, train_data: Any, output_dir: str, **kwargs
-    ) -> Dict[str, Any]:
-        raise NotImplementedError("Sundial zero-shot mode does not support training")

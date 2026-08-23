@@ -14,6 +14,7 @@ from .model_configs import (
     NaiveBaselineModelConfigSchema,
     PatchTSTModelConfigSchema,
     StatisticalModelConfigSchema,
+    SundialModelConfigSchema,
     TFTModelConfigSchema,
     TiDEModelConfigSchema,
     TSMixerModelConfigSchema,
@@ -58,6 +59,11 @@ SCHEMA_ARTIFACT_SPECS: tuple[SchemaArtifactSpec, ...] = (
         filename="model_configs.statistical.schema.json",
         schema_type=StatisticalModelConfigSchema,
         source_symbol="src.config.schemas.model_configs.StatisticalModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.sundial.schema.json",
+        schema_type=SundialModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.SundialModelConfigSchema",
     ),
     SchemaArtifactSpec(
         filename="model_configs.tft.schema.json",

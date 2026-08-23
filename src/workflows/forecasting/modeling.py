@@ -87,6 +87,7 @@ class ModelFactory:
     @staticmethod
     def get_default_model_path(model_type: str) -> str:
         defaults = {
+            "sundial": "thuml/sundial-base-128m",
             "ttm": "ibm-granite/granite-timeseries-ttm-r2",
             "chronos2": "autogluon/chronos-2",
             "moment": "AutonLab/MOMENT-1-small",
@@ -107,6 +108,25 @@ class ModelFactory:
     @staticmethod
     def create_model(config: GenericModelConfig):
         model_type = config.model_type.lower()
+        if model_type == "sundial":
+            from ...models.sundial import SundialConfig, SundialForecaster
+
+            extra = dict(config.extra_config) if config.extra_config else {}
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "sundial",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    **extra,
+                },
+            )
+            return SundialForecaster(SundialConfig(**runtime_config))
         if model_type == "ttm":
             from ...models.ttm import TTMConfig, TTMForecaster
 
@@ -398,7 +418,7 @@ class ModelFactory:
             return TSMixerForecaster(TSMixerConfig(**runtime_config))
         raise ValueError(
             f"Unsupported model type: {model_type}. "
-            "Supported types: ttm, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
+            "Supported types: sundial, ttm, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
             "naive_baseline, statistical, deepar, patchtst, tft, tsmixer"
         )
 
@@ -530,6 +550,28 @@ class ModelFactory:
         config: GenericModelConfig,
     ):
         model_type_lower = model_type.lower()
+        if model_type_lower == "sundial":
+            from ...models.sundial import SundialConfig, SundialForecaster
+
+            extra = dict(config.extra_config) if config.extra_config else {}
+            runtime_config = build_model_runtime_config(
+                model_type=model_type_lower,
+                config_data={
+                    "model_type": "sundial",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    **extra,
+                },
+            )
+            return SundialForecaster.load(
+                model_path,
+                SundialConfig(**runtime_config),
+            )
         if model_type_lower == "ttm":
             from ...models.ttm import TTMConfig, TTMForecaster
 
@@ -663,6 +705,6 @@ class ModelFactory:
             return TSMixerForecaster.load(model_path)
         raise ValueError(
             f"Unsupported model type for loading: {model_type}. "
-            "Supported types: ttm, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
+            "Supported types: sundial, ttm, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
             "naive_baseline, statistical, deepar, patchtst, tft, tsmixer"
         )

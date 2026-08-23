@@ -21,6 +21,10 @@
       "source_symbol": "src.config.schemas.model_configs.StatisticalModelConfigSchema"
     },
     {
+      "file": "model_configs.sundial.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.SundialModelConfigSchema"
+    },
+    {
       "file": "model_configs.tft.schema.json",
       "source_symbol": "src.config.schemas.model_configs.TFTModelConfigSchema"
     },

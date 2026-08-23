@@ -117,7 +117,7 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 | Model ID | Runtime factory support | Schema adapter status | Next action |
 |---|---|---|---|
 | `tsmixer` | Active | ✅ Completed (pilot) | Keep as reference implementation for adapter pattern |
-| `sundial` | Active | ⏳ Pending | Add schema + adapter; wire into registry; add fixture and invalid-config tests |
+| `sundial` | Active | ✅ Completed | Schema + adapter wired; includes zero-shot-only validation plus fixture + invalid-config tests |
 | `ttm` | Active | ✅ Completed | Schema + adapter wired; includes strict split/target validation and workflow factory routing |
 | `chronos` | Active | ⏳ Pending | Add schema + adapter; validate zero-shot/fine-tune fields |
 | `chronos2` | Active | ✅ Completed | Schema + adapter wired; active configs validate through model schema registry |
