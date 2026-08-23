@@ -1,0 +1,171 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for Toto model YAML configs.",
+  "properties": {
+    "batch_size": {
+      "default": 64,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Covariate Cols",
+      "type": "array"
+    },
+    "decay_steps": {
+      "default": 1000,
+      "minimum": 0,
+      "title": "Decay Steps",
+      "type": "integer"
+    },
+    "eval_batch_size": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": 64,
+      "title": "Eval Batch Size"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "fp16": {
+      "default": true,
+      "title": "Fp16",
+      "type": "boolean"
+    },
+    "freeze_backbone": {
+      "default": false,
+      "title": "Freeze Backbone",
+      "type": "boolean"
+    },
+    "lr": {
+      "default": 0.0001,
+      "exclusiveMinimum": 0.0,
+      "title": "Lr",
+      "type": "number"
+    },
+    "max_steps": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Steps"
+    },
+    "min_lr": {
+      "default": 1e-05,
+      "minimum": 0.0,
+      "title": "Min Lr",
+      "type": "number"
+    },
+    "model_path": {
+      "default": "Datadog/Toto-Open-Base-1.0",
+      "minLength": 1,
+      "title": "Model Path",
+      "type": "string"
+    },
+    "model_type": {
+      "const": "toto",
+      "default": "toto",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "num_epochs": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Num Epochs"
+    },
+    "num_samples": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Num Samples"
+    },
+    "samples_per_batch": {
+      "default": 10,
+      "exclusiveMinimum": 0,
+      "title": "Samples Per Batch",
+      "type": "integer"
+    },
+    "stable_steps": {
+      "default": 1000,
+      "minimum": 0,
+      "title": "Stable Steps",
+      "type": "integer"
+    },
+    "train_batch_size": {
+      "default": 4,
+      "exclusiveMinimum": 0,
+      "title": "Train Batch Size",
+      "type": "integer"
+    },
+    "training_mode": {
+      "default": "fine_tune",
+      "title": "Training Mode",
+      "type": "string"
+    },
+    "use_cpu": {
+      "default": false,
+      "title": "Use Cpu",
+      "type": "boolean"
+    },
+    "val_batch_size": {
+      "default": 1,
+      "exclusiveMinimum": 0,
+      "title": "Val Batch Size",
+      "type": "integer"
+    },
+    "val_prediction_len": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Val Prediction Len",
+      "type": "integer"
+    },
+    "warmup_steps": {
+      "default": 200,
+      "minimum": 0,
+      "title": "Warmup Steps",
+      "type": "integer"
+    }
+  },
+  "title": "TotoModelConfigSchema",
+  "type": "object"
+}

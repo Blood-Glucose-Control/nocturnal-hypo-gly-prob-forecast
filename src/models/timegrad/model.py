@@ -96,6 +96,7 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
     probabilistic forecasts via diffusion sampling.
     """
 
+    config_class = TimeGradConfig
     config: TimeGradConfig
 
     def __init__(self, config: TimeGradConfig):

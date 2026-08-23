@@ -13,6 +13,10 @@
       "source_symbol": "src.config.schemas.model_configs.MoiraiModelConfigSchema"
     },
     {
+      "file": "model_configs.moment.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.MomentModelConfigSchema"
+    },
+    {
       "file": "model_configs.naive_baseline.schema.json",
       "source_symbol": "src.config.schemas.model_configs.NaiveBaselineModelConfigSchema"
     },
@@ -35,6 +39,14 @@
     {
       "file": "model_configs.tide.schema.json",
       "source_symbol": "src.config.schemas.model_configs.TiDEModelConfigSchema"
+    },
+    {
+      "file": "model_configs.timegrad.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.TimeGradModelConfigSchema"
+    },
+    {
+      "file": "model_configs.toto.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.TotoModelConfigSchema"
     },
     {
       "file": "model_configs.ttm.schema.json",
