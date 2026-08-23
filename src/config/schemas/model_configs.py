@@ -66,6 +66,20 @@ class TSMixerModelConfigSchema(BaseConfigSchema):
     min_segment_length: Optional[int] = Field(default=None, gt=0)
 
 
+class SundialModelConfigSchema(BaseConfigSchema):
+    """Schema contract for Sundial model YAML configs."""
+
+    model_type: Literal["sundial"] = Field(default="sundial")
+    model_path: Optional[str] = Field(default="thuml/sundial-base-128m")
+    context_length: int = Field(default=512, gt=0)
+    forecast_length: int = Field(default=96, gt=0)
+    num_samples: int = Field(default=50, gt=0)
+    training_mode: Literal["zero_shot"] = Field(default="zero_shot")
+    freeze_backbone: bool = Field(default=True)
+    use_cpu: bool = Field(default=False)
+    fp16: bool = Field(default=True)
+
+
 class AutoGluonModelConfigSchema(BaseConfigSchema):
     """Shared schema surface for AutoGluon-backed model families."""
 
@@ -428,6 +442,11 @@ def build_tsmixer_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     return _build_runtime_config("tsmixer", TSMixerModelConfigSchema, config_data)
 
 
+def build_sundial_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize Sundial runtime config values."""
+    return _build_runtime_config("sundial", SundialModelConfigSchema, config_data)
+
+
 def build_chronos2_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize Chronos-2 runtime config values."""
     return _build_runtime_config("chronos2", Chronos2ModelConfigSchema, config_data)
@@ -494,6 +513,10 @@ MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
     "statistical": ModelConfigRoute(
         schema_type=StatisticalModelConfigSchema,
         runtime_adapter=build_statistical_runtime_config,
+    ),
+    "sundial": ModelConfigRoute(
+        schema_type=SundialModelConfigSchema,
+        runtime_adapter=build_sundial_runtime_config,
     ),
     "tft": ModelConfigRoute(
         schema_type=TFTModelConfigSchema,

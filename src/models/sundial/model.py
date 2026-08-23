@@ -3,7 +3,7 @@ Sundial model implementation using the base TSFM framework.
 """
 
 import logging
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 import numpy as np
 import pandas as pd
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 class SundialForecaster(BaseTimeSeriesFoundationModel):
     """Sundial forecaster implementation."""
 
+    config_class = SundialConfig
     config: SundialConfig  # Override base class typing
 
     def __init__(self, config: SundialConfig):
@@ -36,6 +37,18 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         """
         # Call parent (this will call _initialize_model)
         super().__init__(config)
+
+    @property
+    def training_backend(self) -> TrainingBackend:
+        return TrainingBackend.TRANSFORMERS
+
+    @property
+    def supports_zero_shot(self) -> bool:
+        return True
+
+    @property
+    def supports_probabilistic_forecast(self) -> bool:
+        return True
 
     def _initialize_model(self) -> None:
         """Load the Sundial model from HuggingFace."""
@@ -51,28 +64,28 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         if self.model is None:
             error_print("Failed to load Sundial model.")
             raise ValueError("Model loading failed.")
+        model = cast(Any, self.model)
 
         use_cuda = torch.cuda.is_available() and not getattr(
             self.config, "use_cpu", False
         )
         self.device = "cuda" if use_cuda else "cpu"
-        self.model.to(self.device)
-        self.model.eval()
+        model.to(self.device)
+        model.eval()
 
         info_print(f"Sundial model initialized on {self.device}")
 
-    # Properties
-    @property
-    def training_backend(self) -> TrainingBackend:
-        return TrainingBackend.TRANSFORMERS
+    def _prepare_training_data(
+        self, train_data: Any
+    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
+        del train_data
+        raise NotImplementedError("Sundial zero-shot mode does not support training")
 
-    @property
-    def supports_zero_shot(self) -> bool:
-        return True
-
-    @property
-    def supports_probabilistic_forecast(self) -> bool:
-        return True
+    def _train_model(
+        self, train_data: Any, output_dir: str, **kwargs
+    ) -> Dict[str, Any]:
+        del train_data, output_dir, kwargs
+        raise NotImplementedError("Sundial zero-shot mode does not support training")
 
     def _predict(
         self, data: pd.DataFrame, quantile_levels=None, **kwargs
@@ -94,8 +107,10 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
             shape (len(quantile_levels), forecast_length) when quantile_levels
             is set.
         """
+        del kwargs
         if self.model is None:
             raise ValueError("Model not initialized. Call _initialize_model first.")
+        model = cast(Any, self.model)
 
         forecast_length = self.config.forecast_length
 
@@ -110,7 +125,7 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         seqs = torch.tensor(context, dtype=torch.float32).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            samples = self.model.generate(
+            samples = model.generate(
                 seqs,
                 max_new_tokens=forecast_length,
                 num_samples=self.config.num_samples,
@@ -125,19 +140,10 @@ class SundialForecaster(BaseTimeSeriesFoundationModel):
         # Return median of samples (point forecast)
         return np.median(samples, axis=0)
 
-    # Stub implementations for abstract methods (zero-shot only)
-    def _prepare_training_data(
-        self, train_data: Any
-    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[DataLoader]]:
-        raise NotImplementedError("Sundial zero-shot mode does not support training")
-
     def _save_checkpoint(self, output_dir: str) -> None:
+        del output_dir
         pass  # No-op for zero-shot
 
     def _load_checkpoint(self, model_dir: str) -> None:
+        del model_dir
         pass  # No-op for zero-shot
-
-    def _train_model(
-        self, train_data: Any, output_dir: str, **kwargs
-    ) -> Dict[str, Any]:
-        raise NotImplementedError("Sundial zero-shot mode does not support training")

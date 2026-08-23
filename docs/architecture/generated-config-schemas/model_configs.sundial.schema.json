@@ -1,0 +1,65 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for Sundial model YAML configs.",
+  "properties": {
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "fp16": {
+      "default": true,
+      "title": "Fp16",
+      "type": "boolean"
+    },
+    "freeze_backbone": {
+      "default": true,
+      "title": "Freeze Backbone",
+      "type": "boolean"
+    },
+    "model_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": "thuml/sundial-base-128m",
+      "title": "Model Path"
+    },
+    "model_type": {
+      "const": "sundial",
+      "default": "sundial",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "num_samples": {
+      "default": 50,
+      "exclusiveMinimum": 0,
+      "title": "Num Samples",
+      "type": "integer"
+    },
+    "training_mode": {
+      "const": "zero_shot",
+      "default": "zero_shot",
+      "title": "Training Mode",
+      "type": "string"
+    },
+    "use_cpu": {
+      "default": false,
+      "title": "Use Cpu",
+      "type": "boolean"
+    }
+  },
+  "title": "SundialModelConfigSchema",
+  "type": "object"
+}

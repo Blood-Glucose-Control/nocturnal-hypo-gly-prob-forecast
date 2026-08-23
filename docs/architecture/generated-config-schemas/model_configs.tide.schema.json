@@ -212,7 +212,6 @@
       "title": "Time Limit"
     },
     "training_mode": {
-      "const": "from_scratch",
       "default": "from_scratch",
       "title": "Training Mode",
       "type": "string"
