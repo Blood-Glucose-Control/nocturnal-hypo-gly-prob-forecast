@@ -5,19 +5,10 @@ This package provides a unified interface for TTM models following the
 base TSFM framework.
 """
 
-from .config import (
-    TTMConfig,
-    # Deprecated — use TTMConfig() directly
-    create_default_ttm_config,
-    create_ttm_fine_tuning_config,
-    create_ttm_zero_shot_config,
-)
+from .config import TTMConfig
 from .model import TTMForecaster
 
 __all__ = [
     "TTMForecaster",
     "TTMConfig",
-    "create_default_ttm_config",
-    "create_ttm_fine_tuning_config",
-    "create_ttm_zero_shot_config",
 ]

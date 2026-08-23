@@ -56,10 +56,6 @@ from src.data.versioning.dataset_registry import DatasetRegistry
 from src.evaluation.episode_builders import build_midnight_episodes
 from src.evaluation.metrics import compute_regression_metrics
 from src.models.ttm import TTMConfig, TTMForecaster
-from src.models.ttm.config import (
-    create_default_ttm_config,
-    create_ttm_zero_shot_config,
-)
 from src.utils import load_yaml_config
 
 # ---------------------------------------------------------------------------
@@ -511,9 +507,16 @@ def main():
     # ----- Create all objects upfront -----
     registry = DatasetRegistry(holdout_config_dir=args.config_dir)
 
-    zs_config = create_ttm_zero_shot_config(**config_overrides)
+    zs_config = TTMConfig(
+        **{
+            **config_overrides,
+            "training_mode": "zero_shot",
+            "freeze_backbone": True,
+            "num_epochs": 0,
+        }
+    )
     ft_overrides = {k: v for k, v in config_overrides.items() if k != "training_mode"}
-    ft_config = create_default_ttm_config(training_mode="fine_tune", **ft_overrides)
+    ft_config = TTMConfig(training_mode="fine_tune", **ft_overrides)
 
     skip = set(args.skip_steps)
     if args.skip_training:

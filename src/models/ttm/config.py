@@ -45,7 +45,7 @@ class TTMConfig(ModelConfig):
 
     # --- TTM identity (override ModelConfig defaults) ---
     model_type: str = "ttm"
-    model_path: str = "ibm-granite/granite-timeseries-ttm-r2"
+    model_path: Optional[str] = "ibm-granite/granite-timeseries-ttm-r2"
     training_backend: TrainingBackend = TrainingBackend.TRANSFORMERS
 
     # --- Architecture ---
@@ -164,31 +164,3 @@ class TTMConfig(ModelConfig):
             raise ValueError(
                 "TTMConfig validation failed:\n" + "\n".join(f"- {e}" for e in errors)
             )
-
-
-# ---------------------------------------------------------------------------
-# Backwards compatibility — old names still importable but just call TTMConfig
-# ---------------------------------------------------------------------------
-
-
-def create_default_ttm_config(**overrides) -> TTMConfig:
-    """DEPRECATED: Use TTMConfig(**overrides) directly."""
-    return TTMConfig(**overrides)
-
-
-def create_ttm_fine_tuning_config(**overrides) -> TTMConfig:
-    """DEPRECATED: Use TTMConfig(training_mode="fine_tune", ...) directly."""
-    defaults = {
-        "training_mode": "fine_tune",
-        "freeze_backbone": False,
-        "learning_rate": 1e-5,
-        "num_epochs": 5,
-        "warmup_steps": 500,
-    }
-    return create_default_ttm_config(**{**defaults, **overrides})
-
-
-def create_ttm_zero_shot_config(**overrides) -> TTMConfig:
-    """DEPRECATED: Use TTMConfig(training_mode="zero_shot", freeze_backbone=True, num_epochs=0) directly."""
-    forced = {"training_mode": "zero_shot", "freeze_backbone": True, "num_epochs": 0}
-    return create_default_ttm_config(**{**overrides, **forced})
