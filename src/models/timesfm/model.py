@@ -484,6 +484,8 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     Uses TimesFmModelForPrediction for inference and HF Trainer for fine-tuning.
     """
 
+    config_class = TimesFMConfig
+
     def __init__(self, config: TimesFMConfig):
         super().__init__(config)
         self.config: TimesFMConfig = self.config

@@ -63,7 +63,12 @@ def load_model_config_from_yaml(
         if callable(model_dump):
             raw_config = model_dump(exclude_none=True)
         else:
-            raw_config = validated.dict(exclude_none=True)
+            legacy_dump = getattr(validated, "dict", None)
+            if not callable(legacy_dump):
+                raise ValueError(
+                    f"Validated model config does not support dump API: {config_path}"
+                )
+            raw_config = legacy_dump(exclude_none=True)
         if not isinstance(raw_config, dict):
             raise ValueError(
                 f"Model config must be a YAML mapping/object: {config_path}"
@@ -222,21 +227,25 @@ class ModelFactory:
                 raise ImportError(
                     f"TimesFM model not available. Install with: pip install transformers>=5.2.0: {e}"
                 ) from e
-            extra = dict(config.extra_config)
-            checkpoint_path = extra.pop("checkpoint_path", None) or config.model_path
-            return TimesFMForecaster(
-                TimesFMConfig(
-                    checkpoint_path=checkpoint_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    horizon_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    use_cpu=config.use_cpu,
-                    learning_rate=config.learning_rate,
+            extra = dict(config.extra_config) if config.extra_config else {}
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "timesfm",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
                     **extra,
-                )
+                },
             )
+            return TimesFMForecaster(TimesFMConfig(**runtime_config))
         if model_type == "timegrad":
             try:
                 from ...models.timegrad import TimeGradConfig, TimeGradForecaster
@@ -678,21 +687,27 @@ class ModelFactory:
         if model_type_lower == "timesfm":
             from ...models.timesfm import TimesFMConfig, TimesFMForecaster
 
-            extra = dict(config.extra_config)
-            checkpoint_path = extra.pop("checkpoint_path", None) or config.model_path
+            extra = dict(config.extra_config) if config.extra_config else {}
+            runtime_config = build_model_runtime_config(
+                model_type=model_type_lower,
+                config_data={
+                    "model_type": "timesfm",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
+            )
             return TimesFMForecaster.load(
                 model_path,
-                TimesFMConfig(
-                    checkpoint_path=checkpoint_path,
-                    context_length=config.context_length,
-                    forecast_length=config.forecast_length,
-                    horizon_length=config.forecast_length,
-                    batch_size=config.batch_size,
-                    num_epochs=config.num_epochs,
-                    use_cpu=config.use_cpu,
-                    learning_rate=config.learning_rate,
-                    **extra,
-                ),
+                TimesFMConfig(**runtime_config),
             )
         if model_type_lower == "timegrad":
             from ...models.timegrad import TimeGradConfig, TimeGradForecaster

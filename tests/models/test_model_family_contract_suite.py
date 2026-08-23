@@ -91,7 +91,9 @@ MODEL_FAMILY_CLASS_CONTRACT: dict[str, dict[str, object]] = {
 }
 
 SCHEMA_ROUTED_FAMILIES = set(get_registered_model_config_types())
-SCHEMA_ROUTED_METHOD_ORDER_EXEMPT_FAMILIES = {"moment", "timegrad", "toto"}
+# These families predate the canonical method ordering convention; keep them
+# exempt until their implementation-order cleanup pass lands.
+SCHEMA_ROUTED_METHOD_ORDER_EXEMPT_FAMILIES = {"moment", "timegrad", "timesfm", "toto"}
 AUTOGLUON_THIN_WRAPPER_FAMILIES = {
     "deepar",
     "naive_baseline",

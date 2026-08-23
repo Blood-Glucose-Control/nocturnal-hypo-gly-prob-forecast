@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-20
 **Task ID:** `pydantic-config-schemas`
-**Status:** Phase 1-3 complete; Phase 4.1-4.2 complete; Phase 4.3 + model-family rollout in progress
+**Status:** Phase 1-4 complete; model-family schema rollout complete
 
 ## What this task means (plain English)
 
@@ -95,8 +95,8 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
    - migrated `src/experiments/nocturnal/holdout_split_analysis.py` from `HoldoutConfig.load(...)` to schema loader lane;
    - migrated workflow evaluation scripts that were still loading loose model YAML dicts (`src/workflows/evaluation/nocturnal_hypo_eval.py`, `src/workflows/evaluation/sliding_window_eval.py`, `src/workflows/evaluation/validate_predict_batch.py`) to shared model-config schema loader path.
 2. ✅ Phase 4.2 — generate JSON schema artifacts from active schema modules (`model_configs.py`, `data_configs.py`, `workflow_configs.py`) into docs-visible location (`docs/architecture/generated-config-schemas/`) via `python -m src.config.schemas.json_schema_artifacts`.
-3. Phase 4.3 — contributor doc pass: document canonical “add a schema + adapter” workflow and deprecate any stale validation guidance.
-4. Phase 4.x follow-on — execute model-family schema rollout backlog (table below) so all active model IDs use registry-backed schema adapters.
+3. ✅ Phase 4.3 — contributor doc pass: documented canonical “add a schema + adapter” workflow and final validation gates in `docs/contributing.md`.
+4. ✅ Phase 4.x follow-on — completed model-family schema rollout so all active model IDs now use registry-backed schema adapters.
 
 ## Phase 3 migration table (draft)
 
@@ -122,10 +122,10 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 | `chronos2` | Active | ✅ Completed | Schema + adapter wired; active configs validate through model schema registry |
 | `tide` | Active | ✅ Completed | Schema + adapter wired; enforces TiDE architectural/training constraints and `learning_rate` alias normalization to `lr` |
 | `moirai` | Active | ✅ Completed | Schema + adapter wired; validates covariate-dim parity and learning-rate alias normalization |
-| `timegrad` | Active | ⏳ Pending | Add schema + adapter for TimeGrad config lane |
-| `moment` | Active | ⏳ Pending | Add schema + adapter for MOMENT lane |
-| `toto` | Active | ⏳ Pending | Add schema + adapter for Toto lane |
-| `timesfm` | Active | ⏳ Pending | Add schema + adapter for TimesFM lane |
+| `timegrad` | Active | ✅ Completed | Schema + adapter wired; validates split contract and learning-rate alias normalization |
+| `moment` | Active | ✅ Completed | Schema + adapter wired; validates MOMENT fine-tune/zero-shot lane defaults and alias normalization |
+| `toto` | Active | ✅ Completed | Schema + adapter wired; enforces Toto bounds and maps `learning_rate` to `lr` runtime field |
+| `timesfm` | Active | ✅ Completed | Schema + adapter wired; normalizes checkpoint/model path aliases and horizon/forecast parity |
 | `deepar` | Active | ✅ Completed | Schema + adapter wired; supports `learning_rate` alias normalization to `lr` |
 | `patchtst` | Active | ✅ Completed | Schema + adapter wired; includes PatchTST head/dimension validation |
 | `tft` | Active | ✅ Completed | Schema + adapter wired; supports `learning_rate` alias normalization to `lr` |
@@ -147,4 +147,4 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 - [x] Create dedicated Phase 4 branch.
 - [x] Implement validation-path consolidation changes.
 - [x] Add JSON schema artifact generation.
-- [ ] Final contributor documentation pass for schema evolution workflow.
+- [x] Final contributor documentation pass for schema evolution workflow.
