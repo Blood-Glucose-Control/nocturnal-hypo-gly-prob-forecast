@@ -121,7 +121,7 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 | `ttm` | Active | ✅ Completed | Schema + adapter wired; includes strict split/target validation and workflow factory routing |
 | `chronos2` | Active | ✅ Completed | Schema + adapter wired; active configs validate through model schema registry |
 | `tide` | Active | ✅ Completed | Schema + adapter wired; enforces TiDE architectural/training constraints and `learning_rate` alias normalization to `lr` |
-| `moirai` | Active | ⏳ Pending | Add schema + adapter for MOIRAI-specific args |
+| `moirai` | Active | ✅ Completed | Schema + adapter wired; validates covariate-dim parity and learning-rate alias normalization |
 | `timegrad` | Active | ⏳ Pending | Add schema + adapter for TimeGrad config lane |
 | `moment` | Active | ⏳ Pending | Add schema + adapter for MOMENT lane |
 | `toto` | Active | ⏳ Pending | Add schema + adapter for Toto lane |

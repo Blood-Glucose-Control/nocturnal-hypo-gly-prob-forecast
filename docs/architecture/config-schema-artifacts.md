@@ -63,6 +63,7 @@ This command writes JSON schema files into
 
 - `model_configs.chronos2.schema.json`
 - `model_configs.deepar.schema.json`
+- `model_configs.moirai.schema.json`
 - `model_configs.naive_baseline.schema.json`
 - `model_configs.patchtst.schema.json`
 - `model_configs.statistical.schema.json`
@@ -92,6 +93,7 @@ contract delta.
 - [manifest.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/manifest.json)
 - [model_configs.chronos2.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.chronos2.schema.json)
 - [model_configs.deepar.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.deepar.schema.json)
+- [model_configs.moirai.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.moirai.schema.json)
 - [model_configs.naive_baseline.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.naive_baseline.schema.json)
 - [model_configs.patchtst.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.patchtst.schema.json)
 - [model_configs.statistical.schema.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/generated-config-schemas/model_configs.statistical.schema.json)

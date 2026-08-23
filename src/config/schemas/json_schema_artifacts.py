@@ -11,6 +11,7 @@ from .data_configs import HoldoutConfigSchema
 from .model_configs import (
     Chronos2ModelConfigSchema,
     DeepARModelConfigSchema,
+    MoiraiModelConfigSchema,
     NaiveBaselineModelConfigSchema,
     PatchTSTModelConfigSchema,
     StatisticalModelConfigSchema,
@@ -44,6 +45,11 @@ SCHEMA_ARTIFACT_SPECS: tuple[SchemaArtifactSpec, ...] = (
         filename="model_configs.deepar.schema.json",
         schema_type=DeepARModelConfigSchema,
         source_symbol="src.config.schemas.model_configs.DeepARModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.moirai.schema.json",
+        schema_type=MoiraiModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.MoiraiModelConfigSchema",
     ),
     SchemaArtifactSpec(
         filename="model_configs.naive_baseline.schema.json",

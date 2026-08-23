@@ -10,6 +10,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -32,7 +34,10 @@ jobs:
     - name: Run pre-commit
       run: |
         pip install pre-commit
-        pre-commit run --all-files
+        SKIP=ruff,ruff-format,pyright pre-commit run --all-files
+        pre-commit run ruff --from-ref origin/${{ github.base_ref }} --to-ref HEAD
+        pre-commit run ruff-format --from-ref origin/${{ github.base_ref }} --to-ref HEAD
+        pre-commit run pyright --from-ref origin/${{ github.base_ref }} --to-ref HEAD
 
     - name: Run tests
       run: |
