@@ -10,16 +10,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from ..autogluon_data_utils import (
-    convert_to_patient_dict,
-    format_segments_for_autogluon,
-)
-
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "convert_to_patient_dict",
-    "format_segments_for_autogluon",
     "build_midnight_episodes",
     "format_for_autogluon_with_known_covariates",
     "evaluate_with_covariates",
