@@ -101,7 +101,7 @@ def segment_all_patients(
         return {}
 
     logger.info(
-        "Starting gap handling for %d patients " "(threshold=%d min, min_length=%d)",
+        "Starting gap handling for %d patients (threshold=%d min, min_length=%d)",
         len(patients_data),
         imputation_threshold_mins,
         min_segment_length,

@@ -57,9 +57,7 @@ class ModelRegistry:
                         f"({mod_path}): {exc}"
                     ) from exc
         if name not in cls._registry:
-            raise KeyError(
-                f"Model '{name}' not registered. " f"Known: {cls.list_models()}"
-            )
+            raise KeyError(f"Model '{name}' not registered. Known: {cls.list_models()}")
         return cls._registry[name]
 
     @classmethod

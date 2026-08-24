@@ -350,9 +350,9 @@ class TestRolloverBasalAutomated:
 
         # Rows 0-5 should have 0 dose (no rate to forward-fill from)
         for i in range(6):
-            assert result.iloc[i]["dose_units"] == pytest.approx(
-                0.0, rel=1e-9
-            ), f"Row {i} should have 0 dose (before first rate)"
+            assert result.iloc[i]["dose_units"] == pytest.approx(0.0, rel=1e-9), (
+                f"Row {i} should have 0 dose (before first rate)"
+            )
 
         # Rows 6-17 should have the rate applied
         for i in range(6, 18):
@@ -419,9 +419,9 @@ class TestRolloverBasalAutomated:
         result = rollover_basal_rate(df, delivery_type="automated")
 
         # All dose_units should remain 0 (no rates to apply)
-        assert all(
-            result["dose_units"] == 0.0
-        ), "All dose_units should be 0 when rate column is all NaN"
+        assert all(result["dose_units"] == 0.0), (
+            "All dose_units should be 0 when rate column is all NaN"
+        )
 
     def test_adds_to_existing_bolus_automated(self, sample_data_automated):
         """Test that automated basal adds to existing bolus doses."""
@@ -471,9 +471,9 @@ class TestRolloverBasalTempEdgeCases:
         result = rollover_basal_rate(df, delivery_type="temp")
 
         # All dose_units should remain 0
-        assert all(
-            result["dose_units"] == 0.0
-        ), "All dose_units should be 0 when rate column is all NaN"
+        assert all(result["dose_units"] == 0.0), (
+            "All dose_units should be 0 when rate column is all NaN"
+        )
 
     def test_leading_nan_rates_temp(self):
         """Test handling of leading NaN rates before first rate event for temp delivery."""
@@ -502,9 +502,9 @@ class TestRolloverBasalTempEdgeCases:
 
         # Rows 0-3 should have 0 dose (before first rate)
         for i in range(4):
-            assert result.iloc[i]["dose_units"] == pytest.approx(
-                0.0, rel=1e-9
-            ), f"Row {i} should have 0 dose (before first rate)"
+            assert result.iloc[i]["dose_units"] == pytest.approx(0.0, rel=1e-9), (
+                f"Row {i} should have 0 dose (before first rate)"
+            )
 
         # Rows 4-9 should have dose (30 min duration = 6 rows)
         for i in range(4, 10):
@@ -514,9 +514,9 @@ class TestRolloverBasalTempEdgeCases:
 
         # Rows 10-11 should have 0 (after duration ends)
         for i in range(10, 12):
-            assert result.iloc[i]["dose_units"] == pytest.approx(
-                0.0, rel=1e-9
-            ), f"Row {i} should have 0 dose (after duration ends)"
+            assert result.iloc[i]["dose_units"] == pytest.approx(0.0, rel=1e-9), (
+                f"Row {i} should have 0 dose (after duration ends)"
+            )
 
     def test_nan_duration_with_valid_rate(self):
         """Test that NaN duration_mins is handled when rate is valid."""
@@ -542,6 +542,6 @@ class TestRolloverBasalTempEdgeCases:
         result = rollover_basal_rate(df, delivery_type="temp")
 
         # Should skip this rate since duration is NaN - all doses should be 0
-        assert all(
-            result["dose_units"] == 0.0
-        ), "All dose_units should be 0 when duration_mins is NaN"
+        assert all(result["dose_units"] == 0.0), (
+            "All dose_units should be 0 when duration_mins is NaN"
+        )

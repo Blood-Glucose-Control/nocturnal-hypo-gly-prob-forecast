@@ -1,6 +1,7 @@
 # P1-38 Model Runtime Consolidation Plan
 
 **Date:** 2026-08-23
+**Update Date:** 2026-08-23
 **Status:** Proposed (pending execution)
 **Tracking row:** `model-runtime-consolidation-wave` in [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
 
@@ -20,6 +21,7 @@ Secondary candidates with medium complexity:
 
 - [chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py)
 - [toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py)
+- [tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py)
 
 This is a **P1 stabilization/maintainability** task that should land before
 Optuna/MLflow/stats/experiments-collapse so those later workstreams build on a
@@ -36,6 +38,9 @@ This task should start **after**:
    [P1-15_PYDANTIC_CONFIG_SCHEMAS_EXECUTION_PLAN.md](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/agent_notes/P1-15_PYDANTIC_CONFIG_SCHEMAS_EXECUTION_PLAN.md).
 2. Canonical model extension contract publication:
    `model-extension-contract-doc`.
+3. `ruff-baseline-cleanup-pass` completion so this wave starts from a restored
+   repo-wide lint baseline and avoids mixing baseline churn with runtime
+   consolidation changes.
 
 This task should complete **before**:
 
@@ -55,6 +60,30 @@ Rationale: those tasks require reliable, predictable, low-duplication model entr
 3. Keep public workflow/model interfaces behavior-compatible.
 4. Increase confidence via contract tests and fixture-backed regression checks.
 5. Improve contributor velocity for future model-family additions/refactors.
+
+### Explicit architecture commitments (locked for P1-38)
+
+1. **Constructor unification target is explicit:** maintained runtime entrypoints
+   should converge on schema-routed `ModelFactory` constructor semantics.
+2. **Current-state acknowledgment:** today, primary evaluation flows still rely on
+   [`create_model_and_config`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/factory.py:35);
+   this task owns migration away from that direct dependency.
+3. **Shim policy:** `create_model_and_config` may exist only as a temporary
+   migration shim during intermediate PR slices; no new direct call sites should
+   be introduced.
+4. **End-state requirement:** by task closeout, maintained runtime entrypoints are
+   no longer dependent on `create_model_and_config`; final wave removes the shim
+   once parity is validated.
+5. **ModelRegistry boundary:** keep
+   [`ModelRegistry`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/registry.py)
+   scoped to registration/discovery/test support, not as an independent third
+   runtime constructor lane.
+6. **Runtime priority scope:** preserve and prioritize behavior for
+   [`nocturnal_hypo_eval.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/nocturnal_hypo_eval.py)
+   (primary) and
+   [`sliding_window_eval.py`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/sliding_window_eval.py)
+   (secondary); experimental/scratch surfaces remain non-blocking unless they
+   share the maintained constructor lane.
 
 ---
 
@@ -80,10 +109,10 @@ Rationale: those tasks require reliable, predictable, low-duplication model entr
 
 5. [chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py)
 6. [toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py)
+7. [tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py)
 
 ### Tier C (already compact enough; monitor only)
 
-- [tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py)
 - [timegrad/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timegrad/model.py)
 - [tsmixer/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tsmixer/model.py)
 - thin AutoGluon wrappers already centralized by
@@ -140,10 +169,15 @@ Likely homes:
 - Break up long training path and context/target preparation surfaces into tested helpers.
 - Preserve existing forecasting API semantics.
 
-### WS5 — Tier B completion (Chronos2 + Toto)
+### WS5 — Tier B completion (Chronos2 + Toto + Tide)
 
 - Consolidate medium-complexity duplication.
 - Keep Chronos2-specific special handling where required (intentional deviations documented).
+- Clean up family-local utility module boundaries for Chronos2/Tide (for example
+  [chronos2/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/utils.py),
+  [tide/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/utils.py), and
+  [tide/visualization.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/visualization.py))
+  so model modules are not coupled to misplaced helper surfaces.
 
 ### WS6 — Documentation + contributor contract updates
 
@@ -162,7 +196,7 @@ Use small, reviewable waves:
 2. **PR-C1:** TTM consolidation
 3. **PR-C2:** TimesFM + Moirai consolidation
 4. **PR-C3:** Moment consolidation
-5. **PR-C4:** Chronos2 + Toto consolidation + docs finalization
+5. **PR-C4:** Chronos2 + Toto + Tide consolidation + docs finalization
 
 Each PR must include targeted tests for changed families and avoid cross-family
 incidental edits.
@@ -215,6 +249,14 @@ Task is done when:
 3. All affected families pass contract/schema/factory gates.
 4. Shared helper surfaces are documented and referenced by contributor docs.
 5. `project_tracking.csv` reflects completed state and links final artifacts.
+6. Maintained evaluation entrypoints (including canonical wrappers that route to
+   [`src/workflows/evaluation/`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/))
+   use schema-routed constructor behavior.
+7. `create_model_and_config` has no remaining maintained entrypoint callers.
+8. The final consolidation PR removes the `create_model_and_config` shim after
+   test-backed parity validation.
+9. Constructor-path ownership is explicit in docs: `ModelFactory` for runtime
+   construction and `ModelRegistry` for registration/discovery support only.
 
 ---
 

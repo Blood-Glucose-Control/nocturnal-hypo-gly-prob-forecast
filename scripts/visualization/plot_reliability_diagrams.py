@@ -347,7 +347,7 @@ def plot_appendix_per_dataset(
         axes_flat = np.array(axes).ravel()
 
         fig.suptitle(
-            f"Reliability diagrams — {dataset_label}\n" "Dashed: perfect calibration",
+            f"Reliability diagrams — {dataset_label}\nDashed: perfect calibration",
             fontsize=12,
             fontweight="bold",
         )

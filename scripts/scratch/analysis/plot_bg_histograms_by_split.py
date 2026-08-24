@@ -117,7 +117,7 @@ def main() -> None:
         axes = axes.reshape(-1, 1)
 
     thousands_fmt = mticker.FuncFormatter(
-        lambda x, _pos: f"{x/1000:g}k" if x >= 1000 else f"{x:g}"
+        lambda x, _pos: f"{x / 1000:g}k" if x >= 1000 else f"{x:g}"
     )
 
     for c, ds in enumerate(args.datasets):
@@ -184,7 +184,7 @@ def main() -> None:
             ax.text(
                 0.97,
                 0.93,
-                f"CGM Count={len(vals)/1000000:.1f}M\nPatients={n_pat}",
+                f"CGM Count={len(vals) / 1000000:.1f}M\nPatients={n_pat}",
                 transform=ax.transAxes,
                 ha="right",
                 va="top",

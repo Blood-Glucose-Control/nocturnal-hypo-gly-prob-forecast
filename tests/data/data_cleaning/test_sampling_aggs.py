@@ -158,9 +158,9 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
 
         # Verify we don't get all NaNs (the bug that was fixed)
         # At least some rows should have valid data
-        assert (
-            not result["bg_mM"].isna().all()
-        ), "All bg_mM values are NaN - date range alignment bug!"
+        assert not result["bg_mM"].isna().all(), (
+            "All bg_mM values are NaN - date range alignment bug!"
+        )
 
         # Index should be regular from rounded min to rounded max at 5-min intervals
         # Original min: 00:02:30 -> rounds to 00:00:00

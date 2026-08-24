@@ -96,9 +96,9 @@ class TestChronos2:
         cfg = Chronos2Config(training_mode="fine_tune", checkpoint_save_steps=5000)
         hp = cfg.get_autogluon_hyperparameters()
 
-        assert (
-            "fine_tune_trainer_kwargs" in hp["Chronos2"]
-        ), "fine_tune_trainer_kwargs missing — checkpoints will not be saved"
+        assert "fine_tune_trainer_kwargs" in hp["Chronos2"], (
+            "fine_tune_trainer_kwargs missing — checkpoints will not be saved"
+        )
         trainer_kwargs = hp["Chronos2"]["fine_tune_trainer_kwargs"]
         assert trainer_kwargs["save_strategy"] == "steps"
         assert trainer_kwargs["save_steps"] == 5000

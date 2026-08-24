@@ -307,7 +307,7 @@ def generate_future_known_covariates(
     unsupported = set(known_covariate_cols) - supported
     if unsupported:
         raise ValueError(
-            f"Unsupported known covariate(s): {unsupported}. " f"Supported: {supported}"
+            f"Unsupported known covariate(s): {unsupported}. Supported: {supported}"
         )
 
     future_times = pd.date_range(

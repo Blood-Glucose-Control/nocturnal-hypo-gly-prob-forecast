@@ -709,9 +709,9 @@ class Lynch2022DataLoader(DatasetBase):
                         )
 
                 # Calculate number of unique days for this patient
-                assert isinstance(
-                    patient_data.index, pd.DatetimeIndex
-                ), "Index must be a DatetimeIndex"
+                assert isinstance(patient_data.index, pd.DatetimeIndex), (
+                    "Index must be a DatetimeIndex"
+                )
                 unique_days = patient_data.index.normalize().nunique()
 
                 # Skip patients with insufficient data
@@ -781,9 +781,9 @@ class Lynch2022DataLoader(DatasetBase):
             all_train_dates = set()
             for patient_train_df in train_data_dict.values():
                 # Use index instead of datetime column
-                assert isinstance(
-                    patient_train_df.index, pd.DatetimeIndex
-                ), "Index must be a DatetimeIndex"
+                assert isinstance(patient_train_df.index, pd.DatetimeIndex), (
+                    "Index must be a DatetimeIndex"
+                )
                 patient_dates = patient_train_df.index.date
                 all_train_dates.update(patient_dates)
             self.num_train_days = len(all_train_dates)

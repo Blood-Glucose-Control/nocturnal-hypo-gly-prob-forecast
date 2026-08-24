@@ -242,9 +242,9 @@ def run_inference(
                     "rmse": rmse,
                 }
             )
-            print(f"  [{i+1}/{n}] {ep['patient_id']} {ep['anchor']}: RMSE={rmse:.3f}")
+            print(f"  [{i + 1}/{n}] {ep['patient_id']} {ep['anchor']}: RMSE={rmse:.3f}")
         except Exception as exc:
-            print(f"  [{i+1}/{n}] {ep['patient_id']} {ep['anchor']}: FAILED — {exc}")
+            print(f"  [{i + 1}/{n}] {ep['patient_id']} {ep['anchor']}: FAILED — {exc}")
 
     return results
 

@@ -308,7 +308,7 @@ def main() -> None:
     if ep_index >= len(episodes_for_index):
         raise ValueError(
             f"Episode index {ep_index} out of range for patient {patient_id}. "
-            f"Available episodes: 0..{max(0, len(episodes_for_index)-1)}"
+            f"Available episodes: 0..{max(0, len(episodes_for_index) - 1)}"
         )
 
     selected_episode = episodes_for_index[ep_index]

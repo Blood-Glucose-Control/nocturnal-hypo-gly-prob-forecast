@@ -423,9 +423,9 @@ def main():
 
     # Verify required features exist
     for col in TIME_COLS:
-        assert (
-            col in train_flat.columns
-        ), f"{col} missing! Run: rm -rf cache/data/brown_2019/processed/ && python scripts/data_processing/verify_time_features.py"
+        assert col in train_flat.columns, (
+            f"{col} missing! Run: rm -rf cache/data/brown_2019/processed/ && python scripts/data_processing/verify_time_features.py"
+        )
     assert IOB_COL in train_flat.columns, f"{IOB_COL} missing from training data!"
     print(f"Time features present: {TIME_COLS}")
     print(f"IOB feature present: {IOB_COL}")
