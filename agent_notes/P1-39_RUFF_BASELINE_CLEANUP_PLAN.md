@@ -50,6 +50,10 @@ It should complete before:
    as a **temporary** P1 unblock, not a permanent scope reduction.
 5. Complete targeted utility-module cleanup for Chronos2/Tide surfaces that are
    currently messy or misplaced so P1-38 starts from a cleaner `src/models/` baseline.
+6. Keep the long-term Pyright target explicit: restore changed-file coverage across
+   **all** [`src/`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/)
+   and **all** [`tests/`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/)
+   once messy non-runtime areas have reorg/cleanup plans and execution slices.
 
 ---
 
@@ -139,6 +143,8 @@ Task completes when:
 7. The temporary Pyright narrowing rollback path is documented and linked in
    [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
    (`pyright-non-runtime-scope-triage`, `src-data-runtime-surface-reorg`).
+8. The roadmap to restore Pyright coverage for all `src/` + `tests/` paths is
+   explicitly tracked with staged cleanup tasks (not left as an implicit future intent).
 
 ---
 
@@ -192,3 +198,6 @@ Tracked rollback lane:
 
 - `pyright-non-runtime-scope-triage` (diagnostic inventory + staged re-expansion plan)
 - `src-data-runtime-surface-reorg` (`src/data` cleanup/reorg + typing/import hygiene)
+- `src-non-runtime-surface-reorg-wave` (remaining messy `src` areas outside runtime-core)
+- `tests-non-runtime-surface-reorg-wave` (messy test modules outside current runtime-focused lanes)
+- `pyright-src-tests-full-coverage-restore` (final scope restoration to all `src/` + `tests/`)
