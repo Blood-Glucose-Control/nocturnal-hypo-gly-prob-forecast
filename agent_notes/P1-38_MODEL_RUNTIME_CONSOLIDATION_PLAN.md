@@ -174,9 +174,9 @@ Likely homes:
 - Consolidate medium-complexity duplication.
 - Keep Chronos2-specific special handling where required (intentional deviations documented).
 - Clean up family-local utility module boundaries for Chronos2/Tide (for example
-  [chronos2/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/utils.py),
-  [tide/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/utils.py), and
-  [tide/visualization.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/visualization.py))
+  [chronos2/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/utils.py) and
+  shared helpers in
+  [autogluon_data_utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/autogluon_data_utils.py))
   so model modules are not coupled to misplaced helper surfaces.
 
 ### WS6 — Documentation + contributor contract updates

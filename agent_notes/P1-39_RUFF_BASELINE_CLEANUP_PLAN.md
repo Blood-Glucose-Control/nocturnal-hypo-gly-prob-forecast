@@ -85,8 +85,7 @@ It should complete before:
   and rewire imports now (do not defer this class of cleanup to a later phase).
 - Include targeted hygiene/placement cleanup for:
   - [chronos2/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/utils.py)
-  - [tide/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/utils.py)
-  - [tide/visualization.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/visualization.py)
+  - [autogluon_data_utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/autogluon_data_utils.py)
   where these helpers violate current lint/organization expectations.
 
 ### PR-R2 — Tests cleanup
