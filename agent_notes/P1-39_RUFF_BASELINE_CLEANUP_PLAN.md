@@ -1,7 +1,7 @@
 # P1-39 Ruff Baseline Cleanup Plan
 
 **Date:** 2026-08-23
-**Update Date:** 2026-08-23
+**Update Date:** 2026-08-24
 **Status:** Proposed (pending execution)
 **Tracking row:** `ruff-baseline-cleanup-pass` in [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
 
@@ -46,7 +46,8 @@ It should complete before:
 3. Align CI/pre-commit behavior so Ruff can run all-files again without noisy,
    unrelated failures in model-feature PRs.
 4. Preserve a runtime-core Pyright diff-scoped policy for multi-venv model stacks
-   (`src/models`, `src/workflows`, `src/configs`, and matching `tests/*` lanes).
+   (`src/models`, `src/workflows`, `src/configs`, and matching `tests/*` lanes)
+   as a **temporary** P1 unblock, not a permanent scope reduction.
 5. Complete targeted utility-module cleanup for Chronos2/Tide surfaces that are
    currently messy or misplaced so P1-38 starts from a cleaner `src/models/` baseline.
 
@@ -135,6 +136,9 @@ Task completes when:
    P1-38 handoff notes.
 6. Non-runtime paths narrowed out of the Pyright pre-commit hook are tracked with
    an explicit follow-up task and triage plan.
+7. The temporary Pyright narrowing rollback path is documented and linked in
+   [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
+   (`pyright-non-runtime-scope-triage`, `src-data-runtime-surface-reorg`).
 
 ---
 
@@ -156,7 +160,8 @@ pre-commit entries in
     hooks:
       - id: pyright
         args: [--project=pyrightconfig.json]
-        files: ^(src|tests)/.*\.py$
+        files: ^((src|tests)/(models|workflows|configs)/.*\.py)$
+        exclude: ^src/models/.*/_deprecated/.*\.py$
 ```
 
 Assessment checklist:
@@ -174,3 +179,16 @@ Assessment checklist:
    minimum Python accordingly (decision captured 2026-08-23).
 5. Document final keep/change decisions in this plan and mirror them in
    contributor-facing docs once P1-39 closes.
+
+---
+
+## 9) Temporary Pyright narrowing rollback intent (explicit)
+
+The narrowed Pyright scope introduced during P1-39 is intentionally temporary.
+It is expected to be expanded again after non-runtime legacy issues are triaged
+and cleaned in focused follow-on tasks, not by mixing them into runtime-core PRs.
+
+Tracked rollback lane:
+
+- `pyright-non-runtime-scope-triage` (diagnostic inventory + staged re-expansion plan)
+- `src-data-runtime-surface-reorg` (`src/data` cleanup/reorg + typing/import hygiene)
