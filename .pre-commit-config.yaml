@@ -18,6 +18,8 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.4
     hooks:
+      # PR-R3 temporary policy: keep Ruff scoped to Python sources, excluding notebooks.
+      # Revisit via project_tracking task `notebook-ruff-policy-restore` (P4).
       - id: ruff
         args: ["--fix", "--select=E4,E7,E9,F,I"]
         types_or: [python, pyi]

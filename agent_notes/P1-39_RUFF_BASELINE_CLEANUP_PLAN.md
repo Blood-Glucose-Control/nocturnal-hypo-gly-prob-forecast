@@ -95,14 +95,20 @@ It should complete before:
 
 ### PR-R3 — Scripts/notebooks policy slice
 
-- Decide and document whether notebooks are Ruff-linted or excluded.
-- Apply consistent policy in pre-commit config.
+- Decision (2026-08-25): keep notebooks temporarily excluded from Ruff during
+  P1-39 cleanup by retaining Ruff hook scope to Python source types
+  (`types_or: [python, pyi]`).
+- Document temporary deferral and track notebook-policy re-evaluation/restore in
+  `project_tracking.csv` via `notebook-ruff-policy-restore` (P4).
 
 ### PR-R4 — CI policy restore
 
 - Restore CI Ruff/Ruff-format to all-files execution once R0–R3 are clean.
 - Keep Pyright as changed-files scoped in
   [.github/workflows/cicd.yml](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/.github/workflows/cicd.yml).
+- CI wiring decision (2026-08-25): run `SKIP=pyright pre-commit run --all-files`
+  and keep `pre-commit run pyright --from-ref ... --to-ref ...` as the
+  changed-files-only gate.
 
 ---
 
@@ -200,3 +206,25 @@ Tracked rollback lane:
 - `src-non-runtime-surface-reorg-wave` (remaining messy `src` areas outside runtime-core)
 - `tests-non-runtime-surface-reorg-wave` (messy test modules outside current runtime-focused lanes)
 - `pyright-src-tests-full-coverage-restore` (final scope restoration to all `src/` + `tests/`)
+- `notebook-ruff-policy-restore` (re-evaluate and restore notebook Ruff policy after
+  prioritized runtime/non-runtime stabilization waves complete)
+
+---
+
+## 10) Wrap-up complete summary (2026-08-25)
+
+PR slices status:
+
+- PR-R0 (configuration freeze): complete (Ruff/Python semantic pins retained).
+- PR-R1 (core `src/` cleanup): complete and merged in #461.
+- PR-R2 (tests cleanup): complete as a no-op (tests scope already Ruff clean).
+- PR-R3 (scripts/notebooks policy): complete with temporary notebook exclusion
+  explicitly documented and tracked for follow-up (`notebook-ruff-policy-restore`, P4).
+- PR-R4 (CI policy restore): complete; CI workflow now runs Ruff/Ruff-format as
+  all-files via pre-commit and keeps Pyright diff-scoped.
+
+Exit criteria closeout status at wrap-up:
+
+- #2, #3, #4, #5, #6, #7, #8: satisfied in-repo with documented evidence.
+- #1: pending final PR CI evidence capture before marking
+  `ruff-baseline-cleanup-pass` done.
