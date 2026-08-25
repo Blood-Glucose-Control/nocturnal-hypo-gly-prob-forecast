@@ -37,7 +37,7 @@ This project is committed to providing a welcoming and inclusive environment for
 
 ### Prerequisites
 
-- Python 3.8 or higher (Python 3.12 recommended)
+- Python 3.9 or higher (Python 3.12 recommended)
 - Git
 - CUDA-capable GPU (recommended for model training)
 - Sufficient disk space for datasets and model outputs
@@ -441,15 +441,15 @@ ruff check .
 ruff check --fix .
 ```
 
-**Note**: Ruff is configured in your VS Code settings to run automatically on save. Pylance (Python language server) provides type checking and IntelliSense, configured via `pyrightconfig.json`.
+**Note**: Pylance (Python language server) provides type checking and IntelliSense, configured via `pyrightconfig.json`.
 
-CI policy (P1-39 cleanup lane):
+CI lint/type policy:
 
 - Ruff/Ruff-format are executed as all-files gates in CI via pre-commit.
 - Pyright remains diff-scoped in CI (`--from-ref ... --to-ref ...`) because
   model-family dependency isolation still requires runtime-core-focused typing checks.
-- Notebook files (`*.ipynb`) are temporarily excluded from Ruff by hook file-type scope (`types_or: [python, pyi]`); this is intentional and tracked for revisit in future work.
-  See `project_tracking.csv` task `notebook-ruff-policy-restore` (P4).
+- Notebook files (`*.ipynb`) are outside the current Ruff hook scope
+  (`types_or: [python, pyi]`).
 
 #### Pylance Configuration
 

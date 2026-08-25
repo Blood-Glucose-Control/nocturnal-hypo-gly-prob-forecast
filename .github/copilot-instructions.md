@@ -39,9 +39,8 @@ Common commands:
 - `SKIP=pyright pre-commit run --all-files`
 - `pre-commit run pyright --from-ref origin/<base> --to-ref HEAD`
 
-Current notebook lint policy: Ruff hooks are intentionally scoped to
-`types_or: [python, pyi]` (notebooks excluded) as a temporary P1-39 decision.
-Revisit task: `notebook-ruff-policy-restore` in `project_tracking.csv`.
+Current notebook lint policy: Ruff hooks are scoped to
+`types_or: [python, pyi]` (notebooks excluded).
 
 For model integration coverage, use the model-specific make targets in `Makefile` (for example `make test-ttm`, `make test-sundial`, `make test-timesfm`, `make test-autogluon`) rather than running all model-family tests by default.
 
@@ -56,3 +55,21 @@ When touching model-family code, schema adapters, or workflow model wiring, foll
 
 - Public docs in `docs/` should describe stable contracts and usage.
 - Phase/task tracking detail belongs in planning/tracking artifacts (for example `agent_notes/` and tracking CSV), not in canonical public docs unless explicitly requested.
+- Before editing public docs, verify statements against source-of-truth config
+  files (`pyproject.toml`, `.pre-commit-config.yaml`, `.github/workflows/*`).
+
+## Repository governance encoding (hard rules)
+
+- Treat `docs/` as public-facing and durable. Do not include internal project
+  management metadata there (phase IDs, wave names, task IDs, tracking-file
+  row references, private branch names, or temporary implementation narration).
+- If a temporary behavior must be documented in `docs/`, describe only the
+  current observable behavior and user impact. Keep rationale concise and avoid
+  references to internal planning artifacts.
+- Keep policy text location-specific:
+  - stable usage/contract guidance -> `docs/`
+  - execution sequencing/status/temporary rollout notes -> `agent_notes/` and
+    `project_tracking.csv`
+- When touching `docs/contributing.md`, also fix any adjacent obvious
+  inaccuracies discovered in the same section (for example version minimums or
+  commands that no longer match CI).
