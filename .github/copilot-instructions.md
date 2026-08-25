@@ -36,9 +36,12 @@ Run the smallest checks that validate the requested change:
 Common commands:
 
 - `pytest -v --color=yes --ignore=tests/models`
-- `pre-commit run ruff --from-ref origin/<base> --to-ref HEAD`
-- `pre-commit run ruff-format --from-ref origin/<base> --to-ref HEAD`
+- `SKIP=pyright pre-commit run --all-files`
 - `pre-commit run pyright --from-ref origin/<base> --to-ref HEAD`
+
+Current notebook lint policy: Ruff hooks are intentionally scoped to
+`types_or: [python, pyi]` (notebooks excluded) as a temporary P1-39 decision.
+Revisit task: `notebook-ruff-policy-restore` in `project_tracking.csv`.
 
 For model integration coverage, use the model-specific make targets in `Makefile` (for example `make test-ttm`, `make test-sundial`, `make test-timesfm`, `make test-autogluon`) rather than running all model-family tests by default.
 

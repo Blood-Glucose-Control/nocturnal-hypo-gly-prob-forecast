@@ -443,6 +443,14 @@ ruff check --fix .
 
 **Note**: Ruff is configured in your VS Code settings to run automatically on save. Pylance (Python language server) provides type checking and IntelliSense, configured via `pyrightconfig.json`.
 
+CI policy (P1-39 cleanup lane):
+
+- Ruff/Ruff-format are executed as all-files gates in CI via pre-commit.
+- Pyright remains diff-scoped in CI (`--from-ref ... --to-ref ...`) because
+  model-family dependency isolation still requires runtime-core-focused typing checks.
+- Notebook files (`*.ipynb`) are temporarily excluded from Ruff by hook file-type scope (`types_or: [python, pyi]`); this is intentional and tracked for revisit in future work.
+  See `project_tracking.csv` task `notebook-ruff-policy-restore` (P4).
+
 #### Pylance Configuration
 
 The project uses a **two-file configuration** for Pylance:
