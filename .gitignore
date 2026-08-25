@@ -233,3 +233,6 @@ scripts/notebooks/mlruns/
 mlflow_experiments/README.md
 
 *.pdf
+scratch.md
+.stash-backups/
+logs/*.txt
