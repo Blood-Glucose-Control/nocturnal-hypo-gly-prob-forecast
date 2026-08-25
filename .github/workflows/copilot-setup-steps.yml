@@ -2,11 +2,12 @@ name: Copilot Setup Steps
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/copilot-setup-steps.yml
   pull_request:
     paths:
+      - .github/copilot-instructions.md
+      - .github/agents/**
+      - .github/skills/**
+      - .github/workflows/copilot-code-review.yml
       - .github/workflows/copilot-setup-steps.yml
 
 jobs:

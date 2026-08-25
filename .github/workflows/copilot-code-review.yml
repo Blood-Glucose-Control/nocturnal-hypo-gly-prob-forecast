@@ -2,16 +2,17 @@ name: Copilot Code Review Setup
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - .github/workflows/copilot-code-review.yml
   pull_request:
     paths:
+      - .github/copilot-instructions.md
+      - .github/agents/**
+      - .github/skills/**
+      - .github/workflows/copilot-setup-steps.yml
       - .github/workflows/copilot-code-review.yml
 
 jobs:
   # Copilot code review environment customization uses the same setup contract.
-  copilot-setup-steps:
+  copilot-code-review-setup:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
