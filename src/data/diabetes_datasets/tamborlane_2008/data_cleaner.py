@@ -374,7 +374,7 @@ def prepare_for_modeling(
     # Create lagged features
     lookback_periods = int(lookback_hours * 12)  # Assuming 5-minute intervals
     for i in range(1, lookback_periods + 1):
-        df[f"bg_lag_{i*5}min"] = df[glucose_col].shift(i)
+        df[f"bg_lag_{i * 5}min"] = df[glucose_col].shift(i)
 
     # Create target (future glucose value)
     prediction_periods = int(prediction_horizon_hours * 12)
@@ -384,7 +384,7 @@ def prepare_for_modeling(
     if "glucose_roc" in df.columns:
         # Include rate of change features
         for i in range(1, min(6, lookback_periods)):
-            df[f"roc_lag_{i*5}min"] = df["glucose_roc"].shift(i)
+            df[f"roc_lag_{i * 5}min"] = df["glucose_roc"].shift(i)
 
     # Remove rows with NaN values from lagging
     df = df.dropna()

@@ -1,6 +1,7 @@
 # P1-39 Ruff Baseline Cleanup Plan
 
 **Date:** 2026-08-23
+**Update Date:** 2026-08-24
 **Status:** Proposed (pending execution)
 **Tracking row:** `ruff-baseline-cleanup-pass` in [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
 
@@ -44,7 +45,15 @@ It should complete before:
 2. Remove existing repo-wide Ruff violations in controlled slices.
 3. Align CI/pre-commit behavior so Ruff can run all-files again without noisy,
    unrelated failures in model-feature PRs.
-4. Preserve the current Pyright diff-scoped policy for multi-venv model stacks.
+4. Preserve a runtime-core Pyright diff-scoped policy for multi-venv model stacks
+   (`src/models`, `src/workflows`, `src/configs`, and matching `tests/*` lanes)
+   as a **temporary** P1 unblock, not a permanent scope reduction.
+5. Complete targeted utility-module cleanup for Chronos2/Tide surfaces that are
+   currently messy or misplaced so P1-38 starts from a cleaner `src/models/` baseline.
+6. Keep the long-term Pyright target explicit: restore changed-file coverage across
+   **all** [`src/`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/)
+   and **all** [`tests/`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/)
+   once messy non-runtime areas have reorg/cleanup plans and execution slices.
 
 ---
 
@@ -70,6 +79,14 @@ It should complete before:
 
 - Run repo-wide Ruff on `src/` and fix violations.
 - Keep changes mechanical (lint-driven), no behavior drift.
+- Decision (2026-08-23): when Chronos2/Tide helper logic is clearly shared or
+  misplaced, move it to a common maintained location under
+  [src/models/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/)
+  and rewire imports now (do not defer this class of cleanup to a later phase).
+- Include targeted hygiene/placement cleanup for:
+  - [chronos2/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/utils.py)
+  - [autogluon_data_utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/autogluon_data_utils.py)
+  where these helpers violate current lint/organization expectations.
 
 ### PR-R2 — Tests cleanup
 
@@ -118,6 +135,15 @@ Task completes when:
 2. All temporary diff-scoped Ruff workarounds are removed.
 3. Pyright remains intentionally diff-scoped (documented rationale retained).
 4. Contributor docs reflect the final lint policy and workflow.
+5. Chronos2/Tide utility-module cleanup from PR-R1 is completed and reflected in
+   P1-38 handoff notes.
+6. Non-runtime paths narrowed out of the Pyright pre-commit hook are tracked with
+   an explicit follow-up task and triage plan.
+7. The temporary Pyright narrowing rollback path is documented and linked in
+   [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
+   (`pyright-non-runtime-scope-triage`, `src-data-runtime-surface-reorg`).
+8. The roadmap to restore Pyright coverage for all `src/` + `tests/` paths is
+   explicitly tracked with staged cleanup tasks (not left as an implicit future intent).
 
 ---
 
@@ -139,7 +165,8 @@ pre-commit entries in
     hooks:
       - id: pyright
         args: [--project=pyrightconfig.json]
-        files: ^(src|tests)/.*\.py$
+        files: ^((src|tests)/(models|workflows|configs)/.*\.py)$
+        exclude: ^src/models/.*/_deprecated/.*\.py$
 ```
 
 Assessment checklist:
@@ -148,7 +175,28 @@ Assessment checklist:
    policy or is a temporary baseline clamp during cleanup.
 2. Confirm `types_or: [python, pyi]` stays in place to prevent notebook/content
    parsing churn during repo-wide runs.
-3. Confirm Pyright `files: ^(src|tests)/.*\.py$` remains the correct scope for
-   changed-file CI checks under multi-venv constraints.
-4. Document final keep/change decisions in this plan and mirror them in
+3. Confirm Pyright `files` scope remains runtime-core focused:
+   `^((src|tests)/(models|workflows|configs)/.*\.py)$`
+   (with temporary exclusion for deprecated model subpaths),
+   and that narrowed-out paths are tracked for follow-up.
+4. Lock Ruff Python semantics to 3.9+ and align
+   [pyproject.toml](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/pyproject.toml)
+   minimum Python accordingly (decision captured 2026-08-23).
+5. Document final keep/change decisions in this plan and mirror them in
    contributor-facing docs once P1-39 closes.
+
+---
+
+## 9) Temporary Pyright narrowing rollback intent (explicit)
+
+The narrowed Pyright scope introduced during P1-39 is intentionally temporary.
+It is expected to be expanded again after non-runtime legacy issues are triaged
+and cleaned in focused follow-on tasks, not by mixing them into runtime-core PRs.
+
+Tracked rollback lane:
+
+- `pyright-non-runtime-scope-triage` (diagnostic inventory + staged re-expansion plan)
+- `src-data-runtime-surface-reorg` (`src/data` cleanup/reorg + typing/import hygiene)
+- `src-non-runtime-surface-reorg-wave` (remaining messy `src` areas outside runtime-core)
+- `tests-non-runtime-surface-reorg-wave` (messy test modules outside current runtime-focused lanes)
+- `pyright-src-tests-full-coverage-restore` (final scope restoration to all `src/` + `tests/`)

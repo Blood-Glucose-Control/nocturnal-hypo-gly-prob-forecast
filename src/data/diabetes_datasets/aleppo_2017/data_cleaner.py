@@ -303,7 +303,7 @@ def clean_all_patients(
                         f"Successfully processed patient {p_num} from {filename} {progress}"
                     )
                     logger.info(
-                        f"{'-'*10}Done processing pid {filename} {progress} {'-'*10}"
+                        f"{'-' * 10}Done processing pid {filename} {progress} {'-' * 10}"
                     )
                 except Exception as exc:
                     logger.error(f"Patient {filename} generated an exception: {exc}")
@@ -343,6 +343,6 @@ def clean_all_patients(
             # Save the processed data
             processed_data[p_num] = df
             df.to_csv(save_path, index=True)
-            logger.info(f"{'-'*10}Done processing pid {p_num} {progress} {'-'*10}")
+            logger.info(f"{'-' * 10}Done processing pid {p_num} {progress} {'-' * 10}")
 
     return processed_data

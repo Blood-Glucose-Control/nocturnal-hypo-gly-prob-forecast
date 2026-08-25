@@ -25,20 +25,40 @@ Data pipeline (inference):
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Protocol, Tuple, cast
 
 import numpy as np
 import pandas as pd
 
 from ..data.preprocessing.gap_handling import segment_all_patients
 from ..utils.logging_helper import info_print, prune_stale_file_handlers
-from .base import BaseTimeSeriesFoundationModel, TrainingBackend
-from .chronos2.utils import (
+from .autogluon_data_utils import (
     convert_to_patient_dict,
     format_segments_for_autogluon,
 )
+from .base import BaseTimeSeriesFoundationModel, TrainingBackend
 
 logger = logging.getLogger(__name__)
+
+
+class AutoGluonRuntimeConfig(Protocol):
+    """Config contract required by AutoGluonBaseModel."""
+
+    forecast_length: int
+    context_length: int
+    interval_mins: int
+    eval_metric: str
+    target_col: str
+    patient_col: str
+    time_col: str
+    covariate_cols: List[str]
+    quantile_levels: Optional[List[float]]
+    enable_ensemble: bool
+    time_limit: Optional[int]
+    min_segment_length: Optional[int]
+    imputation_threshold_mins: int
+
+    def get_autogluon_hyperparameters(self) -> Dict[str, Any]: ...
 
 
 class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
@@ -67,6 +87,10 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
     # Subclasses set this to their predictor JSON file name so save/load works
     # without further overrides. E.g. "deepar_predictor.json".
     _PREDICTOR_JSON_NAME: str = "ag_predictor.json"
+
+    @property
+    def _cfg(self) -> AutoGluonRuntimeConfig:
+        return cast(AutoGluonRuntimeConfig, self.config)
 
     def __init__(self, config):
         # AutoGluon predictor — must be set before super().__init__() which
@@ -120,7 +144,7 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
             base-class signature (train, val, test); AutoGluon handles
             validation internally via sliding windows.
         """
-        config = self.config
+        config = self._cfg
 
         patient_dict = convert_to_patient_dict(
             train_data, config.patient_col, config.time_col
@@ -145,7 +169,7 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
 
     def _train_model_info_log(self) -> None:
         """Override to emit a model-specific training-start banner."""
-        config = self.config
+        config = self._cfg
         info_print(
             f"Starting {self.__class__.__name__} training: "
             f"context={config.context_length}, "
@@ -175,7 +199,7 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
             TimeSeriesPredictor,  # type: ignore[import-not-found]
         )
 
-        config = self.config
+        config = self._cfg
         ts_train, _, _ = self._prepare_training_data(train_data)
 
         freq = f"{config.interval_mins}min"
@@ -237,7 +261,7 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
             TimeSeriesDataFrame,  # type: ignore[import-not-found]
         )
 
-        config = self.config
+        config = self._cfg
         context = data.copy()
         context["item_id"] = item_id
 
@@ -353,7 +377,7 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
         if self.predictor is None:
             raise ValueError("Model must be fitted or loaded before prediction.")
 
-        config = self.config
+        config = self._cfg
         context = data.copy()
         context["item_id"] = context[episode_col].astype(str)
 
@@ -446,15 +470,16 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
                     metadata = json.load(f)
                 saved_cfg = metadata.get("config", {})
                 saved_ctx = saved_cfg.get("context_length")
+                cfg = self._cfg
                 if saved_ctx is not None:
-                    self.config.context_length = int(saved_ctx)
+                    cfg.context_length = int(saved_ctx)
                     self.logger.info(
                         "Restored context_length from metadata: %d", saved_ctx
                     )
-                if not self.config.covariate_cols:
+                if not cfg.covariate_cols:
                     saved_covs = saved_cfg.get("covariate_cols", [])
                     if saved_covs:
-                        self.config.covariate_cols = list(saved_covs)
+                        cfg.covariate_cols = list(saved_covs)
                         self.logger.info(
                             "Restored covariate_cols from metadata: %s", saved_covs
                         )

@@ -35,7 +35,6 @@
   "reportUnknownParameterType": "none",
   "reportUnknownVariableType": "none",
   "reportMissingTypeArgument": "none",
-  "reportPartialTypeInvarianceViolation": "none",
   "reportUnnecessaryCast": "warning",
   "reportUnnecessaryComparison": "warning",
   "reportAssertAlwaysTrue": "warning",

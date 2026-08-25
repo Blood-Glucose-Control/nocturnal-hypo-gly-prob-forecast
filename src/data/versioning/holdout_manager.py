@@ -510,7 +510,7 @@ def generate_patient_holdout_list(
 
     logger.info(
         f"Generated holdout list: {len(holdout_patients)} patients out of "
-        f"{len(all_patients)} ({holdout_percentage*100:.1f}%)"
+        f"{len(all_patients)} ({holdout_percentage * 100:.1f}%)"
     )
     logger.info(f"Holdout patients: {holdout_patients}")
 

@@ -62,12 +62,12 @@ def verify_time_features():
     if midnight_mask.any():
         midnight_sin = train_data.loc[midnight_mask, "hour_sin"].iloc[0]
         midnight_cos = train_data.loc[midnight_mask, "hour_cos"].iloc[0]
-        assert (
-            abs(midnight_sin - 0.0) < 0.01
-        ), f"Midnight sin={midnight_sin}, expected ~0"
-        assert (
-            abs(midnight_cos - 1.0) < 0.01
-        ), f"Midnight cos={midnight_cos}, expected ~1"
+        assert abs(midnight_sin - 0.0) < 0.01, (
+            f"Midnight sin={midnight_sin}, expected ~0"
+        )
+        assert abs(midnight_cos - 1.0) < 0.01, (
+            f"Midnight cos={midnight_cos}, expected ~1"
+        )
         print(
             f"  00:00 -> sin={midnight_sin:.4f} (exp 0.0), cos={midnight_cos:.4f} (exp 1.0) [PASS]"
         )
@@ -108,9 +108,9 @@ def verify_time_features():
     # 5. Verify unit circle identity: sin² + cos² ≈ 1
     identity = train_data["hour_sin"] ** 2 + train_data["hour_cos"] ** 2
     max_deviation = (identity - 1.0).abs().max()
-    assert (
-        max_deviation < 1e-6
-    ), f"Unit circle identity violated: max deviation={max_deviation}"
+    assert max_deviation < 1e-6, (
+        f"Unit circle identity violated: max deviation={max_deviation}"
+    )
     print(f"\n[PASS] sin² + cos² = 1 (max deviation: {max_deviation:.2e})")
 
     # 6. Split sizes match benchmarks

@@ -125,11 +125,11 @@ def _run_summarizer(name: str, cls, root: str, metric: str) -> None:
         Metric column used for ranking (e.g. ``"rmse"``).  Must be one of
         :data:`~src.experiments.base.experiment.VALID_METRICS`.
     """
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"  Experiment type : {name}")
     print(f"  Metric          : {metric}")
     print(f"  Root            : {root}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     summarizer = cls(experiments_root=root)
     summary_df = summarizer.summarize(metric=metric)

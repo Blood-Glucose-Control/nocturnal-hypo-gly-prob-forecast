@@ -128,7 +128,7 @@ class TimesFMConfig(ModelConfig):
 
         if not 0.0 <= self.val_patient_ratio < 1.0:
             raise ValueError(
-                "val_patient_ratio must be in [0, 1), " f"got {self.val_patient_ratio}"
+                f"val_patient_ratio must be in [0, 1), got {self.val_patient_ratio}"
             )
 
         if self.interval_mins <= 0:

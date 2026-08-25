@@ -35,13 +35,13 @@ import pandas as pd
 
 from ...data.preprocessing.gap_handling import segment_all_patients
 from ...utils.logging_helper import info_print, prune_stale_file_handlers
-from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
-from ..base.registry import ModelRegistry
-from .config import Chronos2Config
-from .utils import (
+from ..autogluon_data_utils import (
     convert_to_patient_dict,
     format_segments_for_autogluon,
 )
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from .config import Chronos2Config
 
 logger = logging.getLogger(__name__)
 

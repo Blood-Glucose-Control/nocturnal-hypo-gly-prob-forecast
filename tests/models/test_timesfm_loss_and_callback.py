@@ -102,12 +102,12 @@ def test_loss_fn_finite_scalar_and_backward(make_trainer_model, loss_fn):
 
     loss = result["loss"]
     assert loss is not None, f"loss_fn={loss_fn!r}: forward returned no loss"
-    assert (
-        loss.ndim == 0
-    ), f"loss_fn={loss_fn!r}: expected scalar loss, got shape {loss.shape}"
-    assert torch.isfinite(
-        loss
-    ).item(), f"loss_fn={loss_fn!r}: loss is not finite ({loss.item():.6f})"
+    assert loss.ndim == 0, (
+        f"loss_fn={loss_fn!r}: expected scalar loss, got shape {loss.shape}"
+    )
+    assert torch.isfinite(loss).item(), (
+        f"loss_fn={loss_fn!r}: loss is not finite ({loss.item():.6f})"
+    )
     loss.backward()
 
 
@@ -298,9 +298,9 @@ class TestMidTrainingEvalCallback:
             # Header + 1 data row
             assert len(lines) == 2, f"Expected 2 lines in CSV, got {len(lines)}"
             row = lines[1].strip().split(",")
-            assert (
-                len(row) == 8
-            ), f"Expected 8 columns in CSV row, got {len(row)}: {row}"
+            assert len(row) == 8, (
+                f"Expected 8 columns in CSV row, got {len(row)}: {row}"
+            )
             # All fields should be parseable as numbers (epoch is int-like, rest are floats)
             for val in row:
                 float(val)  # raises if not numeric

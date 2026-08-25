@@ -27,13 +27,13 @@ import pandas as pd
 
 from ...data.preprocessing.gap_handling import segment_all_patients
 from ...utils.logging_helper import info_print, prune_stale_file_handlers
-from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
-from ..base.registry import ModelRegistry
-from .config import TiDEConfig
-from .utils import (
+from ..autogluon_data_utils import (
     convert_to_patient_dict,
     format_segments_for_autogluon,
 )
+from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.registry import ModelRegistry
+from .config import TiDEConfig
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     """
 
     config_class = TiDEConfig
+    config: TiDEConfig
 
     def __init__(
         self,
@@ -102,6 +103,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         )
         info_print(f"Converted to {len(patient_dict)} patient dicts")
 
+        assert config.min_segment_length is not None
         segments = segment_all_patients(
             patient_dict,
             imputation_threshold_mins=config.imputation_threshold_mins,

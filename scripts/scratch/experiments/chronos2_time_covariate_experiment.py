@@ -43,9 +43,12 @@ from autogluon.timeseries import TimeSeriesDataFrame, TimeSeriesPredictor  # noq
 from src.data.models import ColumnNames  # noqa: E402
 from src.data.preprocessing.gap_handling import segment_all_patients  # noqa: E402
 from src.data.versioning.dataset_registry import DatasetRegistry  # noqa: E402
+from src.models.autogluon_data_utils import (  # noqa: E402
+    convert_to_patient_dict,
+    format_segments_for_autogluon,
+)
 from src.models.chronos2.utils import (  # noqa: E402
     build_midnight_episodes,
-    convert_to_patient_dict,
 )
 
 # Configuration
@@ -56,42 +59,6 @@ TARGET_COL = ColumnNames.BG.value
 TIME_COLS = ["hour_sin", "hour_cos"]
 IOB_COL = "iob"
 MIN_SEGMENT_LENGTH = CONTEXT_LENGTH + FORECAST_HORIZON  # 584
-
-
-def format_segments_for_autogluon(segments, target_col, covariate_cols=None):
-    """
-    Convert gap-handled segments to AutoGluon TimeSeriesDataFrame.
-
-    Args:
-        segments: Dict mapping segment_id -> DataFrame with DatetimeIndex.
-        target_col: Column name for the target variable.
-        covariate_cols: Optional list of covariate column names to include.
-
-    Returns:
-        TimeSeriesDataFrame with columns ["target"] + covariate_cols.
-    """
-    data_list = []
-
-    for seg_id, seg_df in segments.items():
-        df = pd.DataFrame({"target": seg_df[target_col]})
-
-        if covariate_cols:
-            for col in covariate_cols:
-                if col in seg_df.columns and seg_df[col].notna().any():
-                    df[col] = seg_df[col].ffill().fillna(0)
-                else:
-                    df[col] = 0.0
-
-        df["item_id"] = seg_id
-        df["timestamp"] = df.index
-        keep_cols = ["item_id", "timestamp", "target"]
-        if covariate_cols:
-            keep_cols += covariate_cols
-        data_list.append(df[keep_cols])
-
-    combined = pd.concat(data_list, ignore_index=True)
-    combined = combined.set_index(["item_id", "timestamp"])
-    return TimeSeriesDataFrame(combined)
 
 
 def format_episodes_for_eval(
@@ -423,9 +390,9 @@ def main():
 
     # Verify required features exist
     for col in TIME_COLS:
-        assert (
-            col in train_flat.columns
-        ), f"{col} missing! Run: rm -rf cache/data/brown_2019/processed/ && python scripts/data_processing/verify_time_features.py"
+        assert col in train_flat.columns, (
+            f"{col} missing! Run: rm -rf cache/data/brown_2019/processed/ && python scripts/data_processing/verify_time_features.py"
+        )
     assert IOB_COL in train_flat.columns, f"{IOB_COL} missing from training data!"
     print(f"Time features present: {TIME_COLS}")
     print(f"IOB feature present: {IOB_COL}")

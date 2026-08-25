@@ -374,7 +374,7 @@ class GlurooDataLoader(DatasetBase):
 
             logger.info(
                 f"Processing batch {batch_num}/{total_batches}: "
-                f"patients {batch_start+1}-{batch_end} of {total_patients}"
+                f"patients {batch_start + 1}-{batch_end} of {total_patients}"
             )
 
             # Load raw data for this batch (returns dict with gid as keys)
@@ -795,8 +795,9 @@ class GlurooDataLoader(DatasetBase):
         if patient_ids:
             patient_ids_set = {str(pid) for pid in patient_ids}
             dataset = dataset.filter(
-                lambda example: str(example.get(ColumnNames.P_NUM.value, ""))
-                in patient_ids_set
+                lambda example: (
+                    str(example.get(ColumnNames.P_NUM.value, "")) in patient_ids_set
+                )
             )
 
         if batch_size:

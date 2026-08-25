@@ -1,6 +1,7 @@
 # P1-15 Pydantic Config Schemas — Execution Plan
 
 **Date:** 2026-08-20
+**Update Date:** 2026-08-23
 **Task ID:** `pydantic-config-schemas`
 **Status:** Phase 1-4 complete; model-family schema rollout complete
 
@@ -148,3 +149,20 @@ We do **not** need to preserve legacy functionality, we don't want to introduce 
 - [x] Implement validation-path consolidation changes.
 - [x] Add JSON schema artifact generation.
 - [x] Final contributor documentation pass for schema evolution workflow.
+
+---
+
+## Wrap-up complete summary
+
+P1-15 is fully closed:
+- all planned schema foundations and validation lanes were implemented,
+- runtime-facing model-family routes are complete across active model IDs,
+- JSON schema artifacts are generated and documented,
+- contributor workflow guidance for schema evolution is published.
+
+Residual follow-on scope is no longer schema rollout; it has been passed to:
+- `model-runtime-consolidation-wave` (deduplicate constructor/runtime wiring),
+- `ruff-baseline-cleanup-pass` (repo-wide lint baseline normalization).
+
+Related dependency note: `model-extension-contract-doc` has since been completed
+and published at [`docs/base_model_framework_README.md`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/base_model_framework_README.md).

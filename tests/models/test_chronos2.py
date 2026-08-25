@@ -25,13 +25,13 @@ import pytest
 # shared autogluon venv (conftest.py also enforces this at collection time).
 pytest.importorskip("autogluon.timeseries")
 
-from src.models.chronos2.config import Chronos2Config  # noqa: E402
-from src.models.chronos2.model import Chronos2Forecaster  # noqa: E402
-from src.models.chronos2.utils import (  # noqa: E402
-    build_midnight_episodes,
+from src.models.autogluon_data_utils import (  # noqa: E402
     convert_to_patient_dict,
     format_segments_for_autogluon,
 )
+from src.models.chronos2.config import Chronos2Config  # noqa: E402
+from src.models.chronos2.model import Chronos2Forecaster  # noqa: E402
+from src.models.chronos2.utils import build_midnight_episodes  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -96,9 +96,9 @@ class TestChronos2:
         cfg = Chronos2Config(training_mode="fine_tune", checkpoint_save_steps=5000)
         hp = cfg.get_autogluon_hyperparameters()
 
-        assert (
-            "fine_tune_trainer_kwargs" in hp["Chronos2"]
-        ), "fine_tune_trainer_kwargs missing — checkpoints will not be saved"
+        assert "fine_tune_trainer_kwargs" in hp["Chronos2"], (
+            "fine_tune_trainer_kwargs missing — checkpoints will not be saved"
+        )
         trainer_kwargs = hp["Chronos2"]["fine_tune_trainer_kwargs"]
         assert trainer_kwargs["save_strategy"] == "steps"
         assert trainer_kwargs["save_steps"] == 5000

@@ -94,9 +94,9 @@ def load_raw_brown_2019_data(
 
     # Sanity checks
     assert not cgm_df.empty, "CGM data file is empty"
-    assert (
-        RAW_COLS["patient_id"] in cgm_df.columns
-    ), f"Expected {RAW_COLS['patient_id']} column in CGM data"
+    assert RAW_COLS["patient_id"] in cgm_df.columns, (
+        f"Expected {RAW_COLS['patient_id']} column in CGM data"
+    )
     assert "DataDtTm" in cgm_df.columns, "Expected DataDtTm column in CGM data"
 
     logger.info(
@@ -291,8 +291,8 @@ def clean_brown_2019_data(
     total_nan = merged[RAW_COLS["basal_rate"]].isna().sum()
     rows_from_no_pump = merged[merged[p_num_col].isin(patients_without_pump)].shape[0]
     logger.info(
-        f"Basal NaN breakdown: {rows_from_no_pump:,} from no-pump patients ({rows_from_no_pump/total_nan*100:.1f}%), "
-        f"{total_nan - rows_from_no_pump:,} from leading NaN ({(total_nan - rows_from_no_pump)/total_nan*100:.1f}%)"
+        f"Basal NaN breakdown: {rows_from_no_pump:,} from no-pump patients ({rows_from_no_pump / total_nan * 100:.1f}%), "
+        f"{total_nan - rows_from_no_pump:,} from leading NaN ({(total_nan - rows_from_no_pump) / total_nan * 100:.1f}%)"
     )
 
     # ========== STEP 8: Final rename to standard schema ==========

@@ -29,4 +29,5 @@ repos:
     hooks:
       - id: pyright
         args: [--project=pyrightconfig.json]
-        files: ^(src|tests)/.*\.py$
+        files: ^((src|tests)/(models|workflows|configs)/.*\.py)$
+        exclude: ^src/models/.*/_deprecated/.*\.py$

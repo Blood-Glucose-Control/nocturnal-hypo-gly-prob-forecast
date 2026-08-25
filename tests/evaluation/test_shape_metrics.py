@@ -87,12 +87,12 @@ class TestComputeDilateMetricsBatch:
         assert set(batch.keys()) == set(DILATE_COLUMNS)
 
         for key in DILATE_COLUMNS:
-            assert batch[key][0] == pytest.approx(
-                single_identical[key], abs=1e-12
-            ), f"batch[0] mismatch on {key}"
-            assert batch[key][1] == pytest.approx(
-                single_shifted[key], abs=1e-12
-            ), f"batch[1] mismatch on {key}"
+            assert batch[key][0] == pytest.approx(single_identical[key], abs=1e-12), (
+                f"batch[0] mismatch on {key}"
+            )
+            assert batch[key][1] == pytest.approx(single_shifted[key], abs=1e-12), (
+                f"batch[1] mismatch on {key}"
+            )
 
     def test_batch_shape(self):
         """Each value array in the batch result has shape (B,)."""

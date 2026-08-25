@@ -280,9 +280,9 @@ def _get_finetune_trainer(
     # Type assertion since return_model_key=False guarantees a model is returned
     from transformers import PreTrainedModel
 
-    assert isinstance(
-        finetune_forecast_model, PreTrainedModel
-    ), "Expected PreTrainedModel when return_model_key=False"
+    assert isinstance(finetune_forecast_model, PreTrainedModel), (
+        "Expected PreTrainedModel when return_model_key=False"
+    )
 
     temp_datasets = get_datasets(
         ts_preprocessor=tsp,

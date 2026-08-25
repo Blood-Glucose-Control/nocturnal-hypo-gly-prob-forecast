@@ -637,9 +637,9 @@ class TestComputePITValues:
         q_levels = [0.1, 0.4, 0.7, 0.9]
         actuals = np.array([[8.0]])  # actual == q90 value
         pit = compute_pit_values(q_fc, actuals, q_levels)
-        assert pit[0] == pytest.approx(
-            0.9
-        ), f"Expected PIT=0.9 (q_arr[-1]) when actual equals max quantile, got {pit[0]}"
+        assert pit[0] == pytest.approx(0.9), (
+            f"Expected PIT=0.9 (q_arr[-1]) when actual equals max quantile, got {pit[0]}"
+        )
 
     def test_inverted_quantile_values_raises(self):
         """Catastrophic inversions (> 1 mmol/L) should raise ValueError."""
