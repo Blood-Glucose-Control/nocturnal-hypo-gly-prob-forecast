@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-23
 **Update Date:** 2026-08-26
-**Status:** In progress (smoke gate landed, v2 baseline complete except TimeGrad env lane, PR-C1 kickoff queued)
+**Status:** In progress (all-model pre-change baseline is green, including TimeGrad on a v2-compatible lane; PR-C1 kickoff queued)
 **Tracking row:** `model-runtime-consolidation-wave` in [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
 
 ---
@@ -332,32 +332,32 @@ Current maintained call-site inventory confirms mixed constructor lanes:
 
 PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regression coverage needed to prove behavior parity after helper extraction.
 
-### 8B) End-of-day checkpoint (2026-08-26)
+### 8B) Current checkpoint (2026-08-26)
 
 - Housekeeping closeout from PR #463 and P1-39 wrap-up was completed on working branch
   [chore/pr-463-closeout-p1-38-kickoff](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast).
-- Added all-model Aleppo smoke suite runner and comparator:
+- All-model Aleppo smoke suite runner and comparator are in place:
   - [run_aleppo_model_regression_smoke_suite.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/workflows/forecasting/run_aleppo_model_regression_smoke_suite.py)
   - [compare_regression_smoke_suites.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/workflows/forecasting/compare_regression_smoke_suites.py)
-- Added fast/observable smoke profiles and ultra-smoke Aleppo holdout:
+- Fast/observable smoke profiles and ultra-smoke Aleppo holdout are in place:
   - [holdout_smoke_aleppo_ultra/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/configs/data/holdout_smoke_aleppo_ultra)
   - per-family `97_regression_smoke_balanced.yaml` configs under
     [configs/models/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/configs/models)
-- Suite-manifest path resolution bug was fixed so per-model status now resolves nested
+- Suite-manifest nested-path resolution is fixed so per-model status resolves
   timestamped run manifests correctly.
-- Latest pre-change baseline run `pre_refactor_20260825v2` result: all maintained models
-  succeeded except `timegrad`.
-  - `timegrad` blocker: `.venvs/timegrad` is pinned to `gluonts 0.9.x` + `pydantic 1.x`,
-    while workflow schema imports require `pydantic v2` APIs (`model_validator`).
+- TimeGrad smoke-lane compatibility is resolved with a v2-compatible runtime lane
+  (`pydantic>=2`, modern `gluonts`, compatibility shims in
+  [src/models/timegrad/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timegrad)).
+- Latest pre-change baseline run is
+  `pre_refactor_20260827v1` under
+  [trained_models/artifacts/regression_smoke/all_models_aleppo/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo)
+  with all maintained models succeeding.
 
-### Tomorrow kickoff note (2026-08-27)
+### Immediate next actions
 
-1. Resolve TimeGrad environment compatibility (separate from runtime-refactor work):
-   - either run TimeGrad on a v2-compatible env lane for smoke suite, or explicitly
-     mark/handle TimeGrad smoke as an allowed exception until env split is finalized.
-2. Re-run pre-change smoke suite after TimeGrad lane decision and confirm full green.
-3. Start PR-C1 (TTM-only consolidation slice) with no behavior change outside TTM lane.
-4. Run pre/post smoke comparator around PR-C1 and record drift/artifact parity outcomes.
+1. Start PR-C1 (TTM-only consolidation slice) with no behavior change outside TTM lane.
+2. Run pre/post smoke comparator around PR-C1 using `pre_refactor_20260827v1` as baseline.
+3. Record PR-C1 drift/artifact parity outcomes in this plan and `project_tracking.csv`.
 
 ---
 

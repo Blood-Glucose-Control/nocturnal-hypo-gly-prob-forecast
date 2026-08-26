@@ -27,6 +27,6 @@ residual_channels: 8
 
 learning_rate: 1.0e-3
 batch_size: 64
-num_batches_per_epoch: 50
+num_batches_per_epoch: 10
 scaling: true
 num_samples: 10

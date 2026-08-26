@@ -1,5 +1,7 @@
 """TimeGrad model implementation using the base TSFM framework."""
 
+# pyright: reportMissingImports=false
+
 import logging
 import warnings
 from pathlib import Path
@@ -11,24 +13,18 @@ import torch
 import torch.nn as nn
 from gluonts.dataset.common import ListDataset
 from gluonts.torch.model.predictor import PyTorchPredictor
-from pts import Trainer
-from pts.feature import (
-    fourier_time_features_from_frequency,
-    lags_for_fourier_time_features_from_frequency,
-)
-from pts.model.time_grad import TimeGradEstimator
 from torch.utils.data import DataLoader
 
 from ...utils.logging_helper import info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
 from ..base.registry import ModelRegistry
+from . import _gluonts_compat  # noqa: F401
 from .config import TimeGradConfig
 
 logger = logging.getLogger(__name__)
 
-# GluonTS 0.9.x uses Timestamp.freq which pandas has deprecated. These are
-# upstream issues in the pinned gluonts version and cannot be fixed without a
-# breaking upgrade, so suppress them here to keep output clean.
+# Some GluonTS versions emit Timestamp.freq deprecation warnings from pandas.
+# Suppress those upstream warnings here to keep training logs actionable.
 warnings.filterwarnings(
     "ignore",
     message="Timestamp.freq is deprecated",
@@ -78,6 +74,11 @@ def _compute_input_size(freq: str, target_dim: int = 1) -> int:
     where embed_dim=1 (hardcoded in TimeGradTrainingNetwork) and each
     FourierDateFeature produces 2 dims (sin + cos).
     """
+    from pts.feature import (
+        fourier_time_features_from_frequency,
+        lags_for_fourier_time_features_from_frequency,
+    )
+
     lags_seq = lags_for_fourier_time_features_from_frequency(freq)
     time_feats = fourier_time_features_from_frequency(freq)
     embed_dim = 1  # Hardcoded in TimeGrad's network
@@ -116,6 +117,10 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
 
     def _initialize_model(self) -> None:
         """Build the TimeGradEstimator (predictor is set after training or loading)."""
+        from gluonts.transform import ExpectedNumInstanceSampler
+        from pts import Trainer
+        from pts.model.time_grad import TimeGradEstimator
+
         info_print("Initializing TimeGrad estimator...")
 
         use_cuda = torch.cuda.is_available() and not getattr(
@@ -140,6 +145,7 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
             num_cells=self.config.num_cells,
             residual_layers=self.config.residual_layers,
             residual_channels=self.config.residual_channels,
+            pick_incomplete=True,
             num_parallel_samples=self.config.num_samples,
             trainer=Trainer(
                 device=self.device,
@@ -148,6 +154,15 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
                 num_batches_per_epoch=self.config.num_batches_per_epoch,
                 batch_size=self.config.batch_size,
             ),
+        )
+        min_past = (
+            0 if self.estimator.pick_incomplete else self.estimator.history_length
+        )
+        self.estimator.train_sampler = ExpectedNumInstanceSampler(
+            num_instances=1.0,
+            min_instances=1,
+            min_past=min_past,
+            min_future=self.config.forecast_length,
         )
         self.predictor: Optional[PyTorchPredictor] = None
 
@@ -253,17 +268,25 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
 
     def _dataframe_to_list_dataset(self, df: pd.DataFrame) -> ListDataset:
         """Convert a DataFrame with bg_mM + p_num into a GluonTS ListDataset."""
+        from pts.feature import lags_for_fourier_time_features_from_frequency
+
         bg_col = "bg_mM"
         patient_col = "p_num"
+        lag_offsets = lags_for_fourier_time_features_from_frequency(self.config.freq)
+        max_lag = max(lag_offsets) if lag_offsets else 0
+        min_required_steps = (
+            self.config.context_length + max_lag + self.config.forecast_length
+        )
 
         entries = []
         for pid, group in df.groupby(patient_col):
             bg = np.asarray(group[bg_col].to_numpy(dtype=np.float64), dtype=np.float64)
 
-            if len(bg) < self.config.context_length + self.config.forecast_length:
+            if len(bg) < min_required_steps:
                 logger.warning(
                     f"Skipping patient {pid}: only {len(bg)} steps "
-                    f"(need {self.config.context_length + self.config.forecast_length})"
+                    f"(need {min_required_steps}; context={self.config.context_length}, "
+                    f"max_lag={max_lag}, forecast={self.config.forecast_length})"
                 )
                 continue
 
