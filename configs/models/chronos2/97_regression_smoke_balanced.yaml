@@ -1,0 +1,36 @@
+# =============================================================================
+# Chronos-2 97 — regression smoke (fast profile with visibility)
+# =============================================================================
+# Intended for pre/post code-change regression runs:
+# - keeps Chronos-2 in fine-tune mode on Aleppo smoke holdout
+# - avoids very long 10k-step baseline runtime
+# - emits periodic progress logs and intermediate checkpoints
+
+model_path: "autogluon/chronos-2"
+context_length: 256
+forecast_length: 96
+
+training_mode: "fine_tune"
+freeze_backbone: false
+
+# Fast smoke profile (keeps training signal while staying short).
+fine_tune_steps: 500
+fine_tune_lr: 1.0e-5
+fine_tune_batch_size: 256
+
+# Disable per-step validation to keep the smoke pass bounded.
+eval_during_fine_tune: false
+
+# Progress observability without overly chatty logs.
+fine_tune_logging_steps: 500
+checkpoint_save_steps: 250
+
+# BG-only for baseline parity.
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false

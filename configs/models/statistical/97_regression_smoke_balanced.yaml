@@ -1,0 +1,22 @@
+# =============================================================================
+# Statistical 97 — fast regression smoke profile
+# =============================================================================
+model_type: "statistical"
+training_mode: "from_scratch"
+model_name: "AutoARIMA"
+context_length: 256
+forecast_length: 96
+
+autoarima_max_p: 2
+autoarima_max_q: 2
+
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "p_num"
+time_col: "datetime"
+interval_mins: 5
+
+time_limit: 300
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

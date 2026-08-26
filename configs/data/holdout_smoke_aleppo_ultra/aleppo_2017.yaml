@@ -1,0 +1,17 @@
+dataset_name: aleppo_2017
+holdout_type: hybrid
+description: "Ultra-fast smoke holdout: 98% patient holdout + 98% temporal holdout on remaining train patients."
+created_date: "2026-08-26"
+version: "1.0"
+
+temporal_config:
+  holdout_percentage: 0.98
+  min_train_samples: 256
+  min_holdout_samples: 256
+
+patient_config:
+  holdout_patients: []
+  holdout_percentage: 0.98
+  min_train_patients: 1
+  min_holdout_patients: 1
+  random_seed: 42

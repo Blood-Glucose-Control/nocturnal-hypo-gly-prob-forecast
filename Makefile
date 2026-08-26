@@ -7,7 +7,7 @@ VENVS_DIR := $(ROOT_DIR)/.venvs
 # Most models have their own venv; AutoGluon-backed models share .venvs/autogluon.
 # ─────────────────────────────────────────────────────────────────────────────
 
-.PHONY: test-ttm test-sundial test-timesfm test-autogluon test-chronos2 test-models test lint help
+.PHONY: test-ttm test-sundial test-timesfm test-autogluon test-chronos2 test-models test lint smoke-suite-aleppo smoke-suite-compare help
 
 test-ttm:
 	$(VENVS_DIR)/ttm/bin/python -m pytest tests/models/ -v -k ttm
@@ -43,6 +43,38 @@ test-all: test test-models
 lint:
 	.noctprob-venv/bin/python -m ruff check src/ tests/
 
+## Run Aleppo one-epoch regression smoke suite across maintained models.
+## Optional env:
+##   SUITE_LABEL=pre_refactor_20260825
+##   MODELS=ttm,chronos2,moment
+##   FAIL_FAST=true
+##   DRY_RUN=true
+smoke-suite-aleppo:
+	@FAIL_FAST_ARG=""; DRY_RUN_ARG=""; \
+	if [ "$${FAIL_FAST:-}" = "true" ]; then FAIL_FAST_ARG="--fail-fast"; fi; \
+	if [ "$${DRY_RUN:-}" = "true" ]; then DRY_RUN_ARG="--dry-run"; fi; \
+	.noctprob-venv/bin/python scripts/workflows/forecasting/run_aleppo_model_regression_smoke_suite.py \
+		--suite-label "$${SUITE_LABEL:-manual_$$(date +%Y%m%d_%H%M%S)}" \
+		$${MODELS:+--models "$$MODELS"} \
+		$$FAIL_FAST_ARG \
+		$$DRY_RUN_ARG
+
+## Compare pre/post suite manifests.
+## Required env:
+##   BASELINE=<path>/suite_manifest.json
+##   CANDIDATE=<path>/suite_manifest.json
+## Optional env:
+##   REL_TOL=0.25
+##   ABS_TOL=1e-6
+##   REPORT_PATH=<path>/comparison_report.json
+smoke-suite-compare:
+	.noctprob-venv/bin/python scripts/workflows/forecasting/compare_regression_smoke_suites.py \
+		--baseline "$$BASELINE" \
+		--candidate "$$CANDIDATE" \
+		$${REL_TOL:+--rel-tol "$$REL_TOL"} \
+		$${ABS_TOL:+--abs-tol "$$ABS_TOL"} \
+		$${REPORT_PATH:+--report-path "$$REPORT_PATH"}
+
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## /  /'
 	@echo ""
@@ -56,3 +88,5 @@ help:
 	@echo "  test           Run non-model tests (main venv)"
 	@echo "  test-all       Run all tests"
 	@echo "  lint           Run ruff linter"
+	@echo "  smoke-suite-aleppo   Run Aleppo one-epoch pre/post smoke suite"
+	@echo "  smoke-suite-compare  Compare two smoke suite manifests"

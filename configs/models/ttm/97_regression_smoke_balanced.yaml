@@ -1,0 +1,31 @@
+# =============================================================================
+# TTM 97 — fast regression smoke profile
+# =============================================================================
+model_type: "ttm"
+model_path: "ibm-granite/granite-timeseries-ttm-r2"
+training_mode: "fine_tune"
+freeze_backbone: false
+
+context_length: 512
+forecast_length: 96
+learning_rate: 1.0e-4
+batch_size: 4096
+num_epochs: 1
+warmup_steps: 100
+weight_decay: 0.01
+
+input_features: []
+target_features:
+  - bg_mM
+
+scaler_type: "standard"
+resolution_min: 5
+split_config:
+  train: 0.9
+  val: 0.05
+  test: 0.05
+
+num_input_channels: 3
+num_output_channels: 1
+fp16: true
+loss_function: "mse"

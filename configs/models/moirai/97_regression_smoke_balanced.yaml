@@ -1,0 +1,24 @@
+# =============================================================================
+# Moirai 97 — fast regression smoke profile
+# =============================================================================
+model_type: "moirai"
+model_path: "Salesforce/moirai-1.0-R-small"
+context_length: 288
+forecast_length: 96
+training_mode: "fine_tune"
+freeze_backbone: false
+
+learning_rate: 1.0e-4
+batch_size: 32
+num_epochs: 1
+
+patch_size: "auto"
+num_samples: 20
+
+past_covariate_dim: 2
+covariate_cols: [iob, cob]
+target_col: "bg_mM"
+interval_mins: 5
+
+fp16: true
+use_cpu: false
