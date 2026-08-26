@@ -136,93 +136,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         return True
 
     # Abstract method implementations
-    def _predict_impl(
-        self,
-        data: Any,
-        quantile_levels: Optional[List[float]] = None,
-        *,
-        batch_size: Optional[int] = None,
-        inverse_scale: bool = True,
-        **kwargs,
-    ) -> np.ndarray:
-        """Make predictions on new data using TTM pipeline.
-
-        Branches on is_fitted to select the inference path:
-        - Fitted: uses TimeSeriesForecastingPipeline with the preprocessor
-          (external scaling fitted during training).
-        - Not fitted (zero-shot): uses pipeline without preprocessor;
-          TTM's internal RevIN handles per-window standardization.
-
-        Args:
-            data: Input data for prediction
-            batch_size: Batch size for prediction
-            inverse_scale: If True, inverse transform predictions to original scale.
-                          Requires preprocessor to have been fitted during training.
-
-        Returns:
-            Predictions as numpy array (in original scale if inverse_scale=True).
-        """
-        if quantile_levels is not None:
-            logger.warning(
-                "TTM does not provide quantile outputs; returning point forecasts only."
-            )
-
-        if kwargs:
-            logger.debug("Ignoring unsupported TTM predict kwargs: %s", list(kwargs))
-
-        if self.model is None:
-            raise RuntimeError("TTM model weights are not initialized.")
-        model = cast(Any, self.model)
-
-        if self.is_fitted:
-            # Fine-tuned path: preprocessor handles scaling + inverse scaling
-            if self.preprocessor is None:
-                raise RuntimeError(
-                    "Model is marked as fitted but preprocessor is None. "
-                    "The checkpoint was likely saved without a preprocessor. "
-                    "Re-train the model or use zero-shot inference instead."
-                )
-            pipeline = TimeSeriesForecastingPipeline(
-                model=model,
-                feature_extractor=self.preprocessor,
-                explode_forecasts=True,
-                inverse_scale_outputs=inverse_scale,
-                batch_size=batch_size or self.config.batch_size,
-            )
-            forecast_df = pipeline(data)
-            target_col = self.preprocessor.target_columns[0]
-            predictions = forecast_df[target_col].values
-        else:
-            # Zero-shot path: no preprocessor, TTM's internal RevIN
-            # handles per-window standardization automatically
-            if self.column_specifiers is None:
-                self.column_specifiers = self._create_column_specifiers(data)
-
-            target_columns = self.column_specifiers.get("target_columns", [])
-            if not target_columns:
-                expected = self.config.target_features
-                raise ValueError(
-                    f"target_columns is empty after filtering: none of the configured "
-                    f"target features {expected} were found (or had non-NaN values) in "
-                    f"the input data. Available columns: {list(data.columns)}"
-                )
-
-            pipeline = TimeSeriesForecastingPipeline(
-                model=model,
-                timestamp_column=self.column_specifiers.get(
-                    "timestamp_column", ColumnNames.DATETIME.value
-                ),
-                id_columns=self.column_specifiers.get("id_columns", []),
-                target_columns=self.column_specifiers.get("target_columns", ["bg_mM"]),
-                observable_columns=self.column_specifiers.get("observable_columns", []),
-                explode_forecasts=True,
-                freq=f"{self.config.resolution_min}min",
-            )
-            forecast_df = pipeline(data)
-            target_col = target_columns[0]
-            predictions = forecast_df[target_col].values
-
-        return predictions
 
     def _inverse_scale_predictions(
         self, predictions: np.ndarray, data: Any
@@ -322,6 +235,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                 original_shape[0], original_shape[1]
             )
             return result
+
+        raise RuntimeError(
+            f"Unhandled prediction shape after inverse scaling: {original_shape}"
+        )
 
     ## Abstract implemented private methods
     def _initialize_model(self) -> None:
@@ -500,133 +417,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             error_print(f"Failed to prepare data: {str(e)}")
             raise
 
-    def _save_checkpoint_impl(self, output_dir: str) -> None:
-        """Save model checkpoint and preprocessor.
-
-        Args:
-            output_dir: Directory path for saving checkpoint
-        """
-        import pickle
-
-        if self.model is not None and hasattr(self.model, "save_pretrained"):
-            self.model.save_pretrained(output_dir)  # type: ignore[union-attr]
-            info_print(f"TTM model saved to {output_dir}")
-
-        # Save the preprocessor for inference (critical for new/holdout patients)
-        # Using pickle because tsfm_public's save_pretrained uses json.dumps(sort_keys=True)
-        # which fails when preprocessor has mixed key types (float patient IDs + string keys)
-        # Save to BOTH root and model.pt to handle different load scenarios
-        if self.preprocessor is not None:
-            # Save to root directory (primary location for _load_checkpoint)
-            preprocessor_path = os.path.join(output_dir, "preprocessor.pkl")
-            with open(preprocessor_path, "wb") as f:
-                pickle.dump(self.preprocessor, f)
-            info_print(f"Preprocessor saved to {preprocessor_path}")
-
-            # Also save to model.pt if it exists (for consistency with HF Trainer structure)
-            model_pt_dir = os.path.join(output_dir, "model.pt")
-            if os.path.exists(model_pt_dir):
-                preprocessor_path_model_pt = os.path.join(
-                    model_pt_dir, "preprocessor.pkl"
-                )
-                with open(preprocessor_path_model_pt, "wb") as f:
-                    pickle.dump(self.preprocessor, f)
-                info_print(f"Preprocessor also saved to {preprocessor_path_model_pt}")
-        else:
-            logger.warning(
-                "Preprocessor is None - not saved. "
-                "This will cause inference to return scaled predictions instead of original units."
-            )
-
-    def _load_checkpoint_impl(self, model_dir: str) -> None:
-        """Load model checkpoint.
-
-        Args:
-            model_dir: Directory containing saved checkpoint
-
-        Raises:
-            Exception: If loading fails
-        """
-        import pickle
-
-        try:
-            # Use get_model() to load the TTM architecture from the checkpoint directory
-            # This properly handles the custom TTM model type
-            model_params = {
-                "model_path": model_dir,  # Load from checkpoint directory
-                "context_length": self.config.context_length,
-                "prediction_length": self.config.forecast_length,
-                "freq": f"{self.config.resolution_min}min",
-                "return_model_key": False,  # Ensure we get the model object, not a string
-            }
-
-            # Only add prediction_filter_length if it's not None
-            if self.config.prediction_filter_length is not None:
-                model_params["prediction_filter_length"] = (
-                    self.config.prediction_filter_length
-                )
-
-            info_print(
-                f"Loading TTM checkpoint from {model_dir} with params: {model_params}"
-            )
-            ttm_model = get_model(**model_params)
-
-            # Validate that we received a model object, not a string
-            if isinstance(ttm_model, str):
-                raise TypeError(
-                    f"Expected model object from get_model(), but received string: {ttm_model}"
-                )
-
-            self.model = ttm_model
-            info_print(f"TTM model checkpoint loaded from {model_dir}")
-
-            # Load the preprocessor if saved (critical for inference on holdout patients)
-            # Try supported locations as save structure can vary:
-            # 1. Direct in model_dir (new format)
-            # 2. In model.pt subdirectory (HuggingFace Trainer creates this)
-            preprocessor_pkl_path = os.path.join(model_dir, "preprocessor.pkl")
-            preprocessor_pkl_model_pt = os.path.join(
-                model_dir, "model.pt", "preprocessor.pkl"
-            )
-
-            if os.path.exists(preprocessor_pkl_path):
-                with open(preprocessor_pkl_path, "rb") as f:
-                    self.preprocessor = pickle.load(f)
-                info_print(f"Preprocessor loaded from {preprocessor_pkl_path}")
-            elif os.path.exists(preprocessor_pkl_model_pt):
-                # HuggingFace Trainer sometimes saves to model.pt subdirectory
-                with open(preprocessor_pkl_model_pt, "rb") as f:
-                    self.preprocessor = pickle.load(f)
-                info_print(f"Preprocessor loaded from {preprocessor_pkl_model_pt}")
-            else:
-                logger.warning(
-                    f"No preprocessor found at {model_dir}. "
-                    "Predictions will return SCALED values (z-scores) instead of original units. "
-                    "This will cause incorrect metrics if comparing to unscaled ground truth. "
-                    "Ensure preprocessor.pkl was saved during training."
-                )
-
-            if self.preprocessor is not None:
-                _validate_preprocessor_schema(self.preprocessor)
-
-            # Only mark as fitted if the preprocessor was also successfully loaded.
-            # The fitted inference path in _predict() unconditionally dereferences
-            # self.preprocessor, so setting is_fitted=True without a preprocessor
-            # would cause an AttributeError at inference time.
-            if self.preprocessor is not None:
-                self.is_fitted = True
-                info_print("Model marked as fitted (preprocessor loaded successfully).")
-            else:
-                self.is_fitted = False
-                logger.warning(
-                    "Model checkpoint loaded but is_fitted=False: preprocessor is missing. "
-                    "Falling back to zero-shot inference path (TTM internal RevIN only)."
-                )
-
-        except Exception as e:
-            error_print(f"Failed to load model checkpoint: {str(e)}")
-            raise
-
     def _train_model(
         self,
         train_data: Any,
@@ -761,13 +551,70 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         inverse_scale: bool = True,
         **kwargs,
     ) -> np.ndarray:
-        return self._predict_impl(
-            data=data,
-            quantile_levels=quantile_levels,
-            batch_size=batch_size,
-            inverse_scale=inverse_scale,
-            **kwargs,
-        )
+        """Make predictions on new data using TTM pipeline.
+
+        Branches on is_fitted to select the inference path:
+        - Fitted: uses TimeSeriesForecastingPipeline with the preprocessor
+          (external scaling fitted during training).
+        - Not fitted (zero-shot): uses pipeline without preprocessor;
+          TTM's internal RevIN handles per-window standardization.
+
+        Args:
+            data: Input data for prediction
+            batch_size: Batch size for prediction
+            inverse_scale: If True, inverse transform predictions to original scale.
+                          Requires preprocessor to have been fitted during training.
+
+        Returns:
+            Predictions as numpy array (in original scale if inverse_scale=True).
+        """
+        if quantile_levels is not None:
+            logger.warning(
+                "TTM does not provide quantile outputs; returning point forecasts only."
+            )
+
+        if kwargs:
+            logger.debug("Ignoring unsupported TTM predict kwargs: %s", list(kwargs))
+
+        model = self._require_initialized_model()
+
+        if self.is_fitted:
+            # Fine-tuned path: preprocessor handles scaling + inverse scaling
+            if self.preprocessor is None:
+                raise RuntimeError(
+                    "Model is marked as fitted but preprocessor is None. "
+                    "The checkpoint was likely saved without a preprocessor. "
+                    "Re-train the model or use zero-shot inference instead."
+                )
+            pipeline = TimeSeriesForecastingPipeline(
+                model=model,
+                feature_extractor=self.preprocessor,
+                explode_forecasts=True,
+                inverse_scale_outputs=inverse_scale,
+                batch_size=batch_size or self.config.batch_size,
+            )
+            forecast_df = pipeline(data)
+            target_col = self.preprocessor.target_columns[0]
+            predictions = forecast_df[target_col].values
+        else:
+            # Zero-shot path: no preprocessor, TTM's internal RevIN
+            # handles per-window standardization automatically
+            column_specifiers = self._get_or_create_column_specifiers(data)
+            target_columns = self._resolve_target_columns(
+                column_specifiers=column_specifiers,
+                data=data,
+            )
+            pipeline = self._build_zero_shot_pipeline(
+                model=model,
+                column_specifiers=column_specifiers,
+                id_columns=list(column_specifiers.get("id_columns", [])),
+                target_columns=target_columns,
+            )
+            forecast_df = pipeline(data)
+            target_col = target_columns[0]
+            predictions = forecast_df[target_col].values
+
+        return predictions
 
     # TTM-specific public methods
     # NOTE: evaluate() is inherited from BaseTimeSeriesFoundationModel
@@ -805,35 +652,22 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Zero-shot path: include episode_col in id_columns so the pipeline
         # groups episodes correctly in a single batched forward pass.
         if self.preprocessor is None and self.config.training_mode == "zero_shot":
-            if self.column_specifiers is None:
-                self.column_specifiers = self._create_column_specifiers(data)
-
-            id_cols: List[str] = list(self.column_specifiers.get("id_columns", []))
+            column_specifiers = self._get_or_create_column_specifiers(data)
+            id_cols: List[str] = list(column_specifiers.get("id_columns", []))
             if episode_col not in id_cols:
                 id_cols = [episode_col] + id_cols
 
-            target_columns = self.column_specifiers.get("target_columns", [])
-            if not target_columns:
-                expected = self.config.target_features
-                raise ValueError(
-                    f"target_columns is empty after filtering: none of the configured "
-                    f"target features {expected} were found (or had non-NaN values) in "
-                    f"the input data. Available columns: {list(data.columns)}"
-                )
+            target_columns = self._resolve_target_columns(
+                column_specifiers=column_specifiers,
+                data=data,
+            )
 
-            if self.model is None:
-                raise RuntimeError("TTM model weights are not initialized.")
-            model = cast(Any, self.model)
-            pipeline = TimeSeriesForecastingPipeline(
+            model = self._require_initialized_model()
+            pipeline = self._build_zero_shot_pipeline(
                 model=model,
-                timestamp_column=self.column_specifiers.get(
-                    "timestamp_column", ColumnNames.DATETIME.value
-                ),
+                column_specifiers=column_specifiers,
                 id_columns=id_cols,
                 target_columns=target_columns,
-                observable_columns=self.column_specifiers.get("observable_columns", []),
-                explode_forecasts=True,
-                freq=f"{self.config.resolution_min}min",
             )
             forecast_df = pipeline(data)
             target_col = target_columns[0]
@@ -849,10 +683,131 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         return super()._predict_batch(data, episode_col)
 
     def _save_checkpoint(self, output_dir: str) -> None:
-        self._save_checkpoint_impl(output_dir)
+        """Save model checkpoint and preprocessor.
+
+        Args:
+            output_dir: Directory path for saving checkpoint
+        """
+        import pickle
+
+        if self.model is not None and hasattr(self.model, "save_pretrained"):
+            self.model.save_pretrained(output_dir)  # type: ignore[union-attr]
+            info_print(f"TTM model saved to {output_dir}")
+
+        # Save the preprocessor for inference (critical for new/holdout patients)
+        # Using pickle because tsfm_public's save_pretrained uses json.dumps(sort_keys=True)
+        # which fails when preprocessor has mixed key types (float patient IDs + string keys)
+        # Save to BOTH root and model.pt to handle different load scenarios
+        if self.preprocessor is not None:
+            # Save to root directory (primary location for _load_checkpoint)
+            preprocessor_path = os.path.join(output_dir, "preprocessor.pkl")
+            with open(preprocessor_path, "wb") as f:
+                pickle.dump(self.preprocessor, f)
+            info_print(f"Preprocessor saved to {preprocessor_path}")
+
+            # Also save to model.pt if it exists (for consistency with HF Trainer structure)
+            model_pt_dir = os.path.join(output_dir, "model.pt")
+            if os.path.exists(model_pt_dir):
+                preprocessor_path_model_pt = os.path.join(
+                    model_pt_dir, "preprocessor.pkl"
+                )
+                with open(preprocessor_path_model_pt, "wb") as f:
+                    pickle.dump(self.preprocessor, f)
+                info_print(f"Preprocessor also saved to {preprocessor_path_model_pt}")
+        else:
+            logger.warning(
+                "Preprocessor is None - not saved. "
+                "This will cause inference to return scaled predictions instead of original units."
+            )
 
     def _load_checkpoint(self, model_dir: str) -> None:
-        self._load_checkpoint_impl(model_dir)
+        """Load model checkpoint.
+
+        Args:
+            model_dir: Directory containing saved checkpoint
+
+        Raises:
+            Exception: If loading fails
+        """
+        import pickle
+
+        try:
+            # Use get_model() to load the TTM architecture from the checkpoint directory
+            # This properly handles the custom TTM model type
+            model_params = {
+                "model_path": model_dir,  # Load from checkpoint directory
+                "context_length": self.config.context_length,
+                "prediction_length": self.config.forecast_length,
+                "freq": f"{self.config.resolution_min}min",
+                "return_model_key": False,  # Ensure we get the model object, not a string
+            }
+
+            # Only add prediction_filter_length if it's not None
+            if self.config.prediction_filter_length is not None:
+                model_params["prediction_filter_length"] = (
+                    self.config.prediction_filter_length
+                )
+
+            info_print(
+                f"Loading TTM checkpoint from {model_dir} with params: {model_params}"
+            )
+            ttm_model = get_model(**model_params)
+
+            # Validate that we received a model object, not a string
+            if isinstance(ttm_model, str):
+                raise TypeError(
+                    f"Expected model object from get_model(), but received string: {ttm_model}"
+                )
+
+            self.model = ttm_model
+            info_print(f"TTM model checkpoint loaded from {model_dir}")
+
+            # Load the preprocessor if saved (critical for inference on holdout patients)
+            # Try supported locations as save structure can vary:
+            # 1. Direct in model_dir (new format)
+            # 2. In model.pt subdirectory (HuggingFace Trainer creates this)
+            preprocessor_pkl_path = os.path.join(model_dir, "preprocessor.pkl")
+            preprocessor_pkl_model_pt = os.path.join(
+                model_dir, "model.pt", "preprocessor.pkl"
+            )
+
+            if os.path.exists(preprocessor_pkl_path):
+                with open(preprocessor_pkl_path, "rb") as f:
+                    self.preprocessor = pickle.load(f)
+                info_print(f"Preprocessor loaded from {preprocessor_pkl_path}")
+            elif os.path.exists(preprocessor_pkl_model_pt):
+                # HuggingFace Trainer sometimes saves to model.pt subdirectory
+                with open(preprocessor_pkl_model_pt, "rb") as f:
+                    self.preprocessor = pickle.load(f)
+                info_print(f"Preprocessor loaded from {preprocessor_pkl_model_pt}")
+            else:
+                logger.warning(
+                    f"No preprocessor found at {model_dir}. "
+                    "Predictions will return SCALED values (z-scores) instead of original units. "
+                    "This will cause incorrect metrics if comparing to unscaled ground truth. "
+                    "Ensure preprocessor.pkl was saved during training."
+                )
+
+            if self.preprocessor is not None:
+                _validate_preprocessor_schema(self.preprocessor)
+
+            # Only mark as fitted if the preprocessor was also successfully loaded.
+            # The fitted inference path in _predict() unconditionally dereferences
+            # self.preprocessor, so setting is_fitted=True without a preprocessor
+            # would cause an AttributeError at inference time.
+            if self.preprocessor is not None:
+                self.is_fitted = True
+                info_print("Model marked as fitted (preprocessor loaded successfully).")
+            else:
+                self.is_fitted = False
+                logger.warning(
+                    "Model checkpoint loaded but is_fitted=False: preprocessor is missing. "
+                    "Falling back to zero-shot inference path (TTM internal RevIN only)."
+                )
+
+        except Exception as e:
+            error_print(f"Failed to load model checkpoint: {str(e)}")
+            raise
 
     def get_ttm_specific_info(self) -> Dict[str, Any]:
         """Get TTM-specific model information.
@@ -876,6 +831,57 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         return base_info
 
     # TTM-specific private methods
+    def _require_initialized_model(self) -> Any:
+        """Return model object or raise if weights are not initialized."""
+        if self.model is None:
+            raise RuntimeError("TTM model weights are not initialized.")
+        return cast(Any, self.model)
+
+    def _get_or_create_column_specifiers(self, data: pd.DataFrame) -> ColumnSpecifiers:
+        """Get cached column specifiers, creating them lazily on first use."""
+        if self.column_specifiers is None:
+            self.column_specifiers = self._create_column_specifiers(data)
+        return self.column_specifiers
+
+    def _resolve_target_columns(
+        self,
+        *,
+        column_specifiers: ColumnSpecifiers,
+        data: pd.DataFrame,
+    ) -> List[str]:
+        """Resolve target columns and fail fast when no valid target remains."""
+        target_columns = list(column_specifiers.get("target_columns", []))
+        if target_columns:
+            return target_columns
+
+        expected = self.config.target_features
+        raise ValueError(
+            f"target_columns is empty after filtering: none of the configured "
+            f"target features {expected} were found (or had non-NaN values) in "
+            f"the input data. Available columns: {list(data.columns)}"
+        )
+
+    def _build_zero_shot_pipeline(
+        self,
+        *,
+        model: Any,
+        column_specifiers: ColumnSpecifiers,
+        id_columns: List[str],
+        target_columns: List[str],
+    ) -> TimeSeriesForecastingPipeline:
+        """Create the zero-shot inference pipeline with shared settings."""
+        return TimeSeriesForecastingPipeline(
+            model=model,
+            timestamp_column=column_specifiers.get(
+                "timestamp_column", ColumnNames.DATETIME.value
+            ),
+            id_columns=id_columns,
+            target_columns=target_columns,
+            observable_columns=column_specifiers.get("observable_columns", []),
+            explode_forecasts=True,
+            freq=f"{self.config.resolution_min}min",
+        )
+
     def _create_column_specifiers(self, data: pd.DataFrame) -> ColumnSpecifiers:
         """Create column specifiers for TimeSeriesPreprocessor.
 
