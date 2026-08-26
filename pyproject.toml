@@ -75,7 +75,9 @@ autogluon = [
 ]
 timegrad = [
     "pytorchts",
-    "gluonts>=0.9.0,<0.10.0",
+    "gluonts>=0.14.0,<0.15.0",
+    "lightning>=2.0",
+    "pydantic>=2,<3",
 ]
 moment = [
     "momentfm",

@@ -1,8 +1,8 @@
 # P1-39 Ruff Baseline Cleanup Plan
 
 **Date:** 2026-08-23
-**Update Date:** 2026-08-24
-**Status:** Proposed (pending execution)
+**Update Date:** 2026-08-25
+**Status:** Complete (merged to `main` via PR #463)
 **Tracking row:** `ruff-baseline-cleanup-pass` in [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
 
 ---
@@ -226,5 +226,11 @@ PR slices status:
 Exit criteria closeout status at wrap-up:
 
 - #2, #3, #4, #5, #6, #7, #8: satisfied in-repo with documented evidence.
-- #1: pending final PR CI evidence capture before marking
-  `ruff-baseline-cleanup-pass` done.
+- #1: satisfied via PR #463 CI evidence (all required checks green:
+  `Lint and Test`, `copilot-setup-steps`, `copilot-code-review-setup`), and
+  `ruff-baseline-cleanup-pass` is now marked done in
+  [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv).
+
+## 11) Recommended next work item
+
+Start [P1-38_MODEL_RUNTIME_CONSOLIDATION_PLAN.md](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/agent_notes/P1-38_MODEL_RUNTIME_CONSOLIDATION_PLAN.md) with **PR-C0** (baseline + shared helper scaffolding, no behavior change), then proceed to **PR-C1** (TTM pilot consolidation) after PR-C0 validation gates pass.

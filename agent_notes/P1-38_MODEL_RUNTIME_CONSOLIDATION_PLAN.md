@@ -1,8 +1,8 @@
 # P1-38 Model Runtime Consolidation Plan
 
 **Date:** 2026-08-23
-**Update Date:** 2026-08-23
-**Status:** Proposed (pending execution)
+**Update Date:** 2026-08-26
+**Status:** In progress (all-model pre-change baseline is green, including TimeGrad on a v2-compatible lane; PR-C1 kickoff queued)
 **Tracking row:** `model-runtime-consolidation-wave` in [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
 
 ---
@@ -129,6 +129,8 @@ Rationale: those tasks require reliable, predictable, low-duplication model entr
   - existing schema/factory/contract test coverage
   - known edge cases (zero-shot, checkpoint reload, probabilistic outputs)
 - Produce a short baseline appendix in this note before first refactor PR.
+- PR-C0 status (2026-08-25): complete. Baseline appendix is captured in
+  [section 8A](#8a-pr-c0-baseline-appendix-2026-08-25).
 
 ### WS1 — Shared helper extraction
 
@@ -221,6 +223,141 @@ For any changed schema route behavior, also run:
 ```bash
 pytest -q tests/workflows/forecasting/test_config_schema_artifact_generation.py
 ```
+
+Pre/post regression gate for consolidation PR waves:
+
+```bash
+# Pre-change baseline suite (all maintained models, Aleppo ultra-smoke holdout)
+make smoke-suite-aleppo SUITE_LABEL=pre_<wave_label>
+
+# Post-change suite
+make smoke-suite-aleppo SUITE_LABEL=post_<wave_label>
+
+# Compare artifact parity + key metric drift tolerance
+make smoke-suite-compare \
+  BASELINE=trained_models/artifacts/regression_smoke/all_models_aleppo/pre_<wave_label>/suite_manifest.json \
+  CANDIDATE=trained_models/artifacts/regression_smoke/all_models_aleppo/post_<wave_label>/suite_manifest.json
+```
+
+Fast-profile notes (2026-08-26):
+
+- Suite default holdout is [`configs/data/holdout_smoke_aleppo_ultra/aleppo_2017.yaml`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/configs/data/holdout_smoke_aleppo_ultra/aleppo_2017.yaml) to reduce train-window volume.
+- Heavy families now use `97_regression_smoke_balanced.yaml` smoke configs where needed to bound runtime (notably Chronos2 step budget and AutoGluon-family `max_epochs` / `num_batches_per_epoch`).
+- Chronos2 smoke keeps progress visibility with `fine_tune_logging_steps: 500` while disabling in-step validation for speed.
+
+---
+
+## 8A) PR-C0 baseline appendix (2026-08-25)
+
+### LOC + long-method inventory (>=40 lines per function/method)
+
+| Family | File | LOC | Long defs |
+| --- | --- | ---: | ---: |
+| TTM | [src/models/ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py) | 1107 | 10 |
+| TimesFM | [src/models/timesfm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timesfm/model.py) | 1197 | 6 |
+| Moirai | [src/models/moirai/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moirai/model.py) | 1140 | 9 |
+| Moment | [src/models/moment/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/model.py) | 1133 | 7 |
+| Chronos2 | [src/models/chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py) | 945 | 7 |
+| Toto | [src/models/toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py) | 565 | 5 |
+| Tide | [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py) | 379 | 3 |
+
+Top hotspots by long-method span (selected):
+
+- TTM:
+  - `_train_model` (~124 lines)
+  - `_compute_trainer_metrics` (~118 lines)
+  - `_prepare_training_data` (~116 lines)
+- TimesFM:
+  - `_prepare_training_data` (~225 lines)
+  - `forward` (~156 lines)
+  - `_train_model` (~106 lines)
+- Moirai:
+  - `_train_model` (~233 lines)
+  - `_prepare_training_tensors` (~146 lines)
+  - `evaluate_probabilistic` (~111 lines)
+- Moment:
+  - `_train_model` (~286 lines)
+  - `_get_context_target_pairs` (~162 lines)
+  - `_forecast_batch` (~109 lines)
+- Chronos2:
+  - `_materialize_intermediate_checkpoints` (~169 lines)
+  - `_predict_batch` (~142 lines)
+- Toto:
+  - `_predict_batch` (~119 lines)
+  - `_train_model` (~103 lines)
+- Tide:
+  - `_train_model` (~64 lines)
+  - `_predict_batch` (~49 lines)
+
+### Existing schema/factory/contract coverage baseline
+
+Cross-family baseline gates already in place:
+
+- [tests/models/test_model_family_contract_suite.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_model_family_contract_suite.py)
+- [tests/workflows/forecasting/test_model_config_schema_loader.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/workflows/forecasting/test_model_config_schema_loader.py)
+- [tests/workflows/forecasting/test_config_schema_artifact_generation.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/workflows/forecasting/test_config_schema_artifact_generation.py)
+
+Family-specific regression coverage currently present:
+
+- TTM: [test_ttm_preprocessor_roundtrip.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_ttm_preprocessor_roundtrip.py), [test_ttm_preprocessor_schema_contract.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_ttm_preprocessor_schema_contract.py)
+- TimesFM: [test_timesfm_config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_timesfm_config.py), [test_timesfm_loss_and_callback.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_timesfm_loss_and_callback.py), [test_timesfm_patient_split.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_timesfm_patient_split.py)
+- Chronos2: [test_chronos2.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_chronos2.py), [gpu_smoke_test_chronos2_inference.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/gpu_smoke_test_chronos2_inference.py), [test_chronos2_known_covariates.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/data/test_chronos2_known_covariates.py)
+
+Coverage gaps to close in PR-C1..PR-C4:
+
+- Moirai, Toto, and Tide currently rely mostly on shared contract + schema loader coverage with limited direct family-specific regression tests.
+- Moment has sweep-config coverage but should gain explicit runtime regression checks alongside consolidation.
+
+### Constructor-path call-site baseline
+
+Current maintained call-site inventory confirms mixed constructor lanes:
+
+- `create_model_and_config` call sites in:
+  - [src/workflows/evaluation/nocturnal_hypo_eval.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/nocturnal_hypo_eval.py)
+  - [src/workflows/evaluation/sliding_window_eval.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/sliding_window_eval.py)
+  - [src/workflows/evaluation/validate_predict_batch.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/validate_predict_batch.py)
+  - [src/workflows/personalization/per_patient_finetune.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/personalization/per_patient_finetune.py)
+- `ModelFactory` path is already primary in:
+  - [src/workflows/forecasting/pipeline.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/pipeline.py)
+  - [src/workflows/forecasting/modeling.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py)
+
+### Known edge cases to preserve through consolidation
+
+- TTM checkpoint preprocessor schema guardrails must remain fail-fast and actionable.
+- TimesFM single-patient split/window behavior must retain zero-window protections and training-window retention semantics.
+- Chronos2 known-covariate and checkpoint-materialization behavior remains high-risk and needs parity tests during Tier B waves.
+- Moirai probabilistic output/evaluation pathways need explicit parity checks in family-specific tests before broad helper extraction.
+
+### PR-C1 handoff note
+
+PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regression coverage needed to prove behavior parity after helper extraction.
+
+### 8B) Current checkpoint (2026-08-26)
+
+- Housekeeping closeout from PR #463 and P1-39 wrap-up was completed on working branch
+  [chore/pr-463-closeout-p1-38-kickoff](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast).
+- All-model Aleppo smoke suite runner and comparator are in place:
+  - [run_aleppo_model_regression_smoke_suite.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/workflows/forecasting/run_aleppo_model_regression_smoke_suite.py)
+  - [compare_regression_smoke_suites.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/workflows/forecasting/compare_regression_smoke_suites.py)
+- Fast/observable smoke profiles and ultra-smoke Aleppo holdout are in place:
+  - [holdout_smoke_aleppo_ultra/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/configs/data/holdout_smoke_aleppo_ultra)
+  - per-family `97_regression_smoke_balanced.yaml` configs under
+    [configs/models/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/configs/models)
+- Suite-manifest nested-path resolution is fixed so per-model status resolves
+  timestamped run manifests correctly.
+- TimeGrad smoke-lane compatibility is resolved with a v2-compatible runtime lane
+  (`pydantic>=2`, modern `gluonts`, compatibility shims in
+  [src/models/timegrad/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timegrad)).
+- Latest pre-change baseline run is
+  `pre_refactor_20260827v1` under
+  [trained_models/artifacts/regression_smoke/all_models_aleppo/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo)
+  with all maintained models succeeding.
+
+### Immediate next actions
+
+1. Start PR-C1 (TTM-only consolidation slice) with no behavior change outside TTM lane.
+2. Run pre/post smoke comparator around PR-C1 using `pre_refactor_20260827v1` as baseline.
+3. Record PR-C1 drift/artifact parity outcomes in this plan and `project_tracking.csv`.
 
 ---
 

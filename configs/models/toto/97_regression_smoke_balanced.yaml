@@ -1,0 +1,24 @@
+# =============================================================================
+# Toto 97 — fast regression smoke profile
+# =============================================================================
+model_type: "toto"
+model_path: "Datadog/Toto-Open-Base-1.0"
+training_mode: "fine_tune"
+context_length: 256
+forecast_length: 96
+freeze_backbone: false
+
+lr: 1.0e-4
+batch_size: 64
+num_epochs: 1
+min_lr: 1.0e-5
+warmup_steps: 100
+stable_steps: 300
+decay_steps: 300
+
+train_batch_size: 4
+val_batch_size: 1
+val_prediction_len: 96
+samples_per_batch: 10
+eval_batch_size: 64
+covariate_cols: [iob, cob]
