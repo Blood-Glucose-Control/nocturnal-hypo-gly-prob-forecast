@@ -57,11 +57,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     - training_backend = CUSTOM (AutoGluon manages training internally)
     - self.model stays None; self.predictor holds the AutoGluon predictor
     - _prepare_training_data returns TimeSeriesDataFrame, not DataLoaders
-    - Midnight-anchored nocturnal evaluation is a separate concern handled
-      by the standalone evaluate_with_covariates() utility in chronos2/utils.py,
-      which takes (predictor, test_data, known_covariates, episodes) directly.
-      It is not wired into this class because known_covariates and episode
-      metadata are external pipeline concerns, not model-internal state.
+    - Midnight-anchored nocturnal evaluation is handled by shared evaluation
+      helpers outside this class. It is not wired into the model runtime because
+      known_covariates and episode metadata are external pipeline concerns.
     """
 
     config_class = Chronos2Config
