@@ -382,9 +382,9 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
 
 ### Immediate next actions
 
-1. Re-run PR-C4 smoke comparator against baseline `pre_refactor_20260827v1`.
+1. Begin constructor-shim parity closeout (`create_model_and_config`) now that C4 smoke parity is confirmed.
 2. Keep dependency-lane targeted validations and final Pylance gates for any follow-on adjustments.
-3. Begin constructor-shim parity closeout (`create_model_and_config`) after smoke parity is confirmed.
+3. Stage PR-C4 ready-for-review summary once shim closeout evidence is captured.
 
 ### PR-C1 status checkpoint (2026-08-27)
 
@@ -516,6 +516,12 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
   - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "tide"` (pass),
   - `SKIP=pyright pre-commit run --files src/models/tide/model.py tests/models/test_tide_runtime_helpers.py` (pass),
   - Pylance diagnostics clean for touched files (warnings only; no error-severity diagnostics).
+- PR-C4 smoke comparator status:
+  - `SUITE_LABEL=post_refactor_20260827_c4 make smoke-suite-aleppo` completed with all maintained models succeeding,
+  - `make smoke-suite-compare` passed against baseline `pre_refactor_20260827v1`,
+  - candidate manifest: [suite_manifest.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c4/suite_manifest.json),
+  - comparison report: [comparison_report.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c4/comparison_report.json),
+  - compared models: 14; failures: 0.
 
 ---
 
