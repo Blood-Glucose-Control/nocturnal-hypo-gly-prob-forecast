@@ -20,6 +20,7 @@ Usage:
         --context-length 64 --episode-context-length 512 \
         --forecast-length 96 --probabilistic
 """
+# pyright: reportMissingImports=false
 
 import argparse
 import json
@@ -38,8 +39,8 @@ from src.evaluation.nocturnal import (
     plot_best_worst_episodes,
 )
 from src.evaluation.storage import write_nocturnal_results
-from src.models import create_model_and_config
 from src.utils import get_git_commit_hash, load_yaml_config, setup_file_logging
+from src.workflows.forecasting.modeling import create_model_and_config
 
 # Configure root logger for console output
 logging.basicConfig(

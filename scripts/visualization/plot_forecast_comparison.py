@@ -60,6 +60,7 @@ Model specs use the format: type:checkpoint:label
   - checkpoint  optional; empty = zero-shot
   - label       optional; defaults to 'type' or 'type-ft'
 """
+# pyright: reportMissingImports=false
 
 import argparse
 import hashlib
@@ -655,7 +656,7 @@ def main() -> None:
         build_patient_episodes,
         get_holdout_patients,
     )
-    from src.models.factory import create_model_and_config
+    from src.workflows.forecasting.modeling import create_model_and_config
 
     model_specs = [parse_model_spec(s) for s in args.models]
     covariate_cols = collect_covariate_cols(model_specs, args.covariate_cols)

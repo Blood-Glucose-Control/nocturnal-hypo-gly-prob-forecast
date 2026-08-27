@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-23
 **Update Date:** 2026-08-27
-**Status:** In progress (WS1 model-family helper extraction and constructor-path parity closeout for maintained entrypoints are complete; shim retirement closeout remains)
+**Status:** In progress (WS1 model-family helper extraction, constructor-path parity closeout, and shim retirement are complete; final PR closeout remains)
 **Tracking row:** `model-runtime-consolidation-wave` in [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
 
 ---
@@ -65,9 +65,10 @@ Rationale: those tasks require reliable, predictable, low-duplication model entr
 
 1. **Constructor unification target is explicit:** maintained runtime entrypoints
    should converge on schema-routed `ModelFactory` constructor semantics.
-2. **Current-state acknowledgment:** today, primary evaluation flows still rely on
-   [`create_model_and_config`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/factory.py:35);
-   this task owns migration away from that direct dependency.
+2. **Current-state acknowledgment:** maintained evaluation flows now rely on
+   schema-routed
+   [`create_model_and_config`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py:164);
+   `src/models.factory.create_model_and_config` has been retired.
 3. **Shim policy:** `create_model_and_config` may exist only as a temporary
    migration shim during intermediate PR slices; no new direct call sites should
    be introduced.
@@ -383,8 +384,8 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
 ### Immediate next actions
 
 1. Stage final PR summary with constructor-path parity evidence and validation inventory.
-2. Decide shim retirement sequencing for non-maintained/scratch callers (`src/models.factory.create_model_and_config`), then either remove or schedule in an explicit follow-on row.
-3. If shim is retired, update affected non-maintained scripts or mark them intentionally unsupported.
+2. Prepare ready-for-review summary and call out residual risk items (if any).
+3. Keep this row in progress until PR #465 review/merge is complete.
 
 ### PR-C1 status checkpoint (2026-08-27)
 
@@ -543,6 +544,20 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
   - `pytest -q tests/workflows/forecasting/test_modeling_create_model_and_config.py tests/workflows/forecasting/test_model_config_schema_loader.py -k "ttm or timesfm or moirai or moment or chronos2 or toto or tide"` (44 passed),
   - `SKIP=pyright pre-commit run --files src/workflows/forecasting/modeling.py src/workflows/evaluation/nocturnal_hypo_eval.py src/workflows/evaluation/sliding_window_eval.py src/workflows/evaluation/validate_predict_batch.py src/workflows/personalization/per_patient_finetune.py tests/workflows/forecasting/test_modeling_create_model_and_config.py` (pass),
   - final Pylance diagnostics clean (error-severity) for all touched workflow files and helper tests.
+
+### PR-C6 status checkpoint (2026-08-27, shim retirement)
+
+- Retired `src/models.factory.create_model_and_config` and removed legacy export from [src/models/__init__.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/__init__.py).
+- Preserved [SUPPORTED_MODEL_TYPES](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/factory.py) in [factory.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/factory.py) for contract/audit checks.
+- Updated remaining non-maintained callers to workflow constructor path:
+  - [plot_forecast_comparison.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/visualization/plot_forecast_comparison.py),
+  - [export_single_episode_eval_data.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/scratch/data_processing/export_single_episode_eval_data.py),
+  - [nocturnal_hypo_eval_ctx_ablation.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/scratch/experiments/nocturnal_hypo_eval_ctx_ablation.py).
+- Validation status for PR-C6 slice:
+  - `ruff check src/models/__init__.py src/models/factory.py scripts/visualization/plot_forecast_comparison.py scripts/scratch/data_processing/export_single_episode_eval_data.py scripts/scratch/experiments/nocturnal_hypo_eval_ctx_ablation.py` (pass),
+  - `pytest -q tests/models/test_model_family_contract_suite.py tests/workflows/forecasting/test_modeling_create_model_and_config.py` (8 passed),
+  - `SKIP=pyright pre-commit run --files src/models/__init__.py src/models/factory.py scripts/visualization/plot_forecast_comparison.py scripts/scratch/data_processing/export_single_episode_eval_data.py scripts/scratch/experiments/nocturnal_hypo_eval_ctx_ablation.py` (pass),
+  - final Pylance diagnostics clean (error-severity) for touched files.
 
 ---
 
