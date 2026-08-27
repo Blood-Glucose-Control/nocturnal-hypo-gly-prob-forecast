@@ -763,28 +763,13 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             f"TimesFM initialized on {self.device} (dtype={self.config.torch_dtype})"
         )
 
-    def _prepare_training_data(
-        self, train_data: Any
-    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[Dataset]]:
-        """Prepare DataLoaders with gap handling and per-patient windowing.
-
-        Pipeline: extract per-patient DataFrames → gap handling (interpolate
-        small gaps, segment at large gaps) → patient-level train/val split →
-        sliding windows within each segment.
-
-        Returns:
-            (train_loader, val_loader, temporal_eval_dataset) where the third
-            element is a Dataset/Subset reserved for the mid-training eval
-            callback (not yet wrapped in a DataLoader).
-        """
-        from collections import defaultdict
-
-        from ...data.preprocessing.gap_handling import segment_all_patients
-
-        info_print("Preparing data for TimesFM finetuning...")
-
-        # Step 1: Extract per-patient DataFrames (need DatetimeIndex for gap handling)
-        target_col = self.config.target_col
+    def _extract_patient_dataframes(
+        self,
+        train_data: Any,
+        *,
+        target_col: str,
+    ) -> Dict[str, pd.DataFrame]:
+        """Normalize training input into a patient->DataFrame mapping."""
         if isinstance(train_data, dict):
             patient_dfs = {}
             for pid, df in train_data.items():
@@ -811,19 +796,33 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         info_print(
             f"Total samples: {total_samples:,} across {len(patient_dfs)} patients"
         )
+        return patient_dfs
 
-        # Step 2: Ensure DataFrames have DatetimeIndex for gap handling
+    def _ensure_datetime_index(
+        self,
+        patient_dfs: Dict[str, pd.DataFrame],
+    ) -> Dict[str, pd.DataFrame]:
+        """Ensure each patient frame has DatetimeIndex when available."""
         for pid, df in patient_dfs.items():
-            if not isinstance(df.index, pd.DatetimeIndex):
-                if "datetime" in df.columns:
-                    patient_dfs[pid] = df.set_index("datetime")
-                else:
-                    info_print(
-                        f"Patient {pid}: no datetime index or column, "
-                        f"skipping gap handling"
-                    )
+            if isinstance(df.index, pd.DatetimeIndex):
+                continue
+            if "datetime" in df.columns:
+                patient_dfs[pid] = df.set_index("datetime")
+            else:
+                info_print(
+                    f"Patient {pid}: no datetime index or column, skipping gap handling"
+                )
+        return patient_dfs
 
-        # Step 3: Gap handling — interpolate small gaps, segment at large gaps
+    def _segment_patient_data(
+        self,
+        *,
+        patient_dfs: Dict[str, pd.DataFrame],
+        target_col: str,
+    ) -> Tuple[Dict[str, pd.DataFrame], int]:
+        """Apply gap handling and segment data by patient."""
+        from ...data.preprocessing.gap_handling import segment_all_patients
+
         min_seg_length = self.config.context_length + self.config.horizon_length
         segments = segment_all_patients(
             patient_dfs,
@@ -837,44 +836,59 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             f"(interpolated gaps <= {self.config.imputation_threshold_mins} min, "
             f"min segment length = {min_seg_length})"
         )
+        return segments, min_seg_length
 
-        # Step 4: Group segments back by original patient for train/val split
+    @staticmethod
+    def _group_segments_by_patient(
+        *,
+        segments: Dict[str, pd.DataFrame],
+        target_col: str,
+    ) -> Dict[str, List[np.ndarray]]:
+        """Group segmented arrays by original patient id."""
+        from collections import defaultdict
+
         patient_to_segments: Dict[str, List[np.ndarray]] = defaultdict(list)
         for seg_id, seg_df in segments.items():
             original_pid = seg_id.rsplit("_seg_", 1)[0]
             patient_to_segments[original_pid].append(seg_df[target_col].values)
+        return patient_to_segments
 
-        # Step 5: Patient-level train/val split
+    def _truncate_segment_for_training(self, segment: np.ndarray) -> np.ndarray:
+        n = len(segment)
+        eval_samples = max(
+            self.config.horizon_length,
+            int(n * self.config.eval_temporal_frac),
+        )
+        return segment[: n - eval_samples]
+
+    def _build_train_val_arrays(
+        self,
+        *,
+        patient_to_segments: Dict[str, List[np.ndarray]],
+        min_seg_length: int,
+    ) -> Tuple[List[np.ndarray], List[np.ndarray], set[str], set[str]]:
+        """Split patient segments into training and validation arrays."""
         pids = sorted(patient_to_segments.keys(), key=str)
         train_pids, val_pids = _split_train_val_patients(
-            pids, self.config.val_patient_ratio, seed=42
+            pids,
+            self.config.val_patient_ratio,
+            seed=42,
         )
 
-        # Flatten segment arrays per split.
-        # When in-training temporal eval is active, truncate each segment at the
-        # eval cutoff so that training/validation windows never overlap with the
-        # eval forecast targets (last eval_temporal_frac of each series).
         if self.config.eval_during_training and self.config.eval_temporal_frac > 0:
-
-            def _truncate_to_train(arr: np.ndarray) -> np.ndarray:
-                n = len(arr)
-                eval_samples = max(
-                    self.config.horizon_length,
-                    int(n * self.config.eval_temporal_frac),
-                )
-                return arr[: n - eval_samples]
-
             train_arrays = [
-                t
+                truncated
                 for pid in train_pids
                 for arr in patient_to_segments[pid]
-                if len(t := _truncate_to_train(arr)) >= min_seg_length
+                if len(truncated := self._truncate_segment_for_training(arr))
+                >= min_seg_length
             ]
             val_arrays = [
-                t
+                truncated
                 for pid in val_pids
                 for arr in patient_to_segments[pid]
-                if len(t := _truncate_to_train(arr)) >= min_seg_length
+                if len(truncated := self._truncate_segment_for_training(arr))
+                >= min_seg_length
             ]
         else:
             train_arrays = [
@@ -882,20 +896,129 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             ]
             val_arrays = [arr for pid in val_pids for arr in patient_to_segments[pid]]
 
-        stride = self.config.window_stride or self.config.horizon_length
+        return train_arrays, val_arrays, train_pids, val_pids
 
-        train_dataset = TimesFMDataset(
-            patient_series=train_arrays,
+    def _build_window_dataset(
+        self,
+        *,
+        patient_series: List[np.ndarray],
+        stride: int,
+    ) -> TimesFMDataset:
+        return TimesFMDataset(
+            patient_series=patient_series,
             context_length=self.config.context_length,
             horizon_length=self.config.horizon_length,
             freq_type=self.config.freq_type,
             stride=stride,
         )
-        val_dataset = TimesFMDataset(
-            patient_series=val_arrays,
+
+    def _build_temporal_eval_dataset(
+        self,
+        *,
+        patient_to_segments: Dict[str, List[np.ndarray]],
+    ) -> Optional[Dataset]:
+        """Build temporal eval windows for mid-training callback."""
+        if not (
+            self.config.eval_during_training and self.config.eval_temporal_frac > 0
+        ):
+            return None
+
+        from torch.utils.data import Subset
+
+        temporal_eval_arrays = []
+        for pid in sorted(patient_to_segments.keys()):
+            for seg in patient_to_segments[pid]:
+                n = len(seg)
+                eval_samples = max(
+                    self.config.horizon_length,
+                    int(n * self.config.eval_temporal_frac),
+                )
+                slice_start = max(0, n - eval_samples - self.config.context_length)
+                eval_slice = seg[slice_start:]
+                if (
+                    len(eval_slice)
+                    >= self.config.context_length + self.config.horizon_length
+                ):
+                    temporal_eval_arrays.append(eval_slice)
+
+        if not temporal_eval_arrays:
+            return None
+
+        temporal_eval_all = TimesFMDataset(
+            patient_series=temporal_eval_arrays,
             context_length=self.config.context_length,
             horizon_length=self.config.horizon_length,
             freq_type=self.config.freq_type,
+            stride=self.config.horizon_length,
+        )
+        if (
+            self.config.eval_subsample is not None
+            and len(temporal_eval_all) > self.config.eval_subsample
+        ):
+            indices = np.linspace(
+                0,
+                len(temporal_eval_all) - 1,
+                self.config.eval_subsample,
+                dtype=int,
+            ).tolist()
+            temporal_eval_dataset: Dataset = Subset(temporal_eval_all, indices)
+        else:
+            temporal_eval_dataset = temporal_eval_all
+
+        info_print(
+            f"Temporal eval slice: {len(temporal_eval_dataset)} windows "
+            f"(last {self.config.eval_temporal_frac:.0%} of each series)"
+        )
+        return temporal_eval_dataset
+
+    def _build_data_loader(self, dataset: Dataset, *, shuffle: bool) -> DataLoader:
+        return DataLoader(
+            dataset,
+            batch_size=self.config.batch_size,
+            shuffle=shuffle,
+        )
+
+    def _prepare_training_data(
+        self, train_data: Any
+    ) -> Tuple[DataLoader, Optional[DataLoader], Optional[Dataset]]:
+        """Prepare DataLoaders with gap handling and per-patient windowing.
+
+        Pipeline: extract per-patient DataFrames → gap handling (interpolate
+        small gaps, segment at large gaps) → patient-level train/val split →
+        sliding windows within each segment.
+
+        Returns:
+            (train_loader, val_loader, temporal_eval_dataset) where the third
+            element is a Dataset/Subset reserved for the mid-training eval
+            callback (not yet wrapped in a DataLoader).
+        """
+        info_print("Preparing data for TimesFM finetuning...")
+        target_col = self.config.target_col
+        patient_dfs = self._extract_patient_dataframes(
+            train_data, target_col=target_col
+        )
+        patient_dfs = self._ensure_datetime_index(patient_dfs)
+        segments, min_seg_length = self._segment_patient_data(
+            patient_dfs=patient_dfs,
+            target_col=target_col,
+        )
+        patient_to_segments = self._group_segments_by_patient(
+            segments=segments,
+            target_col=target_col,
+        )
+        train_arrays, val_arrays, train_pids, val_pids = self._build_train_val_arrays(
+            patient_to_segments=patient_to_segments,
+            min_seg_length=min_seg_length,
+        )
+
+        stride = self.config.window_stride or self.config.horizon_length
+
+        train_dataset = self._build_window_dataset(
+            patient_series=train_arrays,
+            stride=stride,
+        )
+        val_dataset = self._build_window_dataset(
+            patient_series=val_arrays,
             stride=stride,
         )
 
@@ -914,78 +1037,19 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 "Try reducing context/horizon lengths or val_patient_ratio."
             )
 
-        train_loader = DataLoader(
-            train_dataset,
-            batch_size=self.config.batch_size,
-            shuffle=True,
-        )
+        train_loader = self._build_data_loader(train_dataset, shuffle=True)
         val_loader = None
         if len(val_dataset) > 0:
-            val_loader = DataLoader(
-                val_dataset,
-                batch_size=self.config.batch_size,
-                shuffle=False,
-            )
+            val_loader = self._build_data_loader(val_dataset, shuffle=False)
         elif len(val_pids) > 0:
             info_print(
                 "Validation patient split produced 0 windows; continuing without "
                 "patient-level validation loader."
             )
 
-        # Step 6: Temporal eval slice for in-training callback.
-        # Split each series at the RAW level (before windowing) so that no eval
-        # forecast TARGET comes from before the temporal cutoff.  Context windows
-        # ARE allowed to include the last context_length pre-cutoff samples — that
-        # mirrors real deployment where context always comes from before the
-        # forecast origin.
-        temporal_eval_dataset = None
-        if self.config.eval_during_training and self.config.eval_temporal_frac > 0:
-            from torch.utils.data import Subset
-
-            temporal_eval_arrays = []
-            for pid in sorted(patient_to_segments.keys()):
-                for seg in patient_to_segments[pid]:
-                    n = len(seg)
-                    # Number of target-period samples at the end of the series.
-                    eval_samples = max(
-                        self.config.horizon_length,
-                        int(n * self.config.eval_temporal_frac),
-                    )
-                    # Prepend context_length samples so the first eval window has
-                    # full context while its targets remain in the held-out tail.
-                    slice_start = max(0, n - eval_samples - self.config.context_length)
-                    eval_slice = seg[slice_start:]
-                    if (
-                        len(eval_slice)
-                        >= self.config.context_length + self.config.horizon_length
-                    ):
-                        temporal_eval_arrays.append(eval_slice)
-
-            if temporal_eval_arrays:
-                temporal_eval_all = TimesFMDataset(
-                    patient_series=temporal_eval_arrays,
-                    context_length=self.config.context_length,
-                    horizon_length=self.config.horizon_length,
-                    freq_type=self.config.freq_type,
-                    stride=self.config.horizon_length,  # non-overlapping for eval
-                )
-                if (
-                    self.config.eval_subsample is not None
-                    and len(temporal_eval_all) > self.config.eval_subsample
-                ):
-                    indices = np.linspace(
-                        0,
-                        len(temporal_eval_all) - 1,
-                        self.config.eval_subsample,
-                        dtype=int,
-                    ).tolist()
-                    temporal_eval_dataset = Subset(temporal_eval_all, indices)
-                else:
-                    temporal_eval_dataset = temporal_eval_all
-                info_print(
-                    f"Temporal eval slice: {len(temporal_eval_dataset)} windows "
-                    f"(last {self.config.eval_temporal_frac:.0%} of each series)"
-                )
+        temporal_eval_dataset = self._build_temporal_eval_dataset(
+            patient_to_segments=patient_to_segments
+        )
 
         return train_loader, val_loader, temporal_eval_dataset
 
@@ -1005,23 +1069,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             "future_values": torch.stack([item["future_values"] for item in batch]),
         }
 
-    def _train_model(
-        self, train_data: Any, output_dir: str, **kwargs
-    ) -> Dict[str, Any]:
-        """Fine-tune TimesFM using HF Trainer with per-window normalized loss."""
-        from transformers import Trainer, TrainingArguments
-
-        if kwargs:
-            logger.debug("Ignoring unsupported TimesFM train kwargs: %s", list(kwargs))
-        info_print("Starting TimesFM finetuning with HF Trainer...")
-        os.makedirs(output_dir, exist_ok=True)
-
-        train_loader, val_loader, temporal_eval_dataset = self._prepare_training_data(
-            train_data
-        )
-        if self.hf_model is None:
-            raise RuntimeError("TimesFM model is not initialized before training.")
-
+    def _resolve_training_input_dtype(self) -> torch.dtype:
         dtype_map: Dict[str, torch.dtype] = {
             "bfloat16": torch.bfloat16,
             "float16": torch.float16,
@@ -1029,10 +1077,13 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         }
         input_dtype = dtype_map.get(self.config.torch_dtype, torch.float32)
         if self.device != "cuda":
-            input_dtype = torch.float32
+            return torch.float32
+        return input_dtype
 
-        # Wrap model for normalized-space loss
-        trainer_model = TimesFMForTrainer(
+    def _build_trainer_model(self, *, input_dtype: torch.dtype) -> TimesFMForTrainer:
+        if self.hf_model is None:
+            raise RuntimeError("TimesFM model is not initialized before training.")
+        return TimesFMForTrainer(
             self.hf_model,
             loss_fn=self.config.loss_fn,
             dilate_alpha=self.config.dilate_alpha,
@@ -1041,7 +1092,10 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             input_dtype=input_dtype,
         )
 
-        training_args = TrainingArguments(
+    def _create_training_arguments(self, *, output_dir: str) -> Any:
+        from transformers import TrainingArguments
+
+        return TrainingArguments(
             output_dir=output_dir,
             num_train_epochs=self.config.num_epochs,
             per_device_train_batch_size=self.config.batch_size,
@@ -1061,33 +1115,81 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             report_to="none",
         )
 
-        # Register in-training eval callback if temporal eval data was built.
-        callbacks = []
-        if self.config.eval_during_training and temporal_eval_dataset is not None:
-            q_levels = list(cast(Any, self.hf_model).config.quantiles)
-            callbacks.append(
-                MidTrainingEvalCallback(
-                    eval_dataset=temporal_eval_dataset,
-                    output_dir=output_dir,
-                    horizon=self.config.horizon_length,
-                    quantile_levels=q_levels,
-                    collate_fn=self._collate_fn,
-                    batch_size=min(self.config.batch_size, 64),
-                    device=self.device,
-                )
-            )
-            info_print(
-                f"In-training eval: {len(cast(Any, temporal_eval_dataset))} temporal windows. "
-                f"Metrics → {os.path.join(output_dir, 'epoch_metrics.csv')}"
-            )
+    def _build_training_callbacks(
+        self,
+        *,
+        temporal_eval_dataset: Optional[Dataset],
+        output_dir: str,
+    ) -> List[_TrainerCallbackBase]:
+        if not (self.config.eval_during_training and temporal_eval_dataset is not None):
+            return []
 
-        trainer = Trainer(
+        if self.hf_model is None:
+            return []
+
+        q_levels = list(cast(Any, self.hf_model).config.quantiles)
+        callbacks: List[_TrainerCallbackBase] = [
+            MidTrainingEvalCallback(
+                eval_dataset=temporal_eval_dataset,
+                output_dir=output_dir,
+                horizon=self.config.horizon_length,
+                quantile_levels=q_levels,
+                collate_fn=self._collate_fn,
+                batch_size=min(self.config.batch_size, 64),
+                device=self.device,
+            )
+        ]
+        info_print(
+            f"In-training eval: {len(cast(Any, temporal_eval_dataset))} temporal windows. "
+            f"Metrics → {os.path.join(output_dir, 'epoch_metrics.csv')}"
+        )
+        return callbacks
+
+    @staticmethod
+    def _build_hf_trainer(
+        *,
+        trainer_model: TimesFMForTrainer,
+        training_args: Any,
+        train_loader: DataLoader,
+        val_loader: Optional[DataLoader],
+        callbacks: List[_TrainerCallbackBase],
+    ) -> Any:
+        from transformers import Trainer
+
+        return Trainer(
             model=trainer_model,
             args=training_args,
             train_dataset=train_loader.dataset,
             eval_dataset=val_loader.dataset if val_loader else None,
-            data_collator=self._collate_fn,
+            data_collator=TimesFMForecaster._collate_fn,
             callbacks=callbacks if callbacks else None,
+        )
+
+    def _train_model(
+        self, train_data: Any, output_dir: str, **kwargs
+    ) -> Dict[str, Any]:
+        """Fine-tune TimesFM using HF Trainer with per-window normalized loss."""
+        if kwargs:
+            logger.debug("Ignoring unsupported TimesFM train kwargs: %s", list(kwargs))
+        info_print("Starting TimesFM finetuning with HF Trainer...")
+        os.makedirs(output_dir, exist_ok=True)
+
+        train_loader, val_loader, temporal_eval_dataset = self._prepare_training_data(
+            train_data
+        )
+        input_dtype = self._resolve_training_input_dtype()
+        trainer_model = self._build_trainer_model(input_dtype=input_dtype)
+        training_args = self._create_training_arguments(output_dir=output_dir)
+        callbacks = self._build_training_callbacks(
+            temporal_eval_dataset=temporal_eval_dataset,
+            output_dir=output_dir,
+        )
+        trainer = self._build_hf_trainer(
+            trainer_model=trainer_model,
+            training_args=training_args,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            callbacks=callbacks,
         )
 
         info_print(
@@ -1112,58 +1214,74 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         return {"training_history": trainer.state.log_history}
 
-    def _save_checkpoint(self, output_dir: str) -> None:
-        """Save checkpoint. Uses 'hf_model/' subdir to avoid config.json conflicts."""
-        os.makedirs(output_dir, exist_ok=True)
+    @staticmethod
+    def _checkpoint_paths(base_dir: str) -> tuple[str, str]:
+        return (
+            os.path.join(base_dir, "hf_model"),
+            os.path.join(base_dir, "timesfm_config.json"),
+        )
 
-        # Save HF model weights + config
-        hf_model_dir = os.path.join(output_dir, "hf_model")
-        if self.hf_model is not None:
-            self.hf_model.save_pretrained(hf_model_dir)
-            info_print(f"HF model saved to {hf_model_dir}")
-
-        # Save our custom config
-        timesfm_config_path = os.path.join(output_dir, "timesfm_config.json")
-        config_dict = {
+    def _checkpoint_config_payload(self) -> Dict[str, Any]:
+        return {
             "checkpoint_path": self.config.checkpoint_path,
             "context_length": self.config.context_length,
             "horizon_length": self.config.horizon_length,
             "use_cpu": self.config.use_cpu,
             "is_finetuned": self.is_fitted,
         }
-        with open(timesfm_config_path, "w") as f:
-            json.dump(config_dict, f, indent=2)
 
+    def _write_checkpoint_config(self, config_path: str) -> None:
+        with open(config_path, "w") as f:
+            json.dump(self._checkpoint_config_payload(), f, indent=2)
+
+    def _load_saved_checkpoint_config(self, config_path: str) -> None:
+        if not os.path.exists(config_path):
+            return
+
+        with open(config_path, "r") as f:
+            saved_config = json.load(f)
+
+        if saved_config.get("checkpoint_path"):
+            self.config.checkpoint_path = saved_config["checkpoint_path"]
+
+        info_print(f"TimesFM config loaded from {config_path}")
+
+    def _load_hf_model_weights(self, hf_model_dir: str) -> bool:
+        if not os.path.exists(hf_model_dir):
+            return False
+
+        from transformers import TimesFmModelForPrediction
+
+        torch_dtype = getattr(torch, self.config.torch_dtype, torch.float32)
+        self.hf_model = TimesFmModelForPrediction.from_pretrained(
+            hf_model_dir,
+            torch_dtype=torch_dtype,
+        )
+        self.hf_model.to(self.device)
+        self.model = self.hf_model
+        self.is_fitted = True
+        info_print(f"HF model loaded from {hf_model_dir}")
+        return True
+
+    def _save_checkpoint(self, output_dir: str) -> None:
+        """Save checkpoint. Uses 'hf_model/' subdir to avoid config.json conflicts."""
+        os.makedirs(output_dir, exist_ok=True)
+        hf_model_dir, timesfm_config_path = self._checkpoint_paths(output_dir)
+
+        # Save HF model weights + config
+        if self.hf_model is not None:
+            self.hf_model.save_pretrained(hf_model_dir)
+            info_print(f"HF model saved to {hf_model_dir}")
+
+        self._write_checkpoint_config(timesfm_config_path)
         info_print(f"TimesFM config saved to {timesfm_config_path}")
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load model checkpoint from HF save_pretrained format."""
-        from transformers import TimesFmModelForPrediction
+        hf_model_dir, timesfm_config_path = self._checkpoint_paths(model_dir)
+        self._load_saved_checkpoint_config(timesfm_config_path)
 
-        # Load our custom config
-        timesfm_config_path = os.path.join(model_dir, "timesfm_config.json")
-        if os.path.exists(timesfm_config_path):
-            with open(timesfm_config_path, "r") as f:
-                saved_config = json.load(f)
-
-            if saved_config.get("checkpoint_path"):
-                self.config.checkpoint_path = saved_config["checkpoint_path"]
-
-            info_print(f"TimesFM config loaded from {timesfm_config_path}")
-
-        # Load HF model weights
-        hf_model_dir = os.path.join(model_dir, "hf_model")
-        if os.path.exists(hf_model_dir):
-            torch_dtype = getattr(torch, self.config.torch_dtype, torch.float32)
-            self.hf_model = TimesFmModelForPrediction.from_pretrained(
-                hf_model_dir,
-                torch_dtype=torch_dtype,
-            )
-            self.hf_model.to(self.device)
-            self.model = self.hf_model
-            self.is_fitted = True
-            info_print(f"HF model loaded from {hf_model_dir}")
-        else:
+        if not self._load_hf_model_weights(hf_model_dir):
             info_print(
                 f"No HF model directory found at {hf_model_dir}, "
                 f"using pretrained weights"

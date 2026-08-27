@@ -319,97 +319,32 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             Exception: If data preprocessing fails
         """
         info_print("Preparing data for TTM training...")
+        data = self._normalize_training_input(train_data)
+        column_specifiers = self._get_or_create_column_specifiers(data)
+        self._log_column_specifiers(column_specifiers)
+        preprocessor = self._ensure_training_preprocessor(column_specifiers)
 
-        # Validate input type
-        if not isinstance(train_data, (pd.DataFrame, dict)):
-            raise ValueError(
-                f"train_data must be a DataFrame or dict, got {type(train_data)}"
-            )
-
-        data = train_data
-
-        # Check if dataset conversion is needed
-        if isinstance(data, dict):
-            data = reduce_features_multi_patient(
-                patients_dict=data,
-                resolution_min=self.config.resolution_min,
-                x_features=self.config.input_features,
-                y_feature=self.config.target_features,
-            )
-            info_print(
-                f"Converted multi-patient dict to DataFrame \n dataset now how has the following columns available: {data.columns}"
-            )
-            data = data.reset_index()
-
-        # Set up column specifiers (adapt to your data structure)
-        if self.column_specifiers is None:
-            self.column_specifiers = self._create_column_specifiers(data)
-
-        info_print("Using column specifiers:")
-        for key, value in self.column_specifiers.items():
-            info_print(f"  {key}: {value}")
-        # Create preprocessor
-        if self.preprocessor is None:
-            self.preprocessor = TimeSeriesPreprocessor(
-                **self.column_specifiers,
-                context_length=self.config.context_length,
-                prediction_length=self.config.forecast_length,
-                scaling=True,
-                scaling_id_columns=[],  # Use global scaler for all patients (supports holdout/new patients)
-                encode_categorical=False,
-                scaler_type=self.config.get_scaler_type().value,  # type: ignore[arg-type]
-            )
-        else:
-            _validate_preprocessor_schema(self.preprocessor)
-
-        # Create datasets using tsfm_public get_datasets
-        # Note: get_datasets returns (train, val, test) datasets but lacks type stubs
         logger.info("\n")
         info_print("Splitting data into train/val/test sets...")
         info_print(f"  Split config: {self.config.split_config}")
         try:
-            split_config = cast(
-                Dict[str, List[int | float] | float],
-                self.config.split_config,
+            dset_train, dset_val, dset_test = self._build_training_datasets(
+                data=data,
+                preprocessor=preprocessor,
             )
-            dset_train, dset_val, dset_test = get_datasets(  # type: ignore[misc]
-                ts_preprocessor=self.preprocessor,
-                dataset=data,
-                split_config=split_config,
-                fewshot_fraction=self.config.fewshot_percent / 100,
-                fewshot_location="last",  # Take the last x percent of the training data
-            )
-
-            # Create data loaders
-            train_loader = DataLoader(
+            train_loader = self._build_data_loader(
                 dset_train,
-                batch_size=self.config.batch_size,
                 shuffle=True,
-                num_workers=self.config.dataloader_num_workers,
             )
-
-            val_loader = None
-            if dset_val is not None:
-                val_loader = DataLoader(
-                    dset_val,
-                    batch_size=self.config.batch_size,
-                    shuffle=False,
-                    num_workers=self.config.dataloader_num_workers,
-                )
-
-            test_loader = None
-            if dset_test is not None:
-                test_loader = DataLoader(
-                    dset_test,
-                    batch_size=self.config.batch_size,
-                    shuffle=False,
-                    num_workers=self.config.dataloader_num_workers,
-                )
-
-            info_print("Data preparation complete:")
-            info_print(f"  Train samples: {len(dset_train) if dset_train else 0:,}")
-            info_print(f"  Val samples: {len(dset_val) if dset_val else 0:,}")
-            info_print(f"  Test samples: {len(dset_test) if dset_test else 0:,}")
+            val_loader = self._build_optional_data_loader(
+                dset_val,
+                shuffle=False,
+            )
+            test_loader = self._build_optional_data_loader(
+                dset_test,
+                shuffle=False,
+            )
+            self._log_dataset_sizes(dset_train, dset_val, dset_test)
 
             return train_loader, val_loader, test_loader
 
@@ -435,36 +370,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Dictionary containing train_metrics and test_metrics
         """
-        # Configure tqdm to update less frequently (every 30 seconds instead of constantly)
-        # This reduces log file bloat while still showing progress
-        import os
-
-        os.environ["TQDM_MININTERVAL"] = "30"  # Update progress bar every 30 seconds
-
-        # Prevent GPU memory fragmentation. PyTorch's default CUDA allocator uses
-        # fixed-size blocks that can't be merged when freed, causing "reserved but
-        # unallocated" memory to grow over time (especially when switching between
-        # training and evaluation, which produce different tensor sizes).
-        # expandable_segments:True allows memory segments to grow/shrink dynamically,
-        # making freed memory actually reclaimable. This is safe and stable since
-        # PyTorch 2.1 with no performance downside.
-        #
-        # NOTE: This is a fallback for users running the training module directly.
-        # For reliable configuration, set PYTORCH_ALLOC_CONF in your shell/runner
-        # script BEFORE invoking Python (e.g., in run_forecasting_workflow.sh).
-        # Setting it here may not take effect if CUDA was already initialized.
-        if "PYTORCH_ALLOC_CONF" not in os.environ:
-            os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
-            # Check if CUDA allocator was already initialized (setting won't take effect)
-            import torch
-
-            if torch.cuda.is_initialized():
-                logger.warning(
-                    "PYTORCH_ALLOC_CONF was set after CUDA initialization. "
-                    "The 'expandable_segments:True' setting may not take effect. "
-                    "For reliable memory fragmentation prevention, set "
-                    "PYTORCH_ALLOC_CONF in your shell before running Python."
-                )
+        self._configure_training_environment()
 
         info_print("Starting TTM training using HuggingFace Trainer...")
         # Prepare data loaders (splits based on config)
@@ -474,13 +380,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         training_args = self._create_training_arguments(output_dir)
 
         # Create trainer
-        trainer = Trainer(
-            model=self.model,
-            args=training_args,
-            train_dataset=train_loader.dataset if train_loader else None,
-            eval_dataset=val_loader.dataset if val_loader else None,
-            compute_metrics=self._compute_trainer_metrics,
-            callbacks=self._get_callbacks(),
+        trainer = self._build_trainer(
+            training_args=training_args,
+            train_loader=train_loader,
+            val_loader=val_loader,
         )
 
         # Train the model
@@ -497,44 +400,8 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         # Save the preprocessor (critical for inference on holdout patients)
         self._save_checkpoint(output_dir)
 
-        # Get training history directly from trainer.state (in memory)
-        # This is more reliable than reading from file since trainer_state.json
-        # is only saved in checkpoint directories, not at output_dir root
-        training_history = {}
-        if hasattr(trainer, "state") and trainer.state is not None:
-            training_history = {
-                "log_history": trainer.state.log_history,
-                "best_metric": trainer.state.best_metric,
-                "best_model_checkpoint": trainer.state.best_model_checkpoint,
-                "global_step": trainer.state.global_step,
-                "epoch": trainer.state.epoch,
-            }
-            info_print("Captured training history from trainer state")
-            info_print(f"  Total log entries: {len(trainer.state.log_history)}")
-        else:
-            info_print("Warning: Could not access trainer.state")
-
-        # Evaluate on test set if provided
-        # Note: This evaluation can be memory-intensive for large test sets
-        # because HF Trainer accumulates all prediction tensors on GPU.
-        # Free training state first to maximize available memory.
-        test_metrics = {}
-        if test_loader is not None:
-            import torch
-
-            # Clear training-related GPU cache before evaluation
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-            try:
-                test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
-                info_print(f"Test metrics: {test_metrics}")
-            except torch.cuda.OutOfMemoryError:
-                info_print(
-                    "Warning: Test evaluation skipped due to GPU OOM. "
-                    "This is non-fatal — full holdout evaluation runs separately in step 8."
-                )
-                # Clear the failed allocation
-                torch.cuda.empty_cache()
+        training_history = self._capture_training_history(trainer)
+        test_metrics = self._evaluate_test_loader(trainer, test_loader)
 
         return {
             "train_metrics": train_result.metrics,
@@ -568,10 +435,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Predictions as numpy array (in original scale if inverse_scale=True).
         """
-        if quantile_levels is not None:
-            logger.warning(
-                "TTM does not provide quantile outputs; returning point forecasts only."
-            )
+        self._warn_quantiles_not_supported(quantile_levels)
 
         if kwargs:
             logger.debug("Ignoring unsupported TTM predict kwargs: %s", list(kwargs))
@@ -599,19 +463,16 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         else:
             # Zero-shot path: no preprocessor, TTM's internal RevIN
             # handles per-window standardization automatically
-            column_specifiers = self._get_or_create_column_specifiers(data)
-            target_columns = self._resolve_target_columns(
-                column_specifiers=column_specifiers,
+            if not isinstance(data, pd.DataFrame):
+                raise TypeError(
+                    "TTM zero-shot predict expects a pandas DataFrame, got "
+                    f"{type(data)}"
+                )
+            pipeline, target_col = self._build_zero_shot_pipeline_for_data(
                 data=data,
-            )
-            pipeline = self._build_zero_shot_pipeline(
                 model=model,
-                column_specifiers=column_specifiers,
-                id_columns=list(column_specifiers.get("id_columns", [])),
-                target_columns=target_columns,
             )
             forecast_df = pipeline(data)
-            target_col = target_columns[0]
             predictions = forecast_df[target_col].values
 
         return predictions
@@ -644,33 +505,18 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             Dict mapping episode ID (as str) to 1-D numpy forecast array.
         """
         episode_ids = data[episode_col].unique()
-        if quantile_levels is not None:
-            logger.warning(
-                "TTM batch predict does not provide quantile outputs; returning point forecasts only."
-            )
+        self._warn_quantiles_not_supported(quantile_levels, source="batch predict")
 
         # Zero-shot path: include episode_col in id_columns so the pipeline
         # groups episodes correctly in a single batched forward pass.
         if self.preprocessor is None and self.config.training_mode == "zero_shot":
-            column_specifiers = self._get_or_create_column_specifiers(data)
-            id_cols: List[str] = list(column_specifiers.get("id_columns", []))
-            if episode_col not in id_cols:
-                id_cols = [episode_col] + id_cols
-
-            target_columns = self._resolve_target_columns(
-                column_specifiers=column_specifiers,
-                data=data,
-            )
-
             model = self._require_initialized_model()
-            pipeline = self._build_zero_shot_pipeline(
+            pipeline, target_col = self._build_zero_shot_pipeline_for_data(
+                data=data,
                 model=model,
-                column_specifiers=column_specifiers,
-                id_columns=id_cols,
-                target_columns=target_columns,
+                episode_col=episode_col,
             )
             forecast_df = pipeline(data)
-            target_col = target_columns[0]
 
             results: Dict[str, np.ndarray] = {}
             for ep_id in episode_ids:
@@ -694,31 +540,7 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             self.model.save_pretrained(output_dir)  # type: ignore[union-attr]
             info_print(f"TTM model saved to {output_dir}")
 
-        # Save the preprocessor for inference (critical for new/holdout patients)
-        # Using pickle because tsfm_public's save_pretrained uses json.dumps(sort_keys=True)
-        # which fails when preprocessor has mixed key types (float patient IDs + string keys)
-        # Save to BOTH root and model.pt to handle different load scenarios
-        if self.preprocessor is not None:
-            # Save to root directory (primary location for _load_checkpoint)
-            preprocessor_path = os.path.join(output_dir, "preprocessor.pkl")
-            with open(preprocessor_path, "wb") as f:
-                pickle.dump(self.preprocessor, f)
-            info_print(f"Preprocessor saved to {preprocessor_path}")
-
-            # Also save to model.pt if it exists (for consistency with HF Trainer structure)
-            model_pt_dir = os.path.join(output_dir, "model.pt")
-            if os.path.exists(model_pt_dir):
-                preprocessor_path_model_pt = os.path.join(
-                    model_pt_dir, "preprocessor.pkl"
-                )
-                with open(preprocessor_path_model_pt, "wb") as f:
-                    pickle.dump(self.preprocessor, f)
-                info_print(f"Preprocessor also saved to {preprocessor_path_model_pt}")
-        else:
-            logger.warning(
-                "Preprocessor is None - not saved. "
-                "This will cause inference to return scaled predictions instead of original units."
-            )
+        self._save_preprocessor_checkpoint(output_dir, pickle_module=pickle)
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load model checkpoint.
@@ -762,31 +584,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             self.model = ttm_model
             info_print(f"TTM model checkpoint loaded from {model_dir}")
 
-            # Load the preprocessor if saved (critical for inference on holdout patients)
-            # Try supported locations as save structure can vary:
-            # 1. Direct in model_dir (new format)
-            # 2. In model.pt subdirectory (HuggingFace Trainer creates this)
-            preprocessor_pkl_path = os.path.join(model_dir, "preprocessor.pkl")
-            preprocessor_pkl_model_pt = os.path.join(
-                model_dir, "model.pt", "preprocessor.pkl"
+            self.preprocessor = self._load_preprocessor_checkpoint(
+                model_dir, pickle_module=pickle
             )
-
-            if os.path.exists(preprocessor_pkl_path):
-                with open(preprocessor_pkl_path, "rb") as f:
-                    self.preprocessor = pickle.load(f)
-                info_print(f"Preprocessor loaded from {preprocessor_pkl_path}")
-            elif os.path.exists(preprocessor_pkl_model_pt):
-                # HuggingFace Trainer sometimes saves to model.pt subdirectory
-                with open(preprocessor_pkl_model_pt, "rb") as f:
-                    self.preprocessor = pickle.load(f)
-                info_print(f"Preprocessor loaded from {preprocessor_pkl_model_pt}")
-            else:
-                logger.warning(
-                    f"No preprocessor found at {model_dir}. "
-                    "Predictions will return SCALED values (z-scores) instead of original units. "
-                    "This will cause incorrect metrics if comparing to unscaled ground truth. "
-                    "Ensure preprocessor.pkl was saved during training."
-                )
 
             if self.preprocessor is not None:
                 _validate_preprocessor_schema(self.preprocessor)
@@ -860,6 +660,266 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             f"target features {expected} were found (or had non-NaN values) in "
             f"the input data. Available columns: {list(data.columns)}"
         )
+
+    def _normalize_training_input(self, train_data: Any) -> pd.DataFrame:
+        """Normalize supported training inputs to a DataFrame."""
+        if isinstance(train_data, pd.DataFrame):
+            return train_data
+        if isinstance(train_data, dict):
+            reduced = reduce_features_multi_patient(
+                patients_dict=train_data,
+                resolution_min=self.config.resolution_min,
+                x_features=self.config.input_features,
+                y_feature=self.config.target_features,
+            )
+            info_print(
+                "Converted multi-patient dict to DataFrame\n"
+                f"dataset now has the following columns available: {reduced.columns}"
+            )
+            return reduced.reset_index()
+        raise ValueError(
+            f"train_data must be a DataFrame or dict, got {type(train_data)}"
+        )
+
+    @staticmethod
+    def _log_column_specifiers(column_specifiers: ColumnSpecifiers) -> None:
+        info_print("Using column specifiers:")
+        for key, value in column_specifiers.items():
+            info_print(f"  {key}: {value}")
+
+    def _ensure_training_preprocessor(
+        self, column_specifiers: ColumnSpecifiers
+    ) -> TimeSeriesPreprocessor:
+        """Create or validate the training preprocessor."""
+        if self.preprocessor is None:
+            self.preprocessor = TimeSeriesPreprocessor(
+                **column_specifiers,
+                context_length=self.config.context_length,
+                prediction_length=self.config.forecast_length,
+                scaling=True,
+                # Use a global scaler across patients to support holdout/new patients.
+                scaling_id_columns=[],
+                encode_categorical=False,
+                scaler_type=self.config.get_scaler_type().value,  # type: ignore[arg-type]
+            )
+        else:
+            _validate_preprocessor_schema(self.preprocessor)
+
+        return self.preprocessor
+
+    def _build_training_datasets(
+        self,
+        *,
+        data: pd.DataFrame,
+        preprocessor: TimeSeriesPreprocessor,
+    ) -> Tuple[Any, Optional[Any], Optional[Any]]:
+        """Build train/val/test datasets from normalized training input."""
+        split_config = cast(
+            Dict[str, List[int | float] | float],
+            self.config.split_config,
+        )
+        return get_datasets(  # type: ignore[misc]
+            ts_preprocessor=preprocessor,
+            dataset=data,
+            split_config=split_config,
+            fewshot_fraction=self.config.fewshot_percent / 100,
+            fewshot_location="last",
+        )
+
+    def _build_data_loader(self, dataset: Any, *, shuffle: bool) -> DataLoader:
+        return DataLoader(
+            dataset,
+            batch_size=self.config.batch_size,
+            shuffle=shuffle,
+            num_workers=self.config.dataloader_num_workers,
+        )
+
+    def _build_optional_data_loader(
+        self,
+        dataset: Optional[Any],
+        *,
+        shuffle: bool,
+    ) -> Optional[DataLoader]:
+        if dataset is None:
+            return None
+        return self._build_data_loader(dataset, shuffle=shuffle)
+
+    @staticmethod
+    def _log_dataset_sizes(
+        train_dataset: Any,
+        val_dataset: Optional[Any],
+        test_dataset: Optional[Any],
+    ) -> None:
+        info_print("Data preparation complete:")
+        info_print(f"  Train samples: {len(train_dataset) if train_dataset else 0:,}")
+        info_print(f"  Val samples: {len(val_dataset) if val_dataset else 0:,}")
+        info_print(f"  Test samples: {len(test_dataset) if test_dataset else 0:,}")
+
+    def _configure_training_environment(self) -> None:
+        """Set runtime environment knobs for stable Trainer execution."""
+        # Reduce tqdm log noise.
+        os.environ["TQDM_MININTERVAL"] = "30"
+
+        if "PYTORCH_ALLOC_CONF" in os.environ:
+            return
+
+        os.environ["PYTORCH_ALLOC_CONF"] = "expandable_segments:True"
+        import torch
+
+        if torch.cuda.is_initialized():
+            logger.warning(
+                "PYTORCH_ALLOC_CONF was set after CUDA initialization. "
+                "The 'expandable_segments:True' setting may not take effect. "
+                "For reliable memory fragmentation prevention, set "
+                "PYTORCH_ALLOC_CONF in your shell before running Python."
+            )
+
+    def _build_trainer(
+        self,
+        *,
+        training_args: TrainingArguments,
+        train_loader: DataLoader,
+        val_loader: Optional[DataLoader],
+    ) -> Trainer:
+        return Trainer(
+            model=self._require_initialized_model(),
+            args=training_args,
+            train_dataset=train_loader.dataset,
+            eval_dataset=val_loader.dataset if val_loader else None,
+            compute_metrics=self._compute_trainer_metrics,
+            callbacks=self._get_callbacks(),
+        )
+
+    def _capture_training_history(self, trainer: Trainer) -> Dict[str, Any]:
+        """Capture in-memory trainer history for metadata/reporting."""
+        if not hasattr(trainer, "state") or trainer.state is None:
+            info_print("Warning: Could not access trainer.state")
+            return {}
+
+        history = {
+            "log_history": trainer.state.log_history,
+            "best_metric": trainer.state.best_metric,
+            "best_model_checkpoint": trainer.state.best_model_checkpoint,
+            "global_step": trainer.state.global_step,
+            "epoch": trainer.state.epoch,
+        }
+        info_print("Captured training history from trainer state")
+        info_print(f"  Total log entries: {len(trainer.state.log_history)}")
+        return history
+
+    def _evaluate_test_loader(
+        self,
+        trainer: Trainer,
+        test_loader: Optional[DataLoader],
+    ) -> Dict[str, Any]:
+        """Evaluate trainer on the test dataset when available."""
+        if test_loader is None:
+            return {}
+
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        try:
+            test_metrics = trainer.evaluate(eval_dataset=test_loader.dataset)
+            info_print(f"Test metrics: {test_metrics}")
+            return cast(Dict[str, Any], test_metrics)
+        except torch.cuda.OutOfMemoryError:
+            info_print(
+                "Warning: Test evaluation skipped due to GPU OOM. "
+                "This is non-fatal — full holdout evaluation runs separately in step 8."
+            )
+            torch.cuda.empty_cache()
+            return {}
+
+    def _warn_quantiles_not_supported(
+        self,
+        quantile_levels: Optional[List[float]],
+        *,
+        source: str = "predict",
+    ) -> None:
+        if quantile_levels is None:
+            return
+        logger.warning(
+            "TTM %s does not provide quantile outputs; returning point forecasts only.",
+            source,
+        )
+
+    def _build_zero_shot_pipeline_for_data(
+        self,
+        *,
+        data: pd.DataFrame,
+        model: Any,
+        episode_col: Optional[str] = None,
+    ) -> Tuple[TimeSeriesForecastingPipeline, str]:
+        """Build a zero-shot pipeline and return the resolved target column."""
+        column_specifiers = self._get_or_create_column_specifiers(data)
+        id_columns: List[str] = list(column_specifiers.get("id_columns", []))
+        if episode_col and episode_col not in id_columns:
+            id_columns = [episode_col] + id_columns
+
+        target_columns = self._resolve_target_columns(
+            column_specifiers=column_specifiers,
+            data=data,
+        )
+        pipeline = self._build_zero_shot_pipeline(
+            model=model,
+            column_specifiers=column_specifiers,
+            id_columns=id_columns,
+            target_columns=target_columns,
+        )
+        return pipeline, target_columns[0]
+
+    @staticmethod
+    def _preprocessor_paths(model_dir: str) -> Tuple[str, str]:
+        """Return supported preprocessor artifact locations for a checkpoint."""
+        return (
+            os.path.join(model_dir, "preprocessor.pkl"),
+            os.path.join(model_dir, "model.pt", "preprocessor.pkl"),
+        )
+
+    def _save_preprocessor_checkpoint(
+        self, output_dir: str, *, pickle_module: Any
+    ) -> None:
+        """Persist preprocessor artifacts to checkpoint-compatible locations."""
+        if self.preprocessor is None:
+            logger.warning(
+                "Preprocessor is None - not saved. "
+                "This will cause inference to return scaled predictions instead of original units."
+            )
+            return
+
+        root_path, model_pt_path = self._preprocessor_paths(output_dir)
+        with open(root_path, "wb") as f:
+            pickle_module.dump(self.preprocessor, f)
+        info_print(f"Preprocessor saved to {root_path}")
+
+        model_pt_dir = os.path.dirname(model_pt_path)
+        if os.path.exists(model_pt_dir):
+            with open(model_pt_path, "wb") as f:
+                pickle_module.dump(self.preprocessor, f)
+            info_print(f"Preprocessor also saved to {model_pt_path}")
+
+    def _load_preprocessor_checkpoint(
+        self, model_dir: str, *, pickle_module: Any
+    ) -> Optional[TimeSeriesPreprocessor]:
+        """Load preprocessor artifact from known checkpoint locations."""
+        root_path, model_pt_path = self._preprocessor_paths(model_dir)
+        for path in (root_path, model_pt_path):
+            if not os.path.exists(path):
+                continue
+            with open(path, "rb") as f:
+                loaded = cast(TimeSeriesPreprocessor, pickle_module.load(f))
+            info_print(f"Preprocessor loaded from {path}")
+            return loaded
+
+        logger.warning(
+            f"No preprocessor found at {model_dir}. "
+            "Predictions will return SCALED values (z-scores) instead of original units. "
+            "This will cause incorrect metrics if comparing to unscaled ground truth. "
+            "Ensure preprocessor.pkl was saved during training."
+        )
+        return None
 
     def _build_zero_shot_pipeline(
         self,
