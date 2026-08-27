@@ -218,21 +218,6 @@ Likely homes:
 
 ---
 
-## 7) PR slicing plan
-
-Use small, reviewable waves:
-
-1. **PR-C0:** Baseline + shared helper scaffolding (no behavior change)
-2. **PR-C1:** TTM consolidation
-3. **PR-C2:** TimesFM + Moirai consolidation
-4. **PR-C3:** Moment consolidation
-5. **PR-C4:** Chronos2 + Toto + Tide consolidation + docs finalization
-
-Each PR must include targeted tests for changed families and avoid cross-family
-incidental edits.
-
----
-
 ## 8) Validation gates per PR wave
 
 Minimum:
@@ -300,6 +285,167 @@ Observations:
 - Next simplification pass should prioritize TTM `_compute_trainer_metrics`,
   Moirai `_train_model`, and Moment `_get_context_target_pairs`.
 
+### Cross-model method/function presence grid (for consolidation targeting)
+
+This grid enumerates methods/functions found across the seven P1-38
+`src/models/*/model.py` modules (forecaster class methods plus module-level
+functions). Use this as a consolidation map when deciding what to promote to
+base classes or shared utility modules.
+
+<details>
+<summary>Expand full method/function presence grid</summary>
+
+| Method / function | Purpose | TTM | TimesFM | Moirai | Moment | Chronos2 | Toto | Tide |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| __init__ | Initialize the TTM forecaster. | ✓ | ✓ | ✓ | ✓ | ✓ | x | ✓ |
+| training_backend | Return the training backend used by TTM. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| supports_zero_shot | — | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| supports_probabilistic_forecast | — | x | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| _initialize_model | Initialize the TTM model architecture. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| _prepare_training_data | Prepare data loaders for training, validation, and testing. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| _train_model | Execute model training. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| _predict | Make predictions on new data using TTM pipeline. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| _predict_batch | Batch prediction using TimeSeriesForecastingPipeline. | ✓ | x | x | ✓ | ✓ | ✓ | ✓ |
+| _save_checkpoint | Save model checkpoint and preprocessor. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| _load_checkpoint | Load model checkpoint. | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| _ag_item_id | Map an episode ID to the AutoGluon item_id used for extraction. | x | x | x | x | ✓ | x | x |
+| _autogluon_extract | Run fine-tuned AutoGluon inference and extract specified columns. | x | x | x | x | ✓ | x | x |
+| _build_autogluon_frequency | Convert interval minutes to AutoGluon frequency string. | x | x | x | x | x | x | ✓ |
+| _build_autogluon_predict_kwargs | — | x | x | x | x | ✓ | x | x |
+| _build_batch_inputs | Build a padded MaskedTimeseries batch for episode-level inference. | x | x | x | x | x | ✓ | x |
+| _build_context_matrix | Build finite context matrix [time, channels] from selected columns. | x | x | x | ✓ | x | x | x |
+| _build_context_target_dataset | — | x | x | x | ✓ | x | x | x |
+| _build_context_target_loader | — | x | x | x | ✓ | x | x | x |
+| _build_data_loader | — | ✓ | ✓ | x | x | x | x | x |
+| _build_finetuning_module | Construct the Toto Lightning finetuning module from current backbone. | x | x | x | x | x | ✓ | x |
+| _build_fit_kwargs | Build fit kwargs for TimeSeriesPredictor.fit(). | x | x | x | x | x | x | ✓ |
+| _build_forecast_inputs | — | x | x | x | ✓ | x | x | x |
+| _build_hf_trainer | — | x | ✓ | x | x | x | x | x |
+| _build_known_covariates | Build known_covariates DataFrame for all episodes in data. | x | x | x | x | ✓ | x | x |
+| _build_optional_data_loader | — | ✓ | x | x | x | x | x | x |
+| _build_prediction_context | Build AutoGluon context frame with item/timestamp index. | x | x | x | x | x | x | ✓ |
+| _build_predictor_kwargs | Build TimeSeriesPredictor constructor kwargs for TiDE. | x | x | x | x | x | x | ✓ |
+| _build_shadow_predictor_snapshot | — | x | x | x | x | ✓ | x | x |
+| _build_temporal_eval_dataset | Build temporal eval windows for mid-training callback. | x | ✓ | x | x | x | x | x |
+| _build_train_val_arrays | Split patient segments into training and validation arrays. | x | ✓ | x | x | x | x | x |
+| _build_trainer | — | ✓ | x | x | x | x | x | x |
+| _build_trainer_kwargs | Build trainer kwargs using either epoch- or step-based limits. | x | x | x | x | x | ✓ | x |
+| _build_trainer_model | — | x | ✓ | x | x | x | x | x |
+| _build_training_callbacks | — | x | ✓ | x | x | x | x | x |
+| _build_training_datasets | Build train/val/test datasets from normalized training input. | ✓ | x | x | x | x | x | x |
+| _build_variates | Extract BG target + covariate tensors from a single episode. | x | x | x | x | x | ✓ | x |
+| _build_window_dataset | — | x | ✓ | x | x | x | x | x |
+| _build_zero_shot_batch_context_tensor | Build a padded (N, 1, L) context tensor for zero-shot batch inference. | x | x | x | x | ✓ | x | x |
+| _build_zero_shot_pipeline | Create the zero-shot inference pipeline with shared settings. | ✓ | x | x | x | x | x | x |
+| _build_zero_shot_pipeline_for_data | Build a zero-shot pipeline and return the resolved target column. | ✓ | x | x | x | x | x | x |
+| _capture_training_history | Capture in-memory trainer history for metadata/reporting. | ✓ | x | x | x | x | x | x |
+| _checkpoint_config_payload | — | x | ✓ | x | x | x | x | x |
+| _checkpoint_paths | — | x | ✓ | x | x | x | x | x |
+| _collate_fn | Custom collator for HF Trainer. | x | ✓ | x | x | x | x | x |
+| _collect_batch_predictions | Collect per-episode outputs from AutoGluon predictions. | x | x | x | x | x | x | ✓ |
+| _collect_zero_shot_batch_results | Collect per-episode numpy outputs from Chronos2 zero-shot tensors. | x | x | x | x | ✓ | x | x |
+| _compute_trainer_metrics | Compute evaluation metrics for Trainer. | ✓ | x | x | x | x | x | x |
+| _compute_validation_loss | — | x | x | x | ✓ | x | x | x |
+| _configure_training_environment | Set runtime environment knobs for stable Trainer execution. | ✓ | x | x | x | x | x | x |
+| _convert_tensors_to_patched_dataset | — | x | x | ✓ | x | x | x | x |
+| _create_column_specifiers | Create column specifiers for TimeSeriesPreprocessor. | ✓ | x | x | x | x | x | x |
+| _create_training_arguments | Create TrainingArguments for model training. | ✓ | ✓ | x | x | x | x | x |
+| _create_training_artifacts | Create checkpoint and logger artifacts for fine-tuning. | x | x | x | x | x | ✓ | x |
+| _dataframe_to_gluonts | Convert a single-episode DataFrame to a one-entry GluonTS dataset. | x | x | ✓ | x | x | x | x |
+| _dataframe_to_hf_dataset | Convert a flat DataFrame to HuggingFace Dataset format for Toto. | x | x | x | x | x | ✓ | x |
+| _empty_training_tensors | — | x | x | ✓ | x | x | x | x |
+| _ensure_datetime_index | Ensure each patient frame has DatetimeIndex when available. | x | ✓ | x | x | x | x | x |
+| _ensure_training_preprocessor | Create or validate the training preprocessor. | ✓ | x | x | x | x | x | x |
+| _ensure_zs_pipeline | Lazily initialise the zero-shot Chronos2Pipeline. | x | x | x | x | ✓ | x | x |
+| _episode_ids_from | Return the array of episode IDs present in *data*. | x | x | x | x | ✓ | x | x |
+| _episode_predictions_frame | Return per-item prediction payload as a DataFrame. | x | x | x | x | x | x | ✓ |
+| _episodes_to_gluonts | Convenience wrapper that uses config defaults. | x | x | ✓ | x | x | x | x |
+| _evaluate_test_loader | Evaluate trainer on the test dataset when available. | ✓ | x | x | x | x | x | x |
+| _extract_bg_forecast | Extract BG (variate 0) from a Toto Forecast object. | x | x | x | x | x | ✓ | x |
+| _extract_episode_predictions | — | x | x | x | x | ✓ | x | x |
+| _extract_ground_truth | Extract ground truth values from the end of the test data. | x | ✓ | x | ✓ | x | x | x |
+| _extract_mean_forecasts | — | x | x | ✓ | x | x | x | x |
+| _extract_patient_dataframes | Normalize training input into a patient->DataFrame mapping. | x | ✓ | x | x | x | x | x |
+| _extract_quantile_forecasts | — | x | x | ✓ | x | x | x | x |
+| _extract_quantile_predictions | Return quantile predictions and fail if requested levels are unavailable. | x | x | x | x | x | x | ✓ |
+| _extract_timestamps | Get timestamps from DatetimeIndex or 'datetime' column. | x | x | x | x | x | ✓ | x |
+| _forecast_batch | Batch forecasts in a single MOMENT forward pass when possible. | x | x | x | ✓ | x | x | x |
+| _forecast_single | Single univariate forecast with optional wrapper-side normalization. | x | x | x | ✓ | x | x | x |
+| _get_callbacks | Get training callbacks. | ✓ | x | x | x | x | x | x |
+| _get_context_target_pairs | Build list of (context, target) from dataset name, DataFrame, or dict of DataFrames. | x | x | x | ✓ | x | x | x |
+| _get_covariate_columns | Return configured covariate columns that are available in df. | x | x | x | ✓ | x | x | x |
+| _get_input_columns | Input channel order for MOMENT: target first, then covariates. | x | x | x | ✓ | x | x | x |
+| _get_or_create_column_specifiers | Get cached column specifiers, creating them lazily on first use. | ✓ | x | x | x | x | x | x |
+| _get_or_create_predictor | — | x | x | ✓ | x | x | x | x |
+| _get_target_column | — | x | x | x | ✓ | x | x | x |
+| _group_segments_by_patient | Group segmented arrays by original patient id. | x | ✓ | x | x | x | x | x |
+| _inverse_scale_predictions | Inverse scale predictions back to original units. | ✓ | x | x | x | x | x | x |
+| _iter_episode_dicts | Normalize dict/list training payloads to a flat episode list. | x | x | ✓ | x | x | x | x |
+| _list_intermediate_checkpoints | — | x | x | x | x | ✓ | x | x |
+| _load_hf_model_weights | — | x | ✓ | x | x | x | x | x |
+| _load_preprocessor_checkpoint | Load preprocessor artifact from known checkpoint locations. | ✓ | x | x | x | x | x | x |
+| _load_saved_checkpoint_config | — | x | ✓ | x | x | x | x | x |
+| _log_column_specifiers | — | ✓ | x | x | x | x | x | x |
+| _log_dataset_sizes | — | ✓ | x | x | x | x | x | x |
+| _log_training_start | — | x | x | x | x | x | x | ✓ |
+| _longest_nan_run | Return the length of the longest contiguous True run in a boolean array. | x | ✓ | x | x | x | x | x |
+| _materialize_intermediate_checkpoints | Create standalone eval-ready snapshots from HF Trainer checkpoint-N dirs. | x | x | x | x | ✓ | x | x |
+| _normalize_context_array | — | x | x | x | ✓ | x | x | x |
+| _normalize_predict_input | — | x | x | ✓ | x | x | x | x |
+| _normalize_split_config | — | x | x | x | ✓ | x | x | x |
+| _normalize_training_input | Normalize supported training inputs to a DataFrame. | ✓ | x | x | x | x | x | x |
+| _optional_moment_import | Import MOMENTPipeline if momentfm is installed. | x | x | x | ✓ | x | x | x |
+| _predict_batch_fitted | Run one AutoGluon batch prediction call and extract episode outputs. | x | x | x | x | ✓ | x | x |
+| _predict_batch_point | Generate point batch forecasts, chunked across episodes. | x | x | x | x | x | ✓ | x |
+| _predict_batch_quantiles | Generate quantile batch forecasts, chunked across episodes. | x | x | x | x | x | ✓ | x |
+| _predict_batch_zero_shot | Run zero-shot Chronos2Pipeline batch inference. | x | x | x | x | ✓ | x | x |
+| _predict_impl | Run inference and return mean forecasts. | x | x | ✓ | x | x | x | x |
+| _predict_quantiles_impl | Internal quantile forecast logic shared by _predict and _predict_batch. | x | x | x | x | ✓ | x | x |
+| _predict_with_context | Run predictor inference on a prebuilt AutoGluon context frame. | x | x | x | x | x | x | ✓ |
+| _prepare_autogluon_data | Format a raw inference DataFrame into a TimeSeriesDataFrame. | x | x | x | x | ✓ | x | x |
+| _prepare_training_tensors | Convert training data to aligned tensor batches on CPU. | x | x | ✓ | x | x | x | x |
+| _prepare_zero_shot_context | Validate target column and return a Chronos-2 context tensor. | x | x | x | x | ✓ | x | x |
+| _preprocessor_paths | Return supported preprocessor artifact locations for a checkpoint. | ✓ | x | x | x | x | x | x |
+| _rel_symlink | — | x | x | x | x | ✓ | x | x |
+| _require_initialized_model | Return model object or raise if weights are not initialized. | ✓ | x | x | x | x | x | x |
+| _resolve_eval_chunk_size | Resolve evaluation chunk size from config. | x | x | x | x | x | ✓ | x |
+| _resolve_freeze_backbone | — | x | x | x | ✓ | x | x | x |
+| _resolve_predictor_path | Resolve predictor path from reference file with fallback semantics. | x | x | x | x | x | x | ✓ |
+| _resolve_target_columns | Resolve target columns and fail fast when no valid target remains. | ✓ | x | x | x | x | x | x |
+| _resolve_trainable_parameters | — | x | x | x | ✓ | x | x | x |
+| _resolve_training_input_dtype | — | x | ✓ | x | x | x | x | x |
+| _restore_trained_backbone | Restore best-validated backbone, falling back to final weights. | x | x | x | x | x | ✓ | x |
+| _run_forecast | Run forecaster and return BG predictions as numpy array. | x | x | x | x | x | ✓ | x |
+| _save_preprocessor_checkpoint | Persist preprocessor artifacts to checkpoint-compatible locations. | ✓ | x | x | x | x | x | x |
+| _save_training_config | — | x | x | x | ✓ | x | x | x |
+| _segment_patient_data | Apply gap handling and segment data by patient. | x | ✓ | x | x | x | x | x |
+| _select_patch_size | Choose a fixed patch size for training. | x | x | ✓ | x | x | x | x |
+| _slice_masked_timeseries | — | x | x | x | x | x | ✓ | x |
+| _split_context_target_pairs | — | x | x | x | ✓ | x | x | x |
+| _split_train_val_patients | Split patient IDs into train/validation with at least one train patient. | x | ✓ | x | x | x | x | x |
+| _timestamps_to_seconds | Convert pandas timestamps to seconds-since-epoch float tensor. | x | x | x | x | x | ✓ | x |
+| _truncate_segment_for_training | — | x | ✓ | x | x | x | x | x |
+| _use_wrapper_normalization | — | x | x | x | ✓ | x | x | x |
+| _validate_covariate_columns | — | x | x | ✓ | x | x | x | x |
+| _validate_preprocessor_schema | Validate preprocessor schema required by the current runtime. | ✓ | x | x | x | x | x | x |
+| _validate_registered_quantile_levels | — | x | x | x | x | ✓ | x | x |
+| _warn_quantiles_not_supported | — | ✓ | x | x | x | x | x | x |
+| _write_checkpoint_config | — | x | ✓ | x | x | x | x | x |
+| _write_snapshot_model_pt | — | x | x | x | x | ✓ | x | x |
+| _zero_shot_forecast | Run zero-shot inference via Chronos2Pipeline. | x | x | x | x | ✓ | x | x |
+| build_gluonts_dataset | Build a GluonTS ``ListDataset`` from a list of episode dicts. | x | x | ✓ | x | x | x | x |
+| create_moirai_model | Factory function to create a ``MoiraiForecaster`` with sensible defaults. | x | x | ✓ | x | x | x | x |
+| create_moment_model | Factory to create a Moment model with sensible defaults. | x | x | x | ✓ | x | x | x |
+| create_timesfm_model | Factory function to create a TimesFM model with sensible defaults. | x | ✓ | x | x | x | x | x |
+| evaluate | Evaluate TimesFM on test data using rolling-window evaluation. | x | ✓ | x | x | x | x | x |
+| evaluate_probabilistic | Evaluate Moirai with full probabilistic outputs. | x | x | ✓ | x | x | x | x |
+| get_ttm_specific_info | Get TTM-specific model information. | ✓ | x | x | x | x | x | x |
+| predict_episodes | Evaluate Moirai on a list of episodes and return per-episode metrics. | x | x | ✓ | x | x | x | x |
+| predict_single_window | Predict one step ahead for a single context window (for holdout/eval scripts). | x | x | x | ✓ | x | x | x |
+| predict_with_metadata | Make predictions and return dict with metadata. | x | x | x | ✓ | x | x | x |
+
+</details>
+
 ### Existing schema/factory/contract coverage baseline
 
 Cross-family baseline gates already in place:
@@ -338,10 +484,6 @@ Current maintained call-site inventory confirms mixed constructor lanes:
 - TimesFM single-patient split/window behavior must retain zero-window protections and training-window retention semantics.
 - Chronos2 known-covariate and checkpoint-materialization behavior remains high-risk and needs parity tests during Tier B waves.
 - Moirai probabilistic output/evaluation pathways need explicit parity checks in family-specific tests before broad helper extraction.
-
-### PR-C1 handoff note
-
-PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regression coverage needed to prove behavior parity after helper extraction.
 
 ### 8B) Current checkpoint (2026-08-26)
 
