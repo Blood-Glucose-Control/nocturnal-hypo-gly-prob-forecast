@@ -156,7 +156,7 @@ Likely homes:
 | Moment | 1) Split `_train_model`, `_get_context_target_pairs`, `_forecast_batch`.<br>2) Remove stale behavior comments/docstrings adjacent to touched logic.<br>3) Consolidate target/covariate column selection branches. | Panel context/target extraction and covariate stacking remain deterministic and default-compatible. | Preserve predict/predict_batch API behavior and wrapper-normalization semantics. | 1) Extract context-target prep helpers.<br>2) Extract reusable column selectors.<br>3) Add runtime parity tests beyond sweep-config coverage. | [src/models/moment/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/model.py)<br>[src/models/moment/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/config.py) | Unapproved normalization behavior changes. | No API drift; tests + shared gates green. | `pytest -q tests/models/test_moment_sweep_configs.py` (+ runtime tests in C3) | Completed (WS1-MOM-01 helper extraction + validation gates complete; targeted runtime-test expansion remains queued for C4 parity hardening). |
 | Chronos2 | 1) Split `_materialize_intermediate_checkpoints` and `_predict_batch`.<br>2) Re-home/remove stale helper surfaces in `chronos2/utils.py` and `chronos2/visualization.py` only with no-caller proof.<br>3) Keep known-covariate boundaries explicit and tested. | Panel->AutoGluon conversion with strict `target_col/patient_col/time_col`; known future covariates separate from past-only covariates. | Preserve fine-tune/zero-shot behavior and checkpoint materialization behavior. | 1) Extract known-covariate context build helper.<br>2) Extract checkpoint materialization primitives.<br>3) Add direct parity tests for known covariates and checkpoint materialization. | [src/models/chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py)<br>[src/models/chronos2/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/config.py)<br>[src/models/chronos2/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/utils.py)<br>[src/models/chronos2/visualization.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/visualization.py) | Dropping required Chronos2-specific behavior deviations. | Known-covariate + checkpoint parity proven; no shared gate regressions. | `pytest -q tests/models/test_chronos2.py tests/data/test_chronos2_known_covariates.py` | Completed (WS1-CHR-01 helper extraction + WS1-CHR-02 no-caller utility cleanup complete). |
 | Toto | 1) Split `_predict_batch` and `_train_model`.<br>2) Deduplicate timestamp/variate preparation helpers.<br>3) Keep alias semantics (`lr`/`learning_rate`, `max_steps`/`num_epochs`) consistent. | DataFrame->variate tensor conversion deterministic; batch mapping and sample semantics preserved. | Preserve base lifecycle and probabilistic behavior compatibility. | 1) Extract timestamp conversion helper.<br>2) Extract shared episode-batching helper.<br>3) Add dedicated Toto runtime regression tests. | [src/models/toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py)<br>[src/models/toto/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/config.py) | Toto architecture/training objective redesign. | Schema/factory and runtime behavior parity maintained. | `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "toto"` (+ runtime tests in C4) | Completed (WS1-TOT-01 helper extraction + runtime helper tests + shared gates complete). |
-| TiDE | 1) Reduce duplicated AG data prep/checkpoint/inference scaffolding.<br>2) Preserve strict constraints (`from_scratch`, `scaling='mean'`, encoder/decoder parity). | Flat panel segmentation + AG inference context remain behavior-equivalent. | Preserve strict config validation and checkpoint behavior. | 1) Consolidate shared AG helper usage where equivalent.<br>2) Add TiDE runtime parity tests beyond schema/factory checks.<br>3) Validate no drift in hard-constraint enforcement. | [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py)<br>[src/models/tide/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/config.py) | Relaxing TiDE hard constraints. | Constraint checks preserved; runtime behavior unchanged. | `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "tide"` (+ runtime tests in C4) | Pending |
+| TiDE | 1) Reduce duplicated AG data prep/checkpoint/inference scaffolding.<br>2) Preserve strict constraints (`from_scratch`, `scaling='mean'`, encoder/decoder parity). | Flat panel segmentation + AG inference context remain behavior-equivalent. | Preserve strict config validation and checkpoint behavior. | 1) Consolidate shared AG helper usage where equivalent.<br>2) Add TiDE runtime parity tests beyond schema/factory checks.<br>3) Validate no drift in hard-constraint enforcement. | [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py)<br>[src/models/tide/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/config.py) | Relaxing TiDE hard constraints. | Constraint checks preserved; runtime behavior unchanged. | `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "tide"` (+ runtime tests in C4) | Completed (WS1-TID-01 helper extraction + runtime helper tests + shared gates complete). |
 
 ### WS1B — Itemized execution task list (ordered)
 
@@ -382,9 +382,9 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
 
 ### Immediate next actions
 
-1. Continue PR-C4 with WS1-TID-01 helper extraction slice.
-2. Keep dependency-lane targeted validations and final Pylance gates per touched C4 file.
-3. Re-run PR-C4 smoke comparator once TiDE slice is merged.
+1. Re-run PR-C4 smoke comparator against baseline `pre_refactor_20260827v1`.
+2. Keep dependency-lane targeted validations and final Pylance gates for any follow-on adjustments.
+3. Begin constructor-shim parity closeout (`create_model_and_config`) after smoke parity is confirmed.
 
 ### PR-C1 status checkpoint (2026-08-27)
 
@@ -500,6 +500,21 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
   - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
   - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "toto"` (pass),
   - `SKIP=pyright pre-commit run --files src/models/toto/model.py tests/models/test_toto_runtime_contract_helpers.py` (pass),
+  - Pylance diagnostics clean for touched files (warnings only; no error-severity diagnostics).
+- WS1-TID-01 landed in [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py):
+  - extracted TiDE AutoGluon predictor-fit helper boundaries (`_build_autogluon_frequency`, `_build_predictor_kwargs`, `_build_fit_kwargs`, `_log_training_start`),
+  - extracted shared inference helpers (`_predict_with_context`, `_episode_predictions_frame`, `_collect_batch_predictions`) so `_predict` and `_predict_batch` use one context/predict path,
+  - extracted checkpoint-path resolver helper (`_resolve_predictor_path`) to de-duplicate reference-file fallback logic,
+  - tightened quantile extraction typing with explicit numpy coercion for deterministic 2-D outputs.
+- Added focused TiDE runtime helper coverage in [test_tide_runtime_helpers.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_tide_runtime_helpers.py):
+  - predictor kwargs/frequency + quantile-level default behavior,
+  - prediction-context covariate fill semantics,
+  - quantile extraction guardrails and batch-collection mapping behavior.
+- Validation status for WS1-TID-01:
+  - `pytest -q tests/models/test_tide_runtime_helpers.py` (pass),
+  - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
+  - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "tide"` (pass),
+  - `SKIP=pyright pre-commit run --files src/models/tide/model.py tests/models/test_tide_runtime_helpers.py` (pass),
   - Pylance diagnostics clean for touched files (warnings only; no error-severity diagnostics).
 
 ---
