@@ -28,7 +28,7 @@ import logging
 import os
 import pickle
 import shutil
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -171,8 +171,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Dict with training metrics.
         """
-        from autogluon.timeseries import (
-            TimeSeriesPredictor,  # type: ignore[import-not-found]
+        from autogluon.timeseries import (  # pyright: ignore[reportMissingImports]
+            TimeSeriesPredictor,
         )
 
         config = self.config
@@ -276,6 +276,44 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             info_print("No W0 dir found, skipping checkpoint materialisation")
             return
 
+        checkpoints = self._list_intermediate_checkpoints(w0_dir)
+
+        if not checkpoints:
+            info_print("No intermediate checkpoints found to materialise")
+            return
+
+        info_print(f"Materialising {len(checkpoints)} intermediate checkpoints...")
+        snapshots_base = os.path.join(output_dir, "snapshots")
+        main_model_pt = os.path.join(output_dir, "model.pt")
+        for _, step_num, adapter_src in checkpoints:
+            snapshot_dir = os.path.join(snapshots_base, f"step_{step_num}")
+            if os.path.exists(snapshot_dir):
+                info_print(f"  step_{step_num}: already exists, skipping")
+                continue
+
+            shadow_predictor = os.path.join(snapshot_dir, "predictor")
+            self._build_shadow_predictor_snapshot(
+                output_dir=output_dir,
+                w0_dir=w0_dir,
+                adapter_src=adapter_src,
+                shadow_predictor=shadow_predictor,
+            )
+            snapshot_model_pt = self._write_snapshot_model_pt(
+                snapshot_dir=snapshot_dir,
+                main_model_pt=main_model_pt,
+            )
+
+            info_print(f"  Snapshot step_{step_num} → {snapshot_model_pt}")
+
+        info_print(f"Intermediate checkpoints materialised at {snapshots_base}")
+
+    @staticmethod
+    def _rel_symlink(target: str, link: str) -> None:
+        os.symlink(
+            os.path.relpath(os.path.abspath(target), os.path.dirname(link)), link
+        )
+
+    def _list_intermediate_checkpoints(self, w0_dir: str) -> List[Tuple[str, int, str]]:
         checkpoints = sorted(
             [
                 d
@@ -285,138 +323,98 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             ],
             key=lambda x: int(x.split("-")[1]),
         )
-
-        if not checkpoints:
-            info_print("No intermediate checkpoints found to materialise")
-            return
-
-        info_print(f"Materialising {len(checkpoints)} intermediate checkpoints...")
-        snapshots_base = os.path.join(output_dir, "snapshots")
-        orig_ft_ckpt = os.path.join(w0_dir, "fine-tuned-ckpt")
-        main_model_pt = os.path.join(output_dir, "model.pt")
-
+        materializable: List[Tuple[str, int, str]] = []
         for ckpt_name in checkpoints:
             step_num = int(ckpt_name.split("-")[1])
-            ckpt_dir = os.path.join(w0_dir, ckpt_name)
-            adapter_src = os.path.join(ckpt_dir, "adapter_model.safetensors")
+            adapter_src = os.path.join(w0_dir, ckpt_name, "adapter_model.safetensors")
             if not os.path.exists(adapter_src):
                 info_print(f"  {ckpt_name}: no adapter_model.safetensors, skipping")
                 continue
+            materializable.append((ckpt_name, step_num, adapter_src))
+        return materializable
 
-            snapshot_dir = os.path.join(snapshots_base, f"step_{step_num}")
-            if os.path.exists(snapshot_dir):
-                info_print(f"  step_{step_num}: already exists, skipping")
+    def _build_shadow_predictor_snapshot(
+        self,
+        *,
+        output_dir: str,
+        w0_dir: str,
+        adapter_src: str,
+        shadow_predictor: str,
+    ) -> None:
+        os.makedirs(shadow_predictor, exist_ok=True)
+        for entry in os.listdir(output_dir):
+            if entry in ("models", "snapshots"):
                 continue
-
-            # ---- build shadow predictor dir ----
-            shadow_predictor = os.path.join(snapshot_dir, "predictor")
-            os.makedirs(shadow_predictor, exist_ok=True)
-
-            # All symlinks are relative so the artifact tree remains valid if moved.
-            def _rel_symlink(target: str, link: str) -> None:
-                os.symlink(
-                    os.path.relpath(os.path.abspath(target), os.path.dirname(link)),
-                    link,
-                )
-
-            # Symlink every top-level entry in output_dir EXCEPT 'models'/'snapshots'
-            for entry in os.listdir(output_dir):
-                if entry in ("models", "snapshots"):
-                    continue
-                _rel_symlink(
-                    os.path.join(output_dir, entry),
-                    os.path.join(shadow_predictor, entry),
-                )
-
-            # Reconstruct models/ hierarchy with symlinks, swapping the adapter
-            models_orig = os.path.join(output_dir, "models")
-            shadow_models = os.path.join(shadow_predictor, "models")
-            os.makedirs(shadow_models, exist_ok=True)
-            for entry in os.listdir(models_orig):
-                if entry == "Chronos2":
-                    continue
-                _rel_symlink(
-                    os.path.join(models_orig, entry),
-                    os.path.join(shadow_models, entry),
-                )
-
-            shadow_c2 = os.path.join(shadow_models, "Chronos2")
-            os.makedirs(shadow_c2, exist_ok=True)
-            c2_orig = os.path.join(models_orig, "Chronos2")
-            for entry in os.listdir(c2_orig):
-                if entry == "W0":
-                    continue
-                _rel_symlink(
-                    os.path.join(c2_orig, entry),
-                    os.path.join(shadow_c2, entry),
-                )
-
-            shadow_w0 = os.path.join(shadow_c2, "W0")
-            os.makedirs(shadow_w0, exist_ok=True)
-            for entry in os.listdir(w0_dir):
-                # Skip fine-tuned-ckpt (replaced below) and checkpoint-N dirs
-                if entry == "fine-tuned-ckpt" or entry.startswith("checkpoint-"):
-                    continue
-                if entry == "model.pkl":
-                    # Copy and patch path so the loaded Chronos2Model accesses
-                    # shadow_w0/fine-tuned-ckpt/ (checkpoint-specific adapter)
-                    # rather than the original W0 dir whose fine-tuned-ckpt
-                    # always has the final adapter weights.
-                    with open(os.path.join(w0_dir, "model.pkl"), "rb") as _pf:
-                        _w0_model = pickle.load(_pf)
-                    _w0_model.path = os.path.abspath(shadow_w0)
-                    with open(os.path.join(shadow_w0, "model.pkl"), "wb") as _pf:
-                        pickle.dump(_w0_model, _pf)
-                    continue
-                _rel_symlink(
-                    os.path.join(w0_dir, entry),
-                    os.path.join(shadow_w0, entry),
-                )
-
-            # Rebuild fine-tuned-ckpt: symlink every file except the adapter,
-            # then copy only the adapter weights from this checkpoint.
-            # Avoids duplicating large non-adapter files (tokenizer, configs)
-            # across every snapshot.
-            shadow_ft_ckpt = os.path.join(shadow_w0, "fine-tuned-ckpt")
-            os.makedirs(shadow_ft_ckpt, exist_ok=True)
-            for entry in os.listdir(orig_ft_ckpt):
-                if entry == "adapter_model.safetensors":
-                    continue
-                _rel_symlink(
-                    os.path.join(orig_ft_ckpt, entry),
-                    os.path.join(shadow_ft_ckpt, entry),
-                )
-            shutil.copy2(
-                adapter_src,
-                os.path.join(shadow_ft_ckpt, "adapter_model.safetensors"),
+            self._rel_symlink(
+                os.path.join(output_dir, entry),
+                os.path.join(shadow_predictor, entry),
             )
 
-            # ---- build model.pt dir ----
-            snapshot_model_pt = os.path.join(snapshot_dir, "model.pt")
-            os.makedirs(snapshot_model_pt, exist_ok=True)
+        models_orig = os.path.join(output_dir, "models")
+        shadow_models = os.path.join(shadow_predictor, "models")
+        os.makedirs(shadow_models, exist_ok=True)
+        for entry in os.listdir(models_orig):
+            if entry == "Chronos2":
+                continue
+            self._rel_symlink(
+                os.path.join(models_orig, entry),
+                os.path.join(shadow_models, entry),
+            )
 
-            # Use a relative path so snapshot artifacts remain valid if the directory
-            # tree is moved. The JSON is at model.pt/chronos2_predictor.json;
-            # "../predictor" always resolves to step_N/predictor/.
-            with open(
-                os.path.join(snapshot_model_pt, "chronos2_predictor.json"), "w"
-            ) as f:
-                json.dump({"predictor_path": "../predictor"}, f, indent=2)
+        shadow_c2 = os.path.join(shadow_models, "Chronos2")
+        os.makedirs(shadow_c2, exist_ok=True)
+        c2_orig = os.path.join(models_orig, "Chronos2")
+        for entry in os.listdir(c2_orig):
+            if entry == "W0":
+                continue
+            self._rel_symlink(
+                os.path.join(c2_orig, entry),
+                os.path.join(shadow_c2, entry),
+            )
 
-            # Write config.json from self.config — do NOT copy from main_model_pt
-            # because _materialize_intermediate_checkpoints() runs inside train(),
-            # before save() has had a chance to write config.json there.
-            with open(os.path.join(snapshot_model_pt, "config.json"), "w") as f:
-                json.dump(self.config.to_dict(), f, indent=2)
+        shadow_w0 = os.path.join(shadow_c2, "W0")
+        os.makedirs(shadow_w0, exist_ok=True)
+        for entry in os.listdir(w0_dir):
+            if entry == "fine-tuned-ckpt" or entry.startswith("checkpoint-"):
+                continue
+            if entry == "model.pkl":
+                with open(os.path.join(w0_dir, "model.pkl"), "rb") as model_file:
+                    w0_model = pickle.load(model_file)
+                w0_model.path = os.path.abspath(shadow_w0)
+                with open(os.path.join(shadow_w0, "model.pkl"), "wb") as model_file:
+                    pickle.dump(w0_model, model_file)
+                continue
+            self._rel_symlink(
+                os.path.join(w0_dir, entry),
+                os.path.join(shadow_w0, entry),
+            )
 
-            # Copy metadata.json if the main checkpoint already has it
-            meta_src = os.path.join(main_model_pt, "metadata.json")
-            if os.path.exists(meta_src):
-                shutil.copy2(meta_src, os.path.join(snapshot_model_pt, "metadata.json"))
+        orig_ft_ckpt = os.path.join(w0_dir, "fine-tuned-ckpt")
+        shadow_ft_ckpt = os.path.join(shadow_w0, "fine-tuned-ckpt")
+        os.makedirs(shadow_ft_ckpt, exist_ok=True)
+        for entry in os.listdir(orig_ft_ckpt):
+            if entry == "adapter_model.safetensors":
+                continue
+            self._rel_symlink(
+                os.path.join(orig_ft_ckpt, entry),
+                os.path.join(shadow_ft_ckpt, entry),
+            )
+        shutil.copy2(
+            adapter_src,
+            os.path.join(shadow_ft_ckpt, "adapter_model.safetensors"),
+        )
 
-            info_print(f"  Snapshot step_{step_num} → {snapshot_model_pt}")
-
-        info_print(f"Intermediate checkpoints materialised at {snapshots_base}")
+    def _write_snapshot_model_pt(self, *, snapshot_dir: str, main_model_pt: str) -> str:
+        snapshot_model_pt = os.path.join(snapshot_dir, "model.pt")
+        os.makedirs(snapshot_model_pt, exist_ok=True)
+        with open(os.path.join(snapshot_model_pt, "chronos2_predictor.json"), "w") as f:
+            json.dump({"predictor_path": "../predictor"}, f, indent=2)
+        with open(os.path.join(snapshot_model_pt, "config.json"), "w") as f:
+            json.dump(self.config.to_dict(), f, indent=2)
+        meta_src = os.path.join(main_model_pt, "metadata.json")
+        if os.path.exists(meta_src):
+            shutil.copy2(meta_src, os.path.join(snapshot_model_pt, "metadata.json"))
+        return snapshot_model_pt
 
     # ------------------------------------------------------------------
     # Inference helpers
@@ -466,8 +464,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         Returns:
             TimeSeriesDataFrame ready for AutoGluon prediction.
         """
-        from autogluon.timeseries import (
-            TimeSeriesDataFrame,  # type: ignore[import-not-found]
+        from autogluon.timeseries import (  # pyright: ignore[reportMissingImports]
+            TimeSeriesDataFrame,
         )
 
         config = self.config
@@ -532,6 +530,52 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             return data["episode_id"].unique()
         return np.array(["ep_0"])
 
+    def _validate_registered_quantile_levels(
+        self, quantile_levels: List[float]
+    ) -> List[str]:
+        available = set(
+            round(q, 8)
+            for q in (self.config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS)
+        )
+        missing = [q for q in quantile_levels if round(q, 8) not in available]
+        if missing:
+            raise ValueError(
+                f"Quantile levels {missing} were not registered at training time. "
+                f"Available: {sorted(available)}. Re-train with these levels set in "
+                f"config.quantile_levels, or request a subset of the available levels."
+            )
+        return [str(q) for q in quantile_levels]
+
+    def _build_autogluon_predict_kwargs(
+        self, data: pd.DataFrame, *, episode_col: str = "episode_id"
+    ) -> Dict[str, Any]:
+        predict_kwargs: Dict[str, Any] = {"use_cache": False}
+        if self.config.known_covariate_cols:
+            predict_kwargs["known_covariates"] = self._build_known_covariates(
+                data, episode_col=episode_col
+            )
+        return predict_kwargs
+
+    def _extract_episode_predictions(
+        self,
+        ag_predictions: Any,
+        *,
+        episode_ids: List[str],
+        columns: List[str],
+    ) -> Dict[str, np.ndarray]:
+        multi = len(columns) > 1
+        results: Dict[str, np.ndarray] = {}
+        for ep_id in episode_ids:
+            ag_id = self._ag_item_id(ep_id)
+            if ag_id not in ag_predictions.index.get_level_values(0):
+                continue
+            ep_preds = ag_predictions.loc[ag_id]
+            if multi:
+                results[ep_id] = np.stack([ep_preds[c].values for c in columns])
+            else:
+                results[ep_id] = ep_preds[columns[0]].values
+        return results
+
     def _build_known_covariates(
         self, data: pd.DataFrame, episode_col: str = "episode_id"
     ):  # -> TimeSeriesDataFrame (autogluon.timeseries)
@@ -549,8 +593,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             TimeSeriesDataFrame with item_id/timestamp index and one column
             per known covariate, covering forecast_length steps per episode.
         """
-        from autogluon.timeseries import (
-            TimeSeriesDataFrame,  # pyright: ignore[reportMissingImports]
+        from autogluon.timeseries import (  # pyright: ignore[reportMissingImports]
+            TimeSeriesDataFrame,
         )
 
         from ...data.preprocessing.feature_engineering import (
@@ -651,10 +695,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         # that writes cached_predictions.pkl to the same parent dir for all
         # checkpoints.  Caching on would cause subsequent checkpoints to silently
         # reuse the first checkpoint's predictions in multi-snapshot eval loops.
-        predict_kwargs = {"use_cache": False}
-        if self.config.known_covariate_cols:
-            predict_kwargs["known_covariates"] = self._build_known_covariates(data)
-        ag_predictions = self.predictor.predict(ts_data, **predict_kwargs)
+        ag_predictions = self.predictor.predict(
+            ts_data,
+            **self._build_autogluon_predict_kwargs(data),
+        )
         multi = len(columns) > 1
 
         result_arrays = []
@@ -722,19 +766,9 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 )
             return quantiles
 
-        # Validate requested levels against training-time registration.
-        available = set(
-            round(q, 8)
-            for q in (self.config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS)
+        return self._autogluon_extract(
+            data, columns=self._validate_registered_quantile_levels(quantile_levels)
         )
-        missing = [q for q in quantile_levels if round(q, 8) not in available]
-        if missing:
-            raise ValueError(
-                f"Quantile levels {missing} were not registered at training time. "
-                f"Available: {sorted(available)}. Re-train with these levels set in "
-                f"config.quantile_levels, or request a subset of the available levels."
-            )
-        return self._autogluon_extract(data, columns=[str(q) for q in quantile_levels])
 
     def _predict_batch(
         self,
@@ -777,22 +811,6 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                     "The checkpoint may not have loaded correctly."
                 )
 
-            if quantile_levels is not None:
-                # Validate requested levels against training-time registration.
-                available = set(
-                    round(q, 8)
-                    for q in (
-                        self.config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS
-                    )
-                )
-                missing = [q for q in quantile_levels if round(q, 8) not in available]
-                if missing:
-                    raise ValueError(
-                        f"Quantile levels {missing} were not registered at training time. "
-                        f"Available: {sorted(available)}. Re-train with these levels set in "
-                        f"config.quantile_levels, or request a subset of the available levels."
-                    )
-
             # Reuse _prepare_autogluon_data (handles both single- and multi-target)
             batch_data = data.rename(columns={episode_col: "episode_id"})
             ts_data = self._prepare_autogluon_data(batch_data)
@@ -802,30 +820,21 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             # to the SAME parent directory for ALL checkpoints.  With the default
             # use_cache=True, the first checkpoint to run writes a cache that all
             # subsequent checkpoints silently reuse, producing identical results.
-            predict_kwargs = {"use_cache": False}
-            if config.known_covariate_cols:
-                predict_kwargs["known_covariates"] = self._build_known_covariates(
-                    data, episode_col=episode_col
-                )
-            ag_predictions = self.predictor.predict(ts_data, **predict_kwargs)
+            ag_predictions = self.predictor.predict(
+                ts_data,
+                **self._build_autogluon_predict_kwargs(data, episode_col=episode_col),
+            )
 
             # Choose which columns to extract
             if quantile_levels is not None:
-                columns = [str(q) for q in quantile_levels]
+                columns = self._validate_registered_quantile_levels(quantile_levels)
             else:
                 columns = ["mean"]
-            multi = len(columns) > 1
-
-            results: Dict[str, np.ndarray] = {}
-            for ep_id in episode_ids:
-                ag_id = self._ag_item_id(ep_id)
-                if ag_id in ag_predictions.index.get_level_values(0):
-                    ep_preds = ag_predictions.loc[ag_id]
-                    if multi:
-                        results[ep_id] = np.stack([ep_preds[c].values for c in columns])
-                    else:
-                        results[ep_id] = ep_preds[columns[0]].values
-            return results
+            return self._extract_episode_predictions(
+                ag_predictions,
+                episode_ids=episode_ids,
+                columns=columns,
+            )
 
         # Zero-shot path: batch via Chronos2Pipeline
         if config.known_covariate_cols:
@@ -912,8 +921,8 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         by _save_checkpoint). Falls back to loading model_dir directly as
         an AutoGluon predictor path.
         """
-        from autogluon.timeseries import (
-            TimeSeriesPredictor,  # type: ignore[import-not-found]
+        from autogluon.timeseries import (  # pyright: ignore[reportMissingImports]
+            TimeSeriesPredictor,
         )
 
         ref_path = os.path.join(model_dir, "chronos2_predictor.json")
