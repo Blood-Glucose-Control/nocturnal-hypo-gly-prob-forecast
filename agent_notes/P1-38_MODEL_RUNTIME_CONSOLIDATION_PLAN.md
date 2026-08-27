@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-23
 **Update Date:** 2026-08-27
-**Status:** In progress (all-model pre-change baseline is green; PR-C1 is active with WS1-TTM-01 and WS1-TTM-02 completed)
+**Status:** In progress (WS1 model-family helper extraction and constructor-path parity closeout for maintained entrypoints are complete; shim retirement closeout remains)
 **Tracking row:** `model-runtime-consolidation-wave` in [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
 
 ---
@@ -382,9 +382,9 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
 
 ### Immediate next actions
 
-1. Begin constructor-shim parity closeout (`create_model_and_config`) now that C4 smoke parity is confirmed.
-2. Keep dependency-lane targeted validations and final Pylance gates for any follow-on adjustments.
-3. Stage PR-C4 ready-for-review summary once shim closeout evidence is captured.
+1. Stage final PR summary with constructor-path parity evidence and validation inventory.
+2. Decide shim retirement sequencing for non-maintained/scratch callers (`src/models.factory.create_model_and_config`), then either remove or schedule in an explicit follow-on row.
+3. If shim is retired, update affected non-maintained scripts or mark them intentionally unsupported.
 
 ### PR-C1 status checkpoint (2026-08-27)
 
@@ -522,6 +522,27 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
   - candidate manifest: [suite_manifest.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c4/suite_manifest.json),
   - comparison report: [comparison_report.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c4/comparison_report.json),
   - compared models: 14; failures: 0.
+
+### PR-C5 status checkpoint (2026-08-27, constructor-path parity closeout)
+
+- Added schema-routed workflow helper [`create_model_and_config`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py) with:
+  - explicit zero-shot family routing for inference-first families,
+  - checkpoint-safe override handling (`batch_size`, bounded `forecast_length`, guarded `context_length`),
+  - passthrough of additional schema/runtime fields.
+- Migrated maintained workflow entrypoints off the model shim to the workflow helper:
+  - [nocturnal_hypo_eval.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/nocturnal_hypo_eval.py),
+  - [sliding_window_eval.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/sliding_window_eval.py),
+  - [validate_predict_batch.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/validate_predict_batch.py),
+  - [per_patient_finetune.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/personalization/per_patient_finetune.py).
+- Added focused helper tests in [test_modeling_create_model_and_config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/workflows/forecasting/test_modeling_create_model_and_config.py):
+  - zero-shot constructor-path selection,
+  - checkpoint override safety semantics,
+  - forecast-length increase guardrail.
+- Validation status for PR-C5 slice:
+  - `ruff check src/workflows/forecasting/modeling.py src/workflows/evaluation/nocturnal_hypo_eval.py src/workflows/evaluation/sliding_window_eval.py src/workflows/evaluation/validate_predict_batch.py src/workflows/personalization/per_patient_finetune.py tests/workflows/forecasting/test_modeling_create_model_and_config.py` (pass),
+  - `pytest -q tests/workflows/forecasting/test_modeling_create_model_and_config.py tests/workflows/forecasting/test_model_config_schema_loader.py -k "ttm or timesfm or moirai or moment or chronos2 or toto or tide"` (44 passed),
+  - `SKIP=pyright pre-commit run --files src/workflows/forecasting/modeling.py src/workflows/evaluation/nocturnal_hypo_eval.py src/workflows/evaluation/sliding_window_eval.py src/workflows/evaluation/validate_predict_batch.py src/workflows/personalization/per_patient_finetune.py tests/workflows/forecasting/test_modeling_create_model_and_config.py` (pass),
+  - final Pylance diagnostics clean (error-severity) for all touched workflow files and helper tests.
 
 ---
 

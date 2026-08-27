@@ -53,9 +53,8 @@ from ...experiments.nocturnal.grand_summary import (
     bucket_from_covariates,
     model_supports_past_covariates,
 )
-from ...models import create_model_and_config
 from ...utils import get_git_commit_hash, setup_file_logging
-from ..forecasting.modeling import load_model_config_from_yaml
+from ..forecasting.modeling import create_model_and_config, load_model_config_from_yaml
 from ..runtime.manifest import (
     build_run_manifest,
     utc_now,

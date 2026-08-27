@@ -68,10 +68,9 @@ import pandas as pd
 from ...data.utils import get_patient_column
 from ...data.versioning.dataset_registry import DatasetRegistry
 from ...evaluation.metrics import compute_regression_metrics
-from ...models import create_model_and_config
 from ...models.base import BaseTimeSeriesFoundationModel
 from ...utils import get_git_commit_hash, setup_file_logging
-from ..forecasting.modeling import load_model_config_from_yaml
+from ..forecasting.modeling import create_model_and_config, load_model_config_from_yaml
 
 # Constants
 SAMPLING_INTERVAL_MINUTES = 5

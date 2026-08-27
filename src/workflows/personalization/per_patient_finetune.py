@@ -51,8 +51,8 @@ from ...evaluation import (
     plot_best_worst_episodes,
     plot_stage_comparison_auto,
 )
-from ...models import create_model_and_config
 from ...utils import get_git_commit_hash, setup_file_logging
+from ..forecasting.modeling import create_model_and_config
 
 
 # ---------------------------------------------------------------------------
@@ -62,7 +62,9 @@ from ...utils import get_git_commit_hash, setup_file_logging
 # ---------------------------------------------------------------------------
 def _patch_chronos_early_stopping(patience: int = 5):
     """Patch ChronosModel._fit to add EarlyStoppingCallback to the HF Trainer."""
-    from autogluon.timeseries.models.chronos import ChronosModel
+    from autogluon.timeseries.models.chronos import (  # pyright: ignore[reportMissingImports]
+        ChronosModel,
+    )
     from transformers import EarlyStoppingCallback
 
     _original_fit = ChronosModel._fit
@@ -73,11 +75,11 @@ def _patch_chronos_early_stopping(patience: int = 5):
 
         _orig_trainer_init = Trainer.__init__
 
-        def _patched_trainer_init(trainer_self, *t_args, **t_kwargs):
+        def _patched_trainer_init(self, *t_args, **t_kwargs):
             callbacks = t_kwargs.get("callbacks", []) or []
             callbacks.append(EarlyStoppingCallback(early_stopping_patience=patience))
             t_kwargs["callbacks"] = callbacks
-            return _orig_trainer_init(trainer_self, *t_args, **t_kwargs)
+            return _orig_trainer_init(self, *t_args, **t_kwargs)
 
         Trainer.__init__ = _patched_trainer_init
         try:
@@ -304,8 +306,10 @@ def merge_stage1_lora(checkpoint_dir: str, output_dir: str) -> str:
     Raises:
         FileNotFoundError: If the LoRA adapter is not found in checkpoint_dir.
     """
-    from chronos.chronos2.model import Chronos2Model
-    from peft import PeftModel
+    from chronos.chronos2.model import (  # pyright: ignore[reportMissingImports]
+        Chronos2Model,
+    )
+    from peft import PeftModel  # pyright: ignore[reportMissingImports]
 
     # Locate the LoRA adapter
     adapter_path = (
@@ -830,6 +834,7 @@ def main() -> None:
 
     # ── Run per-patient fine-tuning ─────────────────────────────────────────
     summary_rows: List[Dict[str, Any]] = []
+    patient_output: Optional[Path] = None
 
     for idx, patient_id in enumerate(patient_ids):
         logger.info("\n")
@@ -869,7 +874,12 @@ def main() -> None:
             )
 
     # ── Write summary CSV (batch mode or single patient) ────────────────────
-    output_root = batch_root if batch_root is not None else patient_output
+    if batch_root is not None:
+        output_root = batch_root
+    elif patient_output is not None:
+        output_root = patient_output
+    else:
+        raise ValueError("No patient output directory was created during execution.")
     write_summary_csv(summary_rows, output_root)
 
     # ── Final summary ───────────────────────────────────────────────────────
