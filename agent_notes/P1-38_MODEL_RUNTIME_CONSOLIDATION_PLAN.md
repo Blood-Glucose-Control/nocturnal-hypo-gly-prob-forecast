@@ -279,43 +279,26 @@ Fast-profile notes (2026-08-26):
 
 ### LOC + long-method inventory (>=40 lines per function/method)
 
-| Family | File | LOC | Long defs |
-| --- | --- | ---: | ---: |
-| TTM | [src/models/ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py) | 1107 | 10 |
-| TimesFM | [src/models/timesfm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timesfm/model.py) | 1197 | 6 |
-| Moirai | [src/models/moirai/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moirai/model.py) | 1140 | 9 |
-| Moment | [src/models/moment/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/model.py) | 1133 | 7 |
-| Chronos2 | [src/models/chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py) | 945 | 7 |
-| Toto | [src/models/toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py) | 565 | 5 |
-| Tide | [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py) | 379 | 3 |
+Updated to include baseline (PR-C0), midpoint extraction impact, and current
+state after constructor closeout + shared-helper follow-up.
 
-Top hotspots by long-method span (selected):
+| Family | File | PR-C0 LOC | PR-C0 long defs | Midpoint long-method updates | Current LOC | Current long defs | Selected hotspot deltas |
+| --- | --- | ---: | ---: | --- | ---: | ---: | --- |
+| TTM | [src/models/ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py) | 1107 | 10 | C1 extracted predict/train data-path helpers and checkpoint preprocessor helpers. | 1174 | 10 | `_train_model` 124→56, `_prepare_training_data` 116→51, `_compute_trainer_metrics` 118→118 |
+| TimesFM | [src/models/timesfm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timesfm/model.py) | 1197 | 6 | C2 split training-data + checkpoint/trainer assembly helpers. | 1316 | 7 | `_prepare_training_data` 225→74, `_train_model` 106→48, `forward` 156→156 |
+| Moirai | [src/models/moirai/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moirai/model.py) | 1140 | 9 | C2 removed prepare-data stub and extracted prediction/training adapters. | 1185 | 10 | `_train_model` 233→168, `_prepare_training_tensors` 146→111, `evaluate_probabilistic` 111→111 |
+| Moment | [src/models/moment/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/model.py) | 1133 | 7 | C3 extracted pair split, loader, validation-loss, and state-dict helpers. | 1194 | 6 | `_train_model` 286→191, `_get_context_target_pairs` 162→171, `_forecast_batch` 109→109 |
+| Chronos2 | [src/models/chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py) | 945 | 7 | C4 extracted checkpoint-materialization + predict helpers; follow-up shared AutoGluon context helper reuse and batch branch split. | 1005 | 9 | `_materialize_intermediate_checkpoints` 169→58, `_predict_batch` 142→43 |
+| Toto | [src/models/toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py) | 565 | 5 | C4 split batch assembly and training orchestration helpers. | 644 | 4 | `_predict_batch` 119→29, `_train_model` 103→35 |
+| Tide | [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py) | 379 | 3 | C4 split AutoGluon train/infer/checkpoint helpers; follow-up shared context-frame helper adoption. | 416 | 2 | `_train_model` 64→44, `_predict_batch` 49→31 |
 
-- TTM:
-  - `_train_model` (~124 lines)
-  - `_compute_trainer_metrics` (~118 lines)
-  - `_prepare_training_data` (~116 lines)
-- TimesFM:
-  - `_prepare_training_data` (~225 lines)
-  - `forward` (~156 lines)
-  - `_train_model` (~106 lines)
-- Moirai:
-  - `_train_model` (~233 lines)
-  - `_prepare_training_tensors` (~146 lines)
-  - `evaluate_probabilistic` (~111 lines)
-- Moment:
-  - `_train_model` (~286 lines)
-  - `_get_context_target_pairs` (~162 lines)
-  - `_forecast_batch` (~109 lines)
-- Chronos2:
-  - `_materialize_intermediate_checkpoints` (~169 lines)
-  - `_predict_batch` (~142 lines)
-- Toto:
-  - `_predict_batch` (~119 lines)
-  - `_train_model` (~103 lines)
-- Tide:
-  - `_train_model` (~64 lines)
-  - `_predict_batch` (~49 lines)
+Observations:
+
+- Hotspot spans dropped materially in the intended runtime methods for every family.
+- Total long-def counts still need cleanup in TTM/TimesFM/Moirai/Chronos2 because
+  some non-target or secondary methods remain above 40 lines.
+- Next simplification pass should prioritize TTM `_compute_trainer_metrics`,
+  Moirai `_train_model`, and Moment `_get_context_target_pairs`.
 
 ### Existing schema/factory/contract coverage baseline
 
@@ -558,6 +541,34 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
   - `pytest -q tests/models/test_model_family_contract_suite.py tests/workflows/forecasting/test_modeling_create_model_and_config.py` (8 passed),
   - `SKIP=pyright pre-commit run --files src/models/__init__.py src/models/factory.py scripts/visualization/plot_forecast_comparison.py scripts/scratch/data_processing/export_single_episode_eval_data.py scripts/scratch/experiments/nocturnal_hypo_eval_ctx_ablation.py` (pass),
   - final Pylance diagnostics clean (error-severity) for touched files.
+
+### PR-C7 status checkpoint (2026-08-27, shared-helper simplification follow-up)
+
+- Added shared AutoGluon context-frame helper in [autogluon_data_utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/autogluon_data_utils.py):
+  - [build_autogluon_context_frame](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/autogluon_data_utils.py),
+  - centralizes `item_id` assignment, timestamp normalization, target rename, and covariate handling.
+- Reused the shared helper in:
+  - [Chronos2 single-target inference prep](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py),
+  - [TiDE prediction context build](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py).
+- Further split Chronos2 batch inference branches:
+  - [Chronos2 `_predict_batch`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py) now delegates to fitted/zero-shot helpers,
+  - zero-shot tensor packing/result collection extracted into dedicated helpers.
+- Added helper coverage in [test_chronos2.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_chronos2.py):
+  - context-frame construction in single-target mode,
+  - missing-covariate fill behavior.
+- Validation status for PR-C7 slice:
+  - `ruff check src/models/autogluon_data_utils.py src/models/chronos2/model.py src/models/tide/model.py tests/models/test_chronos2.py` (pass),
+  - `pytest -q tests/models/test_tide_runtime_helpers.py tests/workflows/forecasting/test_model_config_schema_loader.py -k "chronos2 or tide"` (20 passed),
+  - `.venvs/autogluon/bin/python -m pytest -q tests/models/test_chronos2.py tests/models/test_chronos2_runtime_helpers.py -k "build_autogluon_context_frame or inference_extracts_primary_target_only or quantile_registration"` (3 passed),
+  - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
+  - `SKIP=pyright pre-commit run --files src/models/autogluon_data_utils.py src/models/chronos2/model.py src/models/tide/model.py tests/models/test_chronos2.py` (pass),
+  - final Pylance diagnostics clean (error-severity) for touched files.
+- PR-C7 smoke comparator status:
+  - `SUITE_LABEL=post_refactor_20260827_c7 make smoke-suite-aleppo` completed with all maintained models succeeding,
+  - `make smoke-suite-compare` passed against baseline `pre_refactor_20260827v1`,
+  - candidate manifest: [suite_manifest.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c7/suite_manifest.json),
+  - comparison report: [comparison_report.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c7/comparison_report.json),
+  - compared models: 14; failures: 0.
 
 ---
 

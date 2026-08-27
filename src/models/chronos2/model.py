@@ -36,6 +36,7 @@ import pandas as pd
 from ...data.preprocessing.gap_handling import segment_all_patients
 from ...utils.logging_helper import info_print, prune_stale_file_handlers
 from ..autogluon_data_utils import (
+    build_autogluon_context_frame,
     convert_to_patient_dict,
     format_segments_for_autogluon,
 )
@@ -472,13 +473,13 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         if "episode_id" not in context.columns:
             context["episode_id"] = "ep_0"
 
-        if config.time_col in context.columns:
-            context["timestamp"] = pd.to_datetime(context[config.time_col])
-        else:
-            context["timestamp"] = context.index
-
         # Multi-target mode: stack each target column as a separate item
         if config.is_multitarget:
+            if config.time_col in context.columns:
+                context["timestamp"] = pd.to_datetime(context[config.time_col])
+            else:
+                context["timestamp"] = context.index
+
             data_list = []
             for ep_id in context["episode_id"].unique():
                 ep_data = context[context["episode_id"] == ep_id]
@@ -509,17 +510,15 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             return TimeSeriesDataFrame(combined)
 
         # Single-target mode
-        context["item_id"] = context["episode_id"].astype(str)
-        context = context.rename(columns={config.target_col: "target"})
-
-        ag_cols = (
-            ["item_id", "timestamp", "target"]
-            + config.covariate_cols
-            + [c for c in config.known_covariate_cols if c not in config.covariate_cols]
+        single_target_frame = build_autogluon_context_frame(
+            context,
+            target_col=config.target_col,
+            time_col=config.time_col,
+            item_id_column="episode_id",
+            covariate_cols=config.covariate_cols,
+            known_covariate_cols=config.known_covariate_cols,
         )
-        ag_cols = [c for c in ag_cols if c in context.columns]
-        context = context[ag_cols].set_index(["item_id", "timestamp"])
-        return TimeSeriesDataFrame(context)
+        return TimeSeriesDataFrame(single_target_frame)
 
     @staticmethod
     def _episode_ids_from(data: pd.DataFrame) -> np.ndarray:
@@ -794,47 +793,69 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             Point forecasts: shape (forecast_length,) per episode.
             Quantile forecasts: shape (len(quantile_levels), forecast_length).
         """
-        import torch
-
-        config = self.config
         episode_ids = data[episode_col].astype(str).unique().tolist()
         if not episode_ids:
             return {}
 
         if self.is_fitted:
-            # Fine-tuned path: single AutoGluon predict call with all episodes
-            if self.predictor is None:
-                raise ValueError(
-                    "Model is marked as fitted but predictor is None. "
-                    "The checkpoint may not have loaded correctly."
-                )
-
-            # Reuse _prepare_autogluon_data (handles both single- and multi-target)
-            batch_data = data.rename(columns={episode_col: "episode_id"})
-            ts_data = self._prepare_autogluon_data(batch_data)
-
-            # use_cache=False is critical here: AutoGluon snapshot predictors
-            # share a symlinked learner/trainer that saves cached_predictions.pkl
-            # to the SAME parent directory for ALL checkpoints.  With the default
-            # use_cache=True, the first checkpoint to run writes a cache that all
-            # subsequent checkpoints silently reuse, producing identical results.
-            ag_predictions = self.predictor.predict(
-                ts_data,
-                **self._build_autogluon_predict_kwargs(data, episode_col=episode_col),
-            )
-
-            # Choose which columns to extract
-            if quantile_levels is not None:
-                columns = self._validate_registered_quantile_levels(quantile_levels)
-            else:
-                columns = ["mean"]
-            return self._extract_episode_predictions(
-                ag_predictions,
+            return self._predict_batch_fitted(
+                data,
+                episode_col=episode_col,
                 episode_ids=episode_ids,
-                columns=columns,
+                quantile_levels=quantile_levels,
+            )
+        return self._predict_batch_zero_shot(
+            data,
+            episode_col=episode_col,
+            episode_ids=episode_ids,
+            quantile_levels=quantile_levels,
+        )
+
+    def _predict_batch_fitted(
+        self,
+        data: pd.DataFrame,
+        *,
+        episode_col: str,
+        episode_ids: List[str],
+        quantile_levels: Optional[List[float]] = None,
+    ) -> Dict[str, np.ndarray]:
+        """Run one AutoGluon batch prediction call and extract episode outputs."""
+        if self.predictor is None:
+            raise ValueError(
+                "Model is marked as fitted but predictor is None. "
+                "The checkpoint may not have loaded correctly."
             )
 
-        # Zero-shot path: batch via Chronos2Pipeline
+        batch_data = data.rename(columns={episode_col: "episode_id"})
+        ts_data = self._prepare_autogluon_data(batch_data)
+        ag_predictions = self.predictor.predict(
+            ts_data,
+            **self._build_autogluon_predict_kwargs(data, episode_col=episode_col),
+        )
+
+        columns = (
+            self._validate_registered_quantile_levels(quantile_levels)
+            if quantile_levels is not None
+            else ["mean"]
+        )
+        return self._extract_episode_predictions(
+            ag_predictions,
+            episode_ids=episode_ids,
+            columns=columns,
+        )
+
+    def _predict_batch_zero_shot(
+        self,
+        data: pd.DataFrame,
+        *,
+        episode_col: str,
+        episode_ids: List[str],
+        quantile_levels: Optional[List[float]] = None,
+    ) -> Dict[str, np.ndarray]:
+        """Run zero-shot Chronos2Pipeline batch inference."""
+        import torch
+
+        config = self.config
         if config.known_covariate_cols:
             logger.warning(
                 "known_covariate_cols=%s set but zero-shot Chronos2Pipeline "
@@ -842,7 +863,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 config.known_covariate_cols,
             )
         self._ensure_zs_pipeline()
-        assert self._zs_pipeline is not None  # guaranteed by _ensure_zs_pipeline
+        assert self._zs_pipeline is not None
 
         if config.target_col not in data.columns:
             raise ValueError(
@@ -850,40 +871,71 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 f"Available columns: {list(data.columns)}"
             )
 
-        # Build (N, 1, L) tensor — one series per episode
+        context_tensor = self._build_zero_shot_batch_context_tensor(
+            data,
+            episode_col=episode_col,
+            episode_ids=episode_ids,
+            torch_module=torch,
+        )
+
+        zs_kwargs: Dict[str, Any] = {"prediction_length": config.forecast_length}
+        if quantile_levels is not None:
+            zs_kwargs["quantile_levels"] = quantile_levels
+        quantiles, mean = self._zs_pipeline.predict_quantiles(
+            context_tensor, **zs_kwargs
+        )
+
+        return self._collect_zero_shot_batch_results(
+            episode_ids=episode_ids,
+            quantile_levels=quantile_levels,
+            quantiles=quantiles,
+            mean=mean,
+        )
+
+    def _build_zero_shot_batch_context_tensor(
+        self,
+        data: pd.DataFrame,
+        *,
+        episode_col: str,
+        episode_ids: List[str],
+        torch_module: Any,
+    ) -> Any:
+        """Build a padded (N, 1, L) context tensor for zero-shot batch inference."""
+        config = self.config
         grouped = data.groupby(data[episode_col].astype(str))
         series_list = []
         for ep_id in episode_ids:
             ep_data = grouped.get_group(ep_id)
             bg = ep_data[config.target_col].values.astype(np.float32)
             bg = bg[-config.context_length :]
-            series_list.append(torch.tensor(bg))
+            series_list.append(torch_module.tensor(bg))
 
-        # Pad to same length for stacking
-        max_len = max(len(s) for s in series_list)
-        padded = torch.stack(
+        max_len = max(len(series) for series in series_list)
+        padded = torch_module.stack(
             [
-                torch.nn.functional.pad(s, (max_len - len(s), 0), value=float("nan"))
-                for s in series_list
+                torch_module.nn.functional.pad(
+                    series, (max_len - len(series), 0), value=float("nan")
+                )
+                for series in series_list
             ]
-        )  # (N, L)
-        context_tensor = padded.unsqueeze(1)  # (N, 1, L)
-
-        zs_kwargs: Dict[str, Any] = dict(prediction_length=config.forecast_length)
-        if quantile_levels is not None:
-            zs_kwargs["quantile_levels"] = quantile_levels
-
-        quantiles, mean = self._zs_pipeline.predict_quantiles(
-            context_tensor, **zs_kwargs
         )
+        return padded.unsqueeze(1)
 
-        results = {}
-        for i, ep_id in enumerate(episode_ids):
+    @staticmethod
+    def _collect_zero_shot_batch_results(
+        *,
+        episode_ids: List[str],
+        quantile_levels: Optional[List[float]],
+        quantiles: Any,
+        mean: Any,
+    ) -> Dict[str, np.ndarray]:
+        """Collect per-episode numpy outputs from Chronos2 zero-shot tensors."""
+        results: Dict[str, np.ndarray] = {}
+        for idx, ep_id in enumerate(episode_ids):
             if quantile_levels is not None:
-                # Shape: (n_variates, H, Q) -> squeeze variate -> (H, Q) -> T -> (Q, H)
-                results[ep_id] = quantiles[i].squeeze(0).T.detach().cpu().numpy()
+                results[ep_id] = quantiles[idx].squeeze(0).T.detach().cpu().numpy()
             else:
-                results[ep_id] = mean[i].squeeze().detach().cpu().numpy()
+                results[ep_id] = mean[idx].squeeze().detach().cpu().numpy()
         return results
 
     # ------------------------------------------------------------------

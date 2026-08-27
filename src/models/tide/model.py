@@ -28,6 +28,7 @@ import pandas as pd
 from ...data.preprocessing.gap_handling import segment_all_patients
 from ...utils.logging_helper import info_print, prune_stale_file_handlers
 from ..autogluon_data_utils import (
+    build_autogluon_context_frame,
     convert_to_patient_dict,
     format_segments_for_autogluon,
 )
@@ -376,29 +377,15 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     ) -> pd.DataFrame:
         """Build AutoGluon context frame with item/timestamp index."""
         config = self.config
-        context = data.copy()
-        if item_id_column is None:
-            context["item_id"] = "ep_0"
-        else:
-            context["item_id"] = context[item_id_column].astype(str)
-
-        if config.time_col in context.columns:
-            context["timestamp"] = pd.to_datetime(context[config.time_col])
-        else:
-            context["timestamp"] = context.index
-
-        context = context.rename(columns={config.target_col: "target"})
-        for cov_col in config.covariate_cols:
-            if cov_col not in context.columns:
-                logger.warning(
-                    "Covariate '%s' missing from input data; filling with zeros",
-                    cov_col,
-                )
-                context[cov_col] = 0.0
-
-        ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
-        ag_cols = [col for col in ag_cols if col in context.columns]
-        return context[ag_cols].set_index(["item_id", "timestamp"])
+        return build_autogluon_context_frame(
+            data,
+            target_col=config.target_col,
+            time_col=config.time_col,
+            item_id_column=item_id_column,
+            covariate_cols=config.covariate_cols,
+            fill_missing_covariates=True,
+            covariate_fill_value=0.0,
+        )
 
     def _extract_quantile_predictions(
         self,
