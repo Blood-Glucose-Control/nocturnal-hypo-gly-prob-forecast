@@ -382,9 +382,9 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
 
 ### Immediate next actions
 
-1. Run pre/post smoke comparator around PR-C3 using `pre_refactor_20260827v1` as baseline.
-2. Record PR-C3 drift/artifact parity outcomes in this plan and `project_tracking.csv`.
-3. Begin PR-C4 by starting WS1-CHR-01 / WS1-TOT-01 / WS1-TID-01.
+1. Begin PR-C4 by starting WS1-CHR-01 / WS1-TOT-01 / WS1-TID-01.
+2. Keep dependency-lane targeted validations per family as each C4 slice lands.
+3. Re-run focused Pylance final gates per touched C4 file before each slice closeout.
 
 ### PR-C1 status checkpoint (2026-08-27)
 
@@ -454,6 +454,11 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
   - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "moment"` (pass),
   - `SKIP=pyright pre-commit run --files src/models/moment/model.py` (pass),
   - Pylance diagnostics clean for touched file (warnings only; no error-severity diagnostics).
+- PR-C3 smoke comparator status:
+  - `make smoke-suite-aleppo SUITE_LABEL=post_refactor_20260827_c3` completed successfully for all maintained models,
+  - `make smoke-suite-compare` passed against baseline `pre_refactor_20260827v1`,
+  - comparison report: [comparison_report_vs_pre_refactor_20260827v1.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c3/comparison_report_vs_pre_refactor_20260827v1.json),
+  - compared models: 14; failures: 0.
 - C3 status: helper extraction and validation gates complete; proceed to C4 families.
 
 ---
