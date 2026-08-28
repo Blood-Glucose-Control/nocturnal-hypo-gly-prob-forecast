@@ -447,8 +447,8 @@ def step5_train_model(
     training_columns: list,
     config_dir: str,
     output_dir: str,
-    num_epochs: int = 1,
-    batch_size: int = 2048,
+    num_epochs: Optional[int] = None,
+    batch_size: Optional[int] = None,
     model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Any, GenericModelConfig, Dict, Path]:
     """Step 5: Fine-tune model on combined dataset.
@@ -462,8 +462,8 @@ def step5_train_model(
         training_columns: Column names from training data
         config_dir: Holdout config directory
         output_dir: Output directory
-        num_epochs: Number of training epochs
-        batch_size: Batch size for training
+        num_epochs: Number of training epochs override (None defers to YAML/default)
+        batch_size: Batch size override (None defers to YAML/default)
         model_config_overrides: Optional dict of model-specific config from YAML
 
     Returns:
@@ -474,7 +474,10 @@ def step5_train_model(
     logger.info("STEP 5: Fine-tune Model")
     logger.info(f"Model type: {model_type}")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info(f"Epochs: {num_epochs}")
+    logger.info(
+        "Epoch override: %s",
+        num_epochs if num_epochs is not None else "from YAML/default",
+    )
     logger.info("=" * 80)
 
     # GPU setup
@@ -506,7 +509,7 @@ def step5_train_model(
 
     print(f"\n>>> Starting training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {output_dir}")
-    print(f">>> Training with {num_epochs} epoch(s)...\n")
+    print(f">>> Training with {config.num_epochs} epoch(s)...\n")
     logger.info(f"Training on combined datasets: {', '.join(dataset_names)}")
     logger.info(f"Output directory: {output_dir}")
 
@@ -637,7 +640,7 @@ def step7_resume_training(
     training_columns: list,
     config_dir: str,
     output_dir: str,
-    num_epochs: int = 1,
+    num_epochs: Optional[int] = None,
     model_config_overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Any, Dict, Path]:
     """Step 7: Resume training on loaded model for additional epochs.
@@ -652,7 +655,7 @@ def step7_resume_training(
         training_columns: Column names from training data
         config_dir: Holdout config directory
         output_dir: Output directory
-        num_epochs: Number of additional epochs
+        num_epochs: Additional epoch override (None keeps model/config value)
         model_config_overrides: Optional dict of model-specific config from YAML
 
     Returns:
@@ -662,7 +665,12 @@ def step7_resume_training(
     logger.info("=" * 80)
     logger.info("STEP 7: Resume Training on Loaded Model")
     logger.info(f"Datasets: {', '.join(dataset_names)}")
-    logger.info(f"Additional epochs: {num_epochs}")
+    resolved_additional_epochs = (
+        num_epochs
+        if num_epochs is not None
+        else getattr(getattr(model, "config", None), "num_epochs", 1)
+    )
+    logger.info(f"Additional epochs: {resolved_additional_epochs}")
     logger.info("=" * 80)
 
     # Check if model has training history from previous training
@@ -687,7 +695,7 @@ def step7_resume_training(
 
     print(f">>> Resuming training on combined datasets: {', '.join(dataset_names)}")
     print(f">>> Output directory: {resumed_output_dir}")
-    print(f">>> Training with {num_epochs} additional epoch(s)...\n")
+    print(f">>> Training with {resolved_additional_epochs} additional epoch(s)...\n")
 
     # Filter training data to same columns used in initial training
     train_data_for_model = combined_data
@@ -1034,7 +1042,6 @@ def run_with_args(args: argparse.Namespace) -> int:
         shutil.copy2(args.model_config, output_path / "model_config.yaml")
         logger.info(f"Copied model config to: {output_path / 'model_config.yaml'}")
 
-    effective_num_epochs = args.epochs if args.epochs is not None else 1
     effective_batch_size = args.batch_size if args.batch_size is not None else 2048
 
     try:
@@ -1119,8 +1126,8 @@ def run_with_args(args: argparse.Namespace) -> int:
                 training_columns=training_columns,
                 config_dir=args.config_dir,
                 output_dir=args.output_dir,
-                num_epochs=effective_num_epochs,
-                batch_size=effective_batch_size,
+                num_epochs=args.epochs,
+                batch_size=args.batch_size,
                 model_config_overrides=model_config_overrides,
             )
         else:
@@ -1179,7 +1186,7 @@ def run_with_args(args: argparse.Namespace) -> int:
                     training_columns=training_columns,
                     config_dir=args.config_dir,
                     output_dir=args.output_dir,
-                    num_epochs=effective_num_epochs,
+                    num_epochs=args.epochs,
                     model_config_overrides=model_config_overrides,
                 )
         else:

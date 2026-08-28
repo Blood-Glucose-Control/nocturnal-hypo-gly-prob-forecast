@@ -3,6 +3,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from src.workflows.sweeps.tasks.forecasting.eval import _load_eval_configs
 from src.workflows.sweeps.tasks.forecasting.train import _load_sweep_configs
 
@@ -82,3 +84,27 @@ jobs:
     assert all(item.probabilistic is True for item in overridden)
     assert all(item.no_dilate is False for item in overridden)
     assert all(item.forecast_length == 72 for item in overridden)
+
+
+def test_load_eval_configs_rejects_non_positive_forecast_length_override(
+    tmp_path: Path,
+) -> None:
+    spec = _write_yaml(
+        tmp_path / "eval_sweep.yaml",
+        """
+jobs:
+  - model_config: configs/models/ttm/fine_tune.yaml
+    context_length: 512
+    zeroshot_datasets: [aleppo_2017]
+        """,
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        _load_eval_configs(
+            sweep_spec=spec,
+            probabilistic_override=None,
+            no_dilate_override=None,
+            forecast_length_override=0,
+        )
+
+    assert "forecast_length" in str(exc_info.value)

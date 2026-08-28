@@ -136,6 +136,8 @@ def _load_eval_configs(
                 else default_forecast_length
             )
         )
+        if forecast_length <= 0:
+            raise ValueError("Resolved forecast_length must be > 0")
         output_dir_template = (
             item.output_dir_template
             if item.output_dir_template is not None
