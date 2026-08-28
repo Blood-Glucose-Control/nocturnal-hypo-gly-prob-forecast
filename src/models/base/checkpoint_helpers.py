@@ -5,6 +5,40 @@ from __future__ import annotations
 import json
 import logging
 import os
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass(frozen=True)
+class CheckpointBundlePaths:
+    """Canonical filesystem paths for a model checkpoint bundle."""
+
+    root_dir: str
+    config_json: str
+    metadata_json: str
+    training_metadata_json: str
+
+
+def checkpoint_bundle_paths(model_dir: str) -> CheckpointBundlePaths:
+    """Return canonical bundle paths rooted at ``model_dir``."""
+    return CheckpointBundlePaths(
+        root_dir=model_dir,
+        config_json=os.path.join(model_dir, "config.json"),
+        metadata_json=os.path.join(model_dir, "metadata.json"),
+        training_metadata_json=os.path.join(model_dir, "training_metadata.json"),
+    )
+
+
+def write_checkpoint_json(path: str, payload: dict[str, Any]) -> None:
+    """Write checkpoint JSON payload with UTF-8 encoding."""
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2)
+
+
+def read_checkpoint_json(path: str) -> dict[str, Any]:
+    """Read and return checkpoint JSON payload."""
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
 
 
 def write_checkpoint_reference(
