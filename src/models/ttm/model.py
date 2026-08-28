@@ -33,7 +33,11 @@ from ...utils.logging_helper import debug_print, error_print, info_print
 
 # Local imports
 from ..base import BaseTimeSeriesFoundationModel, ModelConfig, TrainingBackend
-from ..base.checkpoint_helpers import _shared_checkpoint_paths
+from ..base.checkpoint_helpers import (
+    _shared_checkpoint_paths,
+    load_pickle_checkpoint_artifact,
+    save_pickle_checkpoint_artifact,
+)
 from ..base.registry import ModelRegistry
 from .config import TTMConfig
 
@@ -868,15 +872,15 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             "preprocessor.pkl",
             "model.pt/preprocessor.pkl",
         )
-        with open(root_path, "wb") as f:
-            pickle_module.dump(self.preprocessor, f)
-        info_print(f"Preprocessor saved to {root_path}")
-
-        model_pt_dir = os.path.dirname(model_pt_path)
-        if os.path.exists(model_pt_dir):
-            with open(model_pt_path, "wb") as f:
-                pickle_module.dump(self.preprocessor, f)
-            info_print(f"Preprocessor also saved to {model_pt_path}")
+        written_paths = save_pickle_checkpoint_artifact(
+            self.preprocessor,
+            paths=(root_path, model_pt_path),
+            pickle_module=pickle_module,
+        )
+        if written_paths:
+            info_print(f"Preprocessor saved to {written_paths[0]}")
+        if len(written_paths) > 1:
+            info_print(f"Preprocessor also saved to {written_paths[1]}")
 
     def _load_preprocessor_checkpoint(
         self, model_dir: str, *, pickle_module: Any
@@ -887,13 +891,13 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             "preprocessor.pkl",
             "model.pt/preprocessor.pkl",
         )
-        for path in (root_path, model_pt_path):
-            if not os.path.exists(path):
-                continue
-            with open(path, "rb") as f:
-                loaded = cast(TimeSeriesPreprocessor, pickle_module.load(f))
-            info_print(f"Preprocessor loaded from {path}")
-            return loaded
+        loaded, loaded_path = load_pickle_checkpoint_artifact(
+            paths=(root_path, model_pt_path),
+            pickle_module=pickle_module,
+        )
+        if loaded_path is not None:
+            info_print(f"Preprocessor loaded from {loaded_path}")
+            return cast(TimeSeriesPreprocessor, loaded)
 
         logger.warning(
             f"No preprocessor found at {model_dir}. "

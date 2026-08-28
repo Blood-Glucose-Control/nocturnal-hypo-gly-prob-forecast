@@ -312,6 +312,9 @@ classes and standardize signatures/tests only.
 - Shared checkpoint config payload helpers
   (`write_checkpoint_config_payload`, `read_checkpoint_config_payload`) wired
   for TimesFM + Toto checkpoint config flows: **(complete)**.
+- Shared preprocessor artifact I/O helpers
+  (`save_pickle_checkpoint_artifact`, `load_pickle_checkpoint_artifact`) wired
+  for TTM preprocessor checkpoint flow: **(complete)**.
 
 **Lifecycle mapping (before -> after)**
 | Lifecycle method | Before (child-owned implementation) | Centralized helper logic | After (child wrapper ownership) |

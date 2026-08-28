@@ -69,6 +69,44 @@ def read_checkpoint_config_payload(
     return read_checkpoint_json(config_path)
 
 
+def save_pickle_checkpoint_artifact(
+    artifact: Any,
+    *,
+    paths: tuple[str, ...],
+    pickle_module: Any,
+    write_missing_parent_paths: bool = False,
+) -> tuple[str, ...]:
+    """Persist a pickle artifact to one or more candidate checkpoint paths."""
+    written_paths: list[str] = []
+    for idx, path in enumerate(paths):
+        parent_dir = os.path.dirname(path) or "."
+        if idx == 0:
+            os.makedirs(parent_dir, exist_ok=True)
+        elif not os.path.exists(parent_dir):
+            if write_missing_parent_paths:
+                os.makedirs(parent_dir, exist_ok=True)
+            else:
+                continue
+        with open(path, "wb") as handle:
+            pickle_module.dump(artifact, handle)
+        written_paths.append(path)
+    return tuple(written_paths)
+
+
+def load_pickle_checkpoint_artifact(
+    *,
+    paths: tuple[str, ...],
+    pickle_module: Any,
+) -> tuple[Any | None, str | None]:
+    """Load the first available pickle artifact from candidate paths."""
+    for path in paths:
+        if not os.path.exists(path):
+            continue
+        with open(path, "rb") as handle:
+            return pickle_module.load(handle), path
+    return None, None
+
+
 def write_checkpoint_reference(
     output_dir: str,
     reference_filename: str,
