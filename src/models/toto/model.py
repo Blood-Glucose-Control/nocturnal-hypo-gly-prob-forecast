@@ -59,14 +59,17 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
     @property
     def training_backend(self) -> TrainingBackend:
+        """Return the training backend for this model family."""
         return TrainingBackend.CUSTOM
 
     @property
     def supports_zero_shot(self) -> bool:
+        """Return whether this model supports zero-shot inference."""
         return True
 
     @property
     def supports_probabilistic_forecast(self) -> bool:
+        """Return whether this model supports probabilistic forecasts."""
         return True
 
     # ------------------------------------------------------------------

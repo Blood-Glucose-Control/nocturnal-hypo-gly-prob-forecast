@@ -65,14 +65,17 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
     @property
     def training_backend(self) -> TrainingBackend:
+        """Return the training backend for this model family."""
         return TrainingBackend.CUSTOM
 
     @property
     def supports_zero_shot(self) -> bool:
+        """Return whether this model supports zero-shot inference."""
         return False
 
     @property
     def supports_probabilistic_forecast(self) -> bool:
+        """Return whether this model supports probabilistic forecasts."""
         return True
 
     def _initialize_model(self) -> None:

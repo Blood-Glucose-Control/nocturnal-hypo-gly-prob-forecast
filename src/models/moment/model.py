@@ -112,6 +112,7 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
     # --- Properties (base contract) ---
     @property
     def training_backend(self) -> TrainingBackend:
+        """Return the training backend for this model family."""
         # Check training_mode for zero-shot, otherwise use training_backend from config
         if (
             hasattr(self.config, "training_mode")
@@ -126,10 +127,12 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
     @property
     def supports_zero_shot(self) -> bool:
+        """Return whether this model supports zero-shot inference."""
         return True
 
     @property
     def supports_probabilistic_forecast(self) -> bool:
+        """Return whether this model supports probabilistic forecasts."""
         return False
 
     @property

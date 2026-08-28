@@ -145,17 +145,17 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
     @property
     def training_backend(self) -> TrainingBackend:
-        """Moirai inference runs through GluonTS / uni2ts, not a HF Trainer."""
+        """Return the training backend for this model family."""
         return TrainingBackend.CUSTOM
 
     @property
     def supports_zero_shot(self) -> bool:
-        """Moirai ships pretrained weights and forecasts out of the box."""
+        """Return whether this model supports zero-shot inference."""
         return True
 
     @property
     def supports_probabilistic_forecast(self) -> bool:
-        """Moirai is a generative model — samples are always available."""
+        """Return whether this model supports probabilistic forecasts."""
         return True
 
     def _initialize_model(self) -> MoiraiForecast:

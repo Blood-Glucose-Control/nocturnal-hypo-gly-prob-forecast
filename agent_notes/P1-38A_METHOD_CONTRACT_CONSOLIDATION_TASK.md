@@ -60,8 +60,10 @@ Not everything should be promoted to parent classes.
 ## Matrix methodology
 
 - Numeric cells = LOC of the method/function implementation in that model file.
-- `Call refs (AST)` = repository-wide AST usage references for that method name.
-- `No refs? = YES` means zero detected usage refs and requires manual review.
+- `Call refs (code reference scan)` = repository-wide usage references from a
+  syntax-aware code scan for that method name.
+- `No refs? = YES` means zero detected code references and requires manual
+  review.
 - `Expected consolidated method name` is the planned post-consolidation target.
 - Analysis excludes `ttm/_deprecated` code and venv folders.
 
@@ -70,12 +72,12 @@ Current snapshot: **142 methods/functions** across **15 model modules**.
 <details>
 <summary>Expand full all-model LOC + caller-evidence matrix</summary>
 
-| Method / function | Purpose | Call refs (AST) | No refs? | Consolidation decision | Expected consolidated method name | TTM | TimesFM | Moirai | Moment | Chronos2 | Toto | Tide | TimeGrad | PatchTST | TSMixer | DeepAR | TFT | Statistical | NaiveBaseline | Sundial |
+| Method / function | Purpose | Call refs (code reference scan) | No refs? | Consolidation decision | Expected consolidated method name | TTM | TimesFM | Moirai | Moment | Chronos2 | Toto | Tide | TimeGrad | PatchTST | TSMixer | DeepAR | TFT | Statistical | NaiveBaseline | Sundial |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | __init__ | Initialize forecaster runtime state and configuration. | 37 |  | Retain contract method, extract shared helper logic | __init__ -> wraps _shared_init | 25 | 4 | 26 | 26 | 10 | x | 8 | 2 | x | x | x | x | x | x | 7 |
 | training_backend | Report which backend is used for model training. | 6 |  | Retain in child (standardize one-line override) | training_backend | 7 | 2 | 3 | 12 | 2 | 2 | 2 | 2 | x | x | x | x | x | x | 2 |
 | supports_zero_shot | Report whether zero-shot inference is supported. | 12 |  | Retain in child (standardize one-line override) | supports_zero_shot | 2 | 2 | 3 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 2 | 3 | 2 |
-| supports_probabilistic_forecast | Report whether probabilistic forecasts are supported. | 9 |  | Retain in child (standardize one-line override) | supports_probabilistic_forecast | x | 2 | 3 | 2 | 2 | 2 | 2 | 2 | x | 2 | x | x | x | x | 2 |
+| supports_probabilistic_forecast | Report whether probabilistic forecasts are supported. | 9 |  | Retain in child (standardize one-line override) | supports_probabilistic_forecast | 3 | 2 | 3 | 2 | 2 | 2 | 2 | 2 | x | 2 | x | x | x | x | 2 |
 | _initialize_model | Initialize or hydrate model weights/components for runtime use. | 5 |  | Retain contract method, extract shared helper logic | _initialize_model -> wraps _shared_initialize_model | 58 | 35 | 48 | 24 | 4 | 19 | 4 | 55 | x | x | x | x | x | x | 24 |
 | _prepare_training_data | Prepare normalized training/validation/test inputs for the backend. | 15 |  | Retain contract method, extract shared helper logic | _prepare_training_data -> wraps _shared_prepare_training_data | 51 | 74 | 28 | 39 | 54 | 49 | 40 | 8 | x | x | x | x | x | x | 5 |
 | _train_model | Execute model training/fine-tuning for the current backend. | 2 |  | Retain contract method, extract shared helper logic | _train_model -> wraps _shared_train_model | 56 | 48 | 168 | 191 | 93 | 35 | 44 | 39 | x | x | x | x | x | x | 5 |
@@ -247,7 +249,7 @@ the planning estimate above stays fixed as the baseline target.
 
 | Model | Baseline current methods | Active current methods | Projected methods (target) | Active methods remaining | Baseline current LOC | Active current LOC | Projected LOC (target) | Active LOC remaining | Active method delta vs baseline | Active LOC delta vs baseline |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| TTM | 37 | 36 | 20 | 16 | 1041 | 1021 | 191 | 830 | -1 | -20 |
+| TTM | 37 | 37 | 20 | 17 | 1041 | 1024 | 191 | 833 | 0 | -17 |
 | TimesFM | 35 | 33 | 16 | 17 | 819 | 784 | 128 | 656 | -2 | -35 |
 | Moirai | 27 | 24 | 15 | 9 | 1024 | 792 | 104 | 688 | -3 | -232 |
 | Moment | 34 | 29 | 22 | 7 | 1074 | 954 | 312 | 642 | -5 | -120 |
@@ -294,6 +296,11 @@ classes and standardize signatures/tests only.
 ### MC1 — Lifecycle + checkpoint helper extraction (not lifecycle flattening)
 
 **Target model.py LOC reduction:** **180-260 LOC**
+
+**MC1 progress**
+- Capability contract method standardization (`training_backend`,
+  `supports_zero_shot`, `supports_probabilistic_forecast`) and aligned
+  docstrings: **(complete)**.
 
 **Methods to standardize but keep in child classes**
 - `training_backend`, `supports_zero_shot`, `supports_probabilistic_forecast`
@@ -394,7 +401,8 @@ classes and standardize signatures/tests only.
 | `predict_single_window` | Method on Moment class with no repo callsites. | No calls in workflows/scripts/tests. | Remove from model class API. | Removed in this slice. |
 | `predict_with_metadata` | Method on Moment class with no repo callsites. | No calls in workflows/scripts/tests. | Remove from model class API. | Removed in this slice. |
 
-After this slice, the matrix has **0 rows** flagged with `No refs? = YES`.
+After this slice, the matrix has **0 rows** flagged with `No refs? = YES` (no
+detected code references).
 
 **Decision logic**
 - If there is no active caller in `src/`, `scripts/`, `tests/`, or workflows, default to **remove**.
