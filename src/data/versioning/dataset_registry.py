@@ -99,7 +99,7 @@ class DatasetRegistry:
             Tuple of (train_data, holdout_data)
         """
         logger.info(" ")
-        logger.info(f"Loading dataset with holdout split: {dataset_name}")
+        logger.info(f"Loading `{dataset_name}` training and holdout datasets...")
 
         # Load full dataset (already loaded in __init__)
         loader = get_loader(dataset_name, use_cached=True)  # type: ignore[arg-type]

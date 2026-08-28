@@ -272,7 +272,7 @@ def validate_holdout_config(
         - errors: List[str]
     """
     if verbose:
-        logger.info(f"\n{'=' * 60}")
+        logger.info(f"{'=' * 60}")
         logger.info(f"Validating holdout config for: {dataset_name}")
         logger.info(f"{'=' * 60}")
 
@@ -483,15 +483,19 @@ def validate_all_datasets(
     """
     registry = DatasetRegistry(holdout_config_dir=config_dir)
     available_datasets = registry.list_available_datasets()
-
+    logger.info(f"{'=' * 80}")
+    logger.info(f"{'=' * 80}")
+    logger.info(f"{' ' * 27} DATASET HOLDOUT VALIDATOR ")
+    logger.info(f"{'=' * 80}")
+    logger.info(f"{'=' * 80}")
     if not available_datasets:
         logger.error("No datasets with holdout configurations found!")
         logger.info("Run: python scripts/data_processing/generate_holdout_configs.py")
         return []
 
     if verbose:
-        logger.info(f"\nFound {len(available_datasets)} datasets with holdout configs")
-        logger.info(f"Datasets: {', '.join(available_datasets)}\n")
+        logger.info(f"Found {len(available_datasets)} datasets with holdout configs.")
+        logger.info(f"\tDatasets: {', '.join(available_datasets)}\n")
 
     all_results = []
 
