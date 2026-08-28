@@ -287,7 +287,9 @@ Observations:
 
 ### Cross-model method/function presence grid (migrated)
 
-The full LOC-weighted cross-model method/function matrix was migrated to
+The full LOC-weighted cross-model method/function matrix (all
+`src/models/*/model.py` families, including non-TSFM architectures) was
+migrated to
 [P1-38A_METHOD_CONTRACT_CONSOLIDATION_TASK.md](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/agent_notes/P1-38A_METHOD_CONTRACT_CONSOLIDATION_TASK.md)
 so P1-38 can stay focused on WS1 execution history while P1-38A owns method
 consolidation planning/execution.
