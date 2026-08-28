@@ -661,17 +661,12 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
         return train_loader, val_loader, test_loader
 
-    def _predict_batch(
+    def _validate_predict_batch_request(
         self,
         data: pd.DataFrame,
         episode_col: str,
-        quantile_levels: Optional[List[float]] = None,
-    ) -> Dict[str, np.ndarray]:
-        """Native batched multi-episode prediction.
-
-        Builds one context window per episode and runs batched inference in
-        chunks to reduce GPU launch overhead versus per-episode predict() calls.
-        """
+        quantile_levels: Optional[List[float]],
+    ) -> None:
         if quantile_levels is not None:
             raise NotImplementedError(
                 "MomentForecaster does not support probabilistic forecasts."
@@ -684,6 +679,12 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                 f"Available columns: {list(data.columns)}"
             )
 
+    def _collect_episode_contexts(
+        self,
+        data: pd.DataFrame,
+        *,
+        episode_col: str,
+    ) -> Tuple[List[str], List[np.ndarray], List[int]]:
         episode_ids: List[str] = []
         contexts: List[np.ndarray] = []
         context_lens: List[int] = []
@@ -701,21 +702,35 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             contexts.append(mat)
             context_lens.append(len(mat))
 
-        if not contexts:
-            return {}
+        return episode_ids, contexts, context_lens
 
+    @staticmethod
+    def _pad_batch_contexts(
+        contexts: List[np.ndarray],
+        context_lens: List[int],
+    ) -> np.ndarray:
         max_ctx = max(context_lens)
         n_channels = contexts[0].shape[1]
         ctx_padded = np.zeros((len(contexts), max_ctx, n_channels), dtype=np.float32)
         for i, ctx in enumerate(contexts):
             ctx_padded[i, -len(ctx) :, :] = ctx
+        return ctx_padded
 
-        bs = int(getattr(self.config, "batch_size", len(contexts)) or len(contexts))
-        bs = max(1, bs)
+    def _forecast_episode_batches(
+        self,
+        *,
+        episode_ids: List[str],
+        ctx_padded: np.ndarray,
+        context_lens: List[int],
+    ) -> Dict[str, np.ndarray]:
+        batch_size = int(
+            getattr(self.config, "batch_size", len(episode_ids)) or len(episode_ids)
+        )
+        batch_size = max(1, batch_size)
         results: Dict[str, np.ndarray] = {}
 
-        for start in range(0, len(contexts), bs):
-            end = min(start + bs, len(contexts))
+        for start in range(0, len(episode_ids), batch_size):
+            end = min(start + batch_size, len(episode_ids))
             batch_preds = self._forecast_batch(
                 ctx_padded[start:end],
                 prediction_length=self.config.forecast_length,
@@ -725,6 +740,32 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                 results[ep_id] = batch_preds[i]
 
         return results
+
+    def _predict_batch(
+        self,
+        data: pd.DataFrame,
+        episode_col: str,
+        quantile_levels: Optional[List[float]] = None,
+    ) -> Dict[str, np.ndarray]:
+        """Native batched multi-episode prediction.
+
+        Builds one context window per episode and runs batched inference in
+        chunks to reduce GPU launch overhead versus per-episode predict() calls.
+        """
+        self._validate_predict_batch_request(data, episode_col, quantile_levels)
+        episode_ids, contexts, context_lens = self._collect_episode_contexts(
+            data, episode_col=episode_col
+        )
+
+        if not contexts:
+            return {}
+
+        ctx_padded = self._pad_batch_contexts(contexts, context_lens)
+        return self._forecast_episode_batches(
+            episode_ids=episode_ids,
+            ctx_padded=ctx_padded,
+            context_lens=context_lens,
+        )
 
     # --- Checkpoints ---
     def _save_checkpoint(self, output_dir: str) -> None:

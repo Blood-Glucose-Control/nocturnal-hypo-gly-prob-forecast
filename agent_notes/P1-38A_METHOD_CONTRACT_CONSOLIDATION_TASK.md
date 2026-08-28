@@ -367,6 +367,12 @@ classes and standardize signatures/tests only.
 
 **Target model.py LOC reduction:** **180-260 LOC**
 
+**MC3 progress**
+- Moment C3 slice 1: `_predict_batch` decomposed into focused helpers
+  (`_validate_predict_batch_request`, `_collect_episode_contexts`,
+  `_pad_batch_contexts`, `_forecast_episode_batches`) while preserving the
+  public batch inference contract and chunking behavior: **(complete)**.
+
 **Shared helper targets and contracts**
 | Expected consolidated method | Destination | Input contract | Output contract |
 | --- | --- | --- | --- |
