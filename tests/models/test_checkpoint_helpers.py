@@ -9,6 +9,9 @@ from src.models.base.checkpoint_helpers import (
     CHECKPOINT_FILENAME_POLICY,
     CHECKPOINT_WEIGHTS_FILE_KEY,
     _shared_checkpoint_paths,
+    _shared_load_checkpoint_bundle,
+    _shared_save_checkpoint_bundle,
+    list_intermediate_checkpoint_adapters,
     load_pickle_checkpoint_artifact,
     read_checkpoint_config_payload,
     save_pickle_checkpoint_artifact,
@@ -79,3 +82,46 @@ def test_save_pickle_checkpoint_artifact_writes_secondary_when_parent_exists(
         {"x": 1}, paths=(primary, secondary), pickle_module=pickle
     )
     assert written == (primary, secondary)
+
+
+def test_shared_checkpoint_bundle_round_trip_and_metadata_fallback(
+    tmp_path: Path,
+) -> None:
+    _shared_save_checkpoint_bundle(
+        str(tmp_path),
+        config_payload={"model_type": "stub"},
+        training_metadata_payload={"metrics": {"loss": 1.0}},
+    )
+    bundle = _shared_load_checkpoint_bundle(str(tmp_path))
+    assert bundle.config == {"model_type": "stub"}
+    assert bundle.metadata == {"metrics": {"loss": 1.0}}
+    assert bundle.metadata_path == str(tmp_path / "training_metadata.json")
+
+    _shared_save_checkpoint_bundle(
+        str(tmp_path),
+        metadata_payload={"is_fitted": True},
+    )
+    bundle = _shared_load_checkpoint_bundle(str(tmp_path))
+    assert bundle.metadata == {"is_fitted": True}
+    assert bundle.metadata_path == str(tmp_path / "metadata.json")
+
+
+def test_list_intermediate_checkpoint_adapters_filters_missing(tmp_path: Path) -> None:
+    w0_dir = tmp_path / "W0"
+    w0_dir.mkdir()
+    good = w0_dir / "checkpoint-1000"
+    bad = w0_dir / "checkpoint-2000"
+    good.mkdir()
+    bad.mkdir()
+    (good / "adapter_model.safetensors").write_text("ok")
+
+    logs: list[str] = []
+    checkpoints = list_intermediate_checkpoint_adapters(str(w0_dir), log_fn=logs.append)
+    assert checkpoints == [
+        (
+            "checkpoint-1000",
+            1000,
+            str(good / "adapter_model.safetensors"),
+        )
+    ]
+    assert logs == ["  checkpoint-2000: no adapter_model.safetensors, skipping"]

@@ -23,11 +23,8 @@ Extracted from validated experiment script (1.890 RMSE, -26% vs zero-shot)
 and notebook 4.17-ss-chronos2-pipeline-validation.ipynb.
 """
 
-import json
 import logging
 import os
-import pickle
-import shutil
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -43,8 +40,11 @@ from ..autogluon_data_utils import (
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
 from ..base.checkpoint_helpers import (
     CHECKPOINT_PATH_KEY,
+    build_chronos2_shadow_predictor_snapshot,
+    list_intermediate_checkpoint_adapters,
     resolve_checkpoint_reference,
     write_checkpoint_reference,
+    write_snapshot_model_pt_bundle,
 )
 from ..base.registry import ModelRegistry
 from .config import Chronos2Config
@@ -287,7 +287,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             info_print("No W0 dir found, skipping checkpoint materialisation")
             return
 
-        checkpoints = self._list_intermediate_checkpoints(w0_dir)
+        checkpoints = list_intermediate_checkpoint_adapters(
+            w0_dir,
+            log_fn=info_print,
+        )
 
         if not checkpoints:
             info_print("No intermediate checkpoints found to materialise")
@@ -303,132 +306,23 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 continue
 
             shadow_predictor = os.path.join(snapshot_dir, "predictor")
-            self._build_shadow_predictor_snapshot(
+            build_chronos2_shadow_predictor_snapshot(
                 output_dir=output_dir,
                 w0_dir=w0_dir,
                 adapter_src=adapter_src,
                 shadow_predictor=shadow_predictor,
             )
-            snapshot_model_pt = self._write_snapshot_model_pt(
+            snapshot_model_pt = write_snapshot_model_pt_bundle(
                 snapshot_dir=snapshot_dir,
                 main_model_pt=main_model_pt,
+                predictor_reference_filename=self._PREDICTOR_JSON_NAME,
+                predictor_target_path="../predictor",
+                config_payload=self.config.to_dict(),
             )
 
             info_print(f"  Snapshot step_{step_num} → {snapshot_model_pt}")
 
         info_print(f"Intermediate checkpoints materialised at {snapshots_base}")
-
-    @staticmethod
-    def _rel_symlink(target: str, link: str) -> None:
-        os.symlink(
-            os.path.relpath(os.path.abspath(target), os.path.dirname(link)), link
-        )
-
-    def _list_intermediate_checkpoints(self, w0_dir: str) -> List[Tuple[str, int, str]]:
-        checkpoints = sorted(
-            [
-                d
-                for d in os.listdir(w0_dir)
-                if d.startswith("checkpoint-")
-                and os.path.isdir(os.path.join(w0_dir, d))
-            ],
-            key=lambda x: int(x.split("-")[1]),
-        )
-        materializable: List[Tuple[str, int, str]] = []
-        for ckpt_name in checkpoints:
-            step_num = int(ckpt_name.split("-")[1])
-            adapter_src = os.path.join(w0_dir, ckpt_name, "adapter_model.safetensors")
-            if not os.path.exists(adapter_src):
-                info_print(f"  {ckpt_name}: no adapter_model.safetensors, skipping")
-                continue
-            materializable.append((ckpt_name, step_num, adapter_src))
-        return materializable
-
-    def _build_shadow_predictor_snapshot(
-        self,
-        *,
-        output_dir: str,
-        w0_dir: str,
-        adapter_src: str,
-        shadow_predictor: str,
-    ) -> None:
-        os.makedirs(shadow_predictor, exist_ok=True)
-        for entry in os.listdir(output_dir):
-            if entry in ("models", "snapshots"):
-                continue
-            self._rel_symlink(
-                os.path.join(output_dir, entry),
-                os.path.join(shadow_predictor, entry),
-            )
-
-        models_orig = os.path.join(output_dir, "models")
-        shadow_models = os.path.join(shadow_predictor, "models")
-        os.makedirs(shadow_models, exist_ok=True)
-        for entry in os.listdir(models_orig):
-            if entry == "Chronos2":
-                continue
-            self._rel_symlink(
-                os.path.join(models_orig, entry),
-                os.path.join(shadow_models, entry),
-            )
-
-        shadow_c2 = os.path.join(shadow_models, "Chronos2")
-        os.makedirs(shadow_c2, exist_ok=True)
-        c2_orig = os.path.join(models_orig, "Chronos2")
-        for entry in os.listdir(c2_orig):
-            if entry == "W0":
-                continue
-            self._rel_symlink(
-                os.path.join(c2_orig, entry),
-                os.path.join(shadow_c2, entry),
-            )
-
-        shadow_w0 = os.path.join(shadow_c2, "W0")
-        os.makedirs(shadow_w0, exist_ok=True)
-        for entry in os.listdir(w0_dir):
-            if entry == "fine-tuned-ckpt" or entry.startswith("checkpoint-"):
-                continue
-            if entry == "model.pkl":
-                with open(os.path.join(w0_dir, "model.pkl"), "rb") as model_file:
-                    w0_model = pickle.load(model_file)
-                w0_model.path = os.path.abspath(shadow_w0)
-                with open(os.path.join(shadow_w0, "model.pkl"), "wb") as model_file:
-                    pickle.dump(w0_model, model_file)
-                continue
-            self._rel_symlink(
-                os.path.join(w0_dir, entry),
-                os.path.join(shadow_w0, entry),
-            )
-
-        orig_ft_ckpt = os.path.join(w0_dir, "fine-tuned-ckpt")
-        shadow_ft_ckpt = os.path.join(shadow_w0, "fine-tuned-ckpt")
-        os.makedirs(shadow_ft_ckpt, exist_ok=True)
-        for entry in os.listdir(orig_ft_ckpt):
-            if entry == "adapter_model.safetensors":
-                continue
-            self._rel_symlink(
-                os.path.join(orig_ft_ckpt, entry),
-                os.path.join(shadow_ft_ckpt, entry),
-            )
-        shutil.copy2(
-            adapter_src,
-            os.path.join(shadow_ft_ckpt, "adapter_model.safetensors"),
-        )
-
-    def _write_snapshot_model_pt(self, *, snapshot_dir: str, main_model_pt: str) -> str:
-        snapshot_model_pt = os.path.join(snapshot_dir, "model.pt")
-        os.makedirs(snapshot_model_pt, exist_ok=True)
-        write_checkpoint_reference(
-            output_dir=snapshot_model_pt,
-            reference_filename=self._PREDICTOR_JSON_NAME,
-            target_path="../predictor",
-        )
-        with open(os.path.join(snapshot_model_pt, "config.json"), "w") as f:
-            json.dump(self.config.to_dict(), f, indent=2)
-        meta_src = os.path.join(main_model_pt, "metadata.json")
-        if os.path.exists(meta_src):
-            shutil.copy2(meta_src, os.path.join(snapshot_model_pt, "metadata.json"))
-        return snapshot_model_pt
 
     # ------------------------------------------------------------------
     # Inference helpers

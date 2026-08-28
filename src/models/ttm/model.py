@@ -548,7 +548,26 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             self.model.save_pretrained(output_dir)  # type: ignore[union-attr]
             info_print(f"TTM model saved to {output_dir}")
 
-        self._save_preprocessor_checkpoint(output_dir, pickle_module=pickle)
+        if self.preprocessor is None:
+            logger.warning(
+                "Preprocessor is None - not saved. "
+                "This will cause inference to return scaled predictions instead of original units."
+            )
+            return
+
+        root_path, model_pt_path = _shared_checkpoint_paths(
+            output_dir,
+            *CHECKPOINT_FILENAME_POLICY.ttm_preprocessor_artifacts,
+        )
+        written_paths = save_pickle_checkpoint_artifact(
+            self.preprocessor,
+            paths=(root_path, model_pt_path),
+            pickle_module=pickle,
+        )
+        if written_paths:
+            info_print(f"Preprocessor saved to {written_paths[0]}")
+        if len(written_paths) > 1:
+            info_print(f"Preprocessor also saved to {written_paths[1]}")
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load model checkpoint.
@@ -561,61 +580,58 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         """
         import pickle
 
-        try:
-            # Use get_model() to load the TTM architecture from the checkpoint directory
-            # This properly handles the custom TTM model type
-            model_params = {
-                "model_path": model_dir,  # Load from checkpoint directory
-                "context_length": self.config.context_length,
-                "prediction_length": self.config.forecast_length,
-                "freq": f"{self.config.resolution_min}min",
-                "return_model_key": False,  # Ensure we get the model object, not a string
-            }
-
-            # Only add prediction_filter_length if it's not None
-            if self.config.prediction_filter_length is not None:
-                model_params["prediction_filter_length"] = (
-                    self.config.prediction_filter_length
-                )
-
-            info_print(
-                f"Loading TTM checkpoint from {model_dir} with params: {model_params}"
-            )
-            ttm_model = get_model(**model_params)
-
-            # Validate that we received a model object, not a string
-            if isinstance(ttm_model, str):
-                raise TypeError(
-                    f"Expected model object from get_model(), but received string: {ttm_model}"
-                )
-
-            self.model = ttm_model
-            info_print(f"TTM model checkpoint loaded from {model_dir}")
-
-            self.preprocessor = self._load_preprocessor_checkpoint(
-                model_dir, pickle_module=pickle
+        model_params = {
+            "model_path": model_dir,
+            "context_length": self.config.context_length,
+            "prediction_length": self.config.forecast_length,
+            "freq": f"{self.config.resolution_min}min",
+            "return_model_key": False,
+        }
+        if self.config.prediction_filter_length is not None:
+            model_params["prediction_filter_length"] = (
+                self.config.prediction_filter_length
             )
 
-            if self.preprocessor is not None:
-                _validate_preprocessor_schema(self.preprocessor)
+        info_print(
+            f"Loading TTM checkpoint from {model_dir} with params: {model_params}"
+        )
+        ttm_model = get_model(**model_params)
+        if isinstance(ttm_model, str):
+            raise TypeError(
+                f"Expected model object from get_model(), but received string: {ttm_model}"
+            )
 
-            # Only mark as fitted if the preprocessor was also successfully loaded.
-            # The fitted inference path in _predict() unconditionally dereferences
-            # self.preprocessor, so setting is_fitted=True without a preprocessor
-            # would cause an AttributeError at inference time.
-            if self.preprocessor is not None:
-                self.is_fitted = True
-                info_print("Model marked as fitted (preprocessor loaded successfully).")
-            else:
-                self.is_fitted = False
-                logger.warning(
-                    "Model checkpoint loaded but is_fitted=False: preprocessor is missing. "
-                    "Falling back to zero-shot inference path (TTM internal RevIN only)."
-                )
+        self.model = ttm_model
+        info_print(f"TTM model checkpoint loaded from {model_dir}")
 
-        except Exception as e:
-            error_print(f"Failed to load model checkpoint: {str(e)}")
-            raise
+        root_path, model_pt_path = _shared_checkpoint_paths(
+            model_dir,
+            *CHECKPOINT_FILENAME_POLICY.ttm_preprocessor_artifacts,
+        )
+        loaded_preprocessor, loaded_path = load_pickle_checkpoint_artifact(
+            paths=(root_path, model_pt_path),
+            pickle_module=pickle,
+        )
+        if loaded_path is not None:
+            info_print(f"Preprocessor loaded from {loaded_path}")
+            self.preprocessor = cast(TimeSeriesPreprocessor, loaded_preprocessor)
+            _validate_preprocessor_schema(self.preprocessor)
+            self.is_fitted = True
+            info_print("Model marked as fitted (preprocessor loaded successfully).")
+            return
+
+        self.preprocessor = None
+        self.is_fitted = False
+        logger.warning(
+            f"No preprocessor found at {model_dir}. "
+            "Predictions will return SCALED values (z-scores) instead of original units. "
+            "This will cause incorrect metrics if comparing to unscaled ground truth. "
+            "Ensure preprocessor.pkl was saved during training."
+        )
+        logger.warning(
+            "Model checkpoint loaded but is_fitted=False: preprocessor is missing. "
+            "Falling back to zero-shot inference path (TTM internal RevIN only)."
+        )
 
     # TTM-specific private methods
     def _require_initialized_model(self) -> Any:
@@ -856,55 +872,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             target_columns=target_columns,
         )
         return pipeline, target_columns[0]
-
-    def _save_preprocessor_checkpoint(
-        self, output_dir: str, *, pickle_module: Any
-    ) -> None:
-        """Persist preprocessor artifacts to checkpoint-compatible locations."""
-        if self.preprocessor is None:
-            logger.warning(
-                "Preprocessor is None - not saved. "
-                "This will cause inference to return scaled predictions instead of original units."
-            )
-            return
-
-        root_path, model_pt_path = _shared_checkpoint_paths(
-            output_dir,
-            *CHECKPOINT_FILENAME_POLICY.ttm_preprocessor_artifacts,
-        )
-        written_paths = save_pickle_checkpoint_artifact(
-            self.preprocessor,
-            paths=(root_path, model_pt_path),
-            pickle_module=pickle_module,
-        )
-        if written_paths:
-            info_print(f"Preprocessor saved to {written_paths[0]}")
-        if len(written_paths) > 1:
-            info_print(f"Preprocessor also saved to {written_paths[1]}")
-
-    def _load_preprocessor_checkpoint(
-        self, model_dir: str, *, pickle_module: Any
-    ) -> Optional[TimeSeriesPreprocessor]:
-        """Load preprocessor artifact from known checkpoint locations."""
-        root_path, model_pt_path = _shared_checkpoint_paths(
-            model_dir,
-            *CHECKPOINT_FILENAME_POLICY.ttm_preprocessor_artifacts,
-        )
-        loaded, loaded_path = load_pickle_checkpoint_artifact(
-            paths=(root_path, model_pt_path),
-            pickle_module=pickle_module,
-        )
-        if loaded_path is not None:
-            info_print(f"Preprocessor loaded from {loaded_path}")
-            return cast(TimeSeriesPreprocessor, loaded)
-
-        logger.warning(
-            f"No preprocessor found at {model_dir}. "
-            "Predictions will return SCALED values (z-scores) instead of original units. "
-            "This will cause incorrect metrics if comparing to unscaled ground truth. "
-            "Ensure preprocessor.pkl was saved during training."
-        )
-        return None
 
     def _build_zero_shot_pipeline(
         self,

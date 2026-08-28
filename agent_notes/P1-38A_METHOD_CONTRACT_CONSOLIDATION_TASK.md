@@ -67,7 +67,7 @@ Not everything should be promoted to parent classes.
 - `Expected consolidated method name` is the planned post-consolidation target.
 - Analysis excludes `ttm/_deprecated` code and venv folders.
 
-Current snapshot: **141 methods/functions** across **15 model modules**.
+Current snapshot: **135 methods/functions** across **15 model modules**.
 
 <details>
 <summary>Expand full all-model LOC + caller-evidence matrix</summary>
@@ -103,7 +103,7 @@ Current snapshot: **141 methods/functions** across **15 model modules**.
 | _build_optional_data_loader | Helper for data normalization/windowing/dataset assembly. | 2 |  | Extract shared data adapter helper | _shared_data_build_optional_data_loader | 9 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _build_prediction_context | Build model context frame with item/timestamp index. | 3 |  | Extract shared AutoGluon adapter helper | _ag_shared_build_prediction_context | x | x | x | x | x | x | 16 | x | x | x | x | x | x | x | x |
 | _build_predictor_kwargs | Build TimeSeriesPredictor constructor kwargs for model. | 3 |  | Extract shared AutoGluon adapter helper | _ag_shared_build_predictor_kwargs | x | x | x | x | x | x | 12 | x | x | x | x | x | x | x | x |
-| _build_shadow_predictor_snapshot | Helper for AutoGluon adapter shaping/extraction. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_build_shadow_predictor_snapshot | x | x | x | x | 70 | x | x | x | x | x | x | x | x | x | x |
+| _build_shadow_predictor_snapshot | Helper for AutoGluon adapter shaping/extraction. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_build_shadow_predictor_snapshot | x | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _build_temporal_eval_dataset | Build temporal eval windows for mid-training callback. | 1 |  | Extract shared data adapter helper | _shared_data_build_temporal_eval_dataset | x | 58 | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _build_train_val_arrays | Split patient segments into training and validation arrays. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | 36 | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _build_trainer | Helper for training setup/execution. | 1 |  | Extract shared trainer helper | _shared_training_build_trainer | 15 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
@@ -160,10 +160,10 @@ Current snapshot: **141 methods/functions** across **15 model modules**.
 | _group_segments_by_patient | Group segmented arrays by original patient id. | 1 |  | Extract shared data adapter helper | _shared_data_group_segments_by_patient | x | 13 | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _inverse_scale_predictions | Inverse scale predictions back to original units. | 1 |  | Extract shared inference helper | _shared_inference_inverse_scale_predictions | 102 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _iter_episode_dicts | Normalize dict/list training payloads to a flat episode list. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | 13 | x | x | x | x | x | x | x | x | x | x | x | x |
-| _list_intermediate_checkpoints | Helper for checkpoint path/state handling. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_list_intermediate_checkpoints | x | x | x | x | 19 | x | x | x | x | x | x | x | x | x | x |
+| _list_intermediate_checkpoints | Helper for checkpoint path/state handling. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_list_intermediate_checkpoints | x | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _load_darts_model | Model-specific runtime helper. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | x | x | x | x | x | x | 9 | x | x | x | x | x |
 | _load_hf_model_weights | Model-specific runtime helper. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | 16 | x | x | x | x | x | x | x | x | x | x | x | x | x |
-| _load_preprocessor_checkpoint | Load preprocessor artifact from known checkpoint locations. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_load_preprocessor_checkpoint | 23 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
+| _load_preprocessor_checkpoint | Load preprocessor artifact from known checkpoint locations. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_load_preprocessor_checkpoint | x | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _load_saved_checkpoint_config | Helper for checkpoint path/state handling. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_load_saved_checkpoint_config | x | 14 | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _log_column_specifiers | Model-specific runtime helper. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | 4 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _log_dataset_sizes | Helper for data normalization/windowing/dataset assembly. | 1 |  | Extract shared data adapter helper | _shared_data_log_dataset_sizes | 9 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
@@ -186,7 +186,7 @@ Current snapshot: **141 methods/functions** across **15 model modules**.
 | _prepare_training_tensors | Convert training data to aligned tensor batches on CPU. | 3 |  | Extract shared data adapter helper | _shared_data_prepare_training_tensors | x | x | 111 | x | x | x | x | x | x | x | x | x | x | x | x |
 | _prepare_zero_shot_context | Validate target column and return a model context tensor. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | x | 17 | x | x | x | x | x | x | x | x | x | x |
 | _preprocessor_paths | Return supported preprocessor artifact locations for a checkpoint. | 2 |  | Extract shared checkpoint helper | _shared_checkpoint_preprocessor_paths | 6 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
-| _rel_symlink | Model-specific runtime helper. | 5 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | x | 4 | x | x | x | x | x | x | x | x | x | x |
+| _rel_symlink | Model-specific runtime helper. | 5 |  | Extract shared checkpoint helper | _shared_checkpoint_rel_symlink | x | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _require_initialized_model | Return model object or raise if weights are not initialized. | 3 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | 5 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _resolve_eval_chunk_size | Resolve evaluation chunk size from config. | 4 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | x | x | 11 | x | x | x | x | x | x | x | x | x |
 | _resolve_freeze_backbone | Helper for runtime normalization/validation. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | 7 | x | x | x | x | x | x | x | x | x | x | x |
@@ -196,7 +196,7 @@ Current snapshot: **141 methods/functions** across **15 model modules**.
 | _resolve_training_input_dtype | Helper for training setup/execution. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | 10 | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _restore_trained_backbone | Restore best-validated backbone, falling back to final weights. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | x | x | 29 | x | x | x | x | x | x | x | x | x |
 | _run_forecast | Run forecaster and return BG predictions as numpy array. | 3 |  | Extract shared inference helper | _shared_inference_run_forecast | x | x | x | x | x | 10 | x | x | x | x | x | x | x | x | x |
-| _save_preprocessor_checkpoint | Persist preprocessor artifacts to checkpoint-compatible locations. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_save_preprocessor_checkpoint | 24 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
+| _save_preprocessor_checkpoint | Persist preprocessor artifacts to checkpoint-compatible locations. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_save_preprocessor_checkpoint | x | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _save_training_config | Helper for training setup/execution. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | 4 | x | x | x | x | x | x | x | x | x | x | x |
 | _segment_patient_data | Apply gap handling and segment data by patient. | 1 |  | Extract shared data adapter helper | _shared_data_segment_patient_data | x | 23 | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _select_patch_size | Choose a fixed patch size for training. | 2 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | 18 | x | x | x | x | x | x | x | x | x | x | x | x |
@@ -211,7 +211,7 @@ Current snapshot: **141 methods/functions** across **15 model modules**.
 | _validate_preprocessor_schema | Validate preprocessor schema required by the current runtime. | 3 |  | Extract shared checkpoint helper | _shared_checkpoint_validate_preprocessor_schema | 14 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _validate_registered_quantile_levels | Helper for probabilistic/quantile forecast handling. | 4 |  | Extract shared inference helper | _shared_inference_validate_registered_quantile_levels | x | x | x | x | 15 | x | x | x | x | x | x | x | x | x | x |
 | _warn_quantiles_not_supported | Helper for probabilistic/quantile forecast handling. | 2 |  | Extract shared inference helper | _shared_inference_warn_quantiles_not_supported | 12 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
-| _write_snapshot_model_pt | Model-specific runtime helper. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_write_snapshot_model_pt | x | x | x | x | 11 | x | x | x | x | x | x | x | x | x | x |
+| _write_snapshot_model_pt | Model-specific runtime helper. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_write_snapshot_model_pt | x | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _zero_shot_forecast | Run zero-shot inference via Chronos2Pipeline. | 2 |  | Extract shared inference helper | _shared_inference_zero_shot_forecast | x | x | x | x | 29 | x | x | x | x | x | x | x | x | x | x |
 | build_gluonts_dataset | Build a GluonTS ``ListDataset`` from a list of episode dicts. | 1 |  | Extract shared data adapter helper | _shared_data_build_gluonts_dataset | x | x | 63 | x | x | x | x | x | x | x | x | x | x | x | x |
 | evaluate | Evaluate model on test data using rolling-window evaluation. | 1 |  | Move to family utility module | MOVE to <family>/utils.py | x | 107 | x | x | x | x | x | x | x | x | x | x | x | x | x |
@@ -248,11 +248,11 @@ the planning estimate above stays fixed as the baseline target.
 
 | Model | Baseline current methods | Active current methods | Projected methods (target) | Active methods remaining | Baseline current LOC | Active current LOC | Projected LOC (target) | Active LOC remaining | Active method delta vs baseline | Active LOC delta vs baseline |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| TTM | 37 | 37 | 20 | 17 | 1041 | 1030 | 191 | 839 | 0 | -11 |
+| TTM | 37 | 35 | 20 | 15 | 1041 | 997 | 191 | 806 | -2 | -44 |
 | TimesFM | 35 | 32 | 16 | 16 | 819 | 794 | 128 | 666 | -3 | -25 |
 | Moirai | 27 | 24 | 15 | 9 | 1024 | 792 | 104 | 688 | -3 | -232 |
 | Moment | 34 | 29 | 22 | 7 | 1074 | 954 | 312 | 642 | -5 | -120 |
-| Chronos2 | 32 | 32 | 17 | 15 | 883 | 883 | 119 | 764 | 0 | 0 |
+| Chronos2 | 32 | 28 | 17 | 11 | 883 | 777 | 119 | 658 | -4 | -106 |
 | Toto | 25 | 25 | 18 | 7 | 566 | 576 | 193 | 383 | 0 | 10 |
 | Tide | 21 | 21 | 12 | 9 | 327 | 327 | 46 | 281 | 0 | 0 |
 | TimeGrad | 13 | 13 | 12 | 1 | 283 | 283 | 79 | 204 | 0 | 0 |
@@ -316,6 +316,14 @@ classes and standardize signatures/tests only.
   for TTM preprocessor checkpoint flow: **(complete)**.
 - Shared checkpoint filename policy helper (`CHECKPOINT_FILENAME_POLICY`) wired
   for TimesFM/TTM/Toto model-specific artifact naming: **(complete)**.
+- Shared checkpoint bundle helpers (`_shared_save_checkpoint_bundle`,
+  `_shared_load_checkpoint_bundle`) wired into base save/load and
+  training-metadata persistence paths: **(complete)**.
+- Chronos2 intermediate-checkpoint materialization helpers moved from
+  model-local methods into shared checkpoint helper module: **(complete)**.
+- TTM preprocessor checkpoint save/load wrappers removed from model-local
+  methods; checkpoint artifact I/O now uses shared helper functions directly:
+  **(complete)**.
 
 **Lifecycle mapping (before -> after)**
 | Lifecycle method | Before (child-owned implementation) | Centralized helper logic | After (child wrapper ownership) |
