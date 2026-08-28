@@ -307,6 +307,8 @@ classes and standardize signatures/tests only.
 - Shared checkpoint bundle helpers (`checkpoint_bundle_paths`,
   `write_checkpoint_json`, `read_checkpoint_json`) extracted and wired into
   base save/load/training-metadata flows: **(complete)**.
+- Shared model-artifact path helper (`_shared_checkpoint_paths`) extracted and
+  wired for TTM/TimesFM/Toto checkpoint artifact locations: **(complete)**.
 
 **Lifecycle mapping (before -> after)**
 | Lifecycle method | Before (child-owned implementation) | Centralized helper logic | After (child wrapper ownership) |
@@ -317,8 +319,8 @@ classes and standardize signatures/tests only.
 | `_train_model` | Family-local trainer/predictor orchestration. | Planned in MC3 (`_shared_training_*` helpers). | Child keeps orchestration wrapper, shared helpers handle reusable trainer mechanics. |
 | `_predict` | Family-local inference routing and output shaping. | Planned in MC4 (`_shared_inference_*` helpers). | Child keeps backend-specific inference routing and final family semantics. |
 | `_predict_batch` | Family-local episode batching/dispatch paths. | Planned in MC4 batch helpers. | Child keeps episode policy + backend-specific batching behavior. |
-| `_save_checkpoint` | Repeated JSON/path reference write logic across model classes. | **Now centralized in MC1** via `write_checkpoint_reference`; base save flow also centralizes config/metadata JSON writing via `write_checkpoint_json` and path mapping via `checkpoint_bundle_paths`. | Child only supplies family file naming and model-specific artifact decisions. |
-| `_load_checkpoint` | Repeated JSON/path resolve + fallback logic across model classes. | **Now centralized in MC1** via `resolve_checkpoint_reference`; base load flow also centralizes config/metadata JSON reading via `read_checkpoint_json` and bundle path mapping via `checkpoint_bundle_paths`. | Child keeps backend loader call + post-load state behavior (`is_fitted`, metadata use). |
+| `_save_checkpoint` | Repeated JSON/path reference write logic across model classes. | **Now centralized in MC1** via `write_checkpoint_reference`; base save flow also centralizes config/metadata JSON writing via `write_checkpoint_json`, bundle path mapping via `checkpoint_bundle_paths`, and artifact-name path resolution via `_shared_checkpoint_paths`. | Child only supplies family file naming and model-specific artifact decisions. |
+| `_load_checkpoint` | Repeated JSON/path resolve + fallback logic across model classes. | **Now centralized in MC1** via `resolve_checkpoint_reference`; base load flow also centralizes config/metadata JSON reading via `read_checkpoint_json`, bundle path mapping via `checkpoint_bundle_paths`, and artifact-name path resolution via `_shared_checkpoint_paths`. | Child keeps backend loader call + post-load state behavior (`is_fitted`, metadata use). |
 
 **Methods to standardize but keep in child classes**
 - `training_backend`, `supports_zero_shot`, `supports_probabilistic_forecast`
@@ -331,7 +333,7 @@ classes and standardize signatures/tests only.
 **Shared helper targets and contracts**
 | Expected consolidated method | Destination | Input contract | Output contract |
 | --- | --- | --- | --- |
-| `_shared_checkpoint_paths` | new helper under [src/models/base/](../src/models/base/) | checkpoint root + artifact policy | canonical path mapping |
+| `_shared_checkpoint_paths` | [checkpoint_helpers.py](../src/models/base/checkpoint_helpers.py) **(complete)** | checkpoint root + artifact names | canonical artifact path tuple |
 | `_shared_save_checkpoint_bundle` | new helper under [src/models/base/](../src/models/base/) | model state + metadata + destination path | persisted artifact bundle |
 | `_shared_load_checkpoint_bundle` | new helper under [src/models/base/](../src/models/base/) | checkpoint path + strictness policy | restored state + metadata or explicit error |
 | `_shared_preprocessor_artifact_io` | new helper under [src/models/base/](../src/models/base/) | preprocessor object + schema metadata + checkpoint paths | deterministic save/load of preprocessor artifacts |

@@ -20,6 +20,7 @@ from toto.model.toto import Toto  # pyright: ignore[reportMissingImports]
 
 from ...utils.logging_helper import info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.checkpoint_helpers import _shared_checkpoint_paths
 from ..base.registry import ModelRegistry
 from .config import TotoConfig
 
@@ -601,10 +602,13 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             return
 
         os.makedirs(output_dir, exist_ok=True)
-        weights_path = os.path.join(output_dir, "toto_backbone.pt")
+        weights_path, ref_path = _shared_checkpoint_paths(
+            output_dir,
+            "toto_backbone.pt",
+            "toto_checkpoint.json",
+        )
         torch.save(self.model.state_dict(), weights_path)
 
-        ref_path = os.path.join(output_dir, "toto_checkpoint.json")
         with open(ref_path, "w") as f:
             json.dump({"weights_file": "toto_backbone.pt"}, f, indent=2)
 
@@ -615,14 +619,18 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
         Loads the backbone state dict saved by _save_checkpoint.
         """
-        ref_path = os.path.join(model_dir, "toto_checkpoint.json")
+        ref_path, fallback_weights_path = _shared_checkpoint_paths(
+            model_dir,
+            "toto_checkpoint.json",
+            "toto_backbone.pt",
+        )
         if os.path.exists(ref_path):
             with open(ref_path) as f:
                 ref = json.load(f)
-            weights_path = os.path.join(model_dir, ref["weights_file"])
+            weights_path = _shared_checkpoint_paths(model_dir, ref["weights_file"])[0]
         else:
             # Fall back to looking for the weights file directly
-            weights_path = os.path.join(model_dir, "toto_backbone.pt")
+            weights_path = fallback_weights_path
 
         if not os.path.exists(weights_path):
             raise FileNotFoundError(f"Toto checkpoint not found at {weights_path}")

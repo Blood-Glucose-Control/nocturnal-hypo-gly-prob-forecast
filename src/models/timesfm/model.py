@@ -18,6 +18,7 @@ from transformers import TrainerCallback as _TrainerCallbackBase
 
 from ...utils.logging_helper import error_print, info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.checkpoint_helpers import _shared_checkpoint_paths
 from ..base.registry import ModelRegistry
 from .config import TimesFMConfig
 
@@ -1206,13 +1207,6 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         return {"training_history": trainer.state.log_history}
 
-    @staticmethod
-    def _checkpoint_paths(base_dir: str) -> tuple[str, str]:
-        return (
-            os.path.join(base_dir, "hf_model"),
-            os.path.join(base_dir, "timesfm_config.json"),
-        )
-
     def _checkpoint_config_payload(self) -> Dict[str, Any]:
         return {
             "checkpoint_path": self.config.checkpoint_path,
@@ -1258,7 +1252,11 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def _save_checkpoint(self, output_dir: str) -> None:
         """Save checkpoint. Uses 'hf_model/' subdir to avoid config.json conflicts."""
         os.makedirs(output_dir, exist_ok=True)
-        hf_model_dir, timesfm_config_path = self._checkpoint_paths(output_dir)
+        hf_model_dir, timesfm_config_path = _shared_checkpoint_paths(
+            output_dir,
+            "hf_model",
+            "timesfm_config.json",
+        )
 
         # Save HF model weights + config
         if self.hf_model is not None:
@@ -1270,7 +1268,11 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load model checkpoint from HF save_pretrained format."""
-        hf_model_dir, timesfm_config_path = self._checkpoint_paths(model_dir)
+        hf_model_dir, timesfm_config_path = _shared_checkpoint_paths(
+            model_dir,
+            "hf_model",
+            "timesfm_config.json",
+        )
         self._load_saved_checkpoint_config(timesfm_config_path)
 
         if not self._load_hf_model_weights(hf_model_dir):

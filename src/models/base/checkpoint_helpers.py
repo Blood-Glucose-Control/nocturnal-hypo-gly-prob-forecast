@@ -19,6 +19,15 @@ class CheckpointBundlePaths:
     training_metadata_json: str
 
 
+def _shared_checkpoint_paths(base_dir: str, *relative_paths: str) -> tuple[str, ...]:
+    """Resolve model-specific artifact names to full checkpoint paths."""
+    if not relative_paths:
+        raise ValueError("At least one relative artifact path is required.")
+    return tuple(
+        os.path.join(base_dir, relative_path) for relative_path in relative_paths
+    )
+
+
 def checkpoint_bundle_paths(model_dir: str) -> CheckpointBundlePaths:
     """Return canonical bundle paths rooted at ``model_dir``."""
     return CheckpointBundlePaths(

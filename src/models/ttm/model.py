@@ -33,6 +33,7 @@ from ...utils.logging_helper import debug_print, error_print, info_print
 
 # Local imports
 from ..base import BaseTimeSeriesFoundationModel, ModelConfig, TrainingBackend
+from ..base.checkpoint_helpers import _shared_checkpoint_paths
 from ..base.registry import ModelRegistry
 from .config import TTMConfig
 
@@ -851,14 +852,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         )
         return pipeline, target_columns[0]
 
-    @staticmethod
-    def _preprocessor_paths(model_dir: str) -> Tuple[str, str]:
-        """Return supported preprocessor artifact locations for a checkpoint."""
-        return (
-            os.path.join(model_dir, "preprocessor.pkl"),
-            os.path.join(model_dir, "model.pt", "preprocessor.pkl"),
-        )
-
     def _save_preprocessor_checkpoint(
         self, output_dir: str, *, pickle_module: Any
     ) -> None:
@@ -870,7 +863,11 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             )
             return
 
-        root_path, model_pt_path = self._preprocessor_paths(output_dir)
+        root_path, model_pt_path = _shared_checkpoint_paths(
+            output_dir,
+            "preprocessor.pkl",
+            "model.pt/preprocessor.pkl",
+        )
         with open(root_path, "wb") as f:
             pickle_module.dump(self.preprocessor, f)
         info_print(f"Preprocessor saved to {root_path}")
@@ -885,7 +882,11 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         self, model_dir: str, *, pickle_module: Any
     ) -> Optional[TimeSeriesPreprocessor]:
         """Load preprocessor artifact from known checkpoint locations."""
-        root_path, model_pt_path = self._preprocessor_paths(model_dir)
+        root_path, model_pt_path = _shared_checkpoint_paths(
+            model_dir,
+            "preprocessor.pkl",
+            "model.pt/preprocessor.pkl",
+        )
         for path in (root_path, model_pt_path):
             if not os.path.exists(path):
                 continue
