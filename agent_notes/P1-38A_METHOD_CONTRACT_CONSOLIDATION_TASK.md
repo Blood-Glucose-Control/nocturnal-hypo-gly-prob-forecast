@@ -357,8 +357,8 @@ classes and standardize signatures/tests only.
 | Expected consolidated method | Destination | Input contract | Output contract |
 | --- | --- | --- | --- |
 | `_shared_checkpoint_paths` | [checkpoint_helpers.py](../src/models/base/checkpoint_helpers.py) **(complete)** | checkpoint root + artifact names | canonical artifact path tuple |
-| `_shared_save_checkpoint_bundle` | new helper under [src/models/base/](../src/models/base/) | model state + metadata + destination path | persisted artifact bundle |
-| `_shared_load_checkpoint_bundle` | new helper under [src/models/base/](../src/models/base/) | checkpoint path + strictness policy | restored state + metadata or explicit error |
+| `_shared_save_checkpoint_bundle` | [checkpoint_helpers.py](../src/models/base/checkpoint_helpers.py) **(complete)** | model state + metadata + destination path | persisted artifact bundle |
+| `_shared_load_checkpoint_bundle` | [checkpoint_helpers.py](../src/models/base/checkpoint_helpers.py) **(complete)** | checkpoint path + strictness policy | restored state + metadata or explicit error |
 | `_shared_save_preprocessor_artifact` + `_shared_load_preprocessor_artifact` | [checkpoint_helpers.py](../src/models/base/checkpoint_helpers.py) **(complete)** | preprocessor object + schema metadata + checkpoint paths | deterministic save/load of preprocessor artifacts |
 
 ---
@@ -366,6 +366,17 @@ classes and standardize signatures/tests only.
 ### MC2 — Training-data normalization + dataset assembly
 
 **Target model.py LOC reduction:** **220-320 LOC**
+
+**Lifecycle carryover work items (`_prepare_training_data`)**
+- TTM: reduce remaining input normalization + loader wiring in
+  [ttm/model.py](../src/models/ttm/model.py).
+- TimesFM: continue patient/window prep extraction in
+  [timesfm/model.py](../src/models/timesfm/model.py).
+- Moirai: continue multi-input adaptation cleanup in
+  [moirai/model.py](../src/models/moirai/model.py).
+- Moment: move reusable context/target pair assembly boundaries from
+  [moment/model.py](../src/models/moment/model.py) into shared data helpers where
+  semantics match.
 
 **Shared helper targets and contracts**
 | Expected consolidated method | Destination | Input contract | Output contract |
@@ -383,11 +394,17 @@ classes and standardize signatures/tests only.
 
 **Target model.py LOC reduction:** **180-260 LOC**
 
-**MC3 progress**
-- Moment C3 slice 1: `_predict_batch` decomposed into focused helpers
-  (`_validate_predict_batch_request`, `_collect_episode_contexts`,
-  `_pad_batch_contexts`, `_forecast_episode_batches`) while preserving the
-  public batch inference contract and chunking behavior: **(complete)**.
+**Lifecycle carryover work items (`_train_model`)**
+- TTM: isolate trainer-setup/eval orchestration in
+  [ttm/model.py](../src/models/ttm/model.py) behind shared training helper
+  contracts.
+- TimesFM: continue callback/trainer setup extraction in
+  [timesfm/model.py](../src/models/timesfm/model.py).
+- Moirai: simplify fit-time orchestration flow in
+  [moirai/model.py](../src/models/moirai/model.py).
+- Moment: decompose monolithic training loop in
+  [moment/model.py](../src/models/moment/model.py) into shared trainer helper
+  boundaries.
 
 **Shared helper targets and contracts**
 | Expected consolidated method | Destination | Input contract | Output contract |
@@ -403,6 +420,14 @@ classes and standardize signatures/tests only.
 ### MC4 — Inference/batch/quantile helper reuse
 
 **Target model.py LOC reduction:** **240-360 LOC**
+
+**Lifecycle carryover work items (`_predict`, `_predict_batch`)**
+- Chronos2/TiDE: continue harmonizing AutoGluon inference/batch helper surfaces.
+- TTM/TimesFM/Toto/Moirai/Moment: extract shared single/batch output-shaping and
+  quantile validation utilities where semantics match.
+- Moment note: current `_predict_batch` helper decomposition in
+  [moment/model.py](../src/models/moment/model.py) is preparatory refactor only;
+  MC4 shared inference extraction is still pending.
 
 **Shared helper targets and contracts**
 | Expected consolidated method | Destination | Input contract | Output contract |
