@@ -301,6 +301,21 @@ classes and standardize signatures/tests only.
 - Capability contract method standardization (`training_backend`,
   `supports_zero_shot`, `supports_probabilistic_forecast`) and aligned
   docstrings: **(complete)**.
+- Shared checkpoint reference helpers (`write_checkpoint_reference`,
+  `resolve_checkpoint_reference`) extracted and wired in AutoGluon-backed
+  persistence paths: **(complete)**.
+
+**Lifecycle mapping (before -> after)**
+| Lifecycle method | Before (child-owned implementation) | Centralized helper logic | After (child wrapper ownership) |
+| --- | --- | --- | --- |
+| `__init__` | Each child sets family runtime state and init sequencing directly. | None in MC1 (keep family-specific construction). | Child keeps constructor orchestration and family attributes. |
+| `_initialize_model` | Family-local weight/predictor bootstrap logic per backend. | None in MC1 (semantics differ by backend). | Child keeps backend-specific initialization only. |
+| `_prepare_training_data` | Family-local input normalization and adapter plumbing. | Planned in MC2 (`_shared_data_*` helpers). | Child keeps wrapper + family invariants; shared adapters handle common transforms. |
+| `_train_model` | Family-local trainer/predictor orchestration. | Planned in MC3 (`_shared_training_*` helpers). | Child keeps orchestration wrapper, shared helpers handle reusable trainer mechanics. |
+| `_predict` | Family-local inference routing and output shaping. | Planned in MC4 (`_shared_inference_*` helpers). | Child keeps backend-specific inference routing and final family semantics. |
+| `_predict_batch` | Family-local episode batching/dispatch paths. | Planned in MC4 batch helpers. | Child keeps episode policy + backend-specific batching behavior. |
+| `_save_checkpoint` | Repeated JSON/path reference write logic across model classes. | **Now centralized in MC1** via `write_checkpoint_reference`. | Child only supplies family file naming and model-specific artifact decisions. |
+| `_load_checkpoint` | Repeated JSON/path resolve + fallback logic across model classes. | **Now centralized in MC1** via `resolve_checkpoint_reference`. | Child keeps backend loader call + post-load state behavior (`is_fitted`, metadata use). |
 
 **Methods to standardize but keep in child classes**
 - `training_backend`, `supports_zero_shot`, `supports_probabilistic_forecast`

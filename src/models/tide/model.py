@@ -17,9 +17,7 @@ Two separate pipelines exist in this class:
              at midnight (with past covariates like iob), forecast BG for the next 6h."
 """
 
-import json
 import logging
-import os
 from typing import Any, Dict, Sequence, Tuple
 
 import numpy as np
@@ -33,6 +31,10 @@ from ..autogluon_data_utils import (
     format_segments_for_autogluon,
 )
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.checkpoint_helpers import (
+    resolve_checkpoint_reference,
+    write_checkpoint_reference,
+)
 from ..base.registry import ModelRegistry
 from .config import TiDEConfig
 
@@ -330,32 +332,12 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         the predictor directory later.
         """
         if self.predictor is not None:
-            ref_path = os.path.join(output_dir, self._PREDICTOR_JSON_NAME)
-            os.makedirs(output_dir, exist_ok=True)
-            with open(ref_path, "w", encoding="utf-8") as f:
-                json.dump({"predictor_path": str(self.predictor.path)}, f, indent=2)
-            self.logger.info("Predictor reference saved to %s", ref_path)
-
-    def _resolve_predictor_path(self, model_dir: str) -> str:
-        """Resolve predictor path from reference file with fallback semantics."""
-        ref_path = os.path.join(model_dir, self._PREDICTOR_JSON_NAME)
-        if not os.path.exists(ref_path):
-            return model_dir
-
-        with open(ref_path, encoding="utf-8") as f:
-            predictor_path = json.load(f)["predictor_path"]
-
-        pkl_file = os.path.join(predictor_path, "predictor.pkl")
-        if not os.path.exists(pkl_file):
-            self.logger.warning(
-                "Predictor not found at %s, falling back to %s",
-                predictor_path,
-                model_dir,
+            ref_path = write_checkpoint_reference(
+                output_dir=output_dir,
+                reference_filename=self._PREDICTOR_JSON_NAME,
+                target_path=str(self.predictor.path),
             )
-            return model_dir
-
-        self.logger.info("Loading predictor from reference: %s", predictor_path)
-        return predictor_path
+            self.logger.info("Predictor reference saved to %s", ref_path)
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load AutoGluon predictor from directory.
@@ -368,7 +350,12 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
             TimeSeriesPredictor,
         )
 
-        predictor_path = self._resolve_predictor_path(model_dir)
+        predictor_path = resolve_checkpoint_reference(
+            model_dir=model_dir,
+            reference_filename=self._PREDICTOR_JSON_NAME,
+            required_file="predictor.pkl",
+            logger=self.logger,
+        )
         self.predictor = TimeSeriesPredictor.load(predictor_path)
         self.is_fitted = True
         self.logger.info("Predictor loaded from %s", predictor_path)

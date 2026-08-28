@@ -37,6 +37,10 @@ from .autogluon_data_utils import (
     format_segments_for_autogluon,
 )
 from .base import BaseTimeSeriesFoundationModel, TrainingBackend
+from .base.checkpoint_helpers import (
+    resolve_checkpoint_reference,
+    write_checkpoint_reference,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -424,10 +428,11 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
         the predictor directory even if the artifact tree is moved.
         """
         if self.predictor is not None:
-            ref_path = os.path.join(output_dir, self._PREDICTOR_JSON_NAME)
-            os.makedirs(output_dir, exist_ok=True)
-            with open(ref_path, "w") as f:
-                json.dump({"predictor_path": str(self.predictor.path)}, f, indent=2)
+            ref_path = write_checkpoint_reference(
+                output_dir=output_dir,
+                reference_filename=self._PREDICTOR_JSON_NAME,
+                target_path=str(self.predictor.path),
+            )
             self.logger.info("Predictor reference saved to %s", ref_path)
 
     def _load_checkpoint(self, model_dir: str) -> None:
@@ -440,21 +445,12 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
             TimeSeriesPredictor,  # type: ignore[import-not-found]
         )
 
-        ref_path = os.path.join(model_dir, self._PREDICTOR_JSON_NAME)
-        if os.path.exists(ref_path):
-            with open(ref_path) as f:
-                predictor_path = json.load(f)["predictor_path"]
-            if not os.path.exists(os.path.join(predictor_path, "predictor.pkl")):
-                self.logger.warning(
-                    "Predictor not found at %s, falling back to %s",
-                    predictor_path,
-                    model_dir,
-                )
-                predictor_path = model_dir
-            else:
-                self.logger.info("Loading predictor from reference: %s", predictor_path)
-        else:
-            predictor_path = model_dir
+        predictor_path = resolve_checkpoint_reference(
+            model_dir=model_dir,
+            reference_filename=self._PREDICTOR_JSON_NAME,
+            required_file="predictor.pkl",
+            logger=self.logger,
+        )
 
         self.predictor = TimeSeriesPredictor.load(predictor_path)
         self.is_fitted = True

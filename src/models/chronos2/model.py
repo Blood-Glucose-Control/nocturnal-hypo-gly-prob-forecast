@@ -41,6 +41,10 @@ from ..autogluon_data_utils import (
     format_segments_for_autogluon,
 )
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.checkpoint_helpers import (
+    resolve_checkpoint_reference,
+    write_checkpoint_reference,
+)
 from ..base.registry import ModelRegistry
 from .config import Chronos2Config
 
@@ -65,6 +69,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
 
     config_class = Chronos2Config
     config: Chronos2Config
+    _PREDICTOR_JSON_NAME = "chronos2_predictor.json"
 
     def __init__(
         self,
@@ -953,18 +958,12 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         the predictor directory later.
         """
         if self.predictor is not None:
-            ref_path = os.path.join(output_dir, "chronos2_predictor.json")
-            os.makedirs(output_dir, exist_ok=True)
-            with open(ref_path, "w") as f:
-                json.dump(
-                    {
-                        "predictor_path": os.path.relpath(
-                            str(self.predictor.path), output_dir
-                        )
-                    },
-                    f,
-                    indent=2,
-                )
+            ref_path = write_checkpoint_reference(
+                output_dir=output_dir,
+                reference_filename=self._PREDICTOR_JSON_NAME,
+                target_path=str(self.predictor.path),
+                relative_to_output=True,
+            )
             self.logger.info("Predictor reference saved to %s", ref_path)
 
     def _load_checkpoint(self, model_dir: str) -> None:
@@ -978,29 +977,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             TimeSeriesPredictor,
         )
 
-        ref_path = os.path.join(model_dir, "chronos2_predictor.json")
-        if os.path.exists(ref_path):
-            with open(ref_path) as f:
-                predictor_path = json.load(f)["predictor_path"]
-            # Resolve relative paths against the JSON file's own directory so
-            # that the artifact tree remains valid after being moved.
-            if not os.path.isabs(predictor_path):
-                predictor_path = os.path.normpath(
-                    os.path.join(os.path.dirname(ref_path), predictor_path)
-                )
-            # Fall back to model_dir if the referenced path no longer exists
-            # (e.g. the model directory was relocated after training)
-            if not os.path.exists(predictor_path):
-                self.logger.warning(
-                    "Predictor path %s not found, falling back to %s",
-                    predictor_path,
-                    model_dir,
-                )
-                predictor_path = model_dir
-            else:
-                self.logger.info("Loading predictor from reference: %s", predictor_path)
-        else:
-            predictor_path = model_dir
+        predictor_path = resolve_checkpoint_reference(
+            model_dir=model_dir,
+            reference_filename=self._PREDICTOR_JSON_NAME,
+            logger=self.logger,
+        )
 
         self.predictor = TimeSeriesPredictor.load(predictor_path)
         self.is_fitted = True
