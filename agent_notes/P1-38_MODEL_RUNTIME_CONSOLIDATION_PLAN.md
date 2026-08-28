@@ -1,8 +1,8 @@
 # P1-38 Model Runtime Consolidation Plan
 
 **Date:** 2026-08-23
-**Update Date:** 2026-08-26
-**Status:** In progress (all-model pre-change baseline is green, including TimeGrad on a v2-compatible lane; PR-C1 kickoff queued)
+**Update Date:** 2026-08-27
+**Status:** In progress (WS1 model-family helper extraction, constructor-path parity closeout, and shim retirement are complete; final PR closeout remains)
 **Tracking row:** `model-runtime-consolidation-wave` in [project_tracking.csv](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/project_tracking.csv)
 
 ---
@@ -65,9 +65,10 @@ Rationale: those tasks require reliable, predictable, low-duplication model entr
 
 1. **Constructor unification target is explicit:** maintained runtime entrypoints
    should converge on schema-routed `ModelFactory` constructor semantics.
-2. **Current-state acknowledgment:** today, primary evaluation flows still rely on
-   [`create_model_and_config`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/factory.py:35);
-   this task owns migration away from that direct dependency.
+2. **Current-state acknowledgment:** maintained evaluation flows now rely on
+   schema-routed
+   [`create_model_and_config`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py:164);
+   `src/models.factory.create_model_and_config` has been retired.
 3. **Shim policy:** `create_model_and_config` may exist only as a temporary
    migration shim during intermediate PR slices; no new direct call sites should
    be introduced.
@@ -146,6 +147,33 @@ Likely homes:
 - [src/models/base/base_model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/base/base_model.py)
 - [src/models/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/) shared helper module(s), if needed
 
+### WS1A — Objective matrix (detailed, itemized task list) — 2026-08-27
+
+| Family | Clean-up targets (itemized) | Common data input contracts | Shared method contracts | Consolidation tasks (itemized) | In-scope files/folders | Out-of-scope (family-local) | Acceptance checks | Targeted validation commands | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TTM | 1) Decompose `_predict` / `_predict_batch` / checkpoint preprocessor paths.<br>2) Decompose `_prepare_training_data`, `_train_model`, `_compute_trainer_metrics`, `_create_training_arguments`.<br>3) Audit `src/models/ttm/_deprecated/` with no-caller proof prior to retention/removal decisions.<br>4) Remove stale TODO-heavy comments from retained legacy surfaces. | 1) Training accepts panel DataFrame or patient dict and normalizes to DataFrame.<br>2) `predict` remains single-episode contract.<br>3) `predict_batch` remains `episode_col` -> `Dict[str, np.ndarray]` contract. | Preserve canonical base lifecycle behavior for `_initialize_model`, `_prepare_training_data`, `_train_model`, `_predict`, `_predict_batch`, `_save_checkpoint`, `_load_checkpoint`; preserve preprocessor schema fail-fast behavior. | 1) Extract quantile warning helper.<br>2) Extract zero-shot pipeline builder helper.<br>3) Extract preprocessor save/load helper pair.<br>4) Follow with training-path helper extraction.<br>5) Add/keep explicit regression checks for checkpoint + scaling + batch semantics. | [src/models/ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py)<br>[src/models/ttm/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/config.py)<br>[src/models/ttm/_deprecated/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/_deprecated) | TTM architecture redesign or TSFM external package behavior changes. | 1) TTM fitted/zero-shot inference parity preserved.<br>2) Preprocessor checkpoint behavior preserved.<br>3) Contract/schema gates remain green. | `pytest -q tests/models/test_ttm_preprocessor_schema_contract.py tests/models/test_ttm_preprocessor_roundtrip.py`<br>`pytest -q tests/models/test_model_family_contract_suite.py`<br>`pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "ttm"` | Completed (WS1-TTM-01/02/03 complete on PR-C1 branch). |
+| TimesFM | 1) Split `_prepare_training_data` and `_train_model` hotspots.<br>2) Reduce duplicated alias/window setup logic.<br>3) Preserve horizon/forecast alias synchronization. | Flat panel -> patient windows with deterministic split/window semantics and stable output shape contracts. | Preserve predict/load/save behavior and `forecast_length`/`horizon_length` semantics. | 1) Extract patient split/window helpers.<br>2) Extract checkpoint metadata/path normalization helper.<br>3) Keep schema-route adapter behavior unchanged. | [src/models/timesfm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timesfm/model.py)<br>[src/models/timesfm/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timesfm/config.py) | TimesFM algorithm/loss redesign outside behavior-preserving refactor scope. | Existing TimesFM tests + schema/contract gates stay green; no runtime payload drift. | `pytest -q tests/models/test_timesfm_config.py tests/models/test_timesfm_loss_and_callback.py tests/models/test_timesfm_patient_split.py` | Completed (WS1-TFM-01 fully validated in TimesFM dependency lane). |
+| Moirai | 1) Replace `_prepare_training_data` placeholder compatibility path with explicit contract-safe behavior.<br>2) Split `_train_model` and training tensor prep logic.<br>3) Reduce duplicate dataframe/episode conversion branches. | DataFrame/list/dict inputs normalize deterministically; `past_covariate_dim`/`covariate_cols` parity enforced. | Preserve probabilistic outputs and checkpoint load/save behavior (`.ckpt` + base format). | 1) Extract input normalization helpers.<br>2) Extract sample->quantile helper.<br>3) Add direct runtime parity tests for probabilistic and covariate-dimension behavior. | [src/models/moirai/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moirai/model.py)<br>[src/models/moirai/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moirai/config.py) | Moirai objective/architecture changes. | Schema route behavior unchanged; probabilistic parity proven by tests. | `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "moirai"` (+ family runtime tests in C2) | Completed (WS1-MOI-01 helper extraction + runtime helper tests validated in Moirai dependency lane). |
+| Moment | 1) Split `_train_model`, `_get_context_target_pairs`, `_forecast_batch`.<br>2) Remove stale behavior comments/docstrings adjacent to touched logic.<br>3) Consolidate target/covariate column selection branches. | Panel context/target extraction and covariate stacking remain deterministic and default-compatible. | Preserve predict/predict_batch API behavior and wrapper-normalization semantics. | 1) Extract context-target prep helpers.<br>2) Extract reusable column selectors.<br>3) Add runtime parity tests beyond sweep-config coverage. | [src/models/moment/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/model.py)<br>[src/models/moment/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/config.py) | Unapproved normalization behavior changes. | No API drift; tests + shared gates green. | `pytest -q tests/models/test_moment_sweep_configs.py` (+ runtime tests in C3) | Completed (WS1-MOM-01 helper extraction + validation gates complete; targeted runtime-test expansion remains queued for C4 parity hardening). |
+| Chronos2 | 1) Split `_materialize_intermediate_checkpoints` and `_predict_batch`.<br>2) Re-home/remove stale helper surfaces in `chronos2/utils.py` and `chronos2/visualization.py` only with no-caller proof.<br>3) Keep known-covariate boundaries explicit and tested. | Panel->AutoGluon conversion with strict `target_col/patient_col/time_col`; known future covariates separate from past-only covariates. | Preserve fine-tune/zero-shot behavior and checkpoint materialization behavior. | 1) Extract known-covariate context build helper.<br>2) Extract checkpoint materialization primitives.<br>3) Add direct parity tests for known covariates and checkpoint materialization. | [src/models/chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py)<br>[src/models/chronos2/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/config.py)<br>[src/models/chronos2/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/utils.py)<br>[src/models/chronos2/visualization.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/visualization.py) | Dropping required Chronos2-specific behavior deviations. | Known-covariate + checkpoint parity proven; no shared gate regressions. | `pytest -q tests/models/test_chronos2.py tests/data/test_chronos2_known_covariates.py` | Completed (WS1-CHR-01 helper extraction + WS1-CHR-02 no-caller utility cleanup complete). |
+| Toto | 1) Split `_predict_batch` and `_train_model`.<br>2) Deduplicate timestamp/variate preparation helpers.<br>3) Keep alias semantics (`lr`/`learning_rate`, `max_steps`/`num_epochs`) consistent. | DataFrame->variate tensor conversion deterministic; batch mapping and sample semantics preserved. | Preserve base lifecycle and probabilistic behavior compatibility. | 1) Extract timestamp conversion helper.<br>2) Extract shared episode-batching helper.<br>3) Add dedicated Toto runtime regression tests. | [src/models/toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py)<br>[src/models/toto/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/config.py) | Toto architecture/training objective redesign. | Schema/factory and runtime behavior parity maintained. | `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "toto"` (+ runtime tests in C4) | Completed (WS1-TOT-01 helper extraction + runtime helper tests + shared gates complete). |
+| TiDE | 1) Reduce duplicated AG data prep/checkpoint/inference scaffolding.<br>2) Preserve strict constraints (`from_scratch`, `scaling='mean'`, encoder/decoder parity). | Flat panel segmentation + AG inference context remain behavior-equivalent. | Preserve strict config validation and checkpoint behavior. | 1) Consolidate shared AG helper usage where equivalent.<br>2) Add TiDE runtime parity tests beyond schema/factory checks.<br>3) Validate no drift in hard-constraint enforcement. | [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py)<br>[src/models/tide/config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/config.py) | Relaxing TiDE hard constraints. | Constraint checks preserved; runtime behavior unchanged. | `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "tide"` (+ runtime tests in C4) | Completed (WS1-TID-01 helper extraction + runtime helper tests + shared gates complete). |
+
+### WS1B — Itemized execution task list (ordered)
+
+| Task ID | Objective | Primary files | Exit condition |
+| --- | --- | --- | --- |
+| WS1-TTM-01 | Extract TTM inference/checkpoint shared helpers and remove duplicated branches without behavior drift. | [src/models/ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py) | TTM targeted tests + contract/schema gates pass. |
+| WS1-TTM-02 | Decompose TTM training path helpers (`_prepare_training_data`, `_train_model`, metrics, training args). | [src/models/ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py) | Same gates pass with no behavior drift evidence. |
+| WS1-TTM-03 | Produce no-caller and parity evidence for [src/models/ttm/_deprecated/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/_deprecated) and stage keep/remove decision. | [src/models/ttm/_deprecated/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/_deprecated) | Explicit keep/remove decision documented with caller proof. |
+| WS1-TFM-01 | Extract TimesFM windowing + checkpoint normalization helpers and reduce long-method complexity. | [src/models/timesfm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timesfm/model.py) | TimesFM targeted tests + shared gates pass. |
+| WS1-MOI-01 | Normalize Moirai multi-input adaptation and probabilistic extraction helpers. | [src/models/moirai/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moirai/model.py) | Moirai schema tests + runtime parity tests pass. |
+| WS1-MOM-01 | Refactor Moment context/target/training helper boundaries. | [src/models/moment/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/model.py) | Moment tests + shared gates pass. |
+| WS1-CHR-01 | Refactor Chronos2 known-covariate + checkpoint-materialization helper surfaces. | [src/models/chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py) | Chronos2 targeted tests and smoke parity pass. |
+| WS1-CHR-02 | Re-home/retire stale Chronos2 utility/visualization surfaces only with no-caller proof. | [src/models/chronos2/utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/utils.py), [src/models/chronos2/visualization.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/visualization.py) | Caller inventory + parity evidence captured. |
+| WS1-TOT-01 | Decompose Toto batch/training helper logic and add direct regression coverage. | [src/models/toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py) | Toto runtime tests + shared gates pass. |
+| WS1-TID-01 | Consolidate TiDE with shared AG helper patterns while preserving hard constraints. | [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py) | TiDE schema/runtime tests pass; constraints unchanged. |
+
 ### WS2 — Tier A wave 1 (TTM pilot)
 
 - Refactor TTM first as the proving slice.
@@ -187,21 +215,6 @@ Likely homes:
 - Ensure references align with:
   - [model-implementation-quality-checklist.md](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/docs/architecture/model-implementation-quality-checklist.md)
   - `model-extension-contract-doc` output
-
----
-
-## 7) PR slicing plan
-
-Use small, reviewable waves:
-
-1. **PR-C0:** Baseline + shared helper scaffolding (no behavior change)
-2. **PR-C1:** TTM consolidation
-3. **PR-C2:** TimesFM + Moirai consolidation
-4. **PR-C3:** Moment consolidation
-5. **PR-C4:** Chronos2 + Toto + Tide consolidation + docs finalization
-
-Each PR must include targeted tests for changed families and avoid cross-family
-incidental edits.
 
 ---
 
@@ -251,43 +264,42 @@ Fast-profile notes (2026-08-26):
 
 ### LOC + long-method inventory (>=40 lines per function/method)
 
-| Family | File | LOC | Long defs |
-| --- | --- | ---: | ---: |
-| TTM | [src/models/ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py) | 1107 | 10 |
-| TimesFM | [src/models/timesfm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timesfm/model.py) | 1197 | 6 |
-| Moirai | [src/models/moirai/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moirai/model.py) | 1140 | 9 |
-| Moment | [src/models/moment/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/model.py) | 1133 | 7 |
-| Chronos2 | [src/models/chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py) | 945 | 7 |
-| Toto | [src/models/toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py) | 565 | 5 |
-| Tide | [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py) | 379 | 3 |
+Updated to include baseline (PR-C0), midpoint extraction impact, and current
+state after constructor closeout + shared-helper follow-up.
 
-Top hotspots by long-method span (selected):
+| Family | File | PR-C0 LOC | PR-C0 long defs | Midpoint long-method updates | Current LOC | Current long defs | Selected hotspot deltas |
+| --- | --- | ---: | ---: | --- | ---: | ---: | --- |
+| TTM | [src/models/ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py) | 1107 | 10 | C1 extracted predict/train data-path helpers and checkpoint preprocessor helpers. | 1174 | 10 | `_train_model` 124→56, `_prepare_training_data` 116→51, `_compute_trainer_metrics` 118→118 |
+| TimesFM | [src/models/timesfm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timesfm/model.py) | 1197 | 6 | C2 split training-data + checkpoint/trainer assembly helpers. | 1316 | 7 | `_prepare_training_data` 225→74, `_train_model` 106→48, `forward` 156→156 |
+| Moirai | [src/models/moirai/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moirai/model.py) | 1140 | 9 | C2 removed prepare-data stub and extracted prediction/training adapters. | 1185 | 10 | `_train_model` 233→168, `_prepare_training_tensors` 146→111, `evaluate_probabilistic` 111→111 |
+| Moment | [src/models/moment/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/model.py) | 1133 | 7 | C3 extracted pair split, loader, validation-loss, and state-dict helpers. | 1194 | 6 | `_train_model` 286→191, `_get_context_target_pairs` 162→171, `_forecast_batch` 109→109 |
+| Chronos2 | [src/models/chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py) | 945 | 7 | C4 extracted checkpoint-materialization + predict helpers; follow-up shared AutoGluon context helper reuse and batch branch split. | 1005 | 9 | `_materialize_intermediate_checkpoints` 169→58, `_predict_batch` 142→43 |
+| Toto | [src/models/toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py) | 565 | 5 | C4 split batch assembly and training orchestration helpers. | 644 | 4 | `_predict_batch` 119→29, `_train_model` 103→35 |
+| Tide | [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py) | 379 | 3 | C4 split AutoGluon train/infer/checkpoint helpers; follow-up shared context-frame helper adoption. | 416 | 2 | `_train_model` 64→44, `_predict_batch` 49→31 |
 
-- TTM:
-  - `_train_model` (~124 lines)
-  - `_compute_trainer_metrics` (~118 lines)
-  - `_prepare_training_data` (~116 lines)
-- TimesFM:
-  - `_prepare_training_data` (~225 lines)
-  - `forward` (~156 lines)
-  - `_train_model` (~106 lines)
-- Moirai:
-  - `_train_model` (~233 lines)
-  - `_prepare_training_tensors` (~146 lines)
-  - `evaluate_probabilistic` (~111 lines)
-- Moment:
-  - `_train_model` (~286 lines)
-  - `_get_context_target_pairs` (~162 lines)
-  - `_forecast_batch` (~109 lines)
-- Chronos2:
-  - `_materialize_intermediate_checkpoints` (~169 lines)
-  - `_predict_batch` (~142 lines)
-- Toto:
-  - `_predict_batch` (~119 lines)
-  - `_train_model` (~103 lines)
-- Tide:
-  - `_train_model` (~64 lines)
-  - `_predict_batch` (~49 lines)
+Observations:
+
+- Hotspot spans dropped materially in the intended runtime methods for every family.
+- Total long-def counts still need cleanup in TTM/TimesFM/Moirai/Chronos2 because
+  some non-target or secondary methods remain above 40 lines.
+- Next simplification pass should prioritize TTM `_compute_trainer_metrics`,
+  Moirai `_train_model`, and Moment `_get_context_target_pairs`.
+
+### Cross-model method/function presence grid (migrated)
+
+The full LOC-weighted cross-model method/function matrix (all
+`src/models/*/model.py` families, including non-TSFM architectures) was
+migrated to
+[P1-38A_METHOD_CONTRACT_CONSOLIDATION_TASK.md](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/agent_notes/P1-38A_METHOD_CONTRACT_CONSOLIDATION_TASK.md)
+so P1-38 can stay focused on WS1 execution history while P1-38A owns method
+consolidation planning/execution.
+
+### New P1 subtask gate: method contract consolidation
+
+P1-38 remains **in progress** until method-contract consolidation is complete as
+a distinct P1 subtask. See
+[P1-38A_METHOD_CONTRACT_CONSOLIDATION_TASK.md](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/agent_notes/P1-38A_METHOD_CONTRACT_CONSOLIDATION_TASK.md)
+for scope, execution sequence, and acceptance gates.
 
 ### Existing schema/factory/contract coverage baseline
 
@@ -328,10 +340,6 @@ Current maintained call-site inventory confirms mixed constructor lanes:
 - Chronos2 known-covariate and checkpoint-materialization behavior remains high-risk and needs parity tests during Tier B waves.
 - Moirai probabilistic output/evaluation pathways need explicit parity checks in family-specific tests before broad helper extraction.
 
-### PR-C1 handoff note
-
-PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regression coverage needed to prove behavior parity after helper extraction.
-
 ### 8B) Current checkpoint (2026-08-26)
 
 - Housekeeping closeout from PR #463 and P1-39 wrap-up was completed on working branch
@@ -355,9 +363,209 @@ PR-C1 should target only TTM consolidation (`WS2`) plus missing TTM-focused regr
 
 ### Immediate next actions
 
-1. Start PR-C1 (TTM-only consolidation slice) with no behavior change outside TTM lane.
-2. Run pre/post smoke comparator around PR-C1 using `pre_refactor_20260827v1` as baseline.
-3. Record PR-C1 drift/artifact parity outcomes in this plan and `project_tracking.csv`.
+1. Stage final PR summary with constructor-path parity evidence and validation inventory.
+2. Prepare ready-for-review summary and call out residual risk items (if any).
+3. Keep this row in progress until PR #465 review/merge is complete.
+
+### PR-C1 status checkpoint (2026-08-27)
+
+- Branch created: `feat/p1-38-ws1-helper-extraction-c1`.
+- WS1-TTM-01 completed in [src/models/ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py):
+  - extracted quantile warning helper,
+  - extracted zero-shot pipeline builder helper,
+  - extracted preprocessor checkpoint save/load helper pair.
+- WS1-TTM-02 completed in [src/models/ttm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/model.py):
+  - decomposed `_prepare_training_data` into normalized-input, preprocessor, dataset, dataloader, and dataset-logging helpers,
+  - decomposed `_train_model` into training-environment, trainer-construction, training-history, and test-evaluation helpers,
+  - preserved existing training/inference contracts and preprocessor schema guard behavior.
+- WS1-TTM-03 completed for [src/models/ttm/_deprecated/](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/_deprecated):
+  - no maintained runtime callers found (`rg` path/import scans show no references outside this note),
+  - [src/models/ttm/__init__.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/ttm/__init__.py) exports only `TTMConfig` and `TTMForecaster`,
+  - `_deprecated` helper symbols are self-contained to the `_deprecated` directory,
+  - decision staged: retain `_deprecated` as non-maintained archival reference during the consolidation wave (no active runtime dependency), and avoid behavior-risking removals in PR-C1.
+- Targeted validations completed:
+  - `pytest -q tests/models/test_ttm_preprocessor_schema_contract.py tests/models/test_ttm_preprocessor_roundtrip.py tests/models/test_model_family_contract_suite.py`
+  - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "ttm"`
+  - `SKIP=pyright pre-commit run --files src/models/ttm/model.py`
+  - `ruff check src/models/ttm/model.py`
+  - Pylance diagnostics clean for touched file.
+
+### PR-C2 status checkpoint (2026-08-27)
+
+- WS1-TFM-01 pass 1 landed in [src/models/timesfm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timesfm/model.py):
+  - decomposed `_prepare_training_data` into patient extraction, datetime-index normalization, gap segmentation, segment regrouping, split-array generation, dataset building, and temporal-eval dataset helpers,
+  - decomposed `_train_model` into input-dtype, trainer-wrapper, training-args, callback, and trainer-construction helpers.
+- Validation status for this pass:
+  - `pytest -q tests/models/test_timesfm_config.py tests/models/test_timesfm_loss_and_callback.py tests/models/test_timesfm_patient_split.py` (all skipped in current environment),
+  - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
+  - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "timesfm"` (pass),
+  - `SKIP=pyright pre-commit run --files src/models/timesfm/model.py` (pass),
+  - Pylance diagnostics clean for touched file.
+- WS1-TFM-01 pass 2 landed in [src/models/timesfm/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/timesfm/model.py):
+  - extracted checkpoint path/config serialization helpers and unified save/load checkpoint path handling.
+- WS1-MOI-01 pass 1 landed in [src/models/moirai/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moirai/model.py):
+  - replaced `_prepare_training_data` placeholder stub with real patched-loader construction from normalized training tensors,
+  - rewired `_train_model` to consume `_prepare_training_data` (single contract path),
+  - extracted predictor lifecycle / input-normalization / forecast-extraction helpers,
+  - consolidated dict/list episode normalization and covariate-column validation inside training tensor prep.
+- WS1-MOI-01 pass 2 landed:
+  - added helper-parity tests in [test_moirai_runtime_contract_helpers.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_moirai_runtime_contract_helpers.py),
+  - applied explicit optional-dependency Pyright import guards for `gluonts`/`uni2ts` imports in [model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moirai/model.py).
+- Validation status for C2 passes:
+  - `pytest -q tests/models/test_moirai_runtime_contract_helpers.py tests/models/test_model_family_contract_suite.py tests/workflows/forecasting/test_model_config_schema_loader.py -k "moirai"` (pass; helper test file is skipped when optional deps are unavailable),
+  - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
+  - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "moirai"` (pass),
+  - `SKIP=pyright pre-commit run --files src/models/timesfm/model.py src/models/moirai/model.py tests/models/test_moirai_runtime_contract_helpers.py` (pass),
+  - Pylance diagnostics clean for touched files.
+- Dependency-lane closure evidence:
+  - `.venvs/timesfm/bin/python -m pytest -q tests/models/test_timesfm_config.py tests/models/test_timesfm_loss_and_callback.py tests/models/test_timesfm_patient_split.py` (20 passed),
+  - `.venvs/moirai/bin/python -m pytest -q tests/models/test_moirai_runtime_contract_helpers.py` (3 passed),
+  - `.venvs/moirai/bin/python -m pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "moirai"` (6 passed).
+- C2 status: ready to close and move to C3 (Moment), with C2 code paths validated in family dependency lanes.
+
+### PR-C3 status checkpoint (2026-08-27)
+
+- WS1-MOM-01 landed in [src/models/moment/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/moment/model.py):
+  - extracted helper boundaries for pair split normalization, dataset/loader construction, train-loop metrics accumulation, validation-loss evaluation, and state-dict save/load orchestration,
+  - preserved wrapper-normalization behavior and single/batch prediction contracts,
+  - resolved touched-file typing issues surfaced by the final diagnostics gate (explicit array coercions, model optionality narrowing, and initialized loss variables).
+- Validation status for C3:
+  - `pytest -q tests/models/test_moment_sweep_configs.py` (pass),
+  - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
+  - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "moment"` (pass),
+  - `SKIP=pyright pre-commit run --files src/models/moment/model.py` (pass),
+  - Pylance diagnostics clean for touched file (warnings only; no error-severity diagnostics).
+- PR-C3 smoke comparator status:
+  - `make smoke-suite-aleppo SUITE_LABEL=post_refactor_20260827_c3` completed successfully for all maintained models,
+  - `make smoke-suite-compare` passed against baseline `pre_refactor_20260827v1`,
+  - comparison report: [comparison_report_vs_pre_refactor_20260827v1.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c3/comparison_report_vs_pre_refactor_20260827v1.json),
+  - compared models: 14; failures: 0.
+- C3 status: helper extraction and validation gates complete; proceed to C4 families.
+
+### PR-C4 status checkpoint (2026-08-27, Chronos2 slices 1-2)
+
+- WS1-CHR-01 landed in [src/models/chronos2/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py):
+  - extracted checkpoint-materialization helpers (`_list_intermediate_checkpoints`, `_build_shadow_predictor_snapshot`, `_write_snapshot_model_pt`, `_rel_symlink`) from `_materialize_intermediate_checkpoints`,
+  - extracted shared inference helpers for known-covariate predict kwargs and quantile registration validation (`_build_autogluon_predict_kwargs`, `_validate_registered_quantile_levels`, `_extract_episode_predictions`),
+  - rewired `_predict_quantiles_impl` and fine-tuned `_predict_batch` to reuse shared helper contracts.
+- Added focused runtime helper coverage in [test_chronos2_runtime_helpers.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_chronos2_runtime_helpers.py):
+  - snapshot materialization tree/parity assertions for checkpoint adapters,
+  - quantile registration enforcement checks.
+- Validation status for WS1-CHR-01:
+  - `.venvs/autogluon/bin/python -m pytest -q tests/models/test_chronos2_runtime_helpers.py tests/models/test_chronos2.py tests/data/test_chronos2_known_covariates.py` (pass),
+  - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
+  - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "chronos2"` (pass),
+  - `SKIP=pyright pre-commit run --files src/models/chronos2/model.py tests/models/test_chronos2_runtime_helpers.py` (pass),
+  - Pylance diagnostics clean for touched files.
+- WS1-CHR-02 utility-boundary cleanup landed:
+  - retired uncalled legacy helpers from [utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/utils.py) (`format_for_autogluon_with_known_covariates`, `evaluate_with_covariates`) after no-caller verification,
+  - re-homed midnight episode construction in [utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/utils.py) to delegate to shared [episode_builders.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/evaluation/episode_builders.py) with Chronos2 compatibility semantics preserved,
+  - refreshed stale visualization docstring wording in [visualization.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/visualization.py).
+- Validation status for WS1-CHR-02:
+  - `.venvs/autogluon/bin/python -m pytest -q tests/models/test_chronos2_runtime_helpers.py tests/models/test_chronos2.py tests/data/test_chronos2_known_covariates.py` (pass),
+  - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
+  - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "chronos2"` (pass),
+  - `SKIP=pyright pre-commit run --files src/models/chronos2/model.py src/models/chronos2/utils.py src/models/chronos2/visualization.py tests/models/test_chronos2_runtime_helpers.py` (pass),
+  - Pylance diagnostics clean for touched files.
+- WS1-TOT-01 landed in [src/models/toto/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/toto/model.py):
+  - extracted batch-input assembly/chunking helpers (`_resolve_eval_chunk_size`, `_slice_masked_timeseries`, `_build_batch_inputs`, `_predict_batch_quantiles`, `_predict_batch_point`) to split `_predict_batch`,
+  - extracted fine-tuning orchestration helpers (`_build_finetuning_module`, `_create_training_artifacts`, `_build_trainer_kwargs`, `_restore_trained_backbone`) to split `_train_model`,
+  - tightened runtime guards for missing backbone initialization during model init/checkpoint load,
+  - added optional-dependency import typing guards in touched Toto-only import sites.
+- Added focused Toto runtime helper coverage in [test_toto_runtime_contract_helpers.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_toto_runtime_contract_helpers.py):
+  - `eval_batch_size` chunking/validation contract checks,
+  - point-forecast chunk mapping parity checks,
+  - quantile batch chunking parity checks.
+- Validation status for WS1-TOT-01:
+  - `.venvs/toto/bin/python -m pytest -q tests/models/test_toto_runtime_contract_helpers.py` (pass),
+  - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
+  - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "toto"` (pass),
+  - `SKIP=pyright pre-commit run --files src/models/toto/model.py tests/models/test_toto_runtime_contract_helpers.py` (pass),
+  - Pylance diagnostics clean for touched files (warnings only; no error-severity diagnostics).
+- WS1-TID-01 landed in [src/models/tide/model.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py):
+  - extracted TiDE AutoGluon predictor-fit helper boundaries (`_build_autogluon_frequency`, `_build_predictor_kwargs`, `_build_fit_kwargs`, `_log_training_start`),
+  - extracted shared inference helpers (`_predict_with_context`, `_episode_predictions_frame`, `_collect_batch_predictions`) so `_predict` and `_predict_batch` use one context/predict path,
+  - extracted checkpoint-path resolver helper (`_resolve_predictor_path`) to de-duplicate reference-file fallback logic,
+  - tightened quantile extraction typing with explicit numpy coercion for deterministic 2-D outputs.
+- Added focused TiDE runtime helper coverage in [test_tide_runtime_helpers.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_tide_runtime_helpers.py):
+  - predictor kwargs/frequency + quantile-level default behavior,
+  - prediction-context covariate fill semantics,
+  - quantile extraction guardrails and batch-collection mapping behavior.
+- Validation status for WS1-TID-01:
+  - `pytest -q tests/models/test_tide_runtime_helpers.py` (pass),
+  - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
+  - `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "tide"` (pass),
+  - `SKIP=pyright pre-commit run --files src/models/tide/model.py tests/models/test_tide_runtime_helpers.py` (pass),
+  - Pylance diagnostics clean for touched files (warnings only; no error-severity diagnostics).
+- PR-C4 smoke comparator status:
+  - `SUITE_LABEL=post_refactor_20260827_c4 make smoke-suite-aleppo` completed with all maintained models succeeding,
+  - `make smoke-suite-compare` passed against baseline `pre_refactor_20260827v1`,
+  - candidate manifest: [suite_manifest.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c4/suite_manifest.json),
+  - comparison report: [comparison_report.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c4/comparison_report.json),
+  - compared models: 14; failures: 0.
+
+### PR-C5 status checkpoint (2026-08-27, constructor-path parity closeout)
+
+- Added schema-routed workflow helper [`create_model_and_config`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/forecasting/modeling.py) with:
+  - explicit zero-shot family routing for inference-first families,
+  - checkpoint-safe override handling (`batch_size`, bounded `forecast_length`, guarded `context_length`),
+  - passthrough of additional schema/runtime fields.
+- Migrated maintained workflow entrypoints off the model shim to the workflow helper:
+  - [nocturnal_hypo_eval.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/nocturnal_hypo_eval.py),
+  - [sliding_window_eval.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/sliding_window_eval.py),
+  - [validate_predict_batch.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/evaluation/validate_predict_batch.py),
+  - [per_patient_finetune.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/workflows/personalization/per_patient_finetune.py).
+- Added focused helper tests in [test_modeling_create_model_and_config.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/workflows/forecasting/test_modeling_create_model_and_config.py):
+  - zero-shot constructor-path selection,
+  - checkpoint override safety semantics,
+  - forecast-length increase guardrail.
+- Validation status for PR-C5 slice:
+  - `ruff check src/workflows/forecasting/modeling.py src/workflows/evaluation/nocturnal_hypo_eval.py src/workflows/evaluation/sliding_window_eval.py src/workflows/evaluation/validate_predict_batch.py src/workflows/personalization/per_patient_finetune.py tests/workflows/forecasting/test_modeling_create_model_and_config.py` (pass),
+  - `pytest -q tests/workflows/forecasting/test_modeling_create_model_and_config.py tests/workflows/forecasting/test_model_config_schema_loader.py -k "ttm or timesfm or moirai or moment or chronos2 or toto or tide"` (44 passed),
+  - `SKIP=pyright pre-commit run --files src/workflows/forecasting/modeling.py src/workflows/evaluation/nocturnal_hypo_eval.py src/workflows/evaluation/sliding_window_eval.py src/workflows/evaluation/validate_predict_batch.py src/workflows/personalization/per_patient_finetune.py tests/workflows/forecasting/test_modeling_create_model_and_config.py` (pass),
+  - final Pylance diagnostics clean (error-severity) for all touched workflow files and helper tests.
+
+### PR-C6 status checkpoint (2026-08-27, shim retirement)
+
+- Retired `src/models.factory.create_model_and_config` and removed legacy export from [src/models/__init__.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/__init__.py).
+- Preserved [SUPPORTED_MODEL_TYPES](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/factory.py) in [factory.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/factory.py) for contract/audit checks.
+- Updated remaining non-maintained callers to workflow constructor path:
+  - [plot_forecast_comparison.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/visualization/plot_forecast_comparison.py),
+  - [export_single_episode_eval_data.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/scratch/data_processing/export_single_episode_eval_data.py),
+  - [nocturnal_hypo_eval_ctx_ablation.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/scripts/scratch/experiments/nocturnal_hypo_eval_ctx_ablation.py).
+- Validation status for PR-C6 slice:
+  - `ruff check src/models/__init__.py src/models/factory.py scripts/visualization/plot_forecast_comparison.py scripts/scratch/data_processing/export_single_episode_eval_data.py scripts/scratch/experiments/nocturnal_hypo_eval_ctx_ablation.py` (pass),
+  - `pytest -q tests/models/test_model_family_contract_suite.py tests/workflows/forecasting/test_modeling_create_model_and_config.py` (8 passed),
+  - `SKIP=pyright pre-commit run --files src/models/__init__.py src/models/factory.py scripts/visualization/plot_forecast_comparison.py scripts/scratch/data_processing/export_single_episode_eval_data.py scripts/scratch/experiments/nocturnal_hypo_eval_ctx_ablation.py` (pass),
+  - final Pylance diagnostics clean (error-severity) for touched files.
+
+### PR-C7 status checkpoint (2026-08-27, shared-helper simplification follow-up)
+
+- Added shared AutoGluon context-frame helper in [autogluon_data_utils.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/autogluon_data_utils.py):
+  - [build_autogluon_context_frame](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/autogluon_data_utils.py),
+  - centralizes `item_id` assignment, timestamp normalization, target rename, and covariate handling.
+- Reused the shared helper in:
+  - [Chronos2 single-target inference prep](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py),
+  - [TiDE prediction context build](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/tide/model.py).
+- Further split Chronos2 batch inference branches:
+  - [Chronos2 `_predict_batch`](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/src/models/chronos2/model.py) now delegates to fitted/zero-shot helpers,
+  - zero-shot tensor packing/result collection extracted into dedicated helpers.
+- Added helper coverage in [test_chronos2.py](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/tests/models/test_chronos2.py):
+  - context-frame construction in single-target mode,
+  - missing-covariate fill behavior.
+- Validation status for PR-C7 slice:
+  - `ruff check src/models/autogluon_data_utils.py src/models/chronos2/model.py src/models/tide/model.py tests/models/test_chronos2.py` (pass),
+  - `pytest -q tests/models/test_tide_runtime_helpers.py tests/workflows/forecasting/test_model_config_schema_loader.py -k "chronos2 or tide"` (20 passed),
+  - `.venvs/autogluon/bin/python -m pytest -q tests/models/test_chronos2.py tests/models/test_chronos2_runtime_helpers.py -k "build_autogluon_context_frame or inference_extracts_primary_target_only or quantile_registration"` (3 passed),
+  - `pytest -q tests/models/test_model_family_contract_suite.py` (pass),
+  - `SKIP=pyright pre-commit run --files src/models/autogluon_data_utils.py src/models/chronos2/model.py src/models/tide/model.py tests/models/test_chronos2.py` (pass),
+  - final Pylance diagnostics clean (error-severity) for touched files.
+- PR-C7 smoke comparator status:
+  - `SUITE_LABEL=post_refactor_20260827_c7 make smoke-suite-aleppo` completed with all maintained models succeeding,
+  - `make smoke-suite-compare` passed against baseline `pre_refactor_20260827v1`,
+  - candidate manifest: [suite_manifest.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c7/suite_manifest.json),
+  - comparison report: [comparison_report.json](/data/home/cjrisi/nocturnal-hypo-gly-prob-forecast/trained_models/artifacts/regression_smoke/all_models_aleppo/post_refactor_20260827_c7/comparison_report.json),
+  - compared models: 14; failures: 0.
 
 ---
 

@@ -12,6 +12,7 @@ Run:
     .venvs/autogluon/bin/python -m pytest tests/models/ -v -k chronos2
     pytest tests/models/test_chronos2.py -v -m slow  # GPU-only slow tests
 """
+# pyright: reportMissingImports=false
 
 import json
 import os
@@ -26,6 +27,7 @@ import pytest
 pytest.importorskip("autogluon.timeseries")
 
 from src.models.autogluon_data_utils import (  # noqa: E402
+    build_autogluon_context_frame,
     convert_to_patient_dict,
     format_segments_for_autogluon,
 )
@@ -215,6 +217,39 @@ class TestChronos2:
         seg_nan.iloc[10:20, seg_nan.columns.get_loc("iob")] = np.nan
         ts2 = format_segments_for_autogluon({"seg": seg_nan}, "bg_mM", ["iob"])
         assert ts2["iob"].isna().sum() == 0
+
+    def test_build_autogluon_context_frame_single_target(self):
+        frame = _make_patient_df(n_days=1).reset_index()
+        frame["episode_id"] = "ep_0"
+
+        context = build_autogluon_context_frame(
+            frame,
+            target_col="bg_mM",
+            time_col="datetime",
+            item_id_column="episode_id",
+            covariate_cols=["iob"],
+        )
+
+        assert context.index.names == ["item_id", "timestamp"]
+        assert "target" in context.columns
+        assert "iob" in context.columns
+        assert set(context.index.get_level_values("item_id")) == {"ep_0"}
+
+    def test_build_autogluon_context_frame_fills_missing_covariate(self):
+        frame = _make_patient_df(n_days=1, include_iob=False).reset_index()
+        frame["episode_id"] = "ep_0"
+
+        context = build_autogluon_context_frame(
+            frame,
+            target_col="bg_mM",
+            time_col="datetime",
+            item_id_column="episode_id",
+            covariate_cols=["iob"],
+            fill_missing_covariates=True,
+        )
+
+        assert "iob" in context.columns
+        assert float(context["iob"].sum()) == 0.0
 
     def test_zero_shot_predict_output_shape(self):
         """Zero-shot path (predictor=None) returns array of shape (forecast_length,).

@@ -5,6 +5,6 @@ for glucose forecasting tasks. Integrated with the BaseTimeSeriesFoundationModel
 """
 
 from .config import TimesFMConfig
-from .model import TimesFMForecaster, create_timesfm_model
+from .model import TimesFMForecaster
 
-__all__ = ["TimesFMConfig", "TimesFMForecaster", "create_timesfm_model"]
+__all__ = ["TimesFMConfig", "TimesFMForecaster"]

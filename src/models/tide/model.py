@@ -17,9 +17,7 @@ Two separate pipelines exist in this class:
              at midnight (with past covariates like iob), forecast BG for the next 6h."
 """
 
-import json
 import logging
-import os
 from typing import Any, Dict, Sequence, Tuple
 
 import numpy as np
@@ -28,10 +26,15 @@ import pandas as pd
 from ...data.preprocessing.gap_handling import segment_all_patients
 from ...utils.logging_helper import info_print, prune_stale_file_handlers
 from ..autogluon_data_utils import (
+    build_autogluon_context_frame,
     convert_to_patient_dict,
     format_segments_for_autogluon,
 )
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.checkpoint_helpers import (
+    resolve_checkpoint_reference,
+    write_checkpoint_reference,
+)
 from ..base.registry import ModelRegistry
 from .config import TiDEConfig
 
@@ -51,6 +54,7 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
     config_class = TiDEConfig
     config: TiDEConfig
+    _PREDICTOR_JSON_NAME = "tide_predictor.json"
 
     def __init__(
         self,
@@ -63,14 +67,17 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
     @property
     def training_backend(self) -> TrainingBackend:
+        """Return the training backend for this model family."""
         return TrainingBackend.CUSTOM
 
     @property
     def supports_zero_shot(self) -> bool:
+        """Return whether this model supports zero-shot inference."""
         return False
 
     @property
     def supports_probabilistic_forecast(self) -> bool:
+        """Return whether this model supports probabilistic forecasts."""
         return True
 
     def _initialize_model(self) -> None:
@@ -119,6 +126,44 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
 
         return (ts_train, None, None)
 
+    def _build_autogluon_frequency(self) -> str:
+        """Convert interval minutes to AutoGluon frequency string."""
+        return f"{self.config.interval_mins}min"
+
+    def _build_predictor_kwargs(self, output_dir: str) -> Dict[str, Any]:
+        """Build TimeSeriesPredictor constructor kwargs for TiDE."""
+        config = self.config
+        predictor_kwargs: Dict[str, Any] = {
+            "prediction_length": config.forecast_length,
+            "target": "target",
+            "eval_metric": config.eval_metric,
+            "freq": self._build_autogluon_frequency(),
+            "path": output_dir,
+            "quantile_levels": config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS,
+        }
+        return predictor_kwargs
+
+    def _build_fit_kwargs(self, ts_train: Any) -> Dict[str, Any]:
+        """Build fit kwargs for TimeSeriesPredictor.fit()."""
+        config = self.config
+        fit_kwargs: Dict[str, Any] = {
+            "train_data": ts_train,
+            "hyperparameters": config.get_autogluon_hyperparameters(),
+            "enable_ensemble": config.enable_ensemble,
+        }
+        if config.time_limit is not None:
+            fit_kwargs["time_limit"] = config.time_limit
+        return fit_kwargs
+
+    def _log_training_start(self) -> None:
+        config = self.config
+        info_print(
+            f"Starting TiDE training: "
+            f"context={config.context_length}, "
+            f"hidden_dim={config.encoder_hidden_dim}, "
+            f"scaling={config.scaling}"
+        )
+
     def _train_model(
         self,
         train_data: Any,
@@ -138,44 +183,24 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         Returns:
             Dict with training metrics.
         """
-        from autogluon.timeseries import TimeSeriesPredictor
+        from autogluon.timeseries import (  # pyright: ignore[reportMissingImports]
+            TimeSeriesPredictor,
+        )
 
-        config = self.config
         ts_train, _, _ = self._prepare_training_data(train_data)
-
-        # Convert interval_mins to frequency string for AutoGluon
-        # e.g., 5 -> "5min", 15 -> "15min"
-        freq = f"{config.interval_mins}min"
-
-        info_print(f"Creating TimeSeriesPredictor at {output_dir} with freq={freq}")
+        predictor_kwargs = self._build_predictor_kwargs(output_dir)
+        info_print(
+            f"Creating TimeSeriesPredictor at {output_dir} "
+            f"with freq={predictor_kwargs['freq']}"
+        )
         removed_handlers = prune_stale_file_handlers("autogluon")
         if removed_handlers:
             info_print(
                 f"Pruned {removed_handlers} stale AutoGluon file log handler(s) before fit."
             )
-        predictor = TimeSeriesPredictor(
-            prediction_length=config.forecast_length,
-            target="target",
-            eval_metric=config.eval_metric,
-            freq=freq,
-            path=output_dir,
-            quantile_levels=config.quantile_levels or self.DEFAULT_QUANTILE_LEVELS,
-        )
-
-        fit_kwargs = {
-            "train_data": ts_train,
-            "hyperparameters": config.get_autogluon_hyperparameters(),
-            "enable_ensemble": config.enable_ensemble,
-        }
-        if config.time_limit is not None:
-            fit_kwargs["time_limit"] = config.time_limit
-
-        info_print(
-            f"Starting TiDE training: "
-            f"context={config.context_length}, "
-            f"hidden_dim={config.encoder_hidden_dim}, "
-            f"scaling={config.scaling}"
-        )
+        predictor = TimeSeriesPredictor(**predictor_kwargs)
+        fit_kwargs = self._build_fit_kwargs(ts_train)
+        self._log_training_start()
         predictor.fit(**fit_kwargs)
         self.predictor = predictor
 
@@ -187,6 +212,50 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     # ------------------------------------------------------------------
     # Inference
     # ------------------------------------------------------------------
+
+    def _predict_with_context(self, context: pd.DataFrame) -> pd.DataFrame:
+        """Run predictor inference on a prebuilt AutoGluon context frame."""
+        from autogluon.timeseries import (  # pyright: ignore[reportMissingImports]
+            TimeSeriesDataFrame,
+        )
+
+        if self.predictor is None:
+            raise ValueError("Model must be fitted or loaded before prediction")
+
+        ts_data = TimeSeriesDataFrame(context)
+        return self.predictor.predict(ts_data)
+
+    def _collect_batch_predictions(
+        self,
+        ag_predictions: pd.DataFrame,
+        episode_ids: Sequence[str],
+        quantile_levels: Sequence[float] | None = None,
+    ) -> Dict[str, np.ndarray]:
+        """Collect per-episode outputs from AutoGluon predictions."""
+        available_items = set(ag_predictions.index.get_level_values(0))
+        results: Dict[str, np.ndarray] = {}
+        for item_id in episode_ids:
+            if item_id not in available_items:
+                continue
+            ep_preds = self._episode_predictions_frame(ag_predictions, item_id)
+            if quantile_levels is not None:
+                results[item_id] = self._extract_quantile_predictions(
+                    ep_preds, quantile_levels
+                )
+            else:
+                results[item_id] = np.asarray(ep_preds["mean"].to_numpy(), dtype=float)
+        return results
+
+    @staticmethod
+    def _episode_predictions_frame(
+        ag_predictions: pd.DataFrame,
+        item_id: str,
+    ) -> pd.DataFrame:
+        """Return per-item prediction payload as a DataFrame."""
+        episode_predictions = ag_predictions.loc[item_id]
+        if isinstance(episode_predictions, pd.Series):
+            return episode_predictions.to_frame().T
+        return episode_predictions
 
     def _predict(
         self,
@@ -210,20 +279,14 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
             or shape (len(quantile_levels), forecast_length) when quantile_levels
             is set.
         """
-        from autogluon.timeseries import TimeSeriesDataFrame
-
-        if self.predictor is None:
-            raise ValueError("Model must be fitted or loaded before prediction")
-
         context = self._build_prediction_context(data, item_id_column=None)
-        ts_data = TimeSeriesDataFrame(context)
-        ag_predictions = self.predictor.predict(ts_data)
+        ag_predictions = self._predict_with_context(context)
+        ep_preds = self._episode_predictions_frame(ag_predictions, "ep_0")
 
         if quantile_levels is not None:
-            ep_preds = ag_predictions.loc["ep_0"]
             return self._extract_quantile_predictions(ep_preds, quantile_levels)
 
-        return ag_predictions.loc["ep_0"]["mean"].values
+        return np.asarray(ep_preds["mean"].to_numpy(), dtype=float)
 
     def _predict_batch(
         self,
@@ -248,32 +311,14 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
             - quantile forecasts as a 2-D array with shape
               (n_quantiles, forecast_length) when quantile_levels is provided.
         """
-        from autogluon.timeseries import TimeSeriesDataFrame
-
-        if self.predictor is None:
-            raise ValueError("Model must be fitted or loaded before prediction")
-
         context = self._build_prediction_context(data, item_id_column=episode_col)
-        ts_data = TimeSeriesDataFrame(context)
-        ag_predictions = self.predictor.predict(ts_data)
-
+        ag_predictions = self._predict_with_context(context)
         episode_ids = data[episode_col].astype(str).unique().tolist()
-        # Maps each episode/item_id to either:
-        # - mean forecasts as a 1-D array with shape (forecast_length,), or
-        # - quantile forecasts as a 2-D array with shape
-        #   (n_quantiles, forecast_length) when quantile_levels is provided
-        results: Dict[str, np.ndarray] = {}
-        for item_id in episode_ids:
-            if item_id not in ag_predictions.index.get_level_values(0):
-                continue
-            ep_preds = ag_predictions.loc[item_id]
-            if quantile_levels is not None:
-                results[item_id] = self._extract_quantile_predictions(
-                    ep_preds, quantile_levels
-                )
-            else:
-                results[item_id] = ep_preds["mean"].values  # 1-D: (forecast_length,)
-        return results
+        return self._collect_batch_predictions(
+            ag_predictions=ag_predictions,
+            episode_ids=episode_ids,
+            quantile_levels=quantile_levels,
+        )
 
     # ------------------------------------------------------------------
     # Persistence
@@ -287,10 +332,11 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         the predictor directory later.
         """
         if self.predictor is not None:
-            ref_path = os.path.join(output_dir, "tide_predictor.json")
-            os.makedirs(output_dir, exist_ok=True)
-            with open(ref_path, "w", encoding="utf-8") as f:
-                json.dump({"predictor_path": str(self.predictor.path)}, f, indent=2)
+            ref_path = write_checkpoint_reference(
+                output_dir=output_dir,
+                reference_filename=self._PREDICTOR_JSON_NAME,
+                target_path=str(self.predictor.path),
+            )
             self.logger.info("Predictor reference saved to %s", ref_path)
 
     def _load_checkpoint(self, model_dir: str) -> None:
@@ -300,25 +346,16 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
         by _save_checkpoint). Falls back to loading model_dir directly as
         an AutoGluon predictor path.
         """
-        from autogluon.timeseries import TimeSeriesPredictor
+        from autogluon.timeseries import (  # pyright: ignore[reportMissingImports]
+            TimeSeriesPredictor,
+        )
 
-        ref_path = os.path.join(model_dir, "tide_predictor.json")
-        if os.path.exists(ref_path):
-            with open(ref_path, encoding="utf-8") as f:
-                predictor_path = json.load(f)["predictor_path"]
-            pkl_file = os.path.join(predictor_path, "predictor.pkl")
-            if not os.path.exists(pkl_file):
-                self.logger.warning(
-                    "Predictor not found at %s, falling back to %s",
-                    predictor_path,
-                    model_dir,
-                )
-                predictor_path = model_dir
-            else:
-                self.logger.info("Loading predictor from reference: %s", predictor_path)
-        else:
-            predictor_path = model_dir
-
+        predictor_path = resolve_checkpoint_reference(
+            model_dir=model_dir,
+            reference_filename=self._PREDICTOR_JSON_NAME,
+            required_file="predictor.pkl",
+            logger=self.logger,
+        )
         self.predictor = TimeSeriesPredictor.load(predictor_path)
         self.is_fitted = True
         self.logger.info("Predictor loaded from %s", predictor_path)
@@ -330,29 +367,15 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
     ) -> pd.DataFrame:
         """Build AutoGluon context frame with item/timestamp index."""
         config = self.config
-        context = data.copy()
-        if item_id_column is None:
-            context["item_id"] = "ep_0"
-        else:
-            context["item_id"] = context[item_id_column].astype(str)
-
-        if config.time_col in context.columns:
-            context["timestamp"] = pd.to_datetime(context[config.time_col])
-        else:
-            context["timestamp"] = context.index
-
-        context = context.rename(columns={config.target_col: "target"})
-        for cov_col in config.covariate_cols:
-            if cov_col not in context.columns:
-                logger.warning(
-                    "Covariate '%s' missing from input data; filling with zeros",
-                    cov_col,
-                )
-                context[cov_col] = 0.0
-
-        ag_cols = ["item_id", "timestamp", "target"] + config.covariate_cols
-        ag_cols = [col for col in ag_cols if col in context.columns]
-        return context[ag_cols].set_index(["item_id", "timestamp"])
+        return build_autogluon_context_frame(
+            data,
+            target_col=config.target_col,
+            time_col=config.time_col,
+            item_id_column=item_id_column,
+            covariate_cols=config.covariate_cols,
+            fill_missing_covariates=True,
+            covariate_fill_value=0.0,
+        )
 
     def _extract_quantile_predictions(
         self,
@@ -374,6 +397,9 @@ class TiDEForecaster(BaseTimeSeriesFoundationModel):
                 f"DEFAULT_QUANTILE_LEVELS to get all 9 levels."
             )
         return np.stack(
-            [episode_predictions[str(quantile)].values for quantile in quantile_levels],
+            [
+                np.asarray(episode_predictions[str(quantile)].to_numpy(), dtype=float)
+                for quantile in quantile_levels
+            ],
             axis=0,
         )

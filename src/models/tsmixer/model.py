@@ -32,10 +32,12 @@ class TSMixerForecaster(DartsGlobalModelBase):
 
     @property
     def supports_zero_shot(self) -> bool:
+        """Return whether this model supports zero-shot inference."""
         return False
 
     @property
     def supports_probabilistic_forecast(self) -> bool:
+        """Return whether this model supports probabilistic forecasts."""
         return True
 
     def _create_darts_model(self) -> Any:

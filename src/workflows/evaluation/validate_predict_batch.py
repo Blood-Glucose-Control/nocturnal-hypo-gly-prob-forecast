@@ -70,8 +70,7 @@ import pandas as pd
 from ...data.utils import get_patient_column
 from ...data.versioning.dataset_registry import DatasetRegistry
 from ...evaluation.episode_builders import build_midnight_episodes
-from ...models import create_model_and_config
-from ..forecasting.modeling import load_model_config_from_yaml
+from ..forecasting.modeling import create_model_and_config, load_model_config_from_yaml
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"

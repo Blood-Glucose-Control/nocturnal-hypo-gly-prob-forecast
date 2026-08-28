@@ -13,6 +13,7 @@ Example:
     python scripts/visualization/export_single_episode_eval_data.py \
         --episode-id bro_14::ep060
 """
+# pyright: reportMissingImports=false
 
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ import pandas as pd
 from src.data.utils import get_patient_column
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.evaluation.episode_builders import build_midnight_episodes
-from src.models import create_model_and_config
+from src.workflows.forecasting.modeling import create_model_and_config
 
 LOGGER = logging.getLogger(__name__)
 INTERVAL_MINS = 5
@@ -360,6 +361,7 @@ def main() -> None:
 
         prediction_source = "live_inference"
         covariates: list[str] = []
+        checkpoint: str | None = None
 
         if saved is not None:
             pred, tgt = saved

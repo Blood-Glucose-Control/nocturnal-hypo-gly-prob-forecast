@@ -10,9 +10,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 import torch
-from toto.data.util.dataset import MaskedTimeseries
-from toto.inference.forecaster import TotoForecaster as _TotoForecaster
-from toto.model.toto import Toto
+from toto.data.util.dataset import (  # pyright: ignore[reportMissingImports]
+    MaskedTimeseries,
+)
+from toto.inference.forecaster import (  # pyright: ignore[reportMissingImports]
+    TotoForecaster as _TotoForecaster,
+)
+from toto.model.toto import Toto  # pyright: ignore[reportMissingImports]
 
 from ...utils.logging_helper import info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
@@ -46,6 +50,8 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         toto.to(self.device)
 
         self.model = toto.model
+        if self.model is None:
+            raise RuntimeError("Toto backbone initialization returned None model")
         self.forecaster = _TotoForecaster(self.model)
         self._patch_size = getattr(self.model.patch_embed, "patch_size", 16)
 
@@ -53,14 +59,17 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
     @property
     def training_backend(self) -> TrainingBackend:
+        """Return the training backend for this model family."""
         return TrainingBackend.CUSTOM
 
     @property
     def supports_zero_shot(self) -> bool:
+        """Return whether this model supports zero-shot inference."""
         return True
 
     @property
     def supports_probabilistic_forecast(self) -> bool:
+        """Return whether this model supports probabilistic forecasts."""
         return True
 
     # ------------------------------------------------------------------
@@ -116,6 +125,129 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
                 samples_per_batch=self.config.samples_per_batch,
             )
         return self._extract_bg_forecast(forecast)
+
+    def _resolve_eval_chunk_size(self, batch_size: int) -> int:
+        """Resolve evaluation chunk size from config."""
+        eval_batch_size = self.config.eval_batch_size
+        if eval_batch_size is None:
+            return batch_size
+        chunk = int(eval_batch_size)
+        if chunk <= 0:
+            raise ValueError(
+                f"eval_batch_size must be a positive integer, got {eval_batch_size!r}"
+            )
+        return chunk
+
+    @staticmethod
+    def _slice_masked_timeseries(
+        inputs: MaskedTimeseries, start: int, end: int
+    ) -> MaskedTimeseries:
+        return MaskedTimeseries(
+            series=inputs.series[start:end],
+            padding_mask=inputs.padding_mask[start:end],
+            id_mask=inputs.id_mask[start:end],
+            timestamp_seconds=inputs.timestamp_seconds[start:end],
+            time_interval_seconds=inputs.time_interval_seconds[start:end],
+            num_exogenous_variables=inputs.num_exogenous_variables,
+        )
+
+    def _build_batch_inputs(
+        self, data: pd.DataFrame, episode_col: str
+    ) -> Tuple[List[str], Optional[MaskedTimeseries]]:
+        """Build a padded MaskedTimeseries batch for episode-level inference."""
+        covariate_cols = self.config.covariate_cols or []
+        num_covariates = len(covariate_cols)
+        num_variates = 1 + num_covariates
+
+        episode_ids: List[str] = []
+        all_series: List[torch.Tensor] = []
+        all_ts: List[torch.Tensor] = []
+
+        for ep_id, ep_data in data.groupby(episode_col):
+            episode_ids.append(str(ep_id))
+            all_ts.append(
+                self._timestamps_to_seconds(self._extract_timestamps(ep_data))
+            )
+            all_series.append(torch.stack(self._build_variates(ep_data), dim=0))
+
+        if not episode_ids:
+            return [], None
+
+        max_len = max(series.shape[1] for series in all_series)
+        batch_size = len(all_series)
+
+        series = torch.zeros(batch_size, num_variates, max_len)
+        padding_mask = torch.zeros(batch_size, num_variates, max_len, dtype=torch.bool)
+        ts_batch = torch.zeros(batch_size, num_variates, max_len)
+
+        for i, (episode_series, ts_values) in enumerate(zip(all_series, all_ts)):
+            series_len = episode_series.shape[1]
+            pad_start = max_len - series_len
+            series[i, :, pad_start:] = episode_series
+            padding_mask[i, :, pad_start:] = True
+            ts_batch[i, :, pad_start:] = ts_values.unsqueeze(0).expand(num_variates, -1)
+
+        series = series.to(self.device)
+        padding_mask = padding_mask.to(self.device)
+        ts_batch = ts_batch.to(self.device)
+
+        return episode_ids, MaskedTimeseries(
+            series=series,
+            padding_mask=padding_mask,
+            id_mask=torch.zeros_like(series),
+            timestamp_seconds=ts_batch,
+            time_interval_seconds=torch.full(
+                (batch_size, num_variates),
+                INTERVAL_MINS * 60,
+                dtype=torch.float32,
+                device=self.device,
+            ),
+            num_exogenous_variables=num_covariates,
+        )
+
+    def _predict_batch_quantiles(
+        self,
+        inputs: MaskedTimeseries,
+        episode_ids: List[str],
+        chunk_size: int,
+        quantile_levels: List[float],
+    ) -> Dict[str, np.ndarray]:
+        """Generate quantile batch forecasts, chunked across episodes."""
+        num_samples = self.config.num_samples or self.DEFAULT_NUM_SAMPLES
+        results: Dict[str, np.ndarray] = {}
+        for start in range(0, len(episode_ids), chunk_size):
+            end = min(start + chunk_size, len(episode_ids))
+            chunk_inputs = self._slice_masked_timeseries(inputs, start, end)
+            with torch.no_grad():
+                forecast = self.forecaster.forecast(
+                    chunk_inputs,
+                    prediction_length=self.config.forecast_length,
+                    num_samples=num_samples,
+                    samples_per_batch=self.config.samples_per_batch,
+                )
+            for local_i, eid in enumerate(episode_ids[start:end]):
+                results[eid] = np.quantile(
+                    forecast.samples[local_i, 0, :, :].cpu().numpy(),
+                    quantile_levels,
+                    axis=1,
+                )
+        return results
+
+    def _predict_batch_point(
+        self,
+        inputs: MaskedTimeseries,
+        episode_ids: List[str],
+        chunk_size: int,
+    ) -> Dict[str, np.ndarray]:
+        """Generate point batch forecasts, chunked across episodes."""
+        results: Dict[str, np.ndarray] = {}
+        for start in range(0, len(episode_ids), chunk_size):
+            end = min(start + chunk_size, len(episode_ids))
+            chunk_inputs = self._slice_masked_timeseries(inputs, start, end)
+            chunk_preds = self._run_forecast(chunk_inputs)
+            for local_i, eid in enumerate(episode_ids[start:end]):
+                results[eid] = chunk_preds[local_i]
+        return results
 
     # ------------------------------------------------------------------
     # Prediction
@@ -192,113 +324,23 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         recent timesteps are right-aligned. The padding_mask tells the model
         which timesteps are real data.
         """
-        covariate_cols = self.config.covariate_cols or []
-        num_covariates = len(covariate_cols)
-        num_variates = 1 + num_covariates
-
-        # Group episodes and build per-episode tensors
-        episode_ids: List[str] = []
-        all_series: List[torch.Tensor] = []  # each (num_variates, T)
-        all_ts: List[torch.Tensor] = []  # each (T,)
-
-        for ep_id, ep_data in data.groupby(episode_col):
-            episode_ids.append(str(ep_id))
-            all_ts.append(
-                self._timestamps_to_seconds(self._extract_timestamps(ep_data))
-            )
-            all_series.append(torch.stack(self._build_variates(ep_data), dim=0))
-
-        if not episode_ids:
+        episode_ids, inputs = self._build_batch_inputs(data, episode_col)
+        if not episode_ids or inputs is None:
             return {}
-
-        # Left-pad to max length so recent context is right-aligned
-        max_len = max(s.shape[1] for s in all_series)
-        batch_size = len(all_series)
-        _eval_bs = self.config.eval_batch_size
-        if _eval_bs is None:
-            chunk = batch_size
-        else:
-            chunk = int(
-                _eval_bs
-            )  # raises TypeError or ValueError if unconvertible; accepts numeric strings
-            if chunk <= 0:
-                raise ValueError(
-                    f"eval_batch_size must be a positive integer, got {_eval_bs!r}"
-                )
-
-        series = torch.zeros(batch_size, num_variates, max_len)
-        padding_mask = torch.zeros(batch_size, num_variates, max_len, dtype=torch.bool)
-        ts_batch = torch.zeros(batch_size, num_variates, max_len)
-
-        for i, (s, ts) in enumerate(zip(all_series, all_ts)):
-            series_len = s.shape[1]
-            pad_start = max_len - series_len
-            series[i, :, pad_start:] = s
-            padding_mask[i, :, pad_start:] = True
-            ts_batch[i, :, pad_start:] = ts.unsqueeze(0).expand(num_variates, -1)
-
-        series = series.to(self.device)
-        padding_mask = padding_mask.to(self.device)
-        ts_batch = ts_batch.to(self.device)
-
-        inputs = MaskedTimeseries(
-            series=series,
-            padding_mask=padding_mask,
-            id_mask=torch.zeros_like(series),
-            timestamp_seconds=ts_batch,
-            time_interval_seconds=torch.full(
-                (batch_size, num_variates),
-                INTERVAL_MINS * 60,
-                dtype=torch.float32,
-                device=self.device,
-            ),
-            num_exogenous_variables=num_covariates,
-        )
+        chunk_size = self._resolve_eval_chunk_size(len(episode_ids))
 
         if quantile_levels is not None:
-            num_samples = self.config.num_samples or self.DEFAULT_NUM_SAMPLES
-            results: Dict[str, np.ndarray] = {}
-            for start in range(0, batch_size, chunk):
-                end = min(start + chunk, batch_size)
-                chunk_inputs = MaskedTimeseries(
-                    series=inputs.series[start:end],
-                    padding_mask=inputs.padding_mask[start:end],
-                    id_mask=inputs.id_mask[start:end],
-                    timestamp_seconds=inputs.timestamp_seconds[start:end],
-                    time_interval_seconds=inputs.time_interval_seconds[start:end],
-                    num_exogenous_variables=inputs.num_exogenous_variables,
-                )
-                with torch.no_grad():
-                    forecast = self.forecaster.forecast(
-                        chunk_inputs,
-                        prediction_length=self.config.forecast_length,
-                        num_samples=num_samples,
-                        samples_per_batch=self.config.samples_per_batch,
-                    )
-                # samples: (chunk, num_variates, fh, num_samples) → BG variate → (fh, num_samples)
-                for local_i, eid in enumerate(episode_ids[start:end]):
-                    results[eid] = np.quantile(
-                        forecast.samples[local_i, 0, :, :].cpu().numpy(),
-                        quantile_levels,
-                        axis=1,
-                    )  # (n_q, fh)
-            return results
-
-        results_pt: Dict[str, np.ndarray] = {}
-        for start in range(0, batch_size, chunk):
-            end = min(start + chunk, batch_size)
-            chunk_inputs = MaskedTimeseries(
-                series=inputs.series[start:end],
-                padding_mask=inputs.padding_mask[start:end],
-                id_mask=inputs.id_mask[start:end],
-                timestamp_seconds=inputs.timestamp_seconds[start:end],
-                time_interval_seconds=inputs.time_interval_seconds[start:end],
-                num_exogenous_variables=inputs.num_exogenous_variables,
+            return self._predict_batch_quantiles(
+                inputs=inputs,
+                episode_ids=episode_ids,
+                chunk_size=chunk_size,
+                quantile_levels=quantile_levels,
             )
-            chunk_preds = self._run_forecast(chunk_inputs)
-            for local_i, eid in enumerate(episode_ids[start:end]):
-                results_pt[eid] = chunk_preds[local_i]
-        return results_pt
+        return self._predict_batch_point(
+            inputs=inputs,
+            episode_ids=episode_ids,
+            chunk_size=chunk_size,
+        )
 
     def _dataframe_to_hf_dataset(self, train_data: pd.DataFrame):
         """Convert a flat DataFrame to HuggingFace Dataset format for Toto.
@@ -376,7 +418,9 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         in a FinetuneDataModule. Returns (datamodule, None, None) — Lightning
         handles train/val splitting internally.
         """
-        from toto.data.datamodule.finetune_datamodule import FinetuneDataModule
+        from toto.data.datamodule.finetune_datamodule import (  # pyright: ignore[reportMissingImports]
+            FinetuneDataModule,
+        )
 
         hf_dataset = self._dataframe_to_hf_dataset(train_data)
 
@@ -415,25 +459,12 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
         return (dm, None, None)
 
-    def _train_model(
-        self, train_data: Any, output_dir: str, **kwargs
-    ) -> Dict[str, Any]:
-        """Fine-tune Toto using PyTorch Lightning.
+    def _build_finetuning_module(self):
+        """Construct the Toto Lightning finetuning module from current backbone."""
+        from toto.model.lightning_module import (  # pyright: ignore[reportMissingImports]
+            TotoForFinetuning,
+        )
 
-        The base class fit() passes raw train_data here for CUSTOM backends.
-        We call _prepare_training_data ourselves.
-        """
-        from lightning.pytorch import Trainer, seed_everything
-        from lightning.pytorch.callbacks import ModelCheckpoint, TQDMProgressBar
-        from lightning.pytorch.loggers import TensorBoardLogger
-        from toto.model.lightning_module import TotoForFinetuning
-
-        seed_everything(42, workers=True)
-
-        # Prepare data
-        dm, _, _ = self._prepare_training_data(train_data)
-
-        # Create Lightning module from current backbone
         has_covariates = bool(self.config.covariate_cols)
         lightning_module = TotoForFinetuning(
             pretrained_backbone=self.model,
@@ -445,12 +476,19 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             min_lr=self.config.min_lr,
             add_exogenous_features=has_covariates,
         )
-        lightning_module.to(self.device)
+        return lightning_module.to(self.device)
 
-        # Checkpointing
+    def _create_training_artifacts(self, output_dir: str):
+        """Create checkpoint and logger artifacts for fine-tuning."""
+        from lightning.pytorch.callbacks import (  # pyright: ignore[reportMissingImports]
+            ModelCheckpoint,
+        )
+        from lightning.pytorch.loggers import (  # pyright: ignore[reportMissingImports]
+            TensorBoardLogger,
+        )
+
         os.makedirs(output_dir, exist_ok=True)
         ckpt_dir = os.path.join(output_dir, "checkpoints")
-
         checkpoint_callback = ModelCheckpoint(
             dirpath=ckpt_dir,
             filename="{epoch}-{step}-{val_loss:.4f}",
@@ -458,21 +496,24 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             mode="min",
             save_top_k=1,
         )
+        tb_logger = TensorBoardLogger(save_dir=output_dir, name="toto_finetuning")
+        return checkpoint_callback, tb_logger
 
-        tb_logger = TensorBoardLogger(
-            save_dir=output_dir,
-            name="toto_finetuning",
+    def _build_trainer_kwargs(
+        self, checkpoint_callback: Any, tb_logger: Any
+    ) -> Dict[str, Any]:
+        """Build trainer kwargs using either epoch- or step-based limits."""
+        from lightning.pytorch.callbacks import (  # pyright: ignore[reportMissingImports]
+            TQDMProgressBar,
         )
 
-        # Support both max_steps (Toto-native) and num_epochs (generic workflow).
-        # If num_epochs is set, use max_epochs; otherwise use max_steps.
-        trainer_kwargs = dict(
-            log_every_n_steps=1,
-            num_sanity_val_steps=0,
-            enable_progress_bar=True,
-            callbacks=[TQDMProgressBar(refresh_rate=10), checkpoint_callback],
-            logger=tb_logger,
-        )
+        trainer_kwargs: Dict[str, Any] = {
+            "log_every_n_steps": 1,
+            "num_sanity_val_steps": 0,
+            "enable_progress_bar": True,
+            "callbacks": [TQDMProgressBar(refresh_rate=10), checkpoint_callback],
+            "logger": tb_logger,
+        }
         if self.config.num_epochs is not None:
             trainer_kwargs["max_epochs"] = self.config.num_epochs
             info_print(
@@ -483,9 +524,15 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             info_print(
                 f"Starting Toto fine-tuning for {self.config.max_steps} steps..."
             )
+        return trainer_kwargs
 
-        trainer = Trainer(**trainer_kwargs)
-        trainer.fit(lightning_module, datamodule=dm)
+    def _restore_trained_backbone(
+        self, lightning_module: Any, checkpoint_callback: Any
+    ) -> Tuple[str, Optional[float]]:
+        """Restore best-validated backbone, falling back to final weights."""
+        from toto.model.lightning_module import (  # pyright: ignore[reportMissingImports]
+            TotoForFinetuning,
+        )
 
         best_ckpt = checkpoint_callback.best_model_path
         best_score = (
@@ -494,7 +541,6 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             else None
         )
 
-        # Load best checkpoint weights (not the final overfitted weights)
         if best_ckpt and os.path.exists(best_ckpt):
             info_print(f"Loading best checkpoint: {best_ckpt}")
             best_lightning = TotoForFinetuning.load_from_checkpoint(
@@ -508,6 +554,33 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             self.model = lightning_module.model.to(self.device)
 
         self.forecaster = _TotoForecaster(self.model)
+        return best_ckpt, best_score
+
+    def _train_model(
+        self, train_data: Any, output_dir: str, **kwargs
+    ) -> Dict[str, Any]:
+        """Fine-tune Toto using PyTorch Lightning.
+
+        The base class fit() passes raw train_data here for CUSTOM backends.
+        We call _prepare_training_data ourselves.
+        """
+        from lightning.pytorch import (  # pyright: ignore[reportMissingImports]
+            Trainer,
+            seed_everything,
+        )
+
+        seed_everything(42, workers=True)
+        dm, _, _ = self._prepare_training_data(train_data)
+        lightning_module = self._build_finetuning_module()
+        checkpoint_callback, tb_logger = self._create_training_artifacts(output_dir)
+        trainer_kwargs = self._build_trainer_kwargs(checkpoint_callback, tb_logger)
+
+        trainer = Trainer(**trainer_kwargs)
+        trainer.fit(lightning_module, datamodule=dm)
+        best_ckpt, best_score = self._restore_trained_backbone(
+            lightning_module=lightning_module,
+            checkpoint_callback=checkpoint_callback,
+        )
 
         info_print(f"Fine-tuning complete. Best checkpoint: {best_ckpt}")
         if best_score is not None:
@@ -555,9 +628,17 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             raise FileNotFoundError(f"Toto checkpoint not found at {weights_path}")
 
         state_dict = torch.load(weights_path, map_location=self.device)
+        if self.model is None:
+            raise RuntimeError("Toto model is not initialized before checkpoint load")
         # Enable variate labels if the checkpoint has them (covariate-trained model)
         if "target_variate_label" in state_dict:
-            self.model.enable_variate_labels()
+            enable_variate_labels = getattr(self.model, "enable_variate_labels", None)
+            if not callable(enable_variate_labels):
+                raise AttributeError(
+                    "Loaded Toto checkpoint expects variate labels, "
+                    "but current model does not support enable_variate_labels()"
+                )
+            enable_variate_labels()
         self.model.load_state_dict(state_dict)
         self.forecaster = _TotoForecaster(self.model)
         self.is_fitted = True

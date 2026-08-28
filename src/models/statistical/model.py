@@ -47,6 +47,7 @@ class StatisticalForecaster(AutoGluonBaseModel):
 
     @property
     def supports_zero_shot(self) -> bool:
+        """Return whether this model supports zero-shot inference."""
         return False
 
     def _train_model_info_log(self) -> None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 from ...config.schemas import (
     build_model_runtime_config,
@@ -17,6 +17,15 @@ from ...utils.config_loader import load_yaml_config
 logger = logging.getLogger(__name__)
 
 SUPPORTED_MODELS: dict[str, Any] = {}
+ZERO_SHOT_INFERENCE_MODEL_TYPES = {
+    "sundial",
+    "ttm",
+    "chronos2",
+    "moment",
+    "timesfm",
+    "toto",
+    "moirai",
+}
 
 
 def register_model(model_type: str):
@@ -94,6 +103,130 @@ def load_model_config_from_yaml(
     for key, value in config.items():
         logger.info(f"    {key}: {value}")
     return config
+
+
+def _set_config_attr_if_present(config: Any, field: str, value: Any) -> None:
+    if hasattr(config, field):
+        setattr(config, field, value)
+
+
+def _apply_checkpoint_overrides(config: Any, overrides: Dict[str, Any]) -> None:
+    """Apply inference-safe overrides to a loaded checkpoint config."""
+    if "batch_size" in overrides:
+        _set_config_attr_if_present(config, "batch_size", overrides["batch_size"])
+
+    if "forecast_length" in overrides and hasattr(config, "forecast_length"):
+        requested = int(overrides["forecast_length"])
+        current = int(getattr(config, "forecast_length"))
+        if requested <= current:
+            logger.info("Overriding forecast_length: %s -> %s", current, requested)
+            setattr(config, "forecast_length", requested)
+        else:
+            logger.warning(
+                "Cannot increase forecast_length beyond trained value (%s). "
+                "Using saved value.",
+                current,
+            )
+
+    if "context_length" in overrides and hasattr(config, "context_length"):
+        requested = int(overrides["context_length"])
+        current = int(getattr(config, "context_length"))
+        if requested != current:
+            logger.warning(
+                "context_length mismatch: requested %s, model trained with %s. "
+                "Using saved value.",
+                requested,
+                current,
+            )
+
+    for attr_name, value in overrides.items():
+        if attr_name in {
+            "model_type",
+            "batch_size",
+            "forecast_length",
+            "context_length",
+        }:
+            continue
+        _set_config_attr_if_present(config, attr_name, value)
+
+
+def _pop_typed_config_value(
+    config_data: Dict[str, Any],
+    keys: Sequence[str],
+    default: Any,
+) -> Any:
+    for key in keys:
+        if key in config_data:
+            return config_data.pop(key)
+    return default
+
+
+def create_model_and_config(
+    model_type: str,
+    checkpoint: Optional[str] = None,
+    **kwargs: Any,
+) -> Tuple[Any, Any]:
+    """Schema-routed model/config constructor for workflow entrypoints."""
+    model_type_lower = model_type.lower()
+    config_data = dict(kwargs)
+    config_data.pop("model_type", None)
+
+    context_length = int(_pop_typed_config_value(config_data, ["context_length"], 512))
+    forecast_length = int(_pop_typed_config_value(config_data, ["forecast_length"], 96))
+    batch_size = int(_pop_typed_config_value(config_data, ["batch_size"], 2048))
+    num_epochs = int(_pop_typed_config_value(config_data, ["num_epochs"], 1))
+    learning_rate = float(
+        _pop_typed_config_value(config_data, ["learning_rate", "lr"], 1e-4)
+    )
+    model_path = _pop_typed_config_value(config_data, ["model_path"], None)
+    use_cpu = bool(_pop_typed_config_value(config_data, ["use_cpu"], False))
+    fp16 = bool(_pop_typed_config_value(config_data, ["fp16"], True))
+
+    if checkpoint:
+        generic_config = ModelFactory.create_finetune_config(
+            model_type=model_type_lower,
+            model_path=model_path,
+            context_length=context_length,
+            forecast_length=forecast_length,
+            batch_size=batch_size,
+            num_epochs=num_epochs,
+            learning_rate=learning_rate,
+            use_cpu=use_cpu,
+            fp16=fp16,
+            extra_config=config_data,
+        )
+        model = ModelFactory.load_model(model_type_lower, checkpoint, generic_config)
+        config = model.config
+        _apply_checkpoint_overrides(config, kwargs)
+        return model, config
+
+    if model_type_lower in ZERO_SHOT_INFERENCE_MODEL_TYPES:
+        generic_config = ModelFactory.create_zero_shot_config(
+            model_type=model_type_lower,
+            model_path=model_path,
+            context_length=context_length,
+            forecast_length=forecast_length,
+            batch_size=batch_size,
+            use_cpu=use_cpu,
+            fp16=fp16,
+            extra_config=config_data,
+        )
+    else:
+        generic_config = ModelFactory.create_finetune_config(
+            model_type=model_type_lower,
+            model_path=model_path,
+            context_length=context_length,
+            forecast_length=forecast_length,
+            batch_size=batch_size,
+            num_epochs=num_epochs,
+            learning_rate=learning_rate,
+            use_cpu=use_cpu,
+            fp16=fp16,
+            extra_config=config_data,
+        )
+
+    model = ModelFactory.create_model(generic_config)
+    return model, model.config
 
 
 class ModelFactory:

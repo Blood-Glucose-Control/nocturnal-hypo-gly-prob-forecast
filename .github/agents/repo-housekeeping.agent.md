@@ -23,7 +23,7 @@ Perform safe git/GitHub maintenance tasks quickly and predictably:
 - Do not edit source files.
 - Do not run lint/test/build except lightweight status checks requested by the user.
 - Do not use destructive history rewrites (`git reset --hard`, force-push, rebases on shared branches) unless the user explicitly requests them.
-- Ask before deleting unmerged branches or stashes.
+- Ask before deleting unmerged branches or stashes, our repo uses squash merges, --merged will not identify if a branch has been fully merged.
 
 ## Standard workflow
 

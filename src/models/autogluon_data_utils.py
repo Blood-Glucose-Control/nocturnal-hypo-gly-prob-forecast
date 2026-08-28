@@ -49,6 +49,54 @@ def convert_to_patient_dict(
     return patient_dict
 
 
+def build_autogluon_context_frame(
+    data: pd.DataFrame,
+    *,
+    target_col: str,
+    time_col: str = "datetime",
+    item_id_column: str | None = None,
+    default_item_id: str = "ep_0",
+    covariate_cols: Optional[List[str]] = None,
+    known_covariate_cols: Optional[List[str]] = None,
+    fill_missing_covariates: bool = False,
+    covariate_fill_value: float = 0.0,
+) -> pd.DataFrame:
+    """Build a canonical AutoGluon context frame with item/timestamp index."""
+    context = data.copy()
+    if item_id_column is None:
+        context["item_id"] = default_item_id
+    else:
+        context["item_id"] = context[item_id_column].astype(str)
+
+    if time_col in context.columns:
+        context["timestamp"] = pd.to_datetime(context[time_col])
+    else:
+        context["timestamp"] = context.index
+
+    if target_col not in context.columns:
+        raise ValueError(
+            f"Expected target column '{target_col}' not found in input DataFrame. "
+            f"Available columns: {list(context.columns)}"
+        )
+    context = context.rename(columns={target_col: "target"})
+
+    covariate_cols = covariate_cols or []
+    known_covariate_cols = known_covariate_cols or []
+    for cov_col in covariate_cols:
+        if cov_col not in context.columns and fill_missing_covariates:
+            logger.warning(
+                "Covariate '%s' missing from input data; filling with %s",
+                cov_col,
+                covariate_fill_value,
+            )
+            context[cov_col] = covariate_fill_value
+
+    ag_cols = ["item_id", "timestamp", "target"] + covariate_cols
+    ag_cols += [col for col in known_covariate_cols if col not in covariate_cols]
+    ag_cols = [col for col in ag_cols if col in context.columns]
+    return context[ag_cols].set_index(["item_id", "timestamp"])
+
+
 def format_segments_for_autogluon(
     segments: Dict[str, pd.DataFrame],
     target_col: str = "bg_mM",
@@ -56,7 +104,9 @@ def format_segments_for_autogluon(
     target_cols: Optional[List[str]] = None,
 ) -> Any:
     """Convert gap-handled segments into AutoGluon TimeSeriesDataFrame format."""
-    from autogluon.timeseries import TimeSeriesDataFrame
+    from autogluon.timeseries import (  # pyright: ignore[reportMissingImports]
+        TimeSeriesDataFrame,
+    )
 
     if target_cols and len(target_cols) > 1:
         return _format_segments_multitarget(segments, target_cols)
@@ -103,7 +153,9 @@ def _format_segments_multitarget(
     target_cols: List[str],
 ) -> Any:
     """Stack multiple target columns as independent AutoGluon item IDs."""
-    from autogluon.timeseries import TimeSeriesDataFrame
+    from autogluon.timeseries import (  # pyright: ignore[reportMissingImports]
+        TimeSeriesDataFrame,
+    )
 
     data_list = []
     for seg_id, seg_df in segments.items():

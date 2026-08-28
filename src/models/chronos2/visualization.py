@@ -48,8 +48,8 @@ def plot_evaluation_episodes(
     Args:
         episodes: Episode dicts from model.evaluate() with return_predictions=True.
             Each has keys: anchor, context_df, target_bg, future_covariates.
-        per_episode: Per-episode results from evaluate_with_covariates.
-            Each has keys: pred (numpy array), rmse (float).
+        per_episode: Per-episode evaluation results aligned to ``episodes``.
+            Each entry must provide ``pred`` (numpy array) and ``rmse`` (float).
         output_dir: Directory to save PNG files.
         model_label: Label for the model in the plot title.
         forecast_length: Number of forecast timesteps.

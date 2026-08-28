@@ -14,9 +14,13 @@ from typing import Any, cast
 import numpy as np
 import pandas as pd
 import torch
-from gluonts.dataset.common import ListDataset
+from gluonts.dataset.common import ListDataset  # pyright: ignore[reportMissingImports]
 from torch.utils.data import DataLoader, Dataset
-from uni2ts.model.moirai import MoiraiFinetune, MoiraiForecast, MoiraiModule
+from uni2ts.model.moirai import (  # pyright: ignore[reportMissingImports]
+    MoiraiFinetune,
+    MoiraiForecast,
+    MoiraiModule,
+)
 
 from ...utils.logging_helper import info_print
 
@@ -92,13 +96,13 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
     Attributes:
         config: Moirai-specific configuration (``MoiraiConfig`` instance).
         predictor: Lazily created GluonTS predictor; ``None`` until the first
-            ``predict()`` / ``predict_episodes()`` call.
+            ``predict()`` call.
 
     Example:
         >>> # Zero-shot, BG only
         >>> config = MoiraiConfig(model_path="Salesforce/moirai-1.0-R-base")
         >>> model = MoiraiForecaster(config)
-        >>> preds = model.predict_episodes(val_episodes, target_col="bg_mM")
+        >>> preds = model.predict(eval_df)
 
         >>> # Fine-tuned, with IOB/COB covariates
         >>> config = MoiraiConfig(
@@ -141,17 +145,17 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
     @property
     def training_backend(self) -> TrainingBackend:
-        """Moirai inference runs through GluonTS / uni2ts, not a HF Trainer."""
+        """Return the training backend for this model family."""
         return TrainingBackend.CUSTOM
 
     @property
     def supports_zero_shot(self) -> bool:
-        """Moirai ships pretrained weights and forecasts out of the box."""
+        """Return whether this model supports zero-shot inference."""
         return True
 
     @property
     def supports_probabilistic_forecast(self) -> bool:
-        """Moirai is a generative model — samples are always available."""
+        """Return whether this model supports probabilistic forecasts."""
         return True
 
     def _initialize_model(self) -> MoiraiForecast:
@@ -203,6 +207,35 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         info_print("  Moirai loaded successfully")
         return self.model
 
+    def _get_or_create_predictor(self, *, batch_size: int) -> Any:
+        if self.model is None:
+            self.model = self._initialize_model()
+        if self.predictor is None or batch_size != self._predictor_batch_size:
+            self.predictor = self.model.create_predictor(batch_size=batch_size)  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
+            self._predictor_batch_size = batch_size
+        return cast(Any, self.predictor)
+
+    def _normalize_predict_input(self, data: Any) -> tuple[Any, bool]:
+        if isinstance(data, pd.DataFrame):
+            return self._dataframe_to_gluonts(data), True
+        if isinstance(data, list) and data and isinstance(data[0], dict):
+            return self._episodes_to_gluonts(data), False
+        return data, False
+
+    @staticmethod
+    def _extract_quantile_forecasts(
+        forecasts: list[Any],
+        quantile_levels: list[float],
+    ) -> np.ndarray:
+        return np.stack(
+            [np.quantile(f.samples, quantile_levels, axis=0) for f in forecasts],
+            axis=0,
+        )
+
+    @staticmethod
+    def _extract_mean_forecasts(forecasts: list[Any]) -> np.ndarray:
+        return np.stack([f.mean for f in forecasts], axis=0)
+
     def _predict_impl(
         self,
         data: Any,
@@ -244,58 +277,46 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             for a batch.
         """
         del kwargs
-        if self.model is None:
-            self.model = self._initialize_model()
-
-        bs = batch_size or self.config.batch_size
-
-        # (Re)build the predictor if needed
-        if self.predictor is None or bs != self._predictor_batch_size:
-            self.predictor = self.model.create_predictor(batch_size=bs)  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
-            self._predictor_batch_size = bs
-        predictor = cast(Any, self.predictor)
-
-        if isinstance(data, pd.DataFrame):
-            # Single-episode DataFrame path (called from base class predict())
-            dataset = self._dataframe_to_gluonts(data)
-            single = True
-        elif isinstance(data, list) and data and isinstance(data[0], dict):
-            # Convenience episode-list path
-            dataset = self._episodes_to_gluonts(data)
-            single = False
-        else:
-            # Already a ListDataset (or compatible iterable)
-            dataset = data
-            single = False
-
+        predictor = self._get_or_create_predictor(
+            batch_size=batch_size or self.config.batch_size
+        )
+        dataset, single = self._normalize_predict_input(data)
         forecasts = list(predictor.predict(dataset))
 
         if quantile_levels is not None:
-            # fc.samples: (num_samples, horizon) — extract requested quantiles
-            quantiles = np.stack(
-                [np.quantile(f.samples, quantile_levels, axis=0) for f in forecasts],
-                axis=0,
-            )  # (N, n_q, horizon)
+            quantiles = self._extract_quantile_forecasts(forecasts, quantile_levels)
             return quantiles[0] if single else quantiles
 
-        means = np.stack([f.mean for f in forecasts], axis=0)  # (N, horizon)
+        means = self._extract_mean_forecasts(forecasts)
         return means[0] if single else means
 
     def _prepare_training_data(
         self, train_data: Any, split: str | None = None
     ) -> tuple[DataLoader, DataLoader | None, DataLoader | None]:
-        """Base-class compatibility stub (not used by Moirai).
+        """Prepare patched training loader used by Moirai fine-tuning."""
+        del split
+        if self.model is None:
+            self.model = self._initialize_model()
+        model = cast(Any, self.model)
 
-        Moirai's ``_train_model()`` calls ``_prepare_training_tensors()``
-        directly to produce the patched tensor format that
-        ``MoiraiFinetune`` expects, so this method is never invoked.
-        """
-        del train_data, split
-        dataset = ListDataset(
-            [{"target": np.array([0.0])} for _ in range(10)],
-            freq=f"{self.config.interval_mins}min",
+        tensors = self._prepare_training_tensors(train_data)
+        sample_count = len(tensors[0])
+        if sample_count == 0:
+            raise ValueError("No valid training samples could be extracted")
+
+        patch_size = self._select_patch_size()
+        self.config.patch_size = patch_size
+        dataset = self._convert_tensors_to_patched_dataset(
+            model=model,
+            tensors=tensors,
+            patch_size=patch_size,
         )
-        loader = DataLoader(dataset, batch_size=self.config.batch_size)
+        loader = DataLoader(
+            dataset,
+            batch_size=self.config.batch_size,
+            shuffle=True,
+            num_workers=0,
+        )
         return loader, None, None
 
     def _train_model(
@@ -331,96 +352,31 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         info_print(f"   Output directory: {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
 
+        # ------------------------------------------------------------------
+        # Step 1: Build patched training loader from normalized input contracts
+        # ------------------------------------------------------------------
+        info_print("Step 1: Preparing training loader...")
+        loader, _, _ = self._prepare_training_data(train_data)
+        train_dataset = cast(_MoiraiPatchedDataset, loader.dataset)
+        N = len(train_dataset)
+        info_print(f"   Prepared {N} training samples")
+
         if self.model is None:
             self.model = self._initialize_model()
         model = cast(Any, self.model)
+
+        patch_size = self.config.patch_size
+        if not isinstance(patch_size, int):
+            patch_size = self._select_patch_size()
+            self.config.patch_size = patch_size
+        info_print(f"   Using patch_size={patch_size}")
 
         device = torch.device(
             "cuda" if torch.cuda.is_available() and not self.config.use_cpu else "cpu"
         )
 
         # ------------------------------------------------------------------
-        # Step 1: Convert training data → (context, target) tensor pairs
-        # ------------------------------------------------------------------
-        info_print("Step 1: Preparing training tensors...")
-        tensors = self._prepare_training_tensors(train_data)
-        (
-            past_target,
-            future_target,
-            past_observed,
-            future_observed,
-            past_is_pad,
-            future_is_pad,
-            past_covariates,
-            past_observed_covariates,
-        ) = tensors
-        N = len(past_target)
-        info_print(f"   Prepared {N} training samples")
-
-        if N == 0:
-            raise ValueError("No valid training samples could be extracted")
-
-        # ------------------------------------------------------------------
-        # Step 2: Convert to the patched format MoiraiFinetune expects
-        # ------------------------------------------------------------------
-        info_print("Step 2: Converting to patched training format...")
-        patch_size = self._select_patch_size()
-        self.config.patch_size = patch_size  # persist resolved value for rebuild & save
-        info_print(f"   Using patch_size={patch_size}")
-
-        all_tgt, all_obs, all_sid, all_tid, all_vid, all_pmask = (
-            [],
-            [],
-            [],
-            [],
-            [],
-            [],
-        )
-        chunk = min(self.config.batch_size, N)
-        for i in range(0, N, chunk):
-            sl = slice(i, min(i + chunk, N))
-            cov = past_covariates[sl] if past_covariates is not None else None
-            cov_obs = (
-                past_observed_covariates[sl]
-                if past_observed_covariates is not None
-                else None
-            )
-            tgt, obs, sid, tid, vid, pmask = model._convert(
-                patch_size,
-                past_target=past_target[sl],
-                past_observed_target=past_observed[sl],
-                past_is_pad=past_is_pad[sl],
-                future_target=future_target[sl],
-                future_observed_target=future_observed[sl],
-                future_is_pad=future_is_pad[sl],
-                past_feat_dynamic_real=cov,
-                past_observed_feat_dynamic_real=cov_obs,
-            )  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
-            all_tgt.append(tgt)
-            all_obs.append(obs)
-            all_sid.append(sid)
-            all_tid.append(tid)
-            all_vid.append(vid)
-            all_pmask.append(pmask)
-
-        dataset = _MoiraiPatchedDataset(
-            target=torch.cat(all_tgt),
-            observed_mask=torch.cat(all_obs),
-            sample_id=torch.cat(all_sid),
-            time_id=torch.cat(all_tid),
-            variate_id=torch.cat(all_vid),
-            prediction_mask=torch.cat(all_pmask),
-            patch_size_val=patch_size,
-        )
-        loader = DataLoader(
-            dataset,
-            batch_size=self.config.batch_size,
-            shuffle=True,
-            num_workers=0,
-        )
-
-        # ------------------------------------------------------------------
-        # Step 3: Build MoiraiFinetune module and optimizer
+        # Step 2: Build MoiraiFinetune module and optimizer
         # ------------------------------------------------------------------
         num_epochs = self.config.num_epochs
         steps_per_epoch = max(1, len(loader))
@@ -449,7 +405,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         scheduler = opt_config["lr_scheduler"]["scheduler"]
 
         # ------------------------------------------------------------------
-        # Step 4: Training loop
+        # Step 3: Training loop
         # ------------------------------------------------------------------
         info_print(
             f"Step 3: Training for {num_epochs} epoch(s) "
@@ -506,7 +462,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 }
 
         # ------------------------------------------------------------------
-        # Step 5: Reload best weights and rebuild MoiraiForecast
+        # Step 4: Reload best weights and rebuild MoiraiForecast
         # ------------------------------------------------------------------
         if best_state is not None:
             finetune_module.module.load_state_dict(best_state)
@@ -681,174 +637,6 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
         return ListDataset(entries, freq=freq)
 
-    def predict_episodes(
-        self,
-        episodes: list,
-        target_col: str | None = None,
-        covariate_cols: list[str] | None = None,
-        batch_size: int | None = None,
-    ) -> pd.DataFrame:
-        """Evaluate Moirai on a list of episodes and return per-episode metrics.
-
-        Convenience wrapper that builds the GluonTS dataset, runs inference,
-        and computes RMSE and MAE for each episode — mirroring the evaluation
-        pattern from the notebook.
-
-        Args:
-            episodes: List of episode dicts (``context_df`` + ``target_bg``).
-            target_col: BG column name; falls back to ``config.target_col``.
-            covariate_cols: Past-covariate columns; falls back to
-                ``config.covariate_cols`` (empty list = BG-only).
-            batch_size: Overrides ``config.batch_size``.
-
-        Returns:
-            DataFrame with one row per episode and columns:
-            ``rmse``, ``mae``, ``y_pred`` (np.ndarray), ``y_true`` (np.ndarray).
-
-        Example:
-            >>> results = model.predict_episodes(all_val_episodes)
-            >>> print(f"RMSE: {results['rmse'].mean():.3f} +/- {results['rmse'].std():.3f}")
-        """
-        from sklearn.metrics import mean_absolute_error, mean_squared_error
-
-        t_col = target_col or self.config.target_col
-        cov_cols = (
-            covariate_cols if covariate_cols is not None else self.config.covariate_cols
-        )
-
-        dataset = self.build_gluonts_dataset(episodes, t_col, cov_cols or None)
-        mean_preds = self._predict(dataset, batch_size=batch_size)  # (N, horizon)
-
-        records = []
-        for ep, y_pred in zip(episodes, mean_preds):
-            y_true = ep["target_bg"]
-            records.append(
-                {
-                    "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred))),
-                    "mae": float(mean_absolute_error(y_true, y_pred)),
-                    "y_pred": y_pred,
-                    "y_true": y_true,
-                }
-            )
-
-        return pd.DataFrame(records)
-
-    # -------------------------------------------------------------------------
-    # Private helpers
-    # -------------------------------------------------------------------------
-
-    def evaluate_probabilistic(
-        self,
-        episodes: list,
-        target_col: str | None = None,
-        covariate_cols: list[str] | None = None,
-        batch_size: int | None = None,
-        hypo_threshold: float = 3.9,
-    ) -> pd.DataFrame:
-        """Evaluate Moirai with full probabilistic outputs.
-
-        Runs inference using all ``config.num_samples`` Monte Carlo samples and
-        computes point metrics, prediction-interval calibration, and per-timestep
-        hypoglycemia probability for each episode.
-
-        Args:
-            episodes: List of episode dicts (``context_df`` + ``target_bg``).
-            target_col: BG column name; falls back to ``config.target_col``.
-            covariate_cols: Past-covariate columns; falls back to
-                ``config.covariate_cols``.
-            batch_size: Overrides ``config.batch_size``.
-            hypo_threshold: BG threshold (mmol/L) for hypoglycemia.
-                Default 3.9 mmol/L (clinical standard).
-
-        Returns:
-            DataFrame with one row per episode and columns:
-
-            * ``rmse``, ``mae`` — point forecast metrics
-            * ``y_true``, ``y_pred`` — ground truth and mean forecast arrays
-            * ``samples`` — raw sample array of shape ``(num_samples, horizon)``
-            * ``q10``, ``q25``, ``q75``, ``q90`` — quantile arrays (horizon,)
-            * ``p_hypo`` — per-timestep P(BG < threshold) array (horizon,)
-            * ``max_p_hypo`` — scalar max P(hypo) across the forecast window
-            * ``actual_hypo`` — bool, whether hypo actually occurred
-            * ``calibration_90``, ``calibration_50`` — fraction of true values
-              within the 90% / 50% prediction intervals
-
-        Example:
-            >>> prob = model.evaluate_probabilistic(all_val_episodes)
-            >>> print(f"RMSE: {prob['rmse'].mean():.3f}")
-            >>> print(f"Calibration 90%: {prob['calibration_90'].mean()*100:.1f}%")
-            >>> print(f"Hypo episodes: {prob['actual_hypo'].sum()}/{len(prob)}")
-            >>> print(f"ROC AUC input: prob['max_p_hypo'], prob['actual_hypo']")
-        """
-        from sklearn.metrics import mean_absolute_error, mean_squared_error
-
-        if self.model is None:
-            raise ValueError("Model must be initialized before making predictions")
-
-        t_col = target_col or self.config.target_col
-        cov_cols = (
-            covariate_cols if covariate_cols is not None else self.config.covariate_cols
-        )
-
-        dataset = self.build_gluonts_dataset(episodes, t_col, cov_cols or None)
-
-        bs = batch_size or self.config.batch_size
-        if self.predictor is None or bs != self._predictor_batch_size:
-            self.predictor = self.model.create_predictor(batch_size=bs)  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
-            self._predictor_batch_size = bs
-        predictor = cast(Any, self.predictor)
-
-        forecasts = list(predictor.predict(dataset))
-
-        records = []
-        for ep, fc in zip(episodes, forecasts):
-            y_true = ep["target_bg"]
-
-            # samples shape: (num_samples, horizon)
-            samples = fc.samples
-            y_pred_mean = fc.mean
-
-            # Quantiles for prediction intervals
-            q10 = np.percentile(samples, 10, axis=0)
-            q25 = np.percentile(samples, 25, axis=0)
-            q75 = np.percentile(samples, 75, axis=0)
-            q90 = np.percentile(samples, 90, axis=0)
-
-            # Per-timestep P(hypo)
-            p_hypo = (samples < hypo_threshold).mean(axis=0)
-
-            records.append(
-                {
-                    "rmse": float(np.sqrt(mean_squared_error(y_true, y_pred_mean))),
-                    "mae": float(mean_absolute_error(y_true, y_pred_mean)),
-                    "y_true": y_true,
-                    "y_pred": y_pred_mean,
-                    "samples": samples,
-                    "q10": q10,
-                    "q25": q25,
-                    "q75": q75,
-                    "q90": q90,
-                    "p_hypo": p_hypo,
-                    "max_p_hypo": float(p_hypo.max()),
-                    "actual_hypo": bool((y_true < hypo_threshold).any()),
-                    "calibration_90": float(((y_true >= q10) & (y_true <= q90)).mean()),
-                    "calibration_50": float(((y_true >= q25) & (y_true <= q75)).mean()),
-                }
-            )
-
-        df = pd.DataFrame(records)
-
-        info_print(f"RMSE: {df['rmse'].mean():.3f} +/- {df['rmse'].std():.3f}")
-        info_print(
-            f"Calibration 90% PI: {df['calibration_90'].mean() * 100:.1f}% (target: 90%)"
-        )
-        info_print(
-            f"Calibration 50% PI: {df['calibration_50'].mean() * 100:.1f}% (target: 50%)"
-        )
-        info_print(f"Episodes with actual hypo: {df['actual_hypo'].sum()}/{len(df)}")
-
-        return df
-
     def _dataframe_to_gluonts(self, df: pd.DataFrame) -> ListDataset:
         """Convert a single-episode DataFrame to a one-entry GluonTS dataset.
 
@@ -920,6 +708,129 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 return ps
         return available[-1]
 
+    def _iter_episode_dicts(self, train_data: Any) -> list[dict[str, Any]]:
+        """Normalize dict/list training payloads to a flat episode list."""
+        if isinstance(train_data, dict):
+            episodes: list[dict[str, Any]] = []
+            for value in train_data.values():
+                if isinstance(value, list):
+                    episodes.extend(value)
+                else:
+                    episodes.append(value)
+            return episodes
+        if isinstance(train_data, list):
+            return cast(list[dict[str, Any]], train_data)
+        return []
+
+    @staticmethod
+    def _validate_covariate_columns(
+        *,
+        available_columns: list[str],
+        covariate_cols: list[str],
+        source_name: str,
+    ) -> None:
+        missing = [c for c in covariate_cols if c not in available_columns]
+        if missing:
+            raise ValueError(
+                f"Covariate columns {missing} not found in {source_name}. "
+                f"Available: {available_columns}"
+            )
+
+    @staticmethod
+    def _empty_training_tensors() -> tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor | None,
+        torch.Tensor | None,
+    ]:
+        return (
+            torch.empty(0),
+            torch.empty(0),
+            torch.empty(0),
+            torch.empty(0),
+            torch.empty(0),
+            torch.empty(0),
+            None,
+            None,
+        )
+
+    def _convert_tensors_to_patched_dataset(
+        self,
+        *,
+        model: Any,
+        tensors: tuple[
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor,
+            torch.Tensor | None,
+            torch.Tensor | None,
+        ],
+        patch_size: int,
+    ) -> _MoiraiPatchedDataset:
+        (
+            past_target,
+            future_target,
+            past_observed,
+            future_observed,
+            past_is_pad,
+            future_is_pad,
+            past_covariates,
+            past_observed_covariates,
+        ) = tensors
+
+        sample_count = len(past_target)
+        all_tgt, all_obs, all_sid, all_tid, all_vid, all_pmask = (
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+        )
+        chunk = min(self.config.batch_size, sample_count)
+        for i in range(0, sample_count, chunk):
+            sl = slice(i, min(i + chunk, sample_count))
+            cov = past_covariates[sl] if past_covariates is not None else None
+            cov_obs = (
+                past_observed_covariates[sl]
+                if past_observed_covariates is not None
+                else None
+            )
+            tgt, obs, sid, tid, vid, pmask = model._convert(
+                patch_size,
+                past_target=past_target[sl],
+                past_observed_target=past_observed[sl],
+                past_is_pad=past_is_pad[sl],
+                future_target=future_target[sl],
+                future_observed_target=future_observed[sl],
+                future_is_pad=future_is_pad[sl],
+                past_feat_dynamic_real=cov,
+                past_observed_feat_dynamic_real=cov_obs,
+            )  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
+            all_tgt.append(tgt)
+            all_obs.append(obs)
+            all_sid.append(sid)
+            all_tid.append(tid)
+            all_vid.append(vid)
+            all_pmask.append(pmask)
+
+        return _MoiraiPatchedDataset(
+            target=torch.cat(all_tgt),
+            observed_mask=torch.cat(all_obs),
+            sample_id=torch.cat(all_sid),
+            time_id=torch.cat(all_tid),
+            variate_id=torch.cat(all_vid),
+            prediction_mask=torch.cat(all_pmask),
+            patch_size_val=patch_size,
+        )
+
     def _prepare_training_tensors(
         self, train_data: Any
     ) -> tuple[
@@ -954,12 +865,11 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
 
         if isinstance(train_data, pd.DataFrame):
             if cov_cols:
-                missing = [c for c in cov_cols if c not in train_data.columns]
-                if missing:
-                    raise ValueError(
-                        f"Covariate columns {missing} not found in training "
-                        f"DataFrame. Available: {list(train_data.columns)}"
-                    )
+                self._validate_covariate_columns(
+                    available_columns=list(train_data.columns),
+                    covariate_cols=cov_cols,
+                    source_name="training DataFrame",
+                )
             for _, pat_df in train_data.groupby("p_num"):
                 if "datetime" in pat_df.columns:
                     pat_df = pat_df.set_index("datetime").sort_index()
@@ -974,32 +884,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                     if cov is not None:
                         covariates.append(cov[s : s + ctx_len])
 
-        elif isinstance(train_data, dict):
-            for episodes in train_data.values():
-                if not isinstance(episodes, list):
-                    episodes = [episodes]
-                for ep in episodes:
-                    ctx_df = ep["context_df"]
-                    tgt_bg = ep["target_bg"]
-                    ctx_bg = ctx_df[target_col].values[-ctx_len:]
-                    tgt_bg = tgt_bg[:fh_len]
-                    if len(ctx_bg) != ctx_len or len(tgt_bg) != fh_len:
-                        continue
-                    contexts.append(ctx_bg.astype(np.float32))
-                    targets.append(tgt_bg.astype(np.float32))
-                    if cov_cols:
-                        missing = [c for c in cov_cols if c not in ctx_df.columns]
-                        if missing:
-                            raise ValueError(
-                                f"Covariate columns {missing} not found in "
-                                f"episode context_df. Available: {list(ctx_df.columns)}"
-                            )
-                        covariates.append(
-                            ctx_df[cov_cols].values[-ctx_len:].astype(np.float32)
-                        )
-
-        elif isinstance(train_data, list) and train_data:
-            for ep in train_data:
+        elif isinstance(train_data, (dict, list)):
+            for ep in self._iter_episode_dicts(train_data):
                 ctx_df = ep["context_df"]
                 tgt_bg = ep["target_bg"]
                 ctx_bg = ctx_df[target_col].values[-ctx_len:]
@@ -1009,27 +895,17 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 contexts.append(ctx_bg.astype(np.float32))
                 targets.append(tgt_bg.astype(np.float32))
                 if cov_cols:
-                    missing = [c for c in cov_cols if c not in ctx_df.columns]
-                    if missing:
-                        raise ValueError(
-                            f"Covariate columns {missing} not found in "
-                            f"episode context_df. Available: {list(ctx_df.columns)}"
-                        )
+                    self._validate_covariate_columns(
+                        available_columns=list(ctx_df.columns),
+                        covariate_cols=cov_cols,
+                        source_name="episode context_df",
+                    )
                     covariates.append(
                         ctx_df[cov_cols].values[-ctx_len:].astype(np.float32)
                     )
 
         if not contexts:
-            return (
-                torch.empty(0),
-                torch.empty(0),
-                torch.empty(0),
-                torch.empty(0),
-                torch.empty(0),
-                torch.empty(0),
-                None,
-                None,
-            )
+            return self._empty_training_tensors()
 
         # Shape: (N, length, 1) for univariate BG
         past_target = torch.tensor(np.stack(contexts), dtype=torch.float32).unsqueeze(
@@ -1066,75 +942,3 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             past_covariates,
             past_observed_covariates,
         )
-
-
-def create_moirai_model(
-    model_path: str = "Salesforce/moirai-1.0-R-base",
-    context_length: int = 512,
-    forecast_length: int = 72,
-    past_covariate_dim: int = 0,
-    covariate_cols: list[str] | None = None,
-    checkpoint_path: str | None = None,
-    num_samples: int = 100,
-    patch_size: str = "auto",
-    interval_mins: int = 5,
-    target_col: str = "bg_mM",
-    **kwargs,
-) -> MoiraiForecaster:
-    """Factory function to create a ``MoiraiForecaster`` with sensible defaults.
-
-    Args:
-        model_path: HuggingFace model ID. Common options:
-
-            * ``"Salesforce/moirai-1.0-R-small"`` — 14 M params, fastest
-            * ``"Salesforce/moirai-1.0-R-base"`` — 91 M params, recommended
-            * ``"Salesforce/moirai-1.0-R-large"`` — 311 M params
-            * ``"Salesforce/moirai-1.1-R-base"`` — improved version
-            * ``"Salesforce/moirai-moe-1.0-R-base"`` — MoE variant (avoid
-              for zero-shot; it had RMSE ~365 in the notebook)
-
-        context_length: Historical steps (~42 hrs at 5-min intervals = 512).
-        forecast_length: Horizon steps (6 hrs at 5-min intervals = 72).
-        past_covariate_dim: Number of past covariates (0 = BG-only, 2 = IOB+COB).
-        covariate_cols: Column names matching ``past_covariate_dim``.
-        checkpoint_path: Path to a ``.ckpt`` fine-tuned checkpoint, or ``None``
-            for zero-shot inference.
-        num_samples: Monte Carlo samples for probabilistic output (default 100).
-        patch_size: Patch size for Moirai; ``"auto"`` is recommended.
-        interval_mins: CGM sampling interval in minutes.
-        target_col: Name of the target BG column.
-        **kwargs: Extra parameters forwarded to ``MoiraiConfig``.
-
-    Returns:
-        Initialised ``MoiraiForecaster``.
-
-    Example:
-        >>> # Zero-shot, BG only
-        >>> model = create_moirai_model()
-
-        >>> # Zero-shot with IOB/COB covariates
-        >>> model = create_moirai_model(
-        ...     past_covariate_dim=2,
-        ...     covariate_cols=["iob", "cob"],
-        ... )
-
-        >>> # Fine-tuned small model
-        >>> model = create_moirai_model(
-        ...     model_path="Salesforce/moirai-1.0-R-small",
-        ...     checkpoint_path="models/moirai_finetuned/v3.ckpt",
-        ... )
-    """
-    config = MoiraiConfig(
-        model_path=model_path,
-        context_length=context_length,
-        forecast_length=forecast_length,
-        past_covariate_dim=past_covariate_dim,
-        covariate_cols=covariate_cols or [],
-        checkpoint_path=checkpoint_path,
-        num_samples=num_samples,
-        patch_size=patch_size,
-        interval_mins=interval_mins,
-        target_col=target_col,
-        **kwargs,
-    )
-    return MoiraiForecaster(config)

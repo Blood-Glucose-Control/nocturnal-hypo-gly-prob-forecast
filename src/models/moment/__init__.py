@@ -13,14 +13,13 @@ from .config import (
     create_moment_fine_tuning_config,
     create_moment_zero_shot_config,
 )
-from .model import MomentForecaster, create_moment_model
+from .model import MomentForecaster
 
 __all__ = [
     "MomentForecaster",
     "MomentConfig",
     "MomentTrainingConfig",
     "MomentDataConfig",
-    "create_moment_model",
     "create_default_moment_config",
     "create_moment_fine_tuning_config",
     "create_moment_zero_shot_config",
