@@ -38,6 +38,7 @@ from .autogluon_data_utils import (
 )
 from .base import BaseTimeSeriesFoundationModel, TrainingBackend
 from .base.checkpoint_helpers import (
+    CHECKPOINT_PATH_KEY,
     resolve_checkpoint_reference,
     write_checkpoint_reference,
 )
@@ -243,7 +244,10 @@ class AutoGluonBaseModel(BaseTimeSeriesFoundationModel):
 
         info_print(f"Training complete. Predictor saved to {predictor.path}")
         return {
-            "train_metrics": {"status": "completed", "predictor_path": predictor.path}
+            "train_metrics": {
+                CHECKPOINT_PATH_KEY: predictor.path,
+                "status": "completed",
+            }
         }
 
     # ------------------------------------------------------------------

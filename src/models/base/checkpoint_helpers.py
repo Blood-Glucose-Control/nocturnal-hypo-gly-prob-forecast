@@ -8,6 +8,9 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
+CHECKPOINT_PATH_KEY = "predictor_path"
+CHECKPOINT_WEIGHTS_FILE_KEY = "weights_file"
+
 
 @dataclass(frozen=True)
 class CheckpointBundlePaths:
@@ -127,7 +130,7 @@ def write_checkpoint_reference(
     reference_filename: str,
     target_path: str,
     *,
-    path_key: str = "predictor_path",
+    path_key: str = CHECKPOINT_PATH_KEY,
     relative_to_output: bool = False,
 ) -> str:
     """Write a JSON file that stores a checkpoint-related filesystem path."""
@@ -145,7 +148,7 @@ def resolve_checkpoint_reference(
     model_dir: str,
     reference_filename: str,
     *,
-    path_key: str = "predictor_path",
+    path_key: str = CHECKPOINT_PATH_KEY,
     required_file: str | None = None,
     logger: logging.Logger | None = None,
 ) -> str:

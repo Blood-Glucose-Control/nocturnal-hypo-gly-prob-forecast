@@ -7,6 +7,7 @@ from pathlib import Path
 
 from src.models.base.checkpoint_helpers import (
     CHECKPOINT_FILENAME_POLICY,
+    CHECKPOINT_WEIGHTS_FILE_KEY,
     _shared_checkpoint_paths,
     load_pickle_checkpoint_artifact,
     read_checkpoint_config_payload,
@@ -39,7 +40,7 @@ def test_shared_checkpoint_paths_resolves_relative_artifacts(tmp_path: Path) -> 
 
 
 def test_checkpoint_config_payload_round_trip(tmp_path: Path) -> None:
-    payload = {"weights_file": "weights.pt", "is_finetuned": True}
+    payload = {CHECKPOINT_WEIGHTS_FILE_KEY: "weights.pt", "is_finetuned": True}
     written_path = write_checkpoint_config_payload(
         str(tmp_path), "payload.json", payload
     )

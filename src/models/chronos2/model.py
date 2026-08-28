@@ -42,6 +42,7 @@ from ..autogluon_data_utils import (
 )
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
 from ..base.checkpoint_helpers import (
+    CHECKPOINT_PATH_KEY,
     resolve_checkpoint_reference,
     write_checkpoint_reference,
 )
@@ -248,7 +249,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
             self._materialize_intermediate_checkpoints(output_dir)
 
         return {
-            "train_metrics": {"status": "completed", "predictor_path": predictor.path}
+            "train_metrics": {
+                CHECKPOINT_PATH_KEY: predictor.path,
+                "status": "completed",
+            }
         }
 
     # ------------------------------------------------------------------
@@ -414,8 +418,11 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
     def _write_snapshot_model_pt(self, *, snapshot_dir: str, main_model_pt: str) -> str:
         snapshot_model_pt = os.path.join(snapshot_dir, "model.pt")
         os.makedirs(snapshot_model_pt, exist_ok=True)
-        with open(os.path.join(snapshot_model_pt, "chronos2_predictor.json"), "w") as f:
-            json.dump({"predictor_path": "../predictor"}, f, indent=2)
+        write_checkpoint_reference(
+            output_dir=snapshot_model_pt,
+            reference_filename=self._PREDICTOR_JSON_NAME,
+            target_path="../predictor",
+        )
         with open(os.path.join(snapshot_model_pt, "config.json"), "w") as f:
             json.dump(self.config.to_dict(), f, indent=2)
         meta_src = os.path.join(main_model_pt, "metadata.json")

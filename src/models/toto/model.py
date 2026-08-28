@@ -21,6 +21,7 @@ from ...utils.logging_helper import info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
 from ..base.checkpoint_helpers import (
     CHECKPOINT_FILENAME_POLICY,
+    CHECKPOINT_WEIGHTS_FILE_KEY,
     _shared_checkpoint_paths,
     read_checkpoint_config_payload,
     write_checkpoint_config_payload,
@@ -615,7 +616,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         write_checkpoint_config_payload(
             output_dir,
             CHECKPOINT_FILENAME_POLICY.toto_artifacts[1],
-            {"weights_file": CHECKPOINT_FILENAME_POLICY.toto_artifacts[0]},
+            {CHECKPOINT_WEIGHTS_FILE_KEY: CHECKPOINT_FILENAME_POLICY.toto_artifacts[0]},
         )
 
         logger.info("Toto checkpoint saved to %s", output_dir)
@@ -634,7 +635,9 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             model_dir, CHECKPOINT_FILENAME_POLICY.toto_artifacts[1]
         )
         if ref is not None:
-            weights_path = _shared_checkpoint_paths(model_dir, ref["weights_file"])[0]
+            weights_path = _shared_checkpoint_paths(
+                model_dir, ref[CHECKPOINT_WEIGHTS_FILE_KEY]
+            )[0]
         else:
             # Fall back to looking for the weights file directly
             weights_path = fallback_weights_path

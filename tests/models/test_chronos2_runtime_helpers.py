@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.models.base.checkpoint_helpers import CHECKPOINT_PATH_KEY
 from src.models.chronos2.config import (  # pyright: ignore[reportMissingImports]
     Chronos2Config,
 )
@@ -50,7 +51,7 @@ def test_materialize_intermediate_checkpoints_creates_snapshot_tree(tmp_path):
 
     assert snapshot_model_pt.exists()
     assert json.loads((snapshot_model_pt / "chronos2_predictor.json").read_text()) == {
-        "predictor_path": "../predictor"
+        CHECKPOINT_PATH_KEY: "../predictor"
     }
     assert (snapshot_model_pt / "config.json").exists()
     assert (snapshot_model_pt / "metadata.json").exists()
