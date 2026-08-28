@@ -224,10 +224,10 @@ methods remain as thin wrappers/properties in child classes.
 
 | Model | Current methods | Projected methods | Methods removed | Current LOC | Projected LOC | Estimated LOC reduction |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| TTM | 36 | 20 | 16 | 1021 | 191 | 830 |
-| TimesFM | 33 | 16 | 17 | 784 | 128 | 656 |
-| Moirai | 24 | 15 | 9 | 792 | 104 | 688 |
-| Moment | 29 | 22 | 7 | 954 | 312 | 642 |
+| TTM | 37 | 20 | 17 | 1041 | 191 | 850 |
+| TimesFM | 35 | 16 | 19 | 819 | 128 | 691 |
+| Moirai | 27 | 15 | 12 | 1024 | 104 | 920 |
+| Moment | 34 | 22 | 12 | 1074 | 312 | 762 |
 | Chronos2 | 32 | 17 | 15 | 883 | 119 | 764 |
 | Toto | 25 | 18 | 7 | 566 | 193 | 373 |
 | Tide | 21 | 12 | 9 | 327 | 46 | 281 |
@@ -239,6 +239,29 @@ methods remain as thin wrappers/properties in child classes.
 | Statistical | 2 | 1 | 1 | 20 | 2 | 18 |
 | NaiveBaseline | 2 | 1 | 1 | 9 | 2 | 7 |
 | Sundial | 10 | 10 | 0 | 105 | 34 | 71 |
+
+## Active model-level consolidation impact (rolling update)
+
+This table is actively updated as methods/LOC move during implementation while
+the planning estimate above stays fixed as the baseline target.
+
+| Model | Baseline current methods | Active current methods | Projected methods (target) | Active methods remaining | Baseline current LOC | Active current LOC | Projected LOC (target) | Active LOC remaining | Active method delta vs baseline | Active LOC delta vs baseline |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| TTM | 37 | 36 | 20 | 16 | 1041 | 1021 | 191 | 830 | -1 | -20 |
+| TimesFM | 35 | 33 | 16 | 17 | 819 | 784 | 128 | 656 | -2 | -35 |
+| Moirai | 27 | 24 | 15 | 9 | 1024 | 792 | 104 | 688 | -3 | -232 |
+| Moment | 34 | 29 | 22 | 7 | 1074 | 954 | 312 | 642 | -5 | -120 |
+| Chronos2 | 32 | 32 | 17 | 15 | 883 | 883 | 119 | 764 | 0 | 0 |
+| Toto | 25 | 25 | 18 | 7 | 566 | 566 | 193 | 373 | 0 | 0 |
+| Tide | 21 | 21 | 12 | 9 | 327 | 327 | 46 | 281 | 0 | 0 |
+| TimeGrad | 13 | 13 | 12 | 1 | 283 | 283 | 79 | 204 | 0 | 0 |
+| PatchTST | 2 | 2 | 1 | 1 | 16 | 16 | 2 | 14 | 0 | 0 |
+| TSMixer | 5 | 5 | 4 | 1 | 64 | 64 | 48 | 16 | 0 | 0 |
+| DeepAR | 2 | 2 | 1 | 1 | 14 | 14 | 2 | 12 | 0 | 0 |
+| TFT | 2 | 2 | 1 | 1 | 14 | 14 | 2 | 12 | 0 | 0 |
+| Statistical | 2 | 2 | 1 | 1 | 20 | 20 | 2 | 18 | 0 | 0 |
+| NaiveBaseline | 2 | 2 | 1 | 1 | 9 | 9 | 2 | 7 | 0 | 0 |
+| Sundial | 10 | 10 | 10 | 0 | 105 | 105 | 34 | 71 | 0 | 0 |
 
 ## Benefits and negatives (with opinion)
 
