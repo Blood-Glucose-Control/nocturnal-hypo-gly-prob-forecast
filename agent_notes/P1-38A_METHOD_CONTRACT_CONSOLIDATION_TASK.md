@@ -325,6 +325,13 @@ classes and standardize signatures/tests only.
 - TTM preprocessor checkpoint save/load wrappers removed from model-local
   methods; checkpoint artifact I/O now uses shared helper functions directly:
   **(complete)**.
+- Post-refactor smoke verification:
+  `SUITE_LABEL=post_refactor_20260828_mc1_closeout make smoke-suite-aleppo`
+  and suite comparison vs
+  `post_refactor_20260827_c7/suite_manifest.json` passed with **0**
+  discrepancies (`model_count_compared=14`, `failures=[]`): **(complete)**.
+
+**MC1 status:** **complete** (checkpoint/lifecycle helper extraction scope closed).
 
 **Lifecycle mapping (before -> after)**
 | Lifecycle method | Before (child-owned implementation) | Centralized helper logic | After (child wrapper ownership) |
