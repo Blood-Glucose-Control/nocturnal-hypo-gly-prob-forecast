@@ -31,6 +31,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from src.config.loader import load_yaml_config
 from src.data.utils import get_patient_column
 from src.data.versioning.dataset_registry import DatasetRegistry
 from src.evaluation.nocturnal import (
@@ -39,7 +40,7 @@ from src.evaluation.nocturnal import (
     plot_best_worst_episodes,
 )
 from src.evaluation.storage import write_nocturnal_results
-from src.utils import get_git_commit_hash, load_yaml_config, setup_file_logging
+from src.utils import get_git_commit_hash, setup_file_logging
 from src.workflows.forecasting.modeling import create_model_and_config
 
 # Configure root logger for console output

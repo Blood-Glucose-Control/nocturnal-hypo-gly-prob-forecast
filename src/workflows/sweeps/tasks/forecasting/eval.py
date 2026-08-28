@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
-from .....utils.config_loader import load_yaml_config
+from .....config.schemas import load_forecasting_eval_sweep_spec_from_yaml
 
 
 @dataclass(frozen=True)
@@ -102,103 +102,54 @@ def _load_eval_configs(
     no_dilate_override: bool | None,
     forecast_length_override: int | None,
 ) -> List[SweepEvalConfig]:
-    raw = load_yaml_config(str(sweep_spec))
-    if not isinstance(raw, dict):
-        raise ValueError(f"Sweep eval spec must be a mapping: {sweep_spec.as_posix()}")
+    validated = load_forecasting_eval_sweep_spec_from_yaml(sweep_spec)
 
-    jobs = raw.get("jobs")
-    if not isinstance(jobs, list) or not jobs:
-        raise ValueError(
-            f"Sweep eval spec must define a non-empty 'jobs' list: {sweep_spec.as_posix()}"
-        )
-
-    default_probabilistic = bool(raw.get("probabilistic", True))
-    default_no_dilate = bool(raw.get("no_dilate", False))
-    default_forecast_length = int(raw.get("forecast_length", 96))
-    default_output_dir_template = raw.get("output_dir_template")
-    if default_output_dir_template is not None:
-        if (
-            not isinstance(default_output_dir_template, str)
-            or not default_output_dir_template.strip()
-        ):
-            raise ValueError(
-                "Top-level output_dir_template must be a non-empty string when provided"
-            )
-        default_output_dir_template = default_output_dir_template.strip()
+    default_probabilistic = validated.probabilistic
+    default_no_dilate = validated.no_dilate
+    default_forecast_length = validated.forecast_length
+    default_output_dir_template = validated.output_dir_template
 
     configs: List[SweepEvalConfig] = []
-    for idx, item in enumerate(jobs):
-        if not isinstance(item, dict):
-            raise ValueError(f"jobs[{idx}] must be a mapping")
-
-        model_config = item.get("model_config")
-        context_length = item.get("context_length")
-        if not isinstance(model_config, str) or not model_config.strip():
-            raise ValueError(f"jobs[{idx}].model_config must be a non-empty string")
-        if not isinstance(context_length, int) or context_length <= 0:
-            raise ValueError(f"jobs[{idx}].context_length must be a positive integer")
-
-        finetuned_datasets = item.get("finetuned_datasets", [])
-        zeroshot_datasets = item.get("zeroshot_datasets", [])
-        covariate_cols = item.get("covariate_cols", [])
-
-        if not isinstance(finetuned_datasets, list):
-            raise ValueError(f"jobs[{idx}].finetuned_datasets must be a list")
-        if not isinstance(zeroshot_datasets, list):
-            raise ValueError(f"jobs[{idx}].zeroshot_datasets must be a list")
-        if not isinstance(covariate_cols, list):
-            raise ValueError(f"jobs[{idx}].covariate_cols must be a list")
-
-        for key, values in (
-            ("finetuned_datasets", finetuned_datasets),
-            ("zeroshot_datasets", zeroshot_datasets),
-            ("covariate_cols", covariate_cols),
-        ):
-            if any(not isinstance(v, str) or not v.strip() for v in values):
-                raise ValueError(f"jobs[{idx}].{key} must contain non-empty strings")
-
+    for item in validated.jobs:
         probabilistic = (
             probabilistic_override
             if probabilistic_override is not None
-            else bool(item.get("probabilistic", default_probabilistic))
+            else (
+                item.probabilistic
+                if item.probabilistic is not None
+                else default_probabilistic
+            )
         )
         no_dilate = (
             no_dilate_override
             if no_dilate_override is not None
-            else bool(item.get("no_dilate", default_no_dilate))
+            else item.no_dilate
+            if item.no_dilate is not None
+            else default_no_dilate
         )
         forecast_length = (
             forecast_length_override
             if forecast_length_override is not None
-            else int(item.get("forecast_length", default_forecast_length))
+            else (
+                item.forecast_length
+                if item.forecast_length is not None
+                else default_forecast_length
+            )
         )
-        output_dir_template = item.get(
-            "output_dir_template", default_output_dir_template
+        output_dir_template = (
+            item.output_dir_template
+            if item.output_dir_template is not None
+            else default_output_dir_template
         )
-        if output_dir_template is not None:
-            if (
-                not isinstance(output_dir_template, str)
-                or not output_dir_template.strip()
-            ):
-                raise ValueError(
-                    f"jobs[{idx}].output_dir_template must be a non-empty string when provided"
-                )
-            output_dir_template = output_dir_template.strip()
-        if forecast_length <= 0:
-            raise ValueError(f"jobs[{idx}].forecast_length must be > 0")
 
         configs.append(
             SweepEvalConfig(
-                model_config_path=model_config.strip(),
-                context_length=context_length,
+                model_config_path=item.model_config_path,
+                context_length=item.context_length,
                 forecast_length=forecast_length,
-                covariate_cols=tuple(v.strip() for v in covariate_cols if v.strip()),
-                finetuned_datasets=tuple(
-                    v.strip() for v in finetuned_datasets if v.strip()
-                ),
-                zeroshot_datasets=tuple(
-                    v.strip() for v in zeroshot_datasets if v.strip()
-                ),
+                covariate_cols=tuple(item.covariate_cols),
+                finetuned_datasets=tuple(item.finetuned_datasets),
+                zeroshot_datasets=tuple(item.zeroshot_datasets),
                 output_dir_template=output_dir_template,
                 probabilistic=probabilistic,
                 no_dilate=no_dilate,

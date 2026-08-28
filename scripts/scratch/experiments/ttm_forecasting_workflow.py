@@ -33,6 +33,7 @@ Usage:
     python scripts/experiments/ttm_forecasting_workflow.py \\
         --datasets brown_2019 --skip-steps 4 7
 """
+# pyright: reportMissingImports=false
 
 import argparse
 import json
@@ -47,6 +48,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from src.config.loader import load_yaml_config
 from src.data.preprocessing.dataset_combiner import (
     combine_datasets_for_training,
 )
@@ -56,7 +58,6 @@ from src.data.versioning.dataset_registry import DatasetRegistry
 from src.evaluation.episode_builders import build_midnight_episodes
 from src.evaluation.metrics import compute_regression_metrics
 from src.models.ttm import TTMConfig, TTMForecaster
-from src.utils import load_yaml_config
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -115,7 +116,7 @@ def evaluate_midnight(
             else:
                 continue
 
-        episodes, stats = build_midnight_episodes(
+        episodes, _ = build_midnight_episodes(
             patient_df,
             context_length=context_length,
             forecast_length=forecast_length,
@@ -279,9 +280,7 @@ def step3_load_data(
         dataset_name -> holdout DataFrame for each dataset.
     """
     # Load combined training data
-    combined_data, _column_info = combine_datasets_for_training(
-        datasets, registry, config_dir
-    )
+    combined_data, _ = combine_datasets_for_training(datasets, registry, config_dir)
     logger.info(f"  [Step 3] Combined training data: {len(combined_data):,} rows")
 
     # BG NaN gaps are handled by segment_all_patients() inside model.fit().
