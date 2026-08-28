@@ -246,23 +246,28 @@ methods remain as thin wrappers/properties in child classes.
 This table is actively updated as methods/LOC move during implementation while
 the planning estimate above stays fixed as the baseline target.
 
+Calculation source (for consistency):
+`python scripts/analysis/calc_model_consolidation_metrics.py --format markdown`
+`Active current methods` = current `*Forecaster` method count in each `model.py`;
+`Active current LOC` = summed LOC of those methods (not full file LOC).
+
 | Model | Baseline current methods | Active current methods | Projected methods (target) | Active methods remaining | Baseline current LOC | Active current LOC | Projected LOC (target) | Active LOC remaining | Active method delta vs baseline | Active LOC delta vs baseline |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| TTM | 37 | 35 | 20 | 15 | 1041 | 990 | 191 | 799 | -2 | -51 |
-| TimesFM | 35 | 32 | 16 | 16 | 819 | 794 | 128 | 666 | -3 | -25 |
+| TTM | 37 | 33 | 20 | 13 | 1041 | 978 | 191 | 787 | -4 | -63 |
+| TimesFM | 35 | 29 | 16 | 13 | 819 | 760 | 128 | 632 | -6 | -59 |
 | Moirai | 27 | 24 | 15 | 9 | 1024 | 792 | 104 | 688 | -3 | -232 |
-| Moment | 34 | 29 | 22 | 7 | 1074 | 954 | 312 | 642 | -5 | -120 |
-| Chronos2 | 32 | 28 | 17 | 11 | 883 | 777 | 119 | 658 | -4 | -106 |
-| Toto | 25 | 25 | 18 | 7 | 566 | 576 | 193 | 383 | 0 | 10 |
-| Tide | 21 | 21 | 12 | 9 | 327 | 327 | 46 | 281 | 0 | 0 |
-| TimeGrad | 13 | 13 | 12 | 1 | 283 | 283 | 79 | 204 | 0 | 0 |
-| PatchTST | 2 | 2 | 1 | 1 | 16 | 16 | 2 | 14 | 0 | 0 |
-| TSMixer | 5 | 5 | 4 | 1 | 64 | 64 | 48 | 16 | 0 | 0 |
-| DeepAR | 2 | 2 | 1 | 1 | 14 | 14 | 2 | 12 | 0 | 0 |
-| TFT | 2 | 2 | 1 | 1 | 14 | 14 | 2 | 12 | 0 | 0 |
-| Statistical | 2 | 2 | 1 | 1 | 20 | 20 | 2 | 18 | 0 | 0 |
+| Moment | 34 | 32 | 22 | 10 | 1074 | 982 | 312 | 670 | -2 | -92 |
+| Chronos2 | 32 | 28 | 17 | 11 | 883 | 767 | 119 | 648 | -4 | -116 |
+| Toto | 25 | 25 | 18 | 7 | 566 | 581 | 193 | 388 | 0 | 15 |
+| Tide | 21 | 20 | 12 | 8 | 327 | 319 | 46 | 273 | -1 | -8 |
+| TimeGrad | 13 | 11 | 12 | 0 | 283 | 241 | 79 | 162 | -2 | -42 |
+| PatchTST | 2 | 2 | 1 | 1 | 16 | 17 | 2 | 15 | 0 | 1 |
+| TSMixer | 5 | 5 | 4 | 1 | 64 | 66 | 48 | 18 | 0 | 2 |
+| DeepAR | 2 | 2 | 1 | 1 | 14 | 15 | 2 | 13 | 0 | 1 |
+| TFT | 2 | 2 | 1 | 1 | 14 | 15 | 2 | 13 | 0 | 1 |
+| Statistical | 2 | 2 | 1 | 1 | 20 | 21 | 2 | 19 | 0 | 1 |
 | NaiveBaseline | 2 | 2 | 1 | 1 | 9 | 9 | 2 | 7 | 0 | 0 |
-| Sundial | 10 | 10 | 10 | 0 | 105 | 105 | 34 | 71 | 0 | 0 |
+| Sundial | 10 | 10 | 10 | 0 | 105 | 108 | 34 | 74 | 0 | 3 |
 
 ## Benefits and negatives (with opinion)
 
