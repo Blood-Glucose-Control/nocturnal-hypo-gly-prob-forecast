@@ -607,7 +607,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             return
 
         os.makedirs(output_dir, exist_ok=True)
-        weights_path, ref_path = _shared_checkpoint_paths(
+        weights_path, _ = _shared_checkpoint_paths(
             output_dir,
             *CHECKPOINT_FILENAME_POLICY.toto_artifacts,
         )
@@ -626,7 +626,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
         Loads the backbone state dict saved by _save_checkpoint.
         """
-        ref_path, fallback_weights_path = _shared_checkpoint_paths(
+        _, fallback_weights_path = _shared_checkpoint_paths(
             model_dir,
             CHECKPOINT_FILENAME_POLICY.toto_artifacts[1],
             CHECKPOINT_FILENAME_POLICY.toto_artifacts[0],

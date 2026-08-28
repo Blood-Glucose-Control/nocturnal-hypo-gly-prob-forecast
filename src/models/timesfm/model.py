@@ -1274,7 +1274,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load model checkpoint from HF save_pretrained format."""
-        hf_model_dir, timesfm_config_path = _shared_checkpoint_paths(
+        hf_model_dir, _ = _shared_checkpoint_paths(
             model_dir,
             *CHECKPOINT_FILENAME_POLICY.timesfm_artifacts,
         )
