@@ -10,7 +10,9 @@ from src.models.base.checkpoint_helpers import (
     CHECKPOINT_WEIGHTS_FILE_KEY,
     _shared_checkpoint_paths,
     _shared_load_checkpoint_bundle,
+    _shared_load_preprocessor_artifact,
     _shared_save_checkpoint_bundle,
+    _shared_save_preprocessor_artifact,
     list_intermediate_checkpoint_adapters,
     load_pickle_checkpoint_artifact,
     read_checkpoint_config_payload,
@@ -68,6 +70,25 @@ def test_save_and_load_pickle_checkpoint_artifact_prefers_first_available_path(
     )
     assert loaded == artifact
     assert loaded_path == primary
+
+
+def test_shared_preprocessor_artifact_round_trip(tmp_path: Path) -> None:
+    artifact = {"scaled": [1.0, 2.0]}
+    written = _shared_save_preprocessor_artifact(
+        artifact,
+        output_dir=str(tmp_path),
+        relative_paths=("preprocessor.pkl", "model.pt/preprocessor.pkl"),
+        pickle_module=pickle,
+    )
+    assert written == (str(tmp_path / "preprocessor.pkl"),)
+
+    loaded, loaded_path = _shared_load_preprocessor_artifact(
+        model_dir=str(tmp_path),
+        relative_paths=("preprocessor.pkl", "model.pt/preprocessor.pkl"),
+        pickle_module=pickle,
+    )
+    assert loaded == artifact
+    assert loaded_path == str(tmp_path / "preprocessor.pkl")
 
 
 def test_save_pickle_checkpoint_artifact_writes_secondary_when_parent_exists(

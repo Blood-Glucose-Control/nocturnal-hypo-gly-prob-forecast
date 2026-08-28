@@ -180,6 +180,36 @@ def load_pickle_checkpoint_artifact(
     return None, None
 
 
+def _shared_save_preprocessor_artifact(
+    artifact: Any,
+    *,
+    output_dir: str,
+    relative_paths: tuple[str, ...],
+    pickle_module: Any,
+) -> tuple[str, ...]:
+    """Persist preprocessor artifacts to canonical checkpoint-relative paths."""
+    resolved_paths = _shared_checkpoint_paths(output_dir, *relative_paths)
+    return save_pickle_checkpoint_artifact(
+        artifact,
+        paths=resolved_paths,
+        pickle_module=pickle_module,
+    )
+
+
+def _shared_load_preprocessor_artifact(
+    *,
+    model_dir: str,
+    relative_paths: tuple[str, ...],
+    pickle_module: Any,
+) -> tuple[Any | None, str | None]:
+    """Load the first available preprocessor artifact from checkpoint paths."""
+    resolved_paths = _shared_checkpoint_paths(model_dir, *relative_paths)
+    return load_pickle_checkpoint_artifact(
+        paths=resolved_paths,
+        pickle_module=pickle_module,
+    )
+
+
 def _relative_symlink(target: str, link: str) -> None:
     os.symlink(os.path.relpath(os.path.abspath(target), os.path.dirname(link)), link)
 

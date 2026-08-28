@@ -248,7 +248,7 @@ the planning estimate above stays fixed as the baseline target.
 
 | Model | Baseline current methods | Active current methods | Projected methods (target) | Active methods remaining | Baseline current LOC | Active current LOC | Projected LOC (target) | Active LOC remaining | Active method delta vs baseline | Active LOC delta vs baseline |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| TTM | 37 | 35 | 20 | 15 | 1041 | 997 | 191 | 806 | -2 | -44 |
+| TTM | 37 | 35 | 20 | 15 | 1041 | 990 | 191 | 799 | -2 | -51 |
 | TimesFM | 35 | 32 | 16 | 16 | 819 | 794 | 128 | 666 | -3 | -25 |
 | Moirai | 27 | 24 | 15 | 9 | 1024 | 792 | 104 | 688 | -3 | -232 |
 | Moment | 34 | 29 | 22 | 7 | 1074 | 954 | 312 | 642 | -5 | -120 |
@@ -312,8 +312,9 @@ classes and standardize signatures/tests only.
   (`write_checkpoint_config_payload`, `read_checkpoint_config_payload`) wired
   for TimesFM + Toto checkpoint config flows: **(complete)**.
 - Shared preprocessor artifact I/O helpers
-  (`save_pickle_checkpoint_artifact`, `load_pickle_checkpoint_artifact`) wired
-  for TTM preprocessor checkpoint flow: **(complete)**.
+  (`_shared_save_preprocessor_artifact`,
+  `_shared_load_preprocessor_artifact`) wired for TTM preprocessor checkpoint
+  flow: **(complete)**.
 - Shared checkpoint filename policy helper (`CHECKPOINT_FILENAME_POLICY`) wired
   for TimesFM/TTM/Toto model-specific artifact naming: **(complete)**.
 - Shared checkpoint bundle helpers (`_shared_save_checkpoint_bundle`,
@@ -351,7 +352,7 @@ classes and standardize signatures/tests only.
 | `_shared_checkpoint_paths` | [checkpoint_helpers.py](../src/models/base/checkpoint_helpers.py) **(complete)** | checkpoint root + artifact names | canonical artifact path tuple |
 | `_shared_save_checkpoint_bundle` | new helper under [src/models/base/](../src/models/base/) | model state + metadata + destination path | persisted artifact bundle |
 | `_shared_load_checkpoint_bundle` | new helper under [src/models/base/](../src/models/base/) | checkpoint path + strictness policy | restored state + metadata or explicit error |
-| `_shared_preprocessor_artifact_io` | new helper under [src/models/base/](../src/models/base/) | preprocessor object + schema metadata + checkpoint paths | deterministic save/load of preprocessor artifacts |
+| `_shared_save_preprocessor_artifact` + `_shared_load_preprocessor_artifact` | [checkpoint_helpers.py](../src/models/base/checkpoint_helpers.py) **(complete)** | preprocessor object + schema metadata + checkpoint paths | deterministic save/load of preprocessor artifacts |
 
 ---
 

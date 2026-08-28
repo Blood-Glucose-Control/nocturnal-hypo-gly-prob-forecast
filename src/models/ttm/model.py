@@ -35,9 +35,8 @@ from ...utils.logging_helper import debug_print, error_print, info_print
 from ..base import BaseTimeSeriesFoundationModel, ModelConfig, TrainingBackend
 from ..base.checkpoint_helpers import (
     CHECKPOINT_FILENAME_POLICY,
-    _shared_checkpoint_paths,
-    load_pickle_checkpoint_artifact,
-    save_pickle_checkpoint_artifact,
+    _shared_load_preprocessor_artifact,
+    _shared_save_preprocessor_artifact,
 )
 from ..base.registry import ModelRegistry
 from .config import TTMConfig
@@ -555,13 +554,10 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             )
             return
 
-        root_path, model_pt_path = _shared_checkpoint_paths(
-            output_dir,
-            *CHECKPOINT_FILENAME_POLICY.ttm_preprocessor_artifacts,
-        )
-        written_paths = save_pickle_checkpoint_artifact(
+        written_paths = _shared_save_preprocessor_artifact(
             self.preprocessor,
-            paths=(root_path, model_pt_path),
+            output_dir=output_dir,
+            relative_paths=CHECKPOINT_FILENAME_POLICY.ttm_preprocessor_artifacts,
             pickle_module=pickle,
         )
         if written_paths:
@@ -604,12 +600,9 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
         self.model = ttm_model
         info_print(f"TTM model checkpoint loaded from {model_dir}")
 
-        root_path, model_pt_path = _shared_checkpoint_paths(
-            model_dir,
-            *CHECKPOINT_FILENAME_POLICY.ttm_preprocessor_artifacts,
-        )
-        loaded_preprocessor, loaded_path = load_pickle_checkpoint_artifact(
-            paths=(root_path, model_pt_path),
+        loaded_preprocessor, loaded_path = _shared_load_preprocessor_artifact(
+            model_dir=model_dir,
+            relative_paths=CHECKPOINT_FILENAME_POLICY.ttm_preprocessor_artifacts,
             pickle_module=pickle,
         )
         if loaded_path is not None:
