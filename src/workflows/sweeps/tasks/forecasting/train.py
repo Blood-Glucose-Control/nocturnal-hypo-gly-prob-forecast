@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
-from .....utils.config_loader import load_yaml_config
+from .....config.schemas import load_forecasting_train_sweep_spec_from_yaml
 
 
 @dataclass(frozen=True)
@@ -76,36 +76,14 @@ def _load_sweep_configs(
     datasets: Sequence[str] | None,
 ) -> List[SweepConfig]:
     if sweep_spec is not None:
-        raw = load_yaml_config(str(sweep_spec))
-        if not isinstance(raw, dict):
-            raise ValueError(f"Sweep spec must be a mapping: {sweep_spec.as_posix()}")
-        jobs = raw.get("jobs")
-        if not isinstance(jobs, list) or not jobs:
-            raise ValueError(
-                f"Sweep spec must define a non-empty 'jobs' list: {sweep_spec.as_posix()}"
+        validated = load_forecasting_train_sweep_spec_from_yaml(sweep_spec)
+        return [
+            SweepConfig(
+                model_config_path=item.model_config_path,
+                datasets=tuple(item.datasets),
             )
-
-        configs: List[SweepConfig] = []
-        for idx, item in enumerate(jobs):
-            if not isinstance(item, dict):
-                raise ValueError(f"jobs[{idx}] must be a mapping")
-            config_path = item.get("model_config")
-            item_datasets = item.get("datasets")
-            if not isinstance(config_path, str) or not config_path.strip():
-                raise ValueError(f"jobs[{idx}].model_config must be a non-empty string")
-            if not isinstance(item_datasets, list) or not item_datasets:
-                raise ValueError(f"jobs[{idx}].datasets must be a non-empty list")
-            if any(not isinstance(ds, str) or not ds.strip() for ds in item_datasets):
-                raise ValueError(
-                    f"jobs[{idx}].datasets entries must be non-empty strings"
-                )
-            configs.append(
-                SweepConfig(
-                    model_config_path=config_path.strip(),
-                    datasets=tuple(ds.strip() for ds in item_datasets),
-                )
-            )
-        return configs
+            for item in validated.jobs
+        ]
 
     if model_config_dir is None:
         raise ValueError("Either --sweep-spec or --model-config-dir must be provided.")

@@ -42,8 +42,12 @@ from .model_configs import (
     get_registered_model_config_types,
 )
 from .workflow_configs import (
+    ForecastingSweepEvalSpecSchema,
+    ForecastingSweepTrainSpecSchema,
     ForecastingWorkflowRequestSchema,
     get_model_feature_override_columns,
+    load_forecasting_eval_sweep_spec_from_yaml,
+    load_forecasting_train_sweep_spec_from_yaml,
     validate_forecasting_workflow_request,
 )
 
@@ -84,7 +88,11 @@ __all__ = [
     "get_registered_model_config_types",
     "get_model_config_schema",
     "ForecastingWorkflowRequestSchema",
+    "ForecastingSweepTrainSpecSchema",
+    "ForecastingSweepEvalSpecSchema",
     "get_model_feature_override_columns",
+    "load_forecasting_train_sweep_spec_from_yaml",
+    "load_forecasting_eval_sweep_spec_from_yaml",
     "load_holdout_runtime_config_from_yaml",
     "validate_forecasting_workflow_request",
     "load_yaml_as_schema",

@@ -61,8 +61,15 @@ class TotoConfig(ModelConfig):
         # Training — supports both max_steps and num_epochs.
         # num_epochs is used by the generic workflow; max_steps is Toto-native.
         # If neither is explicitly set, default to max_steps=3000.
-        self.num_epochs = kwargs.get("num_epochs", None)
-        self.max_steps = kwargs.get("max_steps", None if self.num_epochs else 3000)
+        num_epochs = kwargs.get("num_epochs")
+        self.num_epochs = int(num_epochs) if num_epochs is not None else 0
+        max_steps = kwargs.get("max_steps")
+        if max_steps is not None:
+            self.max_steps = int(max_steps)
+        elif self.num_epochs <= 0:
+            self.max_steps = 3000
+        else:
+            self.max_steps = None
         self.lr = kwargs.get("lr", 1e-4)
         self.min_lr = kwargs.get("min_lr", 1e-5)
         self.warmup_steps = kwargs.get("warmup_steps", 200)

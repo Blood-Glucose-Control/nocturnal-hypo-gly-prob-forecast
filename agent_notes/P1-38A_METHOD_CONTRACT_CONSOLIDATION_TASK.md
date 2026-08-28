@@ -372,6 +372,11 @@ classes and standardize signatures/tests only.
 
 **Target model.py LOC reduction:** **220-320 LOC**
 
+**MC2 objective**
+- Consolidate duplicated `_prepare_training_data`-adjacent logic into shared
+  helper contracts while preserving each family's runtime invariants and output
+  semantics.
+
 **Lifecycle carryover work items (`_prepare_training_data`)**
 - TTM: reduce remaining input normalization + loader wiring in
   [ttm/model.py](../src/models/ttm/model.py).
@@ -382,6 +387,18 @@ classes and standardize signatures/tests only.
 - Moment: move reusable context/target pair assembly boundaries from
   [moment/model.py](../src/models/moment/model.py) into shared data helpers where
   semantics match.
+
+**MC2 execution flow (ordered task steps)**
+| Step | Task | Primary files | Depends on | Exit criteria | Targeted validation |
+| --- | --- | --- | --- | --- | --- |
+| MC2-00 | Capture method-level baseline for current `_prepare_training_data` and directly coupled helpers to prevent accidental behavior drift during extraction. | `src/models/ttm/model.py`, `src/models/timesfm/model.py`, `src/models/moirai/model.py`, `src/models/moment/model.py` | MC1 complete | Baseline notes include concrete call boundaries and invariant checklist per family. | `pytest -q tests/models/test_model_family_contract_suite.py` |
+| MC2-01 | Introduce/expand shared data helper surface (`_shared_data_*`) with strict input/output typing and no family-specific branching. | `src/models/base/base_model.py` and/or new base helper module | MC2-00 | Shared helper signatures are stable and independently unit-testable. | `ruff check <touched base helper files>` + targeted helper tests |
+| MC2-02 | Rewire TTM training-data path to shared normalization/dataset helpers while preserving preprocessor schema and batching behavior. | `src/models/ttm/model.py` | MC2-01 | `_prepare_training_data` wrapper remains family-specific only for true TTM invariants. | `pytest -q tests/models/test_ttm_preprocessor_schema_contract.py tests/models/test_ttm_preprocessor_roundtrip.py` |
+| MC2-03 | Rewire TimesFM patient extraction/window build/split path to shared helpers with no forecast-horizon alias drift. | `src/models/timesfm/model.py` | MC2-01 | Existing train/val window semantics preserved; only helper boundaries move. | `pytest -q tests/models/test_timesfm_config.py tests/models/test_timesfm_loss_and_callback.py tests/models/test_timesfm_patient_split.py` |
+| MC2-04 | Rewire Moirai multi-shape input normalization and dataset adaptation to shared helpers while preserving covariate-dimension guards. | `src/models/moirai/model.py` | MC2-01 | DataFrame/dict/list pathways converge through shared adapters with identical outputs. | `pytest -q tests/models/test_moirai_runtime_contract_helpers.py` (+ dependency-lane Moirai checks) |
+| MC2-05 | Rewire Moment context/target dataset assembly helpers where semantics overlap with shared path; keep model-specific tensor behavior local. | `src/models/moment/model.py` | MC2-01 | Moment wrappers retain only model-unique tensor/context behavior. | `pytest -q tests/models/test_moment_sweep_configs.py` (+ added runtime helper tests if introduced) |
+| MC2-06 | Run cross-family contract and schema-route gates after all rewires; address regressions before MC2 closeout. | `src/workflows/forecasting/modeling.py`, `src/config/schemas/model_configs.py` (if touched) | MC2-02..MC2-05 | No route drift and no lifecycle ordering regressions for in-scope families. | `pytest -q tests/models/test_model_family_contract_suite.py` and `pytest -q tests/workflows/forecasting/test_model_config_schema_loader.py -k "ttm or timesfm or moirai or moment"` |
+| MC2-07 | Capture MC2 closeout deltas (LOC/method movement + retained family-specific exceptions) and prep carryover for MC3. | `agent_notes/P1-38A_METHOD_CONTRACT_CONSOLIDATION_TASK.md` | MC2-06 | MC2 status and explicit MC3 handoff list are updated with validation evidence. | N/A (documentation-only update) |
 
 **Shared helper targets and contracts**
 | Expected consolidated method | Destination | Input contract | Output contract |

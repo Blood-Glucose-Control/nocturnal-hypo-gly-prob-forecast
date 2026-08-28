@@ -59,7 +59,7 @@ if __name__ == "__main__":
 
     if args.dataset_name:
         # Validate specific dataset - show detailed info first
-        logger.info(f"\n{'=' * 60}")
+        logger.info(f"{'=' * 60}")
         logger.info(f"Dataset Information: {args.dataset_name}")
         logger.info(f"{'=' * 60}")
 
@@ -71,7 +71,8 @@ if __name__ == "__main__":
             if "error" in info:
                 logger.error(f"Error: {info['error']}")
             else:
-                logger.info("\nGeneral Information:")
+                logger.info("")
+                logger.info("General Information:")
                 logger.info(f"  Dataset: {info['dataset_name']}")
                 logger.info(f"  Holdout Type: {info['holdout_type']}")
                 logger.info(f"  Description: {info['description']}")
@@ -80,25 +81,27 @@ if __name__ == "__main__":
 
                 if "temporal_split" in info:
                     ts = info["temporal_split"]
-                    logger.info("\nTemporal Split Configuration:")
+                    logger.info("")
+                    logger.info("Temporal Split Configuration:")
                     logger.info(
                         f"  Holdout Percentage: {ts['holdout_percentage'] * 100:.1f}%"
                     )
-                    logger.info(f"  Min Train Samples: {ts['min_train_samples']}")
-                    logger.info(f"  Min Holdout Samples: {ts['min_holdout_samples']}")
+                    logger.info(f"  Min train time steps: {ts['min_train_samples']}")
+                    logger.info(
+                        f"  Min holdout time steps: {ts['min_holdout_samples']}"
+                    )
 
                 if "patient_split" in info:
                     ps = info["patient_split"]
-                    logger.info("\nPatient Split Configuration:")
+                    logger.info("")
+                    logger.info("Patient Split Configuration:")
                     logger.info(
                         f"  Number of Holdout Patients: {ps['num_holdout_patients']}"
-                    )
-                    logger.info(
-                        f"  Holdout Patients: {', '.join(ps['holdout_patients'])}"
                     )
                     logger.info(f"  Min Train Patients: {ps['min_train_patients']}")
                     logger.info(f"  Random Seed: {ps['random_seed']}")
 
+                logger.info("")
         except Exception as e:
             logger.error(f"Error retrieving dataset info: {e}")
 

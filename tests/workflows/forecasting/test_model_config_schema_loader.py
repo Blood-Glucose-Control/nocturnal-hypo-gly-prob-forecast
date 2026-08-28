@@ -1,4 +1,5 @@
 """Tests for schema-validated model config loading."""
+# pyright: reportMissingImports=false, reportAttributeAccessIssue=false
 
 import sys
 import types
@@ -1346,6 +1347,26 @@ def test_runtime_adapter_reports_registered_types_for_unknown_model() -> None:
     message = str(exc_info.value)
     assert "unknown_model" in message
     assert "Registered adapter types" in message
+    assert "tsmixer" in message
+
+
+def test_model_config_loader_requires_model_type() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        load_model_config_from_yaml(str(TSMIXER_SMOKE_CONFIG_PATH), model_type="")
+
+    assert "model_type is required" in str(exc_info.value)
+
+
+def test_model_config_loader_reports_registered_types_for_unknown_model() -> None:
+    with pytest.raises(ValueError) as exc_info:
+        load_model_config_from_yaml(
+            str(TSMIXER_SMOKE_CONFIG_PATH),
+            model_type="unknown_model",
+        )
+
+    message = str(exc_info.value)
+    assert "unknown_model" in message
+    assert "Registered schema types" in message
     assert "tsmixer" in message
 
 

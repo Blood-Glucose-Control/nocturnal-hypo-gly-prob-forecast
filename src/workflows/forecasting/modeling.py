@@ -10,9 +10,9 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 from ...config.schemas import (
     build_model_runtime_config,
     get_model_config_schema,
+    get_registered_model_config_types,
     load_yaml_as_schema,
 )
-from ...utils.config_loader import load_yaml_config
 
 logger = logging.getLogger(__name__)
 
@@ -56,47 +56,43 @@ class GenericModelConfig:
     extra_config: Dict[str, Any] = field(default_factory=dict)
 
 
-def load_model_config_from_yaml(
-    config_path: str, model_type: Optional[str] = None
-) -> Dict[str, Any]:
+def load_model_config_from_yaml(config_path: str, model_type: str) -> Dict[str, Any]:
     """Load a model config override dictionary from YAML."""
     config_file = Path(config_path)
     if not config_file.exists():
         raise FileNotFoundError(f"Model config file not found: {config_path}")
 
-    schema_type = get_model_config_schema(model_type) if model_type else None
-    config: Dict[str, Any]
-    if schema_type is not None:
-        validated = load_yaml_as_schema(config_file, schema_type)
-        model_dump = getattr(validated, "model_dump", None)
-        if callable(model_dump):
-            raw_config = model_dump(exclude_none=True)
-        else:
-            legacy_dump = getattr(validated, "dict", None)
-            if not callable(legacy_dump):
-                raise ValueError(
-                    f"Validated model config does not support dump API: {config_path}"
-                )
-            raw_config = legacy_dump(exclude_none=True)
-        if not isinstance(raw_config, dict):
-            raise ValueError(
-                f"Model config must be a YAML mapping/object: {config_path}"
-            )
-        config = dict(raw_config)
-        logger.info(
-            "Validated model config with schema %s for model_type=%s",
-            schema_type.__name__,
-            model_type,
+    if not model_type or not model_type.strip():
+        raise ValueError(
+            "model_type is required for schema-validated model config loading"
         )
+    schema_type = get_model_config_schema(model_type)
+    if schema_type is None:
+        registered_types = ", ".join(get_registered_model_config_types()) or "(none)"
+        raise ValueError(
+            f"No model config schema registered for model_type={model_type}. "
+            f"Registered schema types: {registered_types}"
+        )
+
+    validated = load_yaml_as_schema(config_file, schema_type)
+    model_dump = getattr(validated, "model_dump", None)
+    if callable(model_dump):
+        raw_config = model_dump(exclude_none=True)
     else:
-        config = load_yaml_config(config_path)
-        if config is None:
-            logger.warning(f"Model config file is empty: {config_path}")
-            return {}
-        if not isinstance(config, dict):
+        legacy_dump = getattr(validated, "dict", None)
+        if not callable(legacy_dump):
             raise ValueError(
-                f"Model config must be a YAML mapping/object: {config_path}"
+                f"Validated model config does not support dump API: {config_path}"
             )
+        raw_config = legacy_dump(exclude_none=True)
+    if not isinstance(raw_config, dict):
+        raise ValueError(f"Model config must be a YAML mapping/object: {config_path}")
+    config = dict(raw_config)
+    logger.info(
+        "Validated model config with schema %s for model_type=%s",
+        schema_type.__name__,
+        model_type,
+    )
 
     logger.info(f"Loaded model config from: {config_path}")
     logger.info(f"  Parameters specified: {len(config)}")
