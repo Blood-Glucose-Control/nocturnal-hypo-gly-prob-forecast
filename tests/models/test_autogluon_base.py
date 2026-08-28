@@ -18,6 +18,7 @@ import pytest
 
 pytest.importorskip("autogluon.timeseries")
 
+from src.models.base.checkpoint_helpers import CHECKPOINT_PATH_KEY  # noqa: E402
 from src.models.naive_baseline import (  # noqa: E402
     NaiveBaselineConfig,
     NaiveBaselineForecaster,
@@ -138,7 +139,7 @@ class TestAutoGluonBaseModel:
             assert os.path.exists(json_path)
             with open(json_path) as f:
                 data = json.load(f)
-            assert "predictor_path" in data
+            assert CHECKPOINT_PATH_KEY in data
 
             # Load into a fresh model
             model2 = NaiveBaselineForecaster(cfg)

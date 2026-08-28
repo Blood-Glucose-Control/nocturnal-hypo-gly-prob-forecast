@@ -4,7 +4,6 @@ Supports zero-shot inference and fine-tuning with per-window normalized loss.
 """
 
 import contextlib
-import json
 import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple, cast
@@ -18,6 +17,12 @@ from transformers import TrainerCallback as _TrainerCallbackBase
 
 from ...utils.logging_helper import error_print, info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.checkpoint_helpers import (
+    CHECKPOINT_FILENAME_POLICY,
+    _shared_checkpoint_paths,
+    read_checkpoint_config_payload,
+    write_checkpoint_config_payload,
+)
 from ..base.registry import ModelRegistry
 from .config import TimesFMConfig
 
@@ -1206,13 +1211,6 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         return {"training_history": trainer.state.log_history}
 
-    @staticmethod
-    def _checkpoint_paths(base_dir: str) -> tuple[str, str]:
-        return (
-            os.path.join(base_dir, "hf_model"),
-            os.path.join(base_dir, "timesfm_config.json"),
-        )
-
     def _checkpoint_config_payload(self) -> Dict[str, Any]:
         return {
             "checkpoint_path": self.config.checkpoint_path,
@@ -1222,20 +1220,19 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             "is_finetuned": self.is_fitted,
         }
 
-    def _write_checkpoint_config(self, config_path: str) -> None:
-        with open(config_path, "w") as f:
-            json.dump(self._checkpoint_config_payload(), f, indent=2)
-
-    def _load_saved_checkpoint_config(self, config_path: str) -> None:
-        if not os.path.exists(config_path):
+    def _load_saved_checkpoint_config(self, model_dir: str) -> None:
+        saved_config = read_checkpoint_config_payload(
+            model_dir, CHECKPOINT_FILENAME_POLICY.timesfm_artifacts[1]
+        )
+        if saved_config is None:
             return
-
-        with open(config_path, "r") as f:
-            saved_config = json.load(f)
 
         if saved_config.get("checkpoint_path"):
             self.config.checkpoint_path = saved_config["checkpoint_path"]
 
+        config_path = _shared_checkpoint_paths(
+            model_dir, CHECKPOINT_FILENAME_POLICY.timesfm_artifacts[1]
+        )[0]
         info_print(f"TimesFM config loaded from {config_path}")
 
     def _load_hf_model_weights(self, hf_model_dir: str) -> bool:
@@ -1258,20 +1255,30 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
     def _save_checkpoint(self, output_dir: str) -> None:
         """Save checkpoint. Uses 'hf_model/' subdir to avoid config.json conflicts."""
         os.makedirs(output_dir, exist_ok=True)
-        hf_model_dir, timesfm_config_path = self._checkpoint_paths(output_dir)
+        hf_model_dir, timesfm_config_path = _shared_checkpoint_paths(
+            output_dir,
+            *CHECKPOINT_FILENAME_POLICY.timesfm_artifacts,
+        )
 
         # Save HF model weights + config
         if self.hf_model is not None:
             self.hf_model.save_pretrained(hf_model_dir)
             info_print(f"HF model saved to {hf_model_dir}")
 
-        self._write_checkpoint_config(timesfm_config_path)
+        write_checkpoint_config_payload(
+            output_dir,
+            CHECKPOINT_FILENAME_POLICY.timesfm_artifacts[1],
+            self._checkpoint_config_payload(),
+        )
         info_print(f"TimesFM config saved to {timesfm_config_path}")
 
     def _load_checkpoint(self, model_dir: str) -> None:
         """Load model checkpoint from HF save_pretrained format."""
-        hf_model_dir, timesfm_config_path = self._checkpoint_paths(model_dir)
-        self._load_saved_checkpoint_config(timesfm_config_path)
+        hf_model_dir, _ = _shared_checkpoint_paths(
+            model_dir,
+            *CHECKPOINT_FILENAME_POLICY.timesfm_artifacts,
+        )
+        self._load_saved_checkpoint_config(model_dir)
 
         if not self._load_hf_model_weights(hf_model_dir):
             info_print(

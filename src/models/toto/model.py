@@ -2,7 +2,6 @@
 Toto model implementation using the base TSFM framework.
 """
 
-import json
 import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
@@ -20,6 +19,13 @@ from toto.model.toto import Toto  # pyright: ignore[reportMissingImports]
 
 from ...utils.logging_helper import info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
+from ..base.checkpoint_helpers import (
+    CHECKPOINT_FILENAME_POLICY,
+    CHECKPOINT_WEIGHTS_FILE_KEY,
+    _shared_checkpoint_paths,
+    read_checkpoint_config_payload,
+    write_checkpoint_config_payload,
+)
 from ..base.registry import ModelRegistry
 from .config import TotoConfig
 
@@ -601,12 +607,17 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             return
 
         os.makedirs(output_dir, exist_ok=True)
-        weights_path = os.path.join(output_dir, "toto_backbone.pt")
+        weights_path, _ = _shared_checkpoint_paths(
+            output_dir,
+            *CHECKPOINT_FILENAME_POLICY.toto_artifacts,
+        )
         torch.save(self.model.state_dict(), weights_path)
 
-        ref_path = os.path.join(output_dir, "toto_checkpoint.json")
-        with open(ref_path, "w") as f:
-            json.dump({"weights_file": "toto_backbone.pt"}, f, indent=2)
+        write_checkpoint_config_payload(
+            output_dir,
+            CHECKPOINT_FILENAME_POLICY.toto_artifacts[1],
+            {CHECKPOINT_WEIGHTS_FILE_KEY: CHECKPOINT_FILENAME_POLICY.toto_artifacts[0]},
+        )
 
         logger.info("Toto checkpoint saved to %s", output_dir)
 
@@ -615,14 +626,21 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
 
         Loads the backbone state dict saved by _save_checkpoint.
         """
-        ref_path = os.path.join(model_dir, "toto_checkpoint.json")
-        if os.path.exists(ref_path):
-            with open(ref_path) as f:
-                ref = json.load(f)
-            weights_path = os.path.join(model_dir, ref["weights_file"])
+        _, fallback_weights_path = _shared_checkpoint_paths(
+            model_dir,
+            CHECKPOINT_FILENAME_POLICY.toto_artifacts[1],
+            CHECKPOINT_FILENAME_POLICY.toto_artifacts[0],
+        )
+        ref = read_checkpoint_config_payload(
+            model_dir, CHECKPOINT_FILENAME_POLICY.toto_artifacts[1]
+        )
+        if ref is not None:
+            weights_path = _shared_checkpoint_paths(
+                model_dir, ref[CHECKPOINT_WEIGHTS_FILE_KEY]
+            )[0]
         else:
             # Fall back to looking for the weights file directly
-            weights_path = os.path.join(model_dir, "toto_backbone.pt")
+            weights_path = fallback_weights_path
 
         if not os.path.exists(weights_path):
             raise FileNotFoundError(f"Toto checkpoint not found at {weights_path}")

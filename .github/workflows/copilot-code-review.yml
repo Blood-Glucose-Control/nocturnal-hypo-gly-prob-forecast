@@ -12,7 +12,7 @@ on:
 
 jobs:
   # Copilot code review environment customization uses the same setup contract.
-  copilot-code-review-setup:
+  copilot-code-review:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

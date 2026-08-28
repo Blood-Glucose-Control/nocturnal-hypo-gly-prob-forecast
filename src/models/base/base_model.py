@@ -10,7 +10,6 @@ different time series foundation models in a unified framework.
 """
 
 import logging
-import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -23,9 +22,9 @@ import torch
 # Local imports
 from ...utils.logging_helper import info_print
 from .checkpoint_helpers import (
-    checkpoint_bundle_paths,
+    _shared_load_checkpoint_bundle,
+    _shared_save_checkpoint_bundle,
     read_checkpoint_json,
-    write_checkpoint_json,
 )
 
 
@@ -575,16 +574,9 @@ class BaseTimeSeriesFoundationModel(ABC):
             configuration and metadata, then save model-specific weights
             via _save_checkpoint().
         """
-        os.makedirs(model_path, exist_ok=True)
-        paths = checkpoint_bundle_paths(model_path)
-
-        # Save configuration
-        if save_config:
-            write_checkpoint_json(paths.config_json, self.config.to_dict())
-
-        # Save metadata
+        metadata_payload: Optional[Dict[str, Any]] = None
         if save_metadata:
-            metadata = {
+            metadata_payload = {
                 "model_type": self.__class__.__name__,
                 "is_fitted": self.is_fitted,
                 "training_history": self.training_history,
@@ -592,7 +584,11 @@ class BaseTimeSeriesFoundationModel(ABC):
                 "config": self.config.to_dict(),
                 "training_backend": self.training_backend.value,
             }
-            write_checkpoint_json(paths.metadata_json, metadata)
+        _shared_save_checkpoint_bundle(
+            model_path,
+            config_payload=self.config.to_dict() if save_config else None,
+            metadata_payload=metadata_payload,
+        )
 
         # Save model-specific checkpoint files (weights, optimizer state, etc.)
         self._save_checkpoint(model_path)
@@ -613,15 +609,13 @@ class BaseTimeSeriesFoundationModel(ABC):
         Returns:
             Loaded model instance
         """
-        paths = checkpoint_bundle_paths(model_path)
+        bundle = _shared_load_checkpoint_bundle(model_path)
 
         # Load config if not provided
         if config is None:
-            if os.path.exists(paths.config_json):
-                config_dict = read_checkpoint_json(paths.config_json)
-                config = cls.config_class.from_dict(config_dict)
-            else:
-                raise ValueError(f"No config found at {paths.config_json}")
+            if bundle.config is None:
+                raise ValueError(f"No config found at {bundle.paths.config_json}")
+            config = cls.config_class.from_dict(bundle.config)
         if config is None:
             raise ValueError(f"Unable to load model config from {model_path}")
 
@@ -634,13 +628,9 @@ class BaseTimeSeriesFoundationModel(ABC):
 
         # Load metadata - check both metadata.json (from save_model) and
         # training_metadata.json (from fit) for backward compatibility
-        metadata = {}
-        if os.path.exists(paths.metadata_json):
-            metadata = read_checkpoint_json(paths.metadata_json)
-            info_print(f"Loaded metadata from {paths.metadata_json}")
-        elif os.path.exists(paths.training_metadata_json):
-            metadata = read_checkpoint_json(paths.training_metadata_json)
-            info_print(f"Loaded metadata from {paths.training_metadata_json}")
+        metadata = dict(bundle.metadata)
+        if bundle.metadata_path is not None:
+            info_print(f"Loaded metadata from {bundle.metadata_path}")
             # Extract training_history from metrics if present
             if "metrics" in metadata and "training_history" in metadata["metrics"]:
                 metadata["training_history"] = metadata["metrics"]["training_history"]
@@ -731,8 +721,6 @@ class BaseTimeSeriesFoundationModel(ABC):
             Git information (commit, branch, dirty state) is captured if
             GitPython is installed and the code is in a git repository.
         """
-        paths = checkpoint_bundle_paths(output_dir)
-
         # Add additional metadata
         metadata = {
             "model_type": self.__class__.__name__,
@@ -754,8 +742,10 @@ class BaseTimeSeriesFoundationModel(ABC):
             # This catches ImportError (GitPython not installed) and any git-related errors
             pass
 
-        write_checkpoint_json(paths.training_metadata_json, metadata)
-
+        paths = _shared_save_checkpoint_bundle(
+            output_dir,
+            training_metadata_payload=metadata,
+        )
         info_print(f"Training metadata saved to {paths.training_metadata_json}")
 
     # Dunder methods
