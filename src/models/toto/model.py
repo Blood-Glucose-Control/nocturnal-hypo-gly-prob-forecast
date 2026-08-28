@@ -2,7 +2,6 @@
 Toto model implementation using the base TSFM framework.
 """
 
-import json
 import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
@@ -20,7 +19,11 @@ from toto.model.toto import Toto  # pyright: ignore[reportMissingImports]
 
 from ...utils.logging_helper import info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
-from ..base.checkpoint_helpers import _shared_checkpoint_paths
+from ..base.checkpoint_helpers import (
+    _shared_checkpoint_paths,
+    read_checkpoint_config_payload,
+    write_checkpoint_config_payload,
+)
 from ..base.registry import ModelRegistry
 from .config import TotoConfig
 
@@ -609,8 +612,11 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         )
         torch.save(self.model.state_dict(), weights_path)
 
-        with open(ref_path, "w") as f:
-            json.dump({"weights_file": "toto_backbone.pt"}, f, indent=2)
+        write_checkpoint_config_payload(
+            output_dir,
+            "toto_checkpoint.json",
+            {"weights_file": "toto_backbone.pt"},
+        )
 
         logger.info("Toto checkpoint saved to %s", output_dir)
 
@@ -624,9 +630,8 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             "toto_checkpoint.json",
             "toto_backbone.pt",
         )
-        if os.path.exists(ref_path):
-            with open(ref_path) as f:
-                ref = json.load(f)
+        ref = read_checkpoint_config_payload(model_dir, "toto_checkpoint.json")
+        if ref is not None:
             weights_path = _shared_checkpoint_paths(model_dir, ref["weights_file"])[0]
         else:
             # Fall back to looking for the weights file directly

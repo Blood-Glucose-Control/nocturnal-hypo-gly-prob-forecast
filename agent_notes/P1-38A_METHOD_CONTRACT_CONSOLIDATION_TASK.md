@@ -309,6 +309,9 @@ classes and standardize signatures/tests only.
   base save/load/training-metadata flows: **(complete)**.
 - Shared model-artifact path helper (`_shared_checkpoint_paths`) extracted and
   wired for TTM/TimesFM/Toto checkpoint artifact locations: **(complete)**.
+- Shared checkpoint config payload helpers
+  (`write_checkpoint_config_payload`, `read_checkpoint_config_payload`) wired
+  for TimesFM + Toto checkpoint config flows: **(complete)**.
 
 **Lifecycle mapping (before -> after)**
 | Lifecycle method | Before (child-owned implementation) | Centralized helper logic | After (child wrapper ownership) |

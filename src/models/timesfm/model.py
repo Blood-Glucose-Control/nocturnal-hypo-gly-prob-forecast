@@ -4,7 +4,6 @@ Supports zero-shot inference and fine-tuning with per-window normalized loss.
 """
 
 import contextlib
-import json
 import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple, cast
@@ -18,7 +17,11 @@ from transformers import TrainerCallback as _TrainerCallbackBase
 
 from ...utils.logging_helper import error_print, info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
-from ..base.checkpoint_helpers import _shared_checkpoint_paths
+from ..base.checkpoint_helpers import (
+    _shared_checkpoint_paths,
+    read_checkpoint_config_payload,
+    write_checkpoint_config_payload,
+)
 from ..base.registry import ModelRegistry
 from .config import TimesFMConfig
 
@@ -1216,20 +1219,15 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             "is_finetuned": self.is_fitted,
         }
 
-    def _write_checkpoint_config(self, config_path: str) -> None:
-        with open(config_path, "w") as f:
-            json.dump(self._checkpoint_config_payload(), f, indent=2)
-
-    def _load_saved_checkpoint_config(self, config_path: str) -> None:
-        if not os.path.exists(config_path):
+    def _load_saved_checkpoint_config(self, model_dir: str) -> None:
+        saved_config = read_checkpoint_config_payload(model_dir, "timesfm_config.json")
+        if saved_config is None:
             return
-
-        with open(config_path, "r") as f:
-            saved_config = json.load(f)
 
         if saved_config.get("checkpoint_path"):
             self.config.checkpoint_path = saved_config["checkpoint_path"]
 
+        config_path = _shared_checkpoint_paths(model_dir, "timesfm_config.json")[0]
         info_print(f"TimesFM config loaded from {config_path}")
 
     def _load_hf_model_weights(self, hf_model_dir: str) -> bool:
@@ -1263,7 +1261,11 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             self.hf_model.save_pretrained(hf_model_dir)
             info_print(f"HF model saved to {hf_model_dir}")
 
-        self._write_checkpoint_config(timesfm_config_path)
+        write_checkpoint_config_payload(
+            output_dir,
+            "timesfm_config.json",
+            self._checkpoint_config_payload(),
+        )
         info_print(f"TimesFM config saved to {timesfm_config_path}")
 
     def _load_checkpoint(self, model_dir: str) -> None:
@@ -1273,7 +1275,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             "hf_model",
             "timesfm_config.json",
         )
-        self._load_saved_checkpoint_config(timesfm_config_path)
+        self._load_saved_checkpoint_config(model_dir)
 
         if not self._load_hf_model_weights(hf_model_dir):
             info_print(

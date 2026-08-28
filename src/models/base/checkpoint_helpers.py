@@ -50,6 +50,25 @@ def read_checkpoint_json(path: str) -> dict[str, Any]:
         return json.load(handle)
 
 
+def write_checkpoint_config_payload(
+    output_dir: str, filename: str, payload: dict[str, Any]
+) -> str:
+    """Write a model-specific checkpoint config payload and return its path."""
+    config_path = _shared_checkpoint_paths(output_dir, filename)[0]
+    write_checkpoint_json(config_path, payload)
+    return config_path
+
+
+def read_checkpoint_config_payload(
+    model_dir: str, filename: str
+) -> dict[str, Any] | None:
+    """Read a model-specific checkpoint config payload when present."""
+    config_path = _shared_checkpoint_paths(model_dir, filename)[0]
+    if not os.path.exists(config_path):
+        return None
+    return read_checkpoint_json(config_path)
+
+
 def write_checkpoint_reference(
     output_dir: str,
     reference_filename: str,
