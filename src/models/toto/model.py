@@ -263,7 +263,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         self,
         data: pd.DataFrame,
         quantile_levels: Optional[List[float]] = None,
-        **kwargs,
+        **_kwargs,
     ) -> np.ndarray:
         """Predict a single episode.
 
@@ -272,6 +272,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             ``quantile_levels`` is ``None``; otherwise a 2D array of shape
             (n_quantiles, forecast_length) containing the requested quantiles.
         """
+        del _kwargs
         timestamps = self._extract_timestamps(data)
         variates = self._build_variates(data)
         num_covariates = len(self.config.covariate_cols or [])
@@ -520,7 +521,7 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
             "callbacks": [TQDMProgressBar(refresh_rate=10), checkpoint_callback],
             "logger": tb_logger,
         }
-        if self.config.num_epochs is not None:
+        if self.config.num_epochs > 0:
             trainer_kwargs["max_epochs"] = self.config.num_epochs
             info_print(
                 f"Starting Toto fine-tuning for {self.config.num_epochs} epoch(s)..."
@@ -563,13 +564,14 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         return best_ckpt, best_score
 
     def _train_model(
-        self, train_data: Any, output_dir: str, **kwargs
+        self, train_data: Any, output_dir: str, **_kwargs
     ) -> Dict[str, Any]:
         """Fine-tune Toto using PyTorch Lightning.
 
         The base class fit() passes raw train_data here for CUSTOM backends.
         We call _prepare_training_data ourselves.
         """
+        del _kwargs
         from lightning.pytorch import (  # pyright: ignore[reportMissingImports]
             Trainer,
             seed_everything,
