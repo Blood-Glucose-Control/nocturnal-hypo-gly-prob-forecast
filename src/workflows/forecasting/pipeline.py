@@ -1042,7 +1042,6 @@ def run_with_args(args: argparse.Namespace) -> int:
         shutil.copy2(args.model_config, output_path / "model_config.yaml")
         logger.info(f"Copied model config to: {output_path / 'model_config.yaml'}")
 
-    effective_num_epochs = args.epochs if args.epochs is not None else 1
     effective_batch_size = args.batch_size if args.batch_size is not None else 2048
 
     try:
@@ -1127,8 +1126,8 @@ def run_with_args(args: argparse.Namespace) -> int:
                 training_columns=training_columns,
                 config_dir=args.config_dir,
                 output_dir=args.output_dir,
-                num_epochs=effective_num_epochs,
-                batch_size=effective_batch_size,
+                num_epochs=args.epochs,
+                batch_size=args.batch_size,
                 model_config_overrides=model_config_overrides,
             )
         else:
@@ -1187,7 +1186,7 @@ def run_with_args(args: argparse.Namespace) -> int:
                     training_columns=training_columns,
                     config_dir=args.config_dir,
                     output_dir=args.output_dir,
-                    num_epochs=effective_num_epochs,
+                    num_epochs=args.epochs,
                     model_config_overrides=model_config_overrides,
                 )
         else:
