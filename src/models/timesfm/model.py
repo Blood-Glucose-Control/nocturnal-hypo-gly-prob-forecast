@@ -608,17 +608,6 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         return forecast
 
-    def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
-        """Extract ground truth values from the end of the test data."""
-        target_col = self.config.target_col
-        if isinstance(test_data, pd.DataFrame) and target_col in test_data.columns:
-            values = cast(
-                np.ndarray,
-                test_data[target_col].dropna().values.astype(np.float32),
-            )
-            return values[-self.config.horizon_length :]
-        raise ValueError(f"test_data must be a DataFrame with '{target_col}' column")
-
     def evaluate(
         self,
         test_data: Any,
@@ -1286,30 +1275,3 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
                 f"No HF model directory found at {hf_model_dir}, "
                 f"using pretrained weights"
             )
-
-
-def create_timesfm_model(
-    checkpoint_path: Optional[str] = None,
-    context_length: int = 512,
-    horizon_length: int = 128,
-    **kwargs,
-) -> TimesFMForecaster:
-    """Factory function to create a TimesFM model with sensible defaults.
-
-    Args:
-        checkpoint_path: HF model ID or local path.
-        context_length: Input sequence length.
-        horizon_length: Output prediction horizon.
-        **kwargs: Additional configuration parameters.
-
-    Returns:
-        Initialized TimesFMForecaster instance.
-    """
-    config = TimesFMConfig(
-        checkpoint_path=checkpoint_path,
-        context_length=context_length,
-        horizon_length=horizon_length,
-        **kwargs,
-    )
-
-    return TimesFMForecaster(config)

@@ -194,68 +194,6 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             error_print(f"Failed to initialize Moment model: {str(e)}")
             raise
 
-    # --- Forecast helpers (notebook logic) ---
-    def _forecast_single(
-        self,
-        context: np.ndarray,
-        prediction_length: int,
-        scaler: Optional[Any] = None,
-    ) -> np.ndarray:
-        """Single univariate forecast with optional wrapper-side normalization."""
-        context_flat = np.asarray(context, dtype=np.float64).flatten()
-        if self._use_wrapper_normalization:
-            loc = float(np.nanmean(context_flat))
-            scale = float(np.nanstd(context_flat))
-            if np.isnan(loc):
-                loc = 0.0
-            if np.isnan(scale) or scale < NORMALIZATION_SCALE_FLOOR:
-                scale = NORMALIZATION_SCALE_FLOOR
-            context_model = ((context_flat - loc) / scale).astype(np.float32)
-        else:
-            loc = 0.0
-            scale = 1.0
-            fill = float(np.nanmean(context_flat))
-            if np.isnan(fill):
-                fill = 0.0
-            context_model = np.nan_to_num(
-                context_flat,
-                nan=fill,
-                posinf=fill,
-                neginf=fill,
-            ).astype(np.float32)
-
-        full_len = len(context_model) + prediction_length
-        if full_len > MOMENT_MAX_LEN:
-            keep = MOMENT_MAX_LEN - prediction_length
-            context_model = context_model[-keep:]
-            full_len = MOMENT_MAX_LEN
-
-        input_seq = np.zeros(full_len, dtype=np.float32)
-        input_seq[: len(context_model)] = context_model
-
-        # [1, 1, T]
-        x_enc = (
-            torch.tensor(input_seq, dtype=torch.float32)
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .to(self._device)
-        )
-        # [1, T]: 1 = observed, 0 = to predict
-        input_mask = torch.ones(full_len, dtype=torch.long, device=self._device)
-        input_mask[len(context_model) :] = 0
-        input_mask = input_mask.unsqueeze(0)
-
-        if self.model is None:
-            raise ValueError("Model not initialized")
-        with torch.no_grad():
-            output = self.model.forecast(x_enc=x_enc, input_mask=input_mask)  # type: ignore[call-overload]
-
-        forecast_out = output.forecast.cpu().numpy()[0, 0, :]  # type: ignore[union-attr, call-overload]
-        if len(forecast_out) > prediction_length:
-            forecast_out = forecast_out[-prediction_length:]
-        pred = (forecast_out * scale + loc).astype(np.float32)
-        return pred
-
     def _forecast_batch(
         self,
         contexts: np.ndarray,
@@ -720,32 +658,6 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
 
         return train_loader, val_loader, test_loader
 
-    def _extract_ground_truth(self, test_data: Any) -> np.ndarray:
-        """Extract ground truth targets in same order as _prepare_training_data.
-
-        Returns shape (N, forecast_length) to match predict() output shape.
-        """
-        pairs = self._get_context_target_pairs(test_data, require_target=True)
-        if not pairs:
-            return np.array([]).reshape(0, self.config.forecast_length)
-        # Stack targets to match predict() output shape: (N, forecast_length)
-        targets = np.stack([p[1] for p in pairs], axis=0)
-        return targets
-
-    # --- Public API ---
-    def predict_with_metadata(
-        self,
-        data: pd.DataFrame,
-        batch_size: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Make predictions and return dict with metadata."""
-        predictions = self.predict(data, batch_size=batch_size)
-        return {
-            "predictions": predictions,
-            "model_type": "moment",
-            "config": self.config.to_dict(),
-        }
-
     def _predict_batch(
         self,
         data: pd.DataFrame,
@@ -810,28 +722,6 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
                 results[ep_id] = batch_preds[i]
 
         return results
-
-    def predict_single_window(
-        self,
-        context: np.ndarray,
-        forecast_length: int,
-    ) -> np.ndarray:
-        """Predict one step ahead for a single context window (for holdout/eval scripts).
-
-        Compatible with model-agnostic evaluation scripts that call
-        model.predict_single_window(context_values, forecast_length) per window.
-
-        Args:
-            context: 1D array of historical BG values (length >= 10).
-            forecast_length: Number of steps to forecast.
-
-        Returns:
-            1D array of shape (forecast_length,) with predicted BG values in mmol/L.
-        """
-        context = np.asarray(context, dtype=np.float64).flatten()
-        if len(context) < 10:
-            raise ValueError("context must have at least 10 values")
-        return self._forecast_single(context, prediction_length=forecast_length)
 
     # --- Checkpoints ---
     def _save_checkpoint(self, output_dir: str) -> None:
@@ -1173,21 +1063,3 @@ class MomentForecaster(BaseTimeSeriesFoundationModel):
             },
             "training_history": training_history,
         }
-
-
-def create_moment_model(
-    model_path: str = "AutonLab/MOMENT-1-large",
-    context_length: int = 512,
-    forecast_length: int = 96,
-    use_lora: bool = False,
-    **kwargs: Any,
-) -> MomentForecaster:
-    """Factory to create a Moment model with sensible defaults."""
-    config = MomentConfig(
-        model_path=model_path,
-        context_length=context_length,
-        forecast_length=forecast_length,
-        use_lora=use_lora,
-        **kwargs,
-    )
-    return MomentForecaster(config)

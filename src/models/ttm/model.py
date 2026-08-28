@@ -609,27 +609,6 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             error_print(f"Failed to load model checkpoint: {str(e)}")
             raise
 
-    def get_ttm_specific_info(self) -> Dict[str, Any]:
-        """Get TTM-specific model information.
-
-        Returns:
-            Dictionary containing model info with TTM-specific details
-        """
-        base_info = self.get_model_info()
-
-        ttm_info = {
-            "model_path": self.config.model_path,
-            "context_length": self.config.context_length,
-            "forecast_length": self.config.forecast_length,
-            "num_input_channels": self.config.num_input_channels,
-            "num_output_channels": self.config.num_output_channels,
-            "freeze_backbone": self.config.freeze_backbone,
-            "scaler_type": self.config.scaler_type,
-        }
-
-        base_info.update({"ttm_specific": ttm_info})
-        return base_info
-
     # TTM-specific private methods
     def _require_initialized_model(self) -> Any:
         """Return model object or raise if weights are not initialized."""
@@ -1027,24 +1006,23 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
                     labels = labels[0]
                     debug_print(f"Extracted labels shape: {labels.shape}")
 
-            # Convert to numpy arrays
-            if not isinstance(predictions, np.ndarray):
-                predictions = np.array(predictions)
-            if not isinstance(labels, np.ndarray):
-                labels = np.array(labels)
+            predictions_array = np.asarray(predictions)
+            labels_array = np.asarray(labels)
 
-            info_print(f"Final predictions shape: {predictions.shape}")
-            info_print(f"Final labels shape: {labels.shape}")
+            info_print(f"Final predictions shape: {predictions_array.shape}")
+            info_print(f"Final labels shape: {labels_array.shape}")
             # Print first few values AFTER extraction to see actual scaled values
             info_print(
-                f"  Predictions (first 5 of first sample): {predictions[0, :5, 0] if len(predictions.shape) == 3 else predictions[:5]}"
+                "  Predictions (first 5 of first sample): "
+                f"{predictions_array[0, :5, 0] if predictions_array.ndim == 3 else predictions_array[:5]}"
             )
             info_print(
-                f"  Labels (first 5 of first sample): {labels[0, :5, 0] if len(labels.shape) == 3 else labels[:5]}"
+                "  Labels (first 5 of first sample): "
+                f"{labels_array[0, :5, 0] if labels_array.ndim == 3 else labels_array[:5]}"
             )
 
             # Check for empty labels (indicates label_names not configured properly)
-            if labels.size == 0:
+            if labels_array.size == 0:
                 error_print(
                     "Labels array is empty. Ensure TrainingArguments has "
                     "label_names=['future_values'] configured."
@@ -1054,35 +1032,44 @@ class TTMForecaster(BaseTimeSeriesFoundationModel):
             # Handle shape mismatch - predictions and labels should align
             # Predictions shape: (batch, forecast_length, num_output_channels)
             # Labels shape: (batch, forecast_length, num_channels) where num_channels >= num_output_channels
-            if predictions.shape != labels.shape:
+            if predictions_array.shape != labels_array.shape:
                 # If predictions has fewer channels than labels (target_columns subset),
                 # slice labels to match the number of output channels
                 if (
-                    len(predictions.shape) == 3
-                    and len(labels.shape) == 3
-                    and predictions.shape[:2] == labels.shape[:2]
+                    predictions_array.ndim == 3
+                    and labels_array.ndim == 3
+                    and predictions_array.shape[:2] == labels_array.shape[:2]
                 ):
-                    num_output_channels = predictions.shape[2]
-                    labels = labels[:, :, :num_output_channels]
-                    debug_print(f"Sliced labels to match predictions: {labels.shape}")
+                    num_output_channels = predictions_array.shape[2]
+                    labels_array = labels_array[:, :, :num_output_channels]
+                    debug_print(
+                        f"Sliced labels to match predictions: {labels_array.shape}"
+                    )
                 else:
                     error_print(
-                        f"Shape mismatch: predictions {predictions.shape} vs "
-                        f"labels {labels.shape}"
+                        f"Shape mismatch: predictions {predictions_array.shape} vs "
+                        f"labels {labels_array.shape}"
                     )
                     return {
-                        "custom_error": f"Shape mismatch: {predictions.shape} vs {labels.shape}"
+                        "custom_error": "Shape mismatch: "
+                        f"{predictions_array.shape} vs {labels_array.shape}"
                     }
 
             # Compute metrics
-            mse = np.mean((predictions - labels) ** 2)
+            mse = np.mean((predictions_array - labels_array) ** 2)
             rmse = np.sqrt(mse)
-            mae = np.mean(np.abs(predictions - labels))
+            mae = np.mean(np.abs(predictions_array - labels_array))
 
             # MAPE with handling for zero values
-            mask = labels != 0
+            mask = labels_array != 0
             mape = (
-                np.mean(np.abs((predictions[mask] - labels[mask]) / labels[mask]) * 100)
+                np.mean(
+                    np.abs(
+                        (predictions_array[mask] - labels_array[mask])
+                        / labels_array[mask]
+                    )
+                    * 100
+                )
                 if np.any(mask)
                 else 0.0
             )

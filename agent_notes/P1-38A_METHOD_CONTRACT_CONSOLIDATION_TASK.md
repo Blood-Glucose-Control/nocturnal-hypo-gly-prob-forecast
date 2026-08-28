@@ -65,7 +65,7 @@ Not everything should be promoted to parent classes.
 - `Expected consolidated method name` is the planned post-consolidation target.
 - Analysis excludes `ttm/_deprecated` code and venv folders.
 
-Current snapshot: **152 methods/functions** across **15 model modules**.
+Current snapshot: **142 methods/functions** across **15 model modules**.
 
 <details>
 <summary>Expand full all-model LOC + caller-evidence matrix</summary>
@@ -79,7 +79,7 @@ Current snapshot: **152 methods/functions** across **15 model modules**.
 | _initialize_model | Initialize or hydrate model weights/components for runtime use. | 5 |  | Retain contract method, extract shared helper logic | _initialize_model -> wraps _shared_initialize_model | 58 | 35 | 48 | 24 | 4 | 19 | 4 | 55 | x | x | x | x | x | x | 24 |
 | _prepare_training_data | Prepare normalized training/validation/test inputs for the backend. | 15 |  | Retain contract method, extract shared helper logic | _prepare_training_data -> wraps _shared_prepare_training_data | 51 | 74 | 28 | 39 | 54 | 49 | 40 | 8 | x | x | x | x | x | x | 5 |
 | _train_model | Execute model training/fine-tuning for the current backend. | 2 |  | Retain contract method, extract shared helper logic | _train_model -> wraps _shared_train_model | 56 | 48 | 168 | 191 | 93 | 35 | 44 | 39 | x | x | x | x | x | x | 5 |
-| _predict | Run single-input inference and return forecast outputs. | 6 |  | Retain contract method, extract shared helper logic | _predict -> wraps _shared_predict | 67 | 104 | 14 | 31 | 32 | 58 | 30 | 54 | x | x | x | x | x | x | 52 |
+| _predict | Run single-input inference and return forecast outputs. | 5 |  | Retain contract method, extract shared helper logic | _predict -> wraps _shared_predict | 67 | 104 | 14 | 31 | 32 | 58 | 30 | 54 | x | x | x | x | x | x | 52 |
 | _predict_batch | Run multi-episode inference and return per-episode outputs. | 6 |  | Retain contract method, extract shared helper logic | _predict_batch -> wraps _shared_predict_batch | 46 | x | x | 64 | 43 | 29 | 31 | x | x | x | x | x | x | x | x |
 | _save_checkpoint | Persist model state and required runtime artifacts. | 4 |  | Retain contract method, extract shared helper logic | _save_checkpoint -> wraps _shared_save_checkpoint | 13 | 12 | 20 | 4 | 21 | 17 | 13 | 13 | x | x | x | x | x | x | 3 |
 | _load_checkpoint | Restore model state and required runtime artifacts. | 6 |  | Retain contract method, extract shared helper logic | _load_checkpoint -> wraps _shared_load_checkpoint | 66 | 10 | 48 | 39 | 38 | 34 | 15 | 29 | x | x | x | x | x | x | 3 |
@@ -142,16 +142,14 @@ Current snapshot: **152 methods/functions** across **15 model modules**.
 | _evaluate_test_loader | Evaluate trainer on the test dataset when available. | 1 |  | Extract shared data adapter helper | _shared_data_evaluate_test_loader | 24 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _extract_bg_forecast | Extract BG (variate 0) from a model Forecast object. | 1 |  | Extract shared inference helper | _shared_inference_extract_bg_forecast | x | x | x | x | x | 9 | x | x | x | x | x | x | x | x | x |
 | _extract_episode_predictions | Helper for forecast generation/extraction. | 1 |  | Extract shared inference helper | _shared_inference_extract_episode_predictions | x | x | x | x | 19 | x | x | x | x | x | x | x | x | x | x |
-| _extract_ground_truth | Extract ground truth values from the end of the test data. | 0 | YES | No refs found: delete candidate (manual review) | REMOVE (no refs) | x | 10 | x | 11 | x | x | x | x | x | x | x | x | x | x | x |
 | _extract_mean_forecasts | Helper for forecast generation/extraction. | 1 |  | Extract shared inference helper | _shared_inference_extract_mean_forecasts | x | x | 2 | x | x | x | x | x | x | x | x | x | x | x | x |
 | _extract_patient_dataframes | Normalize training input into a patient->DataFrame mapping. | 1 |  | Extract shared data adapter helper | _shared_data_extract_patient_dataframes | x | 34 | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _extract_quantile_forecasts | Helper for probabilistic/quantile forecast handling. | 1 |  | Extract shared inference helper | _shared_inference_extract_quantile_forecasts | x | x | 8 | x | x | x | x | x | x | x | x | x | x | x | x |
 | _extract_quantile_predictions | Return quantile predictions and fail if requested levels are unavailable. | 4 |  | Extract shared inference helper | _shared_inference_extract_quantile_predictions | x | x | x | x | x | x | 26 | x | x | x | x | x | x | x | x |
 | _extract_timestamps | Get timestamps from DatetimeIndex or 'datetime' column. | 3 |  | Extract shared inference helper | _shared_inference_extract_timestamps | x | x | x | x | x | 7 | x | x | x | x | x | x | x | x | x |
 | _forecast_batch | Batch forecasts in a single model forward pass when possible. | 2 |  | Extract shared inference helper | _shared_inference_forecast_batch | x | x | x | 109 | x | x | x | x | x | x | x | x | x | x | x |
-| _forecast_single | Single univariate forecast with optional wrapper-side normalization. | 1 |  | Extract shared inference helper | _shared_inference_forecast_single | x | x | x | 60 | x | x | x | x | x | x | x | x | x | x | x |
 | _get_callbacks | Get training callbacks. | 1 |  | Extract shared trainer helper | _shared_training_get_callbacks | 20 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
-| _get_context_target_pairs | Build list of (context, target) from dataset name, DataFrame, or dict of DataFrames. | 2 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | 171 | x | x | x | x | x | x | x | x | x | x | x |
+| _get_context_target_pairs | Build list of (context, target) from dataset name, DataFrame, or dict of DataFrames. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | 171 | x | x | x | x | x | x | x | x | x | x | x |
 | _get_covariate_columns | Return configured covariate columns that are available in df. | 1 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | 5 | x | x | x | x | x | x | x | x | x | x | x |
 | _get_input_columns | Input channel order for model: target first, then covariates. | 5 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | 3 | x | x | x | x | x | x | x | x | x | x | x |
 | _get_or_create_column_specifiers | Get cached column specifiers, creating them lazily on first use. | 2 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | 5 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
@@ -206,7 +204,7 @@ Current snapshot: **152 methods/functions** across **15 model modules**.
 | _timestamps_to_seconds | Convert pandas timestamps to seconds-since-epoch float tensor. | 3 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | x | x | 6 | x | x | x | x | x | x | x | x | x |
 | _train_model_info_log | Helper for training setup/execution. | 2 |  | Extract shared trainer helper | _shared_training_train_model_info_log | x | x | x | x | x | x | x | x | 14 | 16 | 12 | 12 | 18 | 6 | x |
 | _truncate_segment_for_training | Helper for training setup/execution. | 2 |  | Extract shared data adapter helper | _shared_data_truncate_segment_for_training | x | 7 | x | x | x | x | x | x | x | x | x | x | x | x | x |
-| _use_wrapper_normalization | Model-specific runtime helper. | 4 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | 2 | x | x | x | x | x | x | x | x | x | x | x |
+| _use_wrapper_normalization | Model-specific runtime helper. | 3 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | x | 2 | x | x | x | x | x | x | x | x | x | x | x |
 | _validate_covariate_columns | Helper for context/covariate shaping. | 2 |  | Retain family-specific (no safe consolidation yet) | retain family-specific | x | x | 12 | x | x | x | x | x | x | x | x | x | x | x | x |
 | _validate_preprocessor_schema | Validate preprocessor schema required by the current runtime. | 3 |  | Extract shared checkpoint helper | _shared_checkpoint_validate_preprocessor_schema | 14 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _validate_registered_quantile_levels | Helper for probabilistic/quantile forecast handling. | 4 |  | Extract shared inference helper | _shared_inference_validate_registered_quantile_levels | x | x | x | x | 15 | x | x | x | x | x | x | x | x | x | x |
@@ -214,16 +212,8 @@ Current snapshot: **152 methods/functions** across **15 model modules**.
 | _write_checkpoint_config | Helper for checkpoint path/state handling. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_write_checkpoint_config | x | 3 | x | x | x | x | x | x | x | x | x | x | x | x | x |
 | _write_snapshot_model_pt | Model-specific runtime helper. | 1 |  | Extract shared checkpoint helper | _shared_checkpoint_write_snapshot_model_pt | x | x | x | x | 11 | x | x | x | x | x | x | x | x | x | x |
 | _zero_shot_forecast | Run zero-shot inference via Chronos2Pipeline. | 2 |  | Extract shared inference helper | _shared_inference_zero_shot_forecast | x | x | x | x | 29 | x | x | x | x | x | x | x | x | x | x |
-| build_gluonts_dataset | Build a GluonTS ``ListDataset`` from a list of episode dicts. | 3 |  | Extract shared data adapter helper | _shared_data_build_gluonts_dataset | x | x | 63 | x | x | x | x | x | x | x | x | x | x | x | x |
-| create_moirai_model | Factory function to create a ``MoiraiForecaster`` with sensible defaults. | 0 | YES | No refs found: delete candidate (manual review) | REMOVE (no refs) | x | x | 70 | x | x | x | x | x | x | x | x | x | x | x | x |
-| create_moment_model | Factory to create a model with sensible defaults. | 0 | YES | No refs found: delete candidate (manual review) | REMOVE (no refs) | x | x | x | 16 | x | x | x | x | x | x | x | x | x | x | x |
-| create_timesfm_model | Factory function to create a model with sensible defaults. | 0 | YES | No refs found: delete candidate (manual review) | REMOVE (no refs) | x | 25 | x | x | x | x | x | x | x | x | x | x | x | x | x |
+| build_gluonts_dataset | Build a GluonTS ``ListDataset`` from a list of episode dicts. | 1 |  | Extract shared data adapter helper | _shared_data_build_gluonts_dataset | x | x | 63 | x | x | x | x | x | x | x | x | x | x | x | x |
 | evaluate | Evaluate model on test data using rolling-window evaluation. | 1 |  | Move to family utility module | MOVE to <family>/utils.py | x | 107 | x | x | x | x | x | x | x | x | x | x | x | x | x |
-| evaluate_probabilistic | Evaluate model with full probabilistic outputs. | 0 | YES | No refs found: delete candidate (manual review) | REMOVE (no refs) | x | x | 111 | x | x | x | x | x | x | x | x | x | x | x | x |
-| get_ttm_specific_info | Get model-specific model information. | 0 | YES | No refs found: delete candidate (manual review) | REMOVE (no refs) | 20 | x | x | x | x | x | x | x | x | x | x | x | x | x | x |
-| predict_episodes | Evaluate model on a list of episodes and return per-episode metrics. | 0 | YES | No refs found: delete candidate (manual review) | REMOVE (no refs) | x | x | 51 | x | x | x | x | x | x | x | x | x | x | x | x |
-| predict_single_window | Predict one step ahead for a single context window (for holdout/eval scripts). | 0 | YES | No refs found: delete candidate (manual review) | REMOVE (no refs) | x | x | x | 21 | x | x | x | x | x | x | x | x | x | x | x |
-| predict_with_metadata | Make predictions and return dict with metadata. | 0 | YES | No refs found: delete candidate (manual review) | REMOVE (no refs) | x | x | x | 12 | x | x | x | x | x | x | x | x | x | x | x |
 
 </details>
 
@@ -234,10 +224,10 @@ methods remain as thin wrappers/properties in child classes.
 
 | Model | Current methods | Projected methods | Methods removed | Current LOC | Projected LOC | Estimated LOC reduction |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| TTM | 37 | 20 | 17 | 1041 | 191 | 850 |
-| TimesFM | 35 | 16 | 19 | 819 | 128 | 691 |
-| Moirai | 27 | 15 | 12 | 1024 | 104 | 920 |
-| Moment | 34 | 22 | 12 | 1074 | 312 | 762 |
+| TTM | 36 | 20 | 16 | 1021 | 191 | 830 |
+| TimesFM | 33 | 16 | 17 | 784 | 128 | 656 |
+| Moirai | 24 | 15 | 9 | 792 | 104 | 688 |
+| Moment | 29 | 22 | 7 | 954 | 312 | 642 |
 | Chronos2 | 32 | 17 | 15 | 883 | 119 | 764 |
 | Toto | 25 | 18 | 7 | 566 | 193 | 373 |
 | Tide | 21 | 12 | 9 | 327 | 46 | 281 |
@@ -367,19 +357,21 @@ classes and standardize signatures/tests only.
 
 **Target model.py LOC reduction:** **60-100 LOC**
 
-**Repo-wide no-ref audit (manual review required)**
+**Repo-wide no-ref audit and disposition**
 
-| Method | Evidence in repo | Outside `src/` usage | Recommendation |
-| --- | --- | --- | --- |
-| `_extract_ground_truth` | Only definitions in [timesfm/model.py](../src/models/timesfm/model.py) and [moment/model.py](../src/models/moment/model.py); no call refs found. | None found in [scripts/](../scripts/) or [tests/](../tests/). | **Remove** in both classes unless a new test/runtime caller is added. |
-| `create_moirai_model` | Defined in [moirai/model.py](../src/models/moirai/model.py); re-exported in [moirai/__init__.py](../src/models/moirai/__init__.py). | No script/workflow/test calls; only docstring examples in the defining module. | **Delete candidate** (or move to `moirai/utils.py` if you want to keep convenience API). |
-| `create_moment_model` | Defined in [moment/model.py](../src/models/moment/model.py); re-exported in [moment/__init__.py](../src/models/moment/__init__.py). | No script/workflow/test calls. | **Delete candidate** (or move to `moment/utils.py` if needed). |
-| `create_timesfm_model` | Defined in [timesfm/model.py](../src/models/timesfm/model.py); re-exported in [timesfm/__init__.py](../src/models/timesfm/__init__.py). | No script/workflow/test calls. | **Delete candidate** (or move to `timesfm/utils.py` if needed). |
-| `evaluate_probabilistic` | Method defined in [moirai/model.py](../src/models/moirai/model.py); no model-method call refs found. | A separate notebook-local function with same name exists in [4.14-ss-moirai-forecasting.ipynb](../docs-internal/notebooks/4.14-ss-moirai-forecasting.ipynb), but it does not call the model method. | **Delete candidate** from model class unless we intentionally keep this public method API. |
-| `get_ttm_specific_info` | Only defined in [ttm/model.py](../src/models/ttm/model.py); no call refs found. | None found in scripts/tests/workflows. | **Remove**; fold needed fields into existing `get_model_info()` if required. |
-| `predict_episodes` | Defined in [moirai/model.py](../src/models/moirai/model.py); no call refs found. | No script/workflow/test calls; only docstring examples. | **Delete candidate** or move to notebook utility layer if exploratory usage is desired. |
-| `predict_single_window` | Defined in [moment/model.py](../src/models/moment/model.py); no call refs found. | No script/workflow/test calls despite docstring claim about holdout scripts. | **Delete candidate** unless an active workflow/test is wired. |
-| `predict_with_metadata` | Defined in [moment/model.py](../src/models/moment/model.py); no call refs found. | No script/workflow/test calls. | **Delete candidate** (or move to utility layer) to reduce model API surface. |
+| Method | Pre-removal evidence | Outside `src/` usage | Decision | Status |
+| --- | --- | --- | --- | --- |
+| `_extract_ground_truth` | Defined only in [timesfm/model.py](../src/models/timesfm/model.py) and [moment/model.py](../src/models/moment/model.py); no callers. | None in [scripts/](../scripts/) or [tests/](../tests/). | Remove. | Removed in this slice. |
+| `create_moirai_model` | Defined in [moirai/model.py](../src/models/moirai/model.py), only re-exported from [moirai/__init__.py](../src/models/moirai/__init__.py). | No calls in workflows/scripts/tests. | Remove convenience factory from runtime module surface. | Removed in this slice. |
+| `create_moment_model` | Defined in [moment/model.py](../src/models/moment/model.py), only re-exported from [moment/__init__.py](../src/models/moment/__init__.py). | No calls in workflows/scripts/tests. | Remove convenience factory from runtime module surface. | Removed in this slice. |
+| `create_timesfm_model` | Defined in [timesfm/model.py](../src/models/timesfm/model.py), only re-exported from [timesfm/__init__.py](../src/models/timesfm/__init__.py). | No calls in workflows/scripts/tests. | Remove convenience factory from runtime module surface. | Removed in this slice. |
+| `evaluate_probabilistic` | Method on Moirai class with no repo callsites. | Notebook-local helper of same name exists in [4.14-ss-moirai-forecasting.ipynb](../docs-internal/notebooks/4.14-ss-moirai-forecasting.ipynb) but does not call the class method. | Remove from model class API. | Removed in this slice. |
+| `get_ttm_specific_info` | Defined only in [ttm/model.py](../src/models/ttm/model.py); no callers. | None in workflows/scripts/tests. | Remove; rely on existing base `get_model_info()`. | Removed in this slice. |
+| `predict_episodes` | Method on Moirai class with no repo callsites. | No calls in workflows/scripts/tests; only docstring examples before removal. | Remove from model class API. | Removed in this slice. |
+| `predict_single_window` | Method on Moment class with no repo callsites. | No calls in workflows/scripts/tests. | Remove from model class API. | Removed in this slice. |
+| `predict_with_metadata` | Method on Moment class with no repo callsites. | No calls in workflows/scripts/tests. | Remove from model class API. | Removed in this slice. |
+
+After this slice, the matrix has **0 rows** flagged with `No refs? = YES`.
 
 **Decision logic**
 - If there is no active caller in `src/`, `scripts/`, `tests/`, or workflows, default to **remove**.
