@@ -315,6 +315,8 @@ classes and standardize signatures/tests only.
 - Shared preprocessor artifact I/O helpers
   (`save_pickle_checkpoint_artifact`, `load_pickle_checkpoint_artifact`) wired
   for TTM preprocessor checkpoint flow: **(complete)**.
+- Shared checkpoint filename policy helper (`CHECKPOINT_FILENAME_POLICY`) wired
+  for TimesFM/TTM/Toto model-specific artifact naming: **(complete)**.
 
 **Lifecycle mapping (before -> after)**
 | Lifecycle method | Before (child-owned implementation) | Centralized helper logic | After (child wrapper ownership) |

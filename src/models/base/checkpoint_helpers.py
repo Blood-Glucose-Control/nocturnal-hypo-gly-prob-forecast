@@ -19,6 +19,21 @@ class CheckpointBundlePaths:
     training_metadata_json: str
 
 
+@dataclass(frozen=True)
+class CheckpointFilenamePolicy:
+    """Shared artifact naming policy for model-specific checkpoint bundles."""
+
+    ttm_preprocessor_artifacts: tuple[str, str] = (
+        "preprocessor.pkl",
+        "model.pt/preprocessor.pkl",
+    )
+    timesfm_artifacts: tuple[str, str] = ("hf_model", "timesfm_config.json")
+    toto_artifacts: tuple[str, str] = ("toto_backbone.pt", "toto_checkpoint.json")
+
+
+CHECKPOINT_FILENAME_POLICY = CheckpointFilenamePolicy()
+
+
 def _shared_checkpoint_paths(base_dir: str, *relative_paths: str) -> tuple[str, ...]:
     """Resolve model-specific artifact names to full checkpoint paths."""
     if not relative_paths:

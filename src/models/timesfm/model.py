@@ -18,6 +18,7 @@ from transformers import TrainerCallback as _TrainerCallbackBase
 from ...utils.logging_helper import error_print, info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
 from ..base.checkpoint_helpers import (
+    CHECKPOINT_FILENAME_POLICY,
     _shared_checkpoint_paths,
     read_checkpoint_config_payload,
     write_checkpoint_config_payload,
@@ -1220,14 +1221,18 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         }
 
     def _load_saved_checkpoint_config(self, model_dir: str) -> None:
-        saved_config = read_checkpoint_config_payload(model_dir, "timesfm_config.json")
+        saved_config = read_checkpoint_config_payload(
+            model_dir, CHECKPOINT_FILENAME_POLICY.timesfm_artifacts[1]
+        )
         if saved_config is None:
             return
 
         if saved_config.get("checkpoint_path"):
             self.config.checkpoint_path = saved_config["checkpoint_path"]
 
-        config_path = _shared_checkpoint_paths(model_dir, "timesfm_config.json")[0]
+        config_path = _shared_checkpoint_paths(
+            model_dir, CHECKPOINT_FILENAME_POLICY.timesfm_artifacts[1]
+        )[0]
         info_print(f"TimesFM config loaded from {config_path}")
 
     def _load_hf_model_weights(self, hf_model_dir: str) -> bool:
@@ -1252,8 +1257,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         os.makedirs(output_dir, exist_ok=True)
         hf_model_dir, timesfm_config_path = _shared_checkpoint_paths(
             output_dir,
-            "hf_model",
-            "timesfm_config.json",
+            *CHECKPOINT_FILENAME_POLICY.timesfm_artifacts,
         )
 
         # Save HF model weights + config
@@ -1263,7 +1267,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
 
         write_checkpoint_config_payload(
             output_dir,
-            "timesfm_config.json",
+            CHECKPOINT_FILENAME_POLICY.timesfm_artifacts[1],
             self._checkpoint_config_payload(),
         )
         info_print(f"TimesFM config saved to {timesfm_config_path}")
@@ -1272,8 +1276,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         """Load model checkpoint from HF save_pretrained format."""
         hf_model_dir, timesfm_config_path = _shared_checkpoint_paths(
             model_dir,
-            "hf_model",
-            "timesfm_config.json",
+            *CHECKPOINT_FILENAME_POLICY.timesfm_artifacts,
         )
         self._load_saved_checkpoint_config(model_dir)
 

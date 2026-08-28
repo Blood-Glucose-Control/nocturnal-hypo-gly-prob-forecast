@@ -20,6 +20,7 @@ from toto.model.toto import Toto  # pyright: ignore[reportMissingImports]
 from ...utils.logging_helper import info_print
 from ..base import BaseTimeSeriesFoundationModel, TrainingBackend
 from ..base.checkpoint_helpers import (
+    CHECKPOINT_FILENAME_POLICY,
     _shared_checkpoint_paths,
     read_checkpoint_config_payload,
     write_checkpoint_config_payload,
@@ -607,15 +608,14 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         os.makedirs(output_dir, exist_ok=True)
         weights_path, ref_path = _shared_checkpoint_paths(
             output_dir,
-            "toto_backbone.pt",
-            "toto_checkpoint.json",
+            *CHECKPOINT_FILENAME_POLICY.toto_artifacts,
         )
         torch.save(self.model.state_dict(), weights_path)
 
         write_checkpoint_config_payload(
             output_dir,
-            "toto_checkpoint.json",
-            {"weights_file": "toto_backbone.pt"},
+            CHECKPOINT_FILENAME_POLICY.toto_artifacts[1],
+            {"weights_file": CHECKPOINT_FILENAME_POLICY.toto_artifacts[0]},
         )
 
         logger.info("Toto checkpoint saved to %s", output_dir)
@@ -627,10 +627,12 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         """
         ref_path, fallback_weights_path = _shared_checkpoint_paths(
             model_dir,
-            "toto_checkpoint.json",
-            "toto_backbone.pt",
+            CHECKPOINT_FILENAME_POLICY.toto_artifacts[1],
+            CHECKPOINT_FILENAME_POLICY.toto_artifacts[0],
         )
-        ref = read_checkpoint_config_payload(model_dir, "toto_checkpoint.json")
+        ref = read_checkpoint_config_payload(
+            model_dir, CHECKPOINT_FILENAME_POLICY.toto_artifacts[1]
+        )
         if ref is not None:
             weights_path = _shared_checkpoint_paths(model_dir, ref["weights_file"])[0]
         else:

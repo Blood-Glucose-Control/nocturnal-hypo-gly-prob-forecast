@@ -6,12 +6,28 @@ import pickle
 from pathlib import Path
 
 from src.models.base.checkpoint_helpers import (
+    CHECKPOINT_FILENAME_POLICY,
     _shared_checkpoint_paths,
     load_pickle_checkpoint_artifact,
     read_checkpoint_config_payload,
     save_pickle_checkpoint_artifact,
     write_checkpoint_config_payload,
 )
+
+
+def test_checkpoint_filename_policy_constants_are_stable() -> None:
+    assert CHECKPOINT_FILENAME_POLICY.ttm_preprocessor_artifacts == (
+        "preprocessor.pkl",
+        "model.pt/preprocessor.pkl",
+    )
+    assert CHECKPOINT_FILENAME_POLICY.timesfm_artifacts == (
+        "hf_model",
+        "timesfm_config.json",
+    )
+    assert CHECKPOINT_FILENAME_POLICY.toto_artifacts == (
+        "toto_backbone.pt",
+        "toto_checkpoint.json",
+    )
 
 
 def test_shared_checkpoint_paths_resolves_relative_artifacts(tmp_path: Path) -> None:
