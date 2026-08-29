@@ -129,6 +129,7 @@ class DatasetRegistry:
         # Store split metadata for later retrieval
         self._split_metadata[dataset_name] = manager.get_split_metadata()
 
+        logger.info("")
         logger.info(
             f"Loaded {dataset_name}: {len(train_data):,} train samples, "
             f"{len(holdout_data):,} holdout samples"

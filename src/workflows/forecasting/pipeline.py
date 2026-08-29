@@ -144,8 +144,8 @@ def step2_validate_holdout_configs(datasets: list, config_dir: str) -> bool:
                     "config_exists": False,
                     "load_successful": False,
                     "no_data_leakage": False,
-                    "train_size": 0,
-                    "holdout_size": 0,
+                    "train_sample_count": 0,
+                    "holdout_sample_count": 0,
                     "errors": ["No holdout configuration found"],
                 }
             )

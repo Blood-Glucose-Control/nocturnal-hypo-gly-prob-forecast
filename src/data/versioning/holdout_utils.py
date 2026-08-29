@@ -242,6 +242,276 @@ def generate_holdout_configs_for_datasets(
 # ============================================================================
 
 
+def _validate_patient_split_checks(
+    *,
+    config: HoldoutConfig,
+    train_data: pd.DataFrame,
+    holdout_data: pd.DataFrame,
+    results: Dict[str, Any],
+    verbose: bool,
+) -> None:
+    """Validate patient/hybrid split constraints and leakage semantics."""
+    if verbose:
+        logger.info("")
+        logger.info(f"Validating patient holdout split for: {config.dataset_name}")
+    if config.holdout_type not in (HoldoutType.PATIENT_BASED, HoldoutType.HYBRID):
+        raise ValueError(
+            "_validate_patient_split_checks called for non-patient holdout type: "
+            f"{config.holdout_type.value}"
+        )
+
+    has_train_patient_col = "p_num" in train_data.columns
+    has_holdout_patient_col = "p_num" in holdout_data.columns
+
+    if has_train_patient_col and has_holdout_patient_col:
+        train_patients = sorted(str(p) for p in train_data["p_num"].dropna().unique())
+        holdout_patients = sorted(
+            str(p) for p in holdout_data["p_num"].dropna().unique()
+        )
+        results["train_patients"] = train_patients
+        results["holdout_patients"] = holdout_patients
+
+        if verbose:
+            logger.info(f"  - Training patients: {len(train_patients)}")
+            logger.info(f"  - Holdout patients: {len(holdout_patients)}")
+
+        overlap = set(train_patients) & set(holdout_patients)
+        if config.holdout_type == HoldoutType.PATIENT_BASED:
+            if overlap:
+                results["errors"].append(
+                    f"Patient overlap detected: {len(overlap)} patients"
+                )
+                if verbose:
+                    logger.error(f"✗ Patient overlap detected: {len(overlap)} patients")
+            else:
+                results["no_data_leakage"] = True
+                if verbose:
+                    logger.info("✓ No patient overlap (patient-based split)")
+        elif config.holdout_type == HoldoutType.HYBRID:
+            designated_holdout = (
+                set(str(p) for p in config.patient_config.holdout_patients)
+                if config.patient_config is not None
+                else set()
+            )
+            leak = designated_holdout & set(train_patients)
+            if leak:
+                results["errors"].append(
+                    f"Designated holdout patients in training: {leak}"
+                )
+                if verbose:
+                    logger.error(f"✗ Designated holdout patients leaked: {leak}")
+            else:
+                results["no_data_leakage"] = True
+                if verbose:
+                    logger.info(
+                        f"✓ Hybrid split valid: {len(overlap)} patients overlap (temporal)"
+                    )
+    elif has_train_patient_col != has_holdout_patient_col:
+        missing_side = "holdout" if has_train_patient_col else "train"
+        results["errors"].append(
+            f"Inconsistent split columns: 'p_num' missing from {missing_side} data"
+        )
+        if verbose:
+            logger.error(
+                f"✗ Inconsistent split columns: 'p_num' missing from {missing_side} data"
+            )
+    else:
+        results["errors"].append(
+            "Invalid split columns: patient/hybrid holdout requires "
+            "'p_num' in both splits"
+        )
+        if verbose:
+            logger.error(
+                "✗ Invalid split columns: patient/hybrid holdout requires "
+                "'p_num' in both splits"
+            )
+
+    if (
+        config.patient_config is not None
+        and has_train_patient_col
+        and has_holdout_patient_col
+    ):
+        min_train_patients = config.patient_config.min_train_patients
+        min_holdout_patients = config.patient_config.min_holdout_patients
+        train_patient_count = int(train_data["p_num"].dropna().nunique())
+        holdout_patient_count = int(holdout_data["p_num"].dropna().nunique())
+
+        if train_patient_count < min_train_patients:
+            results["errors"].append(
+                f"Training patient count below configured minimum: "
+                f"{train_patient_count} < {min_train_patients}"
+            )
+            if verbose:
+                logger.warning(
+                    "⚠ Training patient count below configured minimum: "
+                    f"{train_patient_count} < {min_train_patients}"
+                )
+
+        if (
+            config.holdout_type == HoldoutType.PATIENT_BASED
+            and holdout_patient_count < min_holdout_patients
+        ):
+            results["errors"].append(
+                f"Holdout patient count below configured minimum: "
+                f"{holdout_patient_count} < {min_holdout_patients}"
+            )
+            if verbose:
+                logger.warning(
+                    "⚠ Holdout patient count below configured minimum: "
+                    f"{holdout_patient_count} < {min_holdout_patients}"
+                )
+
+    return None
+
+
+def _validate_temporal_checks(
+    *,
+    config: HoldoutConfig,
+    train_data: pd.DataFrame,
+    holdout_data: pd.DataFrame,
+    has_train_patient_col: bool,
+    has_holdout_patient_col: bool,
+    results: Dict[str, Any],
+    verbose: bool,
+) -> None:
+    """Validate temporal thresholds and ordering constraints."""
+    if verbose:
+        logger.info("")
+        logger.info(f"Validating temporal holdout split for: {config.dataset_name}")
+    if config.holdout_type not in (HoldoutType.TEMPORAL, HoldoutType.HYBRID):
+        raise ValueError(
+            "_validate_temporal_checks called for non-temporal holdout type: "
+            f"{config.holdout_type.value}"
+        )
+    if config.temporal_config is None:
+        raise ValueError(
+            f"{config.holdout_type.value} holdout missing required temporal_config"
+        )
+
+    if has_train_patient_col != has_holdout_patient_col:
+        missing_side = "holdout" if has_train_patient_col else "train"
+        results["errors"].append(
+            f"Inconsistent split columns: 'p_num' missing from {missing_side} data"
+        )
+        if verbose:
+            logger.error(
+                f"✗ Inconsistent split columns: 'p_num' missing from {missing_side} data"
+            )
+        return
+
+    if config.holdout_type == HoldoutType.TEMPORAL:
+        if has_train_patient_col and has_holdout_patient_col:
+            train_patients = sorted(
+                str(p) for p in train_data["p_num"].dropna().unique()
+            )
+            holdout_patients = sorted(
+                str(p) for p in holdout_data["p_num"].dropna().unique()
+            )
+            results["train_patients"] = train_patients
+            results["holdout_patients"] = holdout_patients
+            results["no_data_leakage"] = True
+            if verbose:
+                overlap = set(train_patients) & set(holdout_patients)
+                logger.info(f"  - Training patients: {len(train_patients)}")
+                logger.info(f"  - Holdout patients: {len(holdout_patients)}")
+                logger.info(
+                    f"✓ Temporal split: {len(overlap)} patients overlap (expected)"
+                )
+        else:
+            results["no_data_leakage"] = True
+            if verbose:
+                logger.info(
+                    "✓ No patient identifier column; using temporal-only split validation"
+                )
+
+    min_train_samples = config.temporal_config.min_train_samples
+    min_holdout_samples = config.temporal_config.min_holdout_samples
+
+    if results["train_sample_count"] < min_train_samples:
+        results["errors"].append(
+            f"Training set below configured minimum: "
+            f"{results['train_sample_count']} < {min_train_samples}"
+        )
+        if verbose:
+            logger.warning(
+                "⚠ Training set below configured minimum: "
+                f"{results['train_sample_count']} < {min_train_samples}"
+            )
+
+    if results["holdout_sample_count"] < min_holdout_samples:
+        results["errors"].append(
+            f"Holdout set below configured minimum: "
+            f"{results['holdout_sample_count']} < {min_holdout_samples}"
+        )
+        if verbose:
+            logger.warning(
+                "⚠ Holdout set below configured minimum: "
+                f"{results['holdout_sample_count']} < {min_holdout_samples}"
+            )
+
+    if "datetime" not in train_data.columns or "datetime" not in holdout_data.columns:
+        results["errors"].append(
+            "Cannot verify temporal ordering: missing required 'datetime' column "
+            "in train and/or holdout split"
+        )
+        if verbose:
+            logger.warning(
+                "⚠ Cannot verify temporal ordering: missing required 'datetime' "
+                "column in train and/or holdout split"
+            )
+        return
+
+    try:
+        train_time = pd.to_datetime(train_data["datetime"])
+        holdout_time = pd.to_datetime(holdout_data["datetime"])
+    except Exception as exc:
+        results["errors"].append(f"Could not verify temporal ordering: {exc}")
+        if verbose:
+            logger.warning(f"⚠ Could not verify temporal ordering: {exc}")
+        return
+
+    if has_train_patient_col and has_holdout_patient_col:
+        train_by_patient = (
+            pd.DataFrame({"p_num": train_data["p_num"], "datetime": train_time})
+            .dropna(subset=["p_num", "datetime"])
+            .groupby("p_num", dropna=True)["datetime"]
+            .max()
+            .rename("max_train_datetime")
+        )
+        holdout_by_patient = (
+            pd.DataFrame({"p_num": holdout_data["p_num"], "datetime": holdout_time})
+            .dropna(subset=["p_num", "datetime"])
+            .groupby("p_num", dropna=True)["datetime"]
+            .min()
+            .rename("min_holdout_datetime")
+        )
+        temporal_alignment = train_by_patient.to_frame().join(
+            holdout_by_patient.to_frame(), how="inner"
+        )
+        temporal_issues = temporal_alignment.index[
+            temporal_alignment["max_train_datetime"]
+            >= temporal_alignment["min_holdout_datetime"]
+        ].tolist()
+
+        if temporal_issues:
+            results["errors"].append(f"Temporal ordering issue: {temporal_issues}")
+            if verbose:
+                logger.error(
+                    f"✗ Temporal ordering issue for patients: {temporal_issues}"
+                )
+        elif verbose:
+            logger.info("✓ Temporal ordering correct for all patients")
+    else:
+        if train_time.max() >= holdout_time.min():
+            results["errors"].append(
+                "Temporal ordering issue: train extends into holdout period"
+            )
+            if verbose:
+                logger.error("✗ Temporal ordering issue")
+        elif verbose:
+            logger.info("✓ Temporal ordering correct")
+
+
 def validate_holdout_config(
     dataset_name: str, registry: DatasetRegistry, verbose: bool = True
 ) -> Dict:
@@ -265,8 +535,8 @@ def validate_holdout_config(
         - config_exists: bool
         - load_successful: bool
         - no_data_leakage: bool
-        - train_size: int
-        - holdout_size: int
+        - train_sample_count: int
+        - holdout_sample_count: int
         - train_patients: List[str]
         - holdout_patients: List[str]
         - errors: List[str]
@@ -281,8 +551,8 @@ def validate_holdout_config(
         "config_exists": False,
         "load_successful": False,
         "no_data_leakage": False,
-        "train_size": 0,
-        "holdout_size": 0,
+        "train_sample_count": 0,
+        "holdout_sample_count": 0,
         "train_patients": [],
         "holdout_patients": [],
         "errors": [],
@@ -301,155 +571,54 @@ def validate_holdout_config(
         # Try to load and split data
         train_data, holdout_data = registry.load_dataset_with_split(dataset_name)
         results["load_successful"] = True
-        results["train_size"] = len(train_data)
-        results["holdout_size"] = len(holdout_data)
+        results["train_sample_count"] = len(train_data)
+        results["holdout_sample_count"] = len(holdout_data)
 
         if verbose:
             logger.info("✓ Data loaded successfully")
             logger.info(f"  - Training samples: {len(train_data):,}")
             logger.info(f"  - Holdout samples: {len(holdout_data):,}")
 
-        # Check for patient-based split
-        if "p_num" in train_data.columns and "p_num" in holdout_data.columns:
-            train_patients = sorted([str(p) for p in train_data["p_num"].unique()])
-            holdout_patients = sorted([str(p) for p in holdout_data["p_num"].unique()])
+        has_train_patient_col = "p_num" in train_data.columns
+        has_holdout_patient_col = "p_num" in holdout_data.columns
 
-            results["train_patients"] = train_patients
-            results["holdout_patients"] = holdout_patients
-
-            if verbose:
-                logger.info(f"  - Training patients: {len(train_patients)}")
-                logger.info(f"  - Holdout patients: {len(holdout_patients)}")
-
-            # Check for overlap based on split type
-            overlap = set(train_patients) & set(holdout_patients)
-
-            # Validate based on split type
-            if config.holdout_type.value == "patient":
-                # Patient-based splits should have NO overlap
-                if overlap:
-                    results["errors"].append(
-                        f"Patient overlap detected: {len(overlap)} patients"
-                    )
-                    if verbose:
-                        logger.error(
-                            f"✗ Patient overlap detected: {len(overlap)} patients"
-                        )
-                else:
-                    results["no_data_leakage"] = True
-                    if verbose:
-                        logger.info("✓ No patient overlap (patient-based split)")
-
-            elif config.holdout_type.value == "hybrid":
-                # Hybrid splits: designated holdout patients should NOT appear in training
-                if config.patient_config and hasattr(
-                    config.patient_config, "holdout_patients"
-                ):
-                    designated_holdout = set(
-                        str(p) for p in config.patient_config.holdout_patients
-                    )
-
-                    # Check if any designated holdout patients appear in training set
-                    leak = designated_holdout & set(train_patients)
-                    if leak:
-                        results["errors"].append(
-                            f"Designated holdout patients in training: {leak}"
-                        )
-                        if verbose:
-                            logger.error(
-                                f"✗ Designated holdout patients leaked: {leak}"
-                            )
-                    else:
-                        results["no_data_leakage"] = True
-                        if verbose:
-                            logger.info(
-                                f"✓ Hybrid split valid: {len(overlap)} patients overlap (temporal)"
-                            )
-                else:
-                    results["no_data_leakage"] = True
-                    if verbose:
-                        logger.info(
-                            f"✓ Hybrid split: {len(overlap)} patients overlap (expected)"
-                        )
-            else:
-                # Temporal splits: overlap is EXPECTED
-                results["no_data_leakage"] = True
-                if verbose:
-                    logger.info(
-                        f"✓ Temporal split: {len(overlap)} patients overlap (expected)"
-                    )
+        if config.holdout_type == HoldoutType.PATIENT_BASED:
+            _validate_patient_split_checks(
+                config=config,
+                train_data=train_data,
+                holdout_data=holdout_data,
+                results=results,
+                verbose=verbose,
+            )
+        elif config.holdout_type == HoldoutType.TEMPORAL:
+            _validate_temporal_checks(
+                config=config,
+                train_data=train_data,
+                holdout_data=holdout_data,
+                has_train_patient_col=has_train_patient_col,
+                has_holdout_patient_col=has_holdout_patient_col,
+                results=results,
+                verbose=verbose,
+            )
+        elif config.holdout_type == HoldoutType.HYBRID:
+            _validate_patient_split_checks(
+                config=config,
+                train_data=train_data,
+                holdout_data=holdout_data,
+                results=results,
+                verbose=verbose,
+            )
+            _validate_temporal_checks(
+                config=config,
+                train_data=train_data,
+                holdout_data=holdout_data,
+                has_train_patient_col=has_train_patient_col,
+                has_holdout_patient_col=has_holdout_patient_col,
+                results=results,
+                verbose=verbose,
+            )
         else:
-            # Temporal-only splits
-            results["no_data_leakage"] = True
-            if verbose:
-                logger.info("✓ Temporal-only split (no patient column)")
-
-        # Validate minimum samples
-        if results["train_size"] < 100:
-            results["errors"].append(
-                f"Training set very small: {results['train_size']} samples"
-            )
-            if verbose:
-                logger.warning("⚠ Training set very small")
-
-        if results["holdout_size"] < 20:
-            results["errors"].append(
-                f"Holdout set very small: {results['holdout_size']} samples"
-            )
-            if verbose:
-                logger.warning("⚠ Holdout set very small")
-
-        # Check temporal ordering for temporal splits
-        if (
-            config.temporal_config
-            and "time" in train_data.columns
-            and "time" in holdout_data.columns
-        ):
-            try:
-                train_data["time"] = pd.to_datetime(train_data["time"])
-                holdout_data["time"] = pd.to_datetime(holdout_data["time"])
-
-                # Check per patient if patient column exists
-                if "p_num" in train_data.columns:
-                    temporal_issues = []
-                    for patient in train_patients:
-                        patient_train = train_data[train_data["p_num"] == patient]
-                        if len(patient_train) > 0:
-                            max_pt = patient_train["time"].max()
-                            patient_holdout = holdout_data[
-                                holdout_data["p_num"] == patient
-                            ]
-                            if len(patient_holdout) > 0:
-                                min_ph = patient_holdout["time"].min()
-                                if max_pt >= min_ph:
-                                    temporal_issues.append(patient)
-
-                    if temporal_issues:
-                        results["errors"].append(
-                            f"Temporal ordering issue: {temporal_issues}"
-                        )
-                        if verbose:
-                            logger.error(
-                                f"✗ Temporal ordering issue for patients: {temporal_issues}"
-                            )
-                    else:
-                        if verbose:
-                            logger.info("✓ Temporal ordering correct for all patients")
-                else:
-                    max_train_time = train_data["time"].max()
-                    min_holdout_time = holdout_data["time"].min()
-                    if max_train_time >= min_holdout_time:
-                        results["errors"].append(
-                            "Temporal ordering issue: train extends into holdout period"
-                        )
-                        if verbose:
-                            logger.error("✗ Temporal ordering issue")
-                    else:
-                        if verbose:
-                            logger.info("✓ Temporal ordering correct")
-            except Exception as e:
-                if verbose:
-                    logger.warning(f"⚠ Could not verify temporal ordering: {e}")
+            raise ValueError(f"Unsupported holdout type: {config.holdout_type.value}")
 
     except Exception as e:
         results["errors"].append(str(e))
@@ -460,10 +629,11 @@ def validate_holdout_config(
     # Final status
     if verbose:
         if not results["errors"]:
-            logger.info(f"\n✓ All validations passed for {dataset_name}")
+            logger.info("")
+            logger.info(f"✓ All validations passed for {dataset_name}")
         else:
             logger.warning(
-                f"\n⚠ Validation completed with {len(results['errors'])} issue(s)"
+                f"⚠ Validation completed with {len(results['errors'])} issue(s)"
             )
 
     return results
@@ -511,8 +681,8 @@ def validate_all_datasets(
                     "config_exists": False,
                     "load_successful": False,
                     "no_data_leakage": False,
-                    "train_size": 0,
-                    "holdout_size": 0,
+                    "train_sample_count": 0,
+                    "holdout_sample_count": 0,
                     "errors": [str(e)],
                 }
             )
@@ -541,8 +711,8 @@ def print_validation_summary(results: List[Dict], verbose: bool = True):
                 "✓" if r["config_exists"] else "✗",
                 "✓" if r["load_successful"] else "✗",
                 "✓" if r["no_data_leakage"] else "✗",
-                f"{r['train_size']:,}",
-                f"{r['holdout_size']:,}",
+                f"{r['train_sample_count']:,}",
+                f"{r['holdout_sample_count']:,}",
                 len(r.get("train_patients", [])),
                 len(r.get("holdout_patients", [])),
                 status,
@@ -554,8 +724,8 @@ def print_validation_summary(results: List[Dict], verbose: bool = True):
         "Config",
         "Load",
         "No Leak",
-        "Train Size",
-        "Holdout Size",
+        "Train Samples",
+        "Holdout Samples",
         "Train Pat's",
         "Hold Pat's",
         "Status",
@@ -577,8 +747,11 @@ def print_validation_summary(results: List[Dict], verbose: bool = True):
                     logger.error(f"  - {error}")
 
         if not errors_found:
-            logger.info("\n✓ All datasets validated successfully!")
+            logger.info("")
+            logger.info("✓ All datasets validated successfully!")
+            logger.info("")
         else:
+            logger.warning("")
             logger.warning(
-                "\n⚠ Some datasets have validation issues. Review errors above."
+                "⚠ Some datasets have validation issues. Review errors above."
             )
