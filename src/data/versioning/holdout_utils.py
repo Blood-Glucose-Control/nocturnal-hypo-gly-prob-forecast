@@ -389,14 +389,16 @@ def _validate_temporal_checks(
         )
 
     if has_train_patient_col != has_holdout_patient_col:
-        missing_side = "holdout" if has_train_patient_col else "train"
-        results["errors"].append(
-            f"Inconsistent split columns: 'p_num' missing from {missing_side} data"
-        )
-        if verbose:
-            logger.error(
-                f"✗ Inconsistent split columns: 'p_num' missing from {missing_side} data"
+        if config.holdout_type == HoldoutType.TEMPORAL:
+            missing_side = "holdout" if has_train_patient_col else "train"
+            results["errors"].append(
+                f"Inconsistent split columns: 'p_num' missing from {missing_side} data"
             )
+            if verbose:
+                logger.error(
+                    "✗ Inconsistent split columns: "
+                    f"'p_num' missing from {missing_side} data"
+                )
         return
 
     if config.holdout_type == HoldoutType.TEMPORAL:

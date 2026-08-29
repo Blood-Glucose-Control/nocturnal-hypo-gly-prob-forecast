@@ -162,7 +162,7 @@ class HoldoutManager:
                     f"(min: {config.min_train_samples}). Skipping this patient."
                 )
                 self._split_metadata["skipped_patients"][patient_id] = (
-                    f"  Only {n_train} training samples (min: {config.min_train_samples}), "
+                    f"Only {n_train} training samples (min: {config.min_train_samples}), "
                     f"total samples: {n_samples}"
                 )
                 continue

@@ -8,6 +8,8 @@ These instructions apply to Copilot work in this repository.
 - Prefer targeted commands and tests over full-repo sweeps.
 - Provide concise progress updates for major transitions.
 - Preserve external behavior contracts by default; within approved cleanup scope, remove legacy internal behavior and compatibility shims. If a contract change is intended, state it explicitly and update tests/docs accordingly.
+- When working with a developer always confirm the branch state and sync with `origin/main` before starting new work. If asked for housekeeping, complete git cleanup before implementation.
+- At the end of each task, always follow up with the developer by prompting them with questions on how to proceed with a few options. This prevents unnecessary premium request usage for very minor clarification questions. The question should be short, keep the summary of what you did in the chat output, not the question.
 
 ## Branch and PR hygiene
 
@@ -53,7 +55,7 @@ When touching model-family code, schema adapters, or workflow model wiring, foll
 
 ## Documentation placement
 
-- Public docs in `docs/` should describe stable contracts and usage.
+- Public docs in `docs/` should describe stable contracts and usage. No internal project management metadata (phase IDs, wave names, task IDs, tracking-file row references, private branch names, or temporary implementation narration) should be included.
 - Phase/task tracking detail belongs in planning/tracking artifacts (for example `agent_notes/` and tracking CSV), not in canonical public docs unless explicitly requested.
 - Before editing public docs, verify statements against source-of-truth config
   files (`pyproject.toml`, `.pre-commit-config.yaml`, `.github/workflows/*`).
@@ -73,3 +75,21 @@ When touching model-family code, schema adapters, or workflow model wiring, foll
 - When touching `docs/contributing.md`, also fix any adjacent obvious
   inaccuracies discovered in the same section (for example version minimums or
   commands that no longer match CI).
+
+## graphify
+
+For any question about this repo's architecture, structure, components, or how to add/modify/find
+code, your first action should be `graphify query "<question>"` when `graphify-out/graph.json`
+exists. Use `graphify path "<A>" "<B>"` for relationship questions and `graphify explain "<concept>"`
+for focused-concept questions. These return a scoped subgraph, usually much smaller than the full
+report or raw grep output.
+
+Triggers: "how do I…", "where is…", "what does … do", "add/modify a <component>",
+"explain the architecture", or anything that depends on how files or classes relate.
+
+If `graphify-out/wiki/index.md` exists, use it for broad navigation. Read `graphify-out/GRAPH_REPORT.md`
+only for broad architecture review or when query/path/explain do not surface enough context. Only read
+source files when (a) modifying/debugging specific code, (b) the graph lacks the needed detail, or
+(c) the graph is missing or stale.
+
+Type `/graphify` in Copilot Chat to build or update the graph.
