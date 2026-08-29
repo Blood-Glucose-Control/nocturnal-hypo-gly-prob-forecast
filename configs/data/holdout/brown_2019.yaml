@@ -28,5 +28,5 @@ patient_config:
   - bro_120
   holdout_percentage: null
   min_train_patients: 10
-  min_holdout_patients: 20
+  min_holdout_patients: 16
   random_seed: 42
