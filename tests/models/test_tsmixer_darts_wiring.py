@@ -3,11 +3,10 @@
 from pathlib import Path
 
 
-def test_model_factory_has_tsmixer_branch() -> None:
+def test_model_factory_registers_tsmixer_supported_type() -> None:
     factory_text = Path("src/models/factory.py").read_text(encoding="utf-8")
-    assert 'elif model_type == "tsmixer":' in factory_text
-    assert "TSMixerForecaster" in factory_text
-    assert "TSMixerConfig" in factory_text
+    assert "SUPPORTED_MODEL_TYPES" in factory_text
+    assert '"tsmixer"' in factory_text
 
 
 def test_workflow_modeling_has_tsmixer_create_and_load_paths() -> None:

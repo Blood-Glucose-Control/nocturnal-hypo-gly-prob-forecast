@@ -122,7 +122,11 @@ class HoldoutManager:
 
         Holds out the last X% of each patient's time series.
         """
+        logger.info("")
+        logger.info(f"Applying temporal-based split for: {self.config.dataset_name}")
         config = self.config.temporal_config
+        if config is None:
+            raise ValueError("temporal_config is required for temporal split")
         train_dfs = []
         holdout_dfs = []
 
@@ -141,7 +145,7 @@ class HoldoutManager:
                     df_sorted = df.sort_index()
                 else:
                     logger.warning(
-                        f"Patient {patient_id}: Cannot find time column '{time_col}'. Using unsorted data."
+                        f"  Patient {patient_id}: Cannot find time column '{time_col}'. Using unsorted data."
                     )
                     df_sorted = df.copy()
 
@@ -154,7 +158,7 @@ class HoldoutManager:
             # Validate minimum samples
             if n_train < config.min_train_samples:
                 logger.warning(
-                    f"Patient {patient_id} has only {n_train} training samples "
+                    f"  Patient {patient_id} has only {n_train} training samples "
                     f"(min: {config.min_train_samples}). Skipping this patient."
                 )
                 self._split_metadata["skipped_patients"][patient_id] = (
@@ -165,7 +169,7 @@ class HoldoutManager:
 
             if n_holdout < config.min_holdout_samples:
                 logger.warning(
-                    f"Patient {patient_id} has only {n_holdout} holdout samples "
+                    f"  Patient {patient_id} has only {n_holdout} holdout samples "
                     f"(min: {config.min_holdout_samples}). Adjusting split."
                 )
                 self._split_metadata["adjusted_patients"][patient_id] = (
@@ -179,7 +183,7 @@ class HoldoutManager:
                 # After expanding holdout, check if training still meets minimum
                 if n_train < config.min_train_samples:
                     logger.warning(
-                        f"Patient {patient_id}: after holdout adjustment, only {n_train} "
+                        f"  Patient {patient_id}: after holdout adjustment, only {n_train} "
                         f"training samples remain (min: {config.min_train_samples}). "
                         f"Skipping this patient."
                     )
@@ -219,9 +223,10 @@ class HoldoutManager:
             else pd.DataFrame()
         )
 
+        logger.info("  Temporal split:")
+        logger.info(f"  - {len(train_data):,} train samples")
         logger.info(
-            f"Temporal split: {len(train_data):,} train samples, "
-            f"{len(holdout_data):,} holdout samples from {len(train_dfs)} patients"
+            f"  - {len(holdout_data):,} holdout samples from {len(train_dfs)} patients"
         )
 
         n_skipped = len(self._split_metadata["skipped_patients"])
@@ -237,7 +242,7 @@ class HoldoutManager:
                 f"  Adjusted split for {n_adjusted} patients "
                 f"(holdout expanded to min): {adjusted_ids}"
             )
-
+        logger.info("")
         return train_data, holdout_data
 
     def _apply_patient_split(
@@ -248,7 +253,11 @@ class HoldoutManager:
 
         Holds out specific patients entirely from training.
         """
+        logger.info("")
+        logger.info(f"Applying patient-based split for: {self.config.dataset_name}")
         config = self.config.patient_config
+        if config is None:
+            raise ValueError("patient_config is required for patient split")
         all_patients = list(patient_data.keys())
 
         # Determine holdout patients
@@ -316,12 +325,15 @@ class HoldoutManager:
             ["..."] if len(holdout_patients) > 5 else []
         )
 
+        logger.info("  Patient split: ")
         logger.info(
-            f"Patient split: {len(train_patients)} train patients ({len(train_data):,} samples), "
-            f"{len(holdout_patients)} holdout patients ({len(holdout_data):,} samples)"
+            f"  - {len(train_patients)} train patients ({len(train_data):,} samples)"
         )
-        logger.info(f"Train patients: {train_patients_display}")
-        logger.info(f"Holdout patients: {holdout_patients_display}")
+        logger.info(
+            f"  - {len(holdout_patients)} holdout patients ({len(holdout_data):,} samples)"
+        )
+        logger.info(f"  Train patients ids: {train_patients_display}")
+        logger.info(f"  Holdout patients ids: {holdout_patients_display}")
 
         return train_data, holdout_data
 
@@ -348,6 +360,8 @@ class HoldoutManager:
         # Store holdout patients
         self._holdout_patients = temp_manager._holdout_patients
         self._train_patients = temp_manager._train_patients
+        if self._holdout_patients is None or self._train_patients is None:
+            raise ValueError("Hybrid split expected patient split metadata to be set")
 
         # Apply temporal split to training patients only
         train_patient_data = {p: patient_data[p] for p in self._train_patients}
@@ -377,12 +391,20 @@ class HoldoutManager:
             [temporal_holdout_data, holdout_patients_data], ignore_index=True
         )
 
+        train_patient_count = len(self._train_patients)
+        holdout_patient_count = len(self._holdout_patients)
+        logger.info("Hybrid Split Summary:")
         logger.info(
-            "Hybrid split: \n"
-            + " " * 23
-            + f"{len(train_data):,} train samples from {len(self._train_patients)} patients, "
-            f"\n" + " " * 23 + f"{len(holdout_data):,} holdout timesteps "
-            f"({len(temporal_holdout_data):,} temporal + {len(holdout_patients_data):,} patient-based)"
+            f"  - {len(train_data):,} train samples from {train_patient_count} patients"
+        )
+        logger.info(f"  - {len(holdout_data):,} total holdout samples ")
+        logger.info(
+            f"    - {len(temporal_holdout_data):,} temporal-based holdout samples "
+            f"from {train_patient_count} patients"
+        )
+        logger.info(
+            f"    - {len(holdout_patients_data):,} patient-based holdout samples "
+            f"from {holdout_patient_count} patients"
         )
 
         n_skipped = len(self._split_metadata["skipped_patients"])
