@@ -233,7 +233,9 @@ def step3_load_training_data(
     logger.info(f"  First 5 columns: {combined_data.columns[:5].tolist()}")
     logger.info(f"  Datasets: {', '.join(dataset_names)}")
 
-    if "p_num" in combined_data.columns or "id" in combined_data.columns:
+    if (
+        "p_num" in combined_data.columns or "id" in combined_data.columns
+    ):  # TODO: investigate this 'id' thing
         patient_col = "p_num" if "p_num" in combined_data.columns else "id"
         n_patients = len(combined_data[patient_col].unique())
         logger.info(f"  Total patients: {n_patients}")

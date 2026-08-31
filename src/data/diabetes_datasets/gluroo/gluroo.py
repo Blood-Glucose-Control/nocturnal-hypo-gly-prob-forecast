@@ -36,7 +36,7 @@ This need to work with huggingface trainer.
 """
 
 
-class GlurooDataLoader(DatasetBase):
+class GlurooDataLoader(DatasetBase[dict[str, pd.DataFrame]]):
     """
     Loader for Gluroo diabetes dataset with preprocessing and feature engineering.
 
@@ -62,31 +62,36 @@ class GlurooDataLoader(DatasetBase):
 
     def __init__(
         self,
+        # Data Selection
         keep_columns: list[str] | None = None,
+        # Caching
         use_cached: bool = True,
+        # Train/Validation Splitting
         train_percentage: float = 0.9,
-        config: dict | None = None,
+        # Parallel Processing
         max_workers: int = 10,
+        # Date Normalization (if applicable)
+        # Dataset-Specific Parameters
+        config: dict | None = None,
         parquet_batch_size: int = 100000,
         load_all: bool = False,
     ):
-        """
-        Initialize the Gluroo data loader.
+        """Initialize the Gluroo data loader.
 
         Args:
-            keep_columns (list[str] | None): Columns to retain from the raw data.
-                If None, all columns are kept.
-            use_cached (bool): If True, load previously processed data from cache
-                instead of processing raw data again. Default is True.
-            train_percentage (float): Percentage of data to use for training (0-1).
-                Default is 0.9.
-            config (dict | None): Configuration dictionary for data processing steps.
-            max_workers (int): Maximum number of worker processes for parallel processing.
-            parquet_batch_size (int): Number of rows to process per batch when loading
-                from Parquet files. Default is 100000. Can be tuned for memory/performance.
-            load_all (bool): If True, load all patients from Parquet cache into
-                processed_data (for testing). Default is False.
+            keep_columns: Optional list of columns to retain per patient.
+            use_cached: Whether to load cached processed data when available.
+            train_percentage: Fraction of each patient's timeline used for training.
+            max_workers: Maximum worker count for parallel processing.
+            config: Optional runtime configuration for Gluroo processing.
+            parquet_batch_size: Batch size for Parquet loading operations.
+            load_all: Whether to eagerly materialize cached data in processed_data.
+
+        Side Effects:
+            Initializes cache/dataset configuration attributes and immediately
+            calls load_data() to populate processed_data when applicable.
         """
+        super().__init__()
         self.keep_columns = keep_columns
         self.train_percentage = train_percentage
         self.cache_manager = get_cache_manager()
@@ -101,13 +106,19 @@ class GlurooDataLoader(DatasetBase):
             "postgresql://postgres:password@127.0.0.1:5433/gluroo_datasets"
         )
 
-        self.processed_data: dict[str, pd.DataFrame] = {}
+        self.processed_data = {}
         self.train_data: dict[str, pd.DataFrame] = {}
         self.validation_data: dict[str, pd.DataFrame] | None = None
         self.total_skipped_patients: int = 0
 
-        logger.info(f"Initializing GlurooDataLoader with use_cached={use_cached}")
+        logger.info(
+            "Initializing %s with use_cached=%s.",
+            self.__class__.__name__,
+            self.use_cached,
+        )
         self.load_data()
+
+    # ==================== Properties ====================
 
     @property
     def dataset_name(self):
@@ -121,6 +132,8 @@ class GlurooDataLoader(DatasetBase):
         information for multiple patients.
         This is for internal use only. The dataset will NOT be released to the public as they are collected within Gluroo and therefore confidential.
         """
+
+    # ==================== Public Methods ====================
 
     def load_data(self):
         """
@@ -172,6 +185,118 @@ class GlurooDataLoader(DatasetBase):
                 # Load the data again
                 self._load_all_into_processed_data()
 
+    def load_raw(self, patient_ids: list[str] | None = None) -> dict[str, pd.DataFrame]:
+        """
+        Load raw data from TimescaleDB for specified patients.
+
+        Args:
+            patient_ids: List of patient IDs to load. If None, loads all patients.
+
+        Returns:
+            dict[str, pd.DataFrame]: Dictionary mapping patient IDs (gid) to raw DataFrames
+        """
+        if patient_ids is None:
+            # id is the base64 encoded
+            patient_ids_p_nums = self._get_all_patient_ids()
+            logger.info(
+                f"Loading raw data for all {len(patient_ids_p_nums)} groups from TimescaleDB..."
+            )
+            # Extract just the gids for iteration
+            patient_ids = [gid for gid, _p_num in patient_ids_p_nums]
+        else:
+            logger.info(
+                f"Loading raw data for {len(patient_ids)} patients from TimescaleDB..."
+            )
+
+        engine = create_engine(self.db_connection_string)
+        raw_data = {}
+
+        for gid in patient_ids:
+            # TODO: This will be a bottleneck. Should query all related patients at once.
+            df = self._load_patient_data_from_db(engine, gid)
+            if df is not None and not df.empty:
+                raw_data[gid] = df
+            else:
+                self.total_skipped_patients += 1
+
+        logger.info(f"Loaded raw data for {len(raw_data)} patients")
+        return raw_data
+
+    def get_hf_streaming_dataset(
+        self,
+        columns: list[str] | None = None,
+        patient_ids: Iterable[str] | None = None,
+        batch_size: int | None = None,
+        validate_non_empty: bool = True,
+    ):
+        """
+        Return a Hugging Face IterableDataset that streams local Parquet files with streaming=True.
+
+        Args:
+            columns: Optional subset of columns to load (passed to load_dataset).
+            patient_ids: Optional iterable of p_num identifiers to filter.
+            batch_size: Optional on-the-fly batching for downstream consumers.
+            validate_non_empty: If True, peek one element to surface empty dataset errors early.
+
+        Returns:
+            datasets.iterable_dataset.IterableDataset configured for streaming.
+        """
+        processed_path = self.cache_manager.get_absolute_path_by_type(
+            self.dataset_name, "processed"
+        )
+        parquet_path = processed_path / "parquet"
+        if not parquet_path.exists():
+            raise FileNotFoundError(f"Parquet files not found at {parquet_path}")
+
+        data_files = str(parquet_path / "**" / "*.parquet")
+        load_kwargs = {
+            "path": "parquet",
+            "data_files": data_files,
+            "split": "train",
+            "streaming": True,
+        }
+        if columns:
+            load_kwargs["columns"] = columns
+
+        dataset = load_dataset(**load_kwargs)
+
+        if isinstance(dataset, dict):
+            dataset = dataset["train"]
+
+        if patient_ids:
+            patient_ids_set = {str(pid) for pid in patient_ids}
+            dataset = dataset.filter(
+                lambda example: (
+                    str(example.get(ColumnNames.P_NUM.value, "")) in patient_ids_set
+                )
+            )
+
+        if batch_size:
+            dataset = dataset.batch(batch_size=batch_size)
+
+        if validate_non_empty:
+            try:
+                # Peek to fail fast when filters/paths produce an empty stream.
+                # Prepend the peeked element back so no data is lost.
+                first_item = next(iter(dataset))
+                dataset = IterableDataset.from_generator(
+                    lambda: chain([first_item], dataset)
+                )
+            except StopIteration as e:
+                raise ValueError(
+                    f"Hugging Face streaming dataset is empty. "
+                    f"Parquet path: {parquet_path}. "
+                    f"Filters -> columns={columns}, p_num filter={patient_ids}."
+                ) from e
+            except Exception as e:  # pragma: no cover - defensive
+                raise ValueError(
+                    f"Failed to initialize streaming dataset from {parquet_path}: {e}"
+                ) from e
+
+        return dataset
+
+    # ==================== Protected Methods ====================
+
     def _load_all_into_processed_data(self) -> None:
         """
         Load all patients from Parquet cache into processed_data (for testing).
@@ -192,6 +317,8 @@ class GlurooDataLoader(DatasetBase):
         logger.info(
             f"Loading all patients from {len(parquet_files)} Parquet file(s) into processed_data..."
         )
+        if self.processed_data is None:
+            self.processed_data = {}
         for path in parquet_files:
             df = pd.read_parquet(path)
             if ColumnNames.P_NUM.value not in df.columns:
@@ -237,43 +364,6 @@ class GlurooDataLoader(DatasetBase):
             result = conn.execute(text("SELECT gid, p_num FROM groups ORDER BY p_num"))
             mapping = {row[0]: str(row[1]) for row in result.fetchall()}
         return mapping
-
-    def load_raw(self, patient_ids: list[str] | None = None) -> dict[str, pd.DataFrame]:
-        """
-        Load raw data from TimescaleDB for specified patients.
-
-        Args:
-            patient_ids: List of patient IDs to load. If None, loads all patients.
-
-        Returns:
-            dict[str, pd.DataFrame]: Dictionary mapping patient IDs (gid) to raw DataFrames
-        """
-        if patient_ids is None:
-            # id is the base64 encoded
-            patient_ids_p_nums = self._get_all_patient_ids()
-            logger.info(
-                f"Loading raw data for all {len(patient_ids_p_nums)} groups from TimescaleDB..."
-            )
-            # Extract just the gids for iteration
-            patient_ids = [gid for gid, _p_num in patient_ids_p_nums]
-        else:
-            logger.info(
-                f"Loading raw data for {len(patient_ids)} patients from TimescaleDB..."
-            )
-
-        engine = create_engine(self.db_connection_string)
-        raw_data = {}
-
-        for gid in patient_ids:
-            # TODO: This will be a bottleneck. Should query all related patients at once.
-            df = self._load_patient_data_from_db(engine, gid)
-            if df is not None and not df.empty:
-                raw_data[gid] = df
-            else:
-                self.total_skipped_patients += 1
-
-        logger.info(f"Loaded raw data for {len(raw_data)} patients")
-        return raw_data
 
     def _load_patient_data_from_db(self, engine, gid: str) -> pd.DataFrame | None:
         """
@@ -338,7 +428,7 @@ class GlurooDataLoader(DatasetBase):
             logger.warning(f"Error loading data for patient {gid}: {e}")
             return None
 
-    def _process_and_cache_data(self, batch_size: int = 10):
+    def _process_and_cache_data(self, batch_size: int = 10) -> dict[str, pd.DataFrame]:
         """
         Process raw data and save to cache in batches.
 
@@ -418,6 +508,11 @@ class GlurooDataLoader(DatasetBase):
             logger.info(
                 f"Completed processing and saving batch {batch_num}/{total_batches}"
             )
+        if self.processed_data is None:
+            raise ValueError(
+                "processed_data should never be None after initialization."
+            )
+        return self.processed_data
 
     def _process_raw_data(self):
         """
@@ -750,176 +845,6 @@ class GlurooDataLoader(DatasetBase):
         logger.info(
             f"Saved {total_files} Parquet batch files across {len(partition_groups)} partitions"
         )
-
-    def get_hf_streaming_dataset(
-        self,
-        columns: list[str] | None = None,
-        patient_ids: Iterable[str] | None = None,
-        batch_size: int | None = None,
-        validate_non_empty: bool = True,
-    ):
-        """
-        Return a Hugging Face IterableDataset that streams local Parquet files with streaming=True.
-
-        Args:
-            columns: Optional subset of columns to load (passed to load_dataset).
-            patient_ids: Optional iterable of p_num identifiers to filter.
-            batch_size: Optional on-the-fly batching for downstream consumers.
-            validate_non_empty: If True, peek one element to surface empty dataset errors early.
-
-        Returns:
-            datasets.iterable_dataset.IterableDataset configured for streaming.
-        """
-        processed_path = self.cache_manager.get_absolute_path_by_type(
-            self.dataset_name, "processed"
-        )
-        parquet_path = processed_path / "parquet"
-        if not parquet_path.exists():
-            raise FileNotFoundError(f"Parquet files not found at {parquet_path}")
-
-        data_files = str(parquet_path / "**" / "*.parquet")
-        load_kwargs = {
-            "path": "parquet",
-            "data_files": data_files,
-            "split": "train",
-            "streaming": True,
-        }
-        if columns:
-            load_kwargs["columns"] = columns
-
-        dataset = load_dataset(**load_kwargs)
-
-        if isinstance(dataset, dict):
-            dataset = dataset["train"]
-
-        if patient_ids:
-            patient_ids_set = {str(pid) for pid in patient_ids}
-            dataset = dataset.filter(
-                lambda example: (
-                    str(example.get(ColumnNames.P_NUM.value, "")) in patient_ids_set
-                )
-            )
-
-        if batch_size:
-            dataset = dataset.batch(batch_size=batch_size)
-
-        if validate_non_empty:
-            try:
-                # Peek to fail fast when filters/paths produce an empty stream.
-                # Prepend the peeked element back so no data is lost.
-                first_item = next(iter(dataset))
-                dataset = IterableDataset.from_generator(
-                    lambda: chain([first_item], dataset)
-                )
-            except StopIteration as e:
-                raise ValueError(
-                    f"Hugging Face streaming dataset is empty. "
-                    f"Parquet path: {parquet_path}. "
-                    f"Filters -> columns={columns}, p_num filter={patient_ids}."
-                ) from e
-            except Exception as e:  # pragma: no cover - defensive
-                raise ValueError(
-                    f"Failed to initialize streaming dataset from {parquet_path}: {e}"
-                ) from e
-
-        return dataset
-
-    # TODO: Move this out
-    # def _split_train_validation(
-    #     self,
-    # ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
-    #     """
-    #     Split processed data into train and validation dicts per patient.
-
-    #     Uses train_percentage to split each patient's data chronologically.
-
-    #     Returns:
-    #         tuple: (train_dict, val_dict) where each is a dict mapping patient IDs to DataFrames
-    #     """
-    #     train_dict: dict[str, pd.DataFrame] = {}
-    #     val_dict: dict[str, pd.DataFrame] = {}
-
-    #     for patient_id, df in self.processed_data.items():
-    #         try:
-    #             patient_df = df.copy()
-
-    #             # Ensure DatetimeIndex
-    #             if not isinstance(patient_df.index, pd.DatetimeIndex):
-    #                 if "datetime" in patient_df.columns:
-    #                     patient_df = patient_df.sort_values("datetime").set_index(
-    #                         "datetime"
-    #                     )
-    #                 else:
-    #                     logger.warning(
-    #                         f"Patient {patient_id} skipped: missing 'datetime' column"
-    #                     )
-    #                     continue
-
-    #             patient_df = patient_df.sort_index()
-
-    #             # Split by percentage
-    #             train_df, val_df, _ = get_train_validation_split_by_percentage(
-    #                 patient_df, train_percentage=self.train_percentage
-    #             )
-
-    #             train_dict[patient_id] = train_df
-    #             val_dict[patient_id] = val_df
-
-    #         except Exception as e:
-    #             logger.warning(f"Patient {patient_id} skipped due to error: {e}")
-    #             continue
-
-    #     return train_dict, val_dict
-
-    # TODO: Move this out
-    # def get_validation_day_splits(self, patient_id: str):
-    #     """
-    #     Generate day-by-day training and testing periods for a specific patient.
-
-    #     For each day in the validation data, yields:
-    #     - Current day's data from 6am-12am (training period)
-    #     - Next day's data from 12am-6am (testing/prediction period)
-
-    #     Args:
-    #         patient_id (str): Identifier for the patient whose data to split.
-
-    #     Yields:
-    #         tuple: (patient_id, train_period_data, test_period_data)
-    #     """
-    #     if self.validation_data is None:
-    #         raise ValueError("Validation data is not loaded")
-
-    #     if patient_id not in self.validation_data:
-    #         raise ValueError(f"Patient {patient_id} not found in validation data")
-
-    #     patient_data = self.validation_data[patient_id]
-    #     for train_period, test_period in self._get_day_splits(patient_data):
-    #         yield patient_id, train_period, test_period
-
-    # TODO: Move this out
-    # def _get_day_splits(
-    #     self,
-    #     patient_data: pd.DataFrame,
-    #     context_period: tuple[int, int] = (6, 24),
-    #     forecast_horizon: tuple[int, int] = (0, 6),
-    # ):
-    #     """
-    #     Split each day's data into context period and forecast horizon.
-    #     TODO: Not sure if this is needed.
-
-    #     Args:
-    #         patient_data: Data for a single patient with DatetimeIndex
-    #         context_period: Start and end hours for context period (default: 6am-midnight)
-    #         forecast_horizon: Start and end hours for forecast period (default: midnight-6am)
-
-    #     Yields:
-    #         tuple: (context_data, forecast_data)
-    #     """
-    #     yield from iter_daily_context_forecast_splits(
-    #         patient_data,
-    #         context_period=context_period,
-    #         forecast_horizon=forecast_horizon,
-    #     )
 
 
 # Standalone function for parallel processing

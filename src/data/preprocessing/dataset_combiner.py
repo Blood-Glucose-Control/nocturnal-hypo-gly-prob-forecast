@@ -10,11 +10,15 @@ from typing import Dict, List, Tuple
 
 import pandas as pd
 
+from ..versioning.dataset_registry import DatasetRegistry
+
 logger = logging.getLogger(__name__)
 
 
 def combine_datasets_for_training(
-    dataset_names: List[str], registry, config_dir: str | None = None
+    dataset_names: List[str],
+    registry: DatasetRegistry,
+    config_dir: str | None = None,
 ) -> Tuple[pd.DataFrame, Dict[str, List[str]]]:
     """
     Combine multiple datasets into a single training DataFrame.

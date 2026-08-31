@@ -75,11 +75,11 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
     ilet_data["DeviceDtTm"] = pd.to_datetime(ilet_data["DeviceDtTm"], errors="coerce")
 
     # Preserve meal size text before any numeric coercion (Bug B fix)
-    ilet_data["meal_size_text"] = (
-        ilet_data["MealSize"].fillna("").astype(str).str.strip()
-        if "MealSize" in ilet_data.columns
-        else ""
-    )
+    if "MealSize" in ilet_data.columns:
+        meal_size_text = ilet_data["MealSize"].fillna("").map(str)
+        ilet_data["meal_size_text"] = meal_size_text.str.strip()
+    else:
+        ilet_data["meal_size_text"] = ""
 
     # Extract CGM rows: only rows with a valid numeric CGM reading
     ilet_data["CGMVal"] = pd.to_numeric(ilet_data["CGMVal"], errors="coerce")
@@ -196,6 +196,11 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
     return out
 
 
+def load_raw_dataset_data(base_dir: Path) -> pd.DataFrame:
+    """Canonical loader helper name for Lynch 2022 raw data."""
+    return load_lynch2022_raw_dataset(base_dir)
+
+
 def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     """
     Convert raw Lynch data to the common training schema.
@@ -209,7 +214,9 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     df = df.dropna(subset=["bg_mM"])
 
     # Patient ID with standardized format: lyn_###
-    df["p_num"] = df["id"].map(lambda pid: format_patient_id("lynch_2022", pid))
+    if df["id"].isna().any():
+        raise ValueError("Lynch data contains missing patient IDs in 'id' column.")
+    df["p_num"] = df["id"].map(lambda pid: format_patient_id("lynch_2022", str(pid)))
 
     # dose_units and food_g are already calculated in load_lynch2022_raw_dataset
     # Ensure they exist and have proper types
@@ -264,6 +271,11 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
 
     logger.info("Prepared Lynch train data with %d patients", df["p_num"].nunique())
     return df
+
+
+def clean_dataset_data(raw_data: pd.DataFrame) -> pd.DataFrame:
+    """Canonical cleaner helper name for Lynch 2022 raw inputs."""
+    return clean_lynch2022_train_data(raw_data)
 
 
 def clean_lynch2022_test_data(

@@ -6,7 +6,7 @@
 Dataset registry for tracking dataset versions and holdout configurations.
 
 This module provides utilities to load datasets with their associated holdout
-configurations, ensuring consistent train/test splits across all experiments.
+configurations, ensuring consistent train/holdout splits across all experiments.
 """
 
 import logging
@@ -82,6 +82,23 @@ class DatasetRegistry:
             logger.error(f"Error loading holdout config for {dataset_name}: {e}")
             return None
 
+    def load_dataset(self, dataset_name: str) -> pd.DataFrame:
+        """Load full dataset without applying holdout split.
+
+        Args:
+            dataset_name: Name of dataset to load
+
+        Returns:
+            Full processed dataset
+        """
+        loader = get_loader(dataset_name, use_cached=True)  # type: ignore[arg-type]
+        full_data = loader.processed_data
+
+        if full_data is None:
+            raise ValueError(f"No processed data available for dataset {dataset_name}")
+
+        return full_data
+
     def load_dataset_with_split(
         self,
         dataset_name: str,
@@ -101,9 +118,8 @@ class DatasetRegistry:
         logger.info(" ")
         logger.info(f"Loading `{dataset_name}` training and holdout datasets...")
 
-        # Load full dataset (already loaded in __init__)
-        loader = get_loader(dataset_name, use_cached=True)  # type: ignore[arg-type]
-        full_data = loader.processed_data
+        # Load full dataset
+        full_data = self.load_dataset(dataset_name)
 
         # Load holdout configuration
         config = self.get_holdout_config(dataset_name)

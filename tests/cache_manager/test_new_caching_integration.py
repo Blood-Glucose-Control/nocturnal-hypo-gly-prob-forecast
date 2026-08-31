@@ -12,6 +12,8 @@ import pandas as pd
 import pytest
 
 from src.data.cache_manager import CacheManager
+from src.data.dataset_configs import register_dataset
+from src.data.models import DatasetConfig, DatasetSourceType
 
 
 class TestNewCachingIntegration:
@@ -21,6 +23,18 @@ class TestNewCachingIntegration:
         """Set up test fixtures."""
         self.temp_dir = tempfile.mkdtemp()
         self.cache_manager = CacheManager(cache_root=self.temp_dir)
+        self.test_dataset = "test_dataset"
+        register_dataset(
+            self.test_dataset,
+            DatasetConfig(
+                source=DatasetSourceType.LOCAL,
+                required_files=["test_data.csv"],
+                description="Test dataset",
+                citation="Test dataset",
+                cache_path="test_dataset",
+                url="https://test.com",
+            ),
+        )
 
     def teardown_method(self):
         """Clean up test fixtures."""
@@ -46,10 +60,14 @@ class TestNewCachingIntegration:
         }
 
         # Step 1: Save full processed data
-        self.cache_manager.save_full_processed_data("test_dataset", mock_processed_data)
+        self.cache_manager.save_full_processed_data(
+            self.test_dataset, mock_processed_data
+        )
 
         # Verify full processed data can be loaded
-        loaded_full_data = self.cache_manager.load_full_processed_data("test_dataset")
+        loaded_full_data = self.cache_manager.load_full_processed_data(
+            self.test_dataset
+        )
         assert loaded_full_data is not None
         assert len(loaded_full_data) == 2
         assert "patient_001" in loaded_full_data
@@ -65,19 +83,18 @@ class TestNewCachingIntegration:
             validation_data[patient_id] = patient_df.iloc[3:]
 
         split_params = {
-            "num_validation_days": 2,
             "split_method": "simple_split",
             "dataset_type": "train",
         }
 
         # Step 3: Save split data
         self.cache_manager.save_split_data(
-            "test_dataset", train_data, validation_data, split_params
+            self.test_dataset, train_data, validation_data, split_params
         )
 
         # Step 4: Load split data back
         loaded_split_result = self.cache_manager.load_split_data(
-            "test_dataset", split_params
+            self.test_dataset, split_params
         )
         assert loaded_split_result is not None
 
@@ -98,27 +115,26 @@ class TestNewCachingIntegration:
 
         # Step 5: Test different split parameters don't load existing cache
         different_params = {
-            "num_validation_days": 3,
-            "split_method": "simple_split",
+            "split_method": "windowed_split",
             "dataset_type": "train",
         }
         result_different = self.cache_manager.load_split_data(
-            "test_dataset", different_params
+            self.test_dataset, different_params
         )
         assert result_different is None
 
     def test_split_id_generation(self):
         """Test that split ID generation creates unique IDs for different parameters."""
-        params_1 = {"num_validation_days": 2, "random_state": 42}
-        params_2 = {"num_validation_days": 3, "random_state": 42}
-        params_3 = {"num_validation_days": 2, "random_state": 123}
+        params_1 = {"random_state": 42}
+        params_2 = {"random_state": 42}
+        params_3 = {"random_state": 123}
 
         id_1 = self.cache_manager._get_split_id(params_1)
         id_2 = self.cache_manager._get_split_id(params_2)
         id_3 = self.cache_manager._get_split_id(params_3)
 
-        # All IDs should be different
-        assert id_1 != id_2
+        # Identical parameters should hash to the same split ID
+        assert id_1 == id_2
         assert id_1 != id_3
         assert id_2 != id_3
 
@@ -140,8 +156,8 @@ class TestNewCachingIntegration:
         }
 
         # Test full processed data saving/loading
-        self.cache_manager.save_full_processed_data("test_dataset", processed_data)
-        loaded_data = self.cache_manager.load_full_processed_data("test_dataset")
+        self.cache_manager.save_full_processed_data(self.test_dataset, processed_data)
+        loaded_data = self.cache_manager.load_full_processed_data(self.test_dataset)
 
         assert loaded_data is not None
         assert "patient_001" in loaded_data
@@ -155,9 +171,11 @@ class TestNewCachingIntegration:
         split_params = {"validation_days": 2, "method": "test"}
 
         self.cache_manager.save_split_data(
-            "test_dataset", train_data, val_data, split_params
+            self.test_dataset, train_data, val_data, split_params
         )
-        loaded_split = self.cache_manager.load_split_data("test_dataset", split_params)
+        loaded_split = self.cache_manager.load_split_data(
+            self.test_dataset, split_params
+        )
 
         assert loaded_split is not None
         loaded_train, loaded_val = loaded_split

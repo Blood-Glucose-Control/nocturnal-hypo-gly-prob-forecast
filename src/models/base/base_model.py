@@ -513,7 +513,7 @@ class BaseTimeSeriesFoundationModel(ABC):
     # Public API (fit, predict, evaluate, save_model, load_model, get_model_info...)
     def fit(
         self,
-        train_data: Any,
+        train_data: Any,  # TODO: This should not bet Any, but rather a specific type depending on the model backend (e.g., DataFrame, Dataset, or data source name).
         output_dir: str = "./output",
         **kwargs,
     ) -> Dict[str, Any]:

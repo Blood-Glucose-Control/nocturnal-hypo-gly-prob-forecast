@@ -33,6 +33,7 @@ from ....utils.os_helper import get_project_root
 from ....utils.unit import mg_dl_to_mmol_l
 from ...models import ColumnNames
 from ...preprocessing.data_splitting import split_multipatient_dataframe
+from ...preprocessing.pipeline import preprocessing_pipeline
 from ...preprocessing.sampling import (
     ensure_regular_time_intervals_with_aggregation,
 )
@@ -110,6 +111,13 @@ def load_raw_brown_2019_data(
     )
 
     return cgm_df, basal_df, bolus_df
+
+
+def load_raw_dataset_data(
+    data_dir: Optional[Path] = None,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Canonical loader helper name for Brown 2019 raw data."""
+    return load_raw_brown_2019_data(data_dir)
 
 
 def clean_brown_2019_data(
@@ -336,14 +344,49 @@ def clean_brown_2019_data(
     return output_df
 
 
-def process_single_patient(
-    patient_df: pd.DataFrame,
-    p_num: str,
+def clean_dataset_data(
+    cgm_df: pd.DataFrame,
+    basal_df: pd.DataFrame,
+    bolus_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """
-    Process a single patient's data through the preprocessing pipeline.
+    """Canonical cleaner helper name for Brown 2019 raw inputs."""
+    return clean_brown_2019_data(cgm_df, basal_df, bolus_df)
 
-    This applies COB/IOB calculations if the relevant columns exist.
+
+def process_single_patient_data(args: tuple) -> tuple[str, pd.DataFrame]:
+    """
+    Process a single patient's data through preprocessing.
+
+    Args:
+        args: Tuple of (patient_id, patient_df, use_aggregation, basal_delivery_type).
+
+    Returns:
+        Tuple of (patient_id_str, processed_df).
+    """
+    patient_id, patient_df, use_aggregation, basal_delivery_type = args
+
+    patient_df[ColumnNames.BOLUS.value] = patient_df[
+        ColumnNames.DOSE_UNITS.value
+    ].copy()
+
+    try:
+        patient_df = preprocessing_pipeline(
+            str(patient_id),
+            patient_df,
+            use_aggregation=use_aggregation,
+            basal_delivery_type=basal_delivery_type,
+        )
+    except Exception as e:
+        logger.warning(
+            f"Patient {patient_id} preprocessing failed: {e}. Using cleaned data."
+        )
+
+    return str(patient_id), patient_df
+
+
+def process_single_patient(patient_df: pd.DataFrame, p_num: str) -> pd.DataFrame:
+    """
+    Backward-compatible wrapper around process_single_patient_data.
 
     Args:
         patient_df: Single patient DataFrame (datetime indexed).
@@ -352,24 +395,13 @@ def process_single_patient(
     Returns:
         Processed DataFrame with additional derived columns.
     """
-    from ...preprocessing.pipeline import preprocessing_pipeline
-
-    logger.info(f"Processing patient {p_num} through preprocessing pipeline...")
-
     dt_col = ColumnNames.DATETIME.value
+    if patient_df.index.name != dt_col and dt_col in patient_df.columns:
+        patient_df = patient_df.set_index(dt_col)
 
-    # preprocessing_pipeline expects datetime as index
-    if patient_df.index.name != dt_col:
-        if dt_col in patient_df.columns:
-            patient_df = patient_df.set_index(dt_col)
-
-    processed_df = preprocessing_pipeline(
-        p_num,
-        patient_df,
-        use_aggregation=True,
-        basal_delivery_type="automated",
+    _patient_id, processed_df = process_single_patient_data(
+        (p_num, patient_df, True, "automated")
     )
-
     return processed_df
 
 

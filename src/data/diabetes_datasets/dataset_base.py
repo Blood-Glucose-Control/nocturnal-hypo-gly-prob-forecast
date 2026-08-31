@@ -1,8 +1,7 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
-"""Dataset handling base module for the nocturnal project.
+"""Dataset handling base module.
 
 This module provides the foundation for all dataset-related functionality through
 the DatasetBase abstract class. It establishes a consistent interface for loading,
@@ -44,12 +43,21 @@ Example:
     ```
 """
 
+import logging
 from abc import ABC, abstractmethod
+from typing import Any, Generic, TypeGuard, TypeVar, cast
 
 import pandas as pd
 
+ProcessedPatientData = dict[str, pd.DataFrame]
+NestedProcessedPatientData = dict[str, dict[str, pd.DataFrame]]
+ProcessedData = ProcessedPatientData | NestedProcessedPatientData
+ProcessedDataT = TypeVar("ProcessedDataT", bound=ProcessedData)
 
-class DatasetBase(ABC):
+logger = logging.getLogger(__name__)
+
+
+class DatasetBase(ABC, Generic[ProcessedDataT]):
     """Base class for dataset loading and processing.
 
     This abstract base class defines the interface for dataset handling classes
@@ -62,15 +70,15 @@ class DatasetBase(ABC):
     2. Process that data into a usable form using `load_data()`
 
     Attributes:
-        processed_data (pd.DataFrame or pd.Series): The processed dataset after loading
-        raw_data (pd.DataFrame or pd.Series): The raw dataset without processing
+        processed_data: Processed per-patient data keyed by patient ID.
+        raw_data: The raw dataset without processing.
     """
 
     def __init__(self):
-        self.processed_data = None
-        self.raw_data = None
+        self.processed_data: ProcessedDataT | None = None
+        self.raw_data: Any = None
 
-    # Properties
+    # ==================== Properties ====================
     @property
     @abstractmethod
     def dataset_name(self):
@@ -98,7 +106,7 @@ class DatasetBase(ABC):
         Returns:
             int: The count of processed patients, or 0 if no data is loaded.
         """
-        return len(self.processed_data) if self.processed_data else 0
+        return len(self.processed_data) if isinstance(self.processed_data, dict) else 0
 
     @property
     def patient_ids(self) -> list[str]:
@@ -107,50 +115,30 @@ class DatasetBase(ABC):
         Returns:
             list[str]: List of patient ID strings, or empty list if no data.
         """
-        return list(self.processed_data.keys()) if self.processed_data else []
+        if not isinstance(self.processed_data, dict):
+            return []
+        return [str(patient_id) for patient_id in self.processed_data.keys()]
 
     @property
-    def data_shape_summary(self) -> dict:
+    def data_shape_summary(self) -> dict[str, tuple[int, int]]:
         """Get a summary of the data shape.
 
-        Returns a dict mapping patient_id (or (patient_id, sub_id) for nested data)
-        to shape tuple (rows, cols).
-
-        For test data with nested structure {patient_id: {sub_id: DataFrame}},
-        returns {(patient_id, sub_id): shape}.
-        For train/validation data {patient_id: DataFrame}, returns {patient_id: shape}.
+        Returns a dict mapping patient_id to shape tuple (rows, cols).
 
         Returns:
-            dict: A dictionary summarizing the shape of the dataset.
-                  Empty dict if no processed data is loaded.
+            dict[str, tuple[int, int]]: Patient-to-shape mapping.
+                Empty dict if no processed data is loaded.
         """
-        if not self.processed_data:
+        if not isinstance(self.processed_data, dict):
             return {}
 
-        result = {}
+        result: dict[str, tuple[int, int]] = {}
         for patient_id, patient_data in self.processed_data.items():
-            if isinstance(patient_data, dict):
-                # Nested structure (test data)
-                for sub_id, df in patient_data.items():
-                    if isinstance(df, pd.DataFrame):
-                        result[(patient_id, sub_id)] = df.shape
-            elif isinstance(patient_data, pd.DataFrame):
-                result[patient_id] = patient_data.shape
+            if isinstance(patient_data, pd.DataFrame):
+                result[str(patient_id)] = patient_data.shape
         return result
 
-    # Public Abstract Methods
-    @abstractmethod
-    def load_data(self):
-        """Load the processed dataset.
-
-        This method should handle any necessary preprocessing of the raw data
-        before returning the final dataset ready for use.
-
-        Returns:
-            pd.DataFrame or pd.Series: The processed dataset ready for use
-        """
-        raise NotImplementedError("'load_data()' must be implemented by subclass")
-
+    # ==================== Public Abstract Methods ====================
     @abstractmethod
     def load_raw(self):
         """Load the raw dataset without any processing.
@@ -160,7 +148,35 @@ class DatasetBase(ABC):
         """
         raise NotImplementedError("'load_raw()' must be implemented by subclass")
 
-    # Public Methods
+    # ==================== Public Methods ====================
+    def load_data(self) -> None:
+        """Load processed data, split train/validation data, and populate metadata.
+
+        The default flow is:
+        1. Try loading cached processed data when `use_cached=True`.
+        2. If no cache is available, call the subclass `_process_and_cache_data()`.
+        3. Split `processed_data` into train/validation dictionaries.
+
+        Side Effects:
+            Sets self.processed_data, self.train_data, self.validation_data,
+            self.train_dt_col_type, self.val_dt_col_type, and self.num_train_days.
+        """
+        need_to_process_data = True
+        if getattr(self, "use_cached", False):
+            cached_data = self._load_cached_processed_data()
+            if cached_data is not None:
+                filtered_cached_data = self._apply_keep_columns_filter(cached_data)
+                self.processed_data = cast(ProcessedDataT, filtered_cached_data)
+                need_to_process_data = False
+
+        if need_to_process_data:
+            self._process_and_cache_data()
+            if self._is_processed_patient_data(self.processed_data):
+                filtered_processed_data = self._apply_keep_columns_filter(
+                    self.processed_data
+                )
+                self.processed_data = cast(ProcessedDataT, filtered_processed_data)
+
     def create_validation_table(self):
         """Create a validation table for the dataset.
 
@@ -198,6 +214,10 @@ class DatasetBase(ABC):
         """
         if self.processed_data is None:
             raise ValueError("Processed data is not loaded. Call load_data() first.")
+        if not isinstance(self.processed_data, dict):
+            raise TypeError(
+                "Processed data must be a dict-like patient map. Call load_data() first."
+            )
 
         validation_rows = []
 
@@ -205,57 +225,101 @@ class DatasetBase(ABC):
         train_data_dict = getattr(self, "train_data", None)
         validation_data_dict = getattr(self, "validation_data", None)
 
-        # Handle nested test data structure (patient_id -> {sub_id -> DataFrame})
-        if isinstance(self.processed_data, dict):
-            for patient_id, patient_data in self.processed_data.items():
-                if isinstance(patient_data, dict):
-                    # Nested structure (test data) - process each sub_id separately
-                    for sub_id, patient_df in patient_data.items():
-                        if (
-                            isinstance(patient_df, pd.DataFrame)
-                            and not patient_df.empty
-                        ):
-                            combined_id = f"{patient_id}_{sub_id}"
-                            row = self._extract_patient_stats(combined_id, patient_df)
-                            # For test data, train/validation splits don't apply
-                            row["num_train_data_points"] = None
-                            row["num_validation_data_points"] = None
-                            validation_rows.append(row)
-                elif isinstance(patient_data, pd.DataFrame) and not patient_data.empty:
-                    # Simple structure (train data) - one DataFrame per patient
-                    row = self._extract_patient_stats(patient_id, patient_data)
+        for patient_id, patient_df in self.processed_data.items():
+            if not isinstance(patient_df, pd.DataFrame) or patient_df.empty:
+                continue
 
-                    # Add train/validation split counts if available
-                    if train_data_dict is not None and patient_id in train_data_dict:
-                        row["num_train_data_points"] = len(train_data_dict[patient_id])
-                    else:
-                        row["num_train_data_points"] = None
+            row = self._extract_patient_stats(patient_id, patient_df)
 
-                    if (
-                        validation_data_dict is not None
-                        and patient_id in validation_data_dict
-                    ):
-                        row["num_validation_data_points"] = len(
-                            validation_data_dict[patient_id]
-                        )
-                    else:
-                        row["num_validation_data_points"] = None
+            # Add train/validation split counts if available
+            if train_data_dict is not None and patient_id in train_data_dict:
+                row["num_train_data_points"] = len(train_data_dict[patient_id])
+            else:
+                row["num_train_data_points"] = None
 
-                    validation_rows.append(row)
+            if validation_data_dict is not None and patient_id in validation_data_dict:
+                row["num_validation_data_points"] = len(
+                    validation_data_dict[patient_id]
+                )
+            else:
+                row["num_validation_data_points"] = None
+
+            validation_rows.append(row)
 
         return pd.DataFrame(validation_rows)
 
-    # Protected Abstract Methods
+    # ==================== Protected Abstract Methods ====================
     @abstractmethod
-    def _process_raw_data(self):
-        """Process the raw data.
+    def _process_and_cache_data(self) -> ProcessedDataT:
+        """Process raw data and save/load it into self.processed_data."""
+        raise NotImplementedError(
+            "'_process_and_cache_data()' must be implemented by subclass"
+        )
 
-        Returns:
-            pd.DataFrame or pd.Series
-        """
-        raise NotImplementedError("_process_raw_data must be implemented by subclass")
+    # ==================== Protected Methods ====================
+    def _is_processed_patient_data(
+        self, data: ProcessedDataT | None
+    ) -> TypeGuard[dict[str, pd.DataFrame]]:
+        """Check whether data is in the standardized patient->DataFrame shape."""
+        return isinstance(data, dict) and all(
+            isinstance(patient_data, pd.DataFrame) for patient_data in data.values()
+        )
 
-    # Protected Methods
+    def _load_cached_processed_data(self) -> dict[str, pd.DataFrame] | None:
+        """Load processed patient data from cache when available."""
+        cache_manager = getattr(self, "cache_manager", None)
+        if cache_manager is None:
+            raise ValueError(
+                "Cache manager is not initialized. Child class must set self.cache_manager."
+            )
+
+        cached_data = cache_manager.load_processed_data(
+            self.dataset_name,
+            file_format="csv",
+        )
+        if cached_data is None:
+            return None
+        return cached_data
+
+    def _apply_keep_columns_filter(
+        self, patient_data: dict[str, pd.DataFrame]
+    ) -> dict[str, pd.DataFrame]:
+        """Filter processed patient data to keep_columns while preserving datetime index."""
+        keep_columns = getattr(self, "keep_columns", None)
+        if keep_columns is None:
+            return patient_data
+
+        columns_to_keep = [column for column in keep_columns if column != "datetime"]
+        if not columns_to_keep:
+            return patient_data
+
+        filtered_data: dict[str, pd.DataFrame] = {}
+        for patient_id, patient_df in patient_data.items():
+            available_cols = [
+                col for col in columns_to_keep if col in patient_df.columns
+            ]
+            missing_cols = [
+                col for col in columns_to_keep if col not in patient_df.columns
+            ]
+            if missing_cols:
+                logger.warning(
+                    "Patient %s missing requested columns %s; available=%s",
+                    patient_id,
+                    missing_cols,
+                    list(patient_df.columns),
+                )
+
+            filtered_df = patient_df[available_cols] if available_cols else patient_df
+            if patient_df.index.name != "datetime" and "datetime" in patient_df.columns:
+                filtered_df = filtered_df.set_index(patient_df["datetime"])
+                filtered_df.index.name = "datetime"
+            filtered_data[patient_id] = filtered_df
+
+        if filtered_data:
+            first_patient_df = next(iter(filtered_data.values()))
+            self.keep_columns = ["datetime", *first_patient_df.columns.tolist()]
+        return filtered_data
+
     def _validate_data(self, data):
         """Validate the loaded data.
 
@@ -304,13 +368,13 @@ class DatasetBase(ABC):
                         pd.to_datetime(patient_df["datetime"], errors="coerce")
                     )
                 except (TypeError, ValueError, AttributeError):
-                    return "Could not parse datetime column into index with pd.DatetimeIndex(pd.to_datetime(\{column\}))."
+                    return "unknown"
             else:
                 return "unknown"
         else:
             idx = pd.DatetimeIndex(patient_df.index)
 
-        if idx.empty or idx.isna().all():
+        if idx.empty or bool(pd.isna(idx).all()):
             return "unknown"
 
         generic_date = getattr(self, "generic_patient_start_date", None)
