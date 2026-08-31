@@ -106,6 +106,31 @@ class TestCacheManager:
         pd.testing.assert_frame_equal(data["patient_001"], loaded_data["patient_001"])
         pd.testing.assert_frame_equal(data["patient_002"], loaded_data["patient_002"])
 
+    def test_load_full_processed_data_normalizes_duplicate_datetime_columns(self):
+        """Cached CSVs with duplicate datetime headers should load cleanly."""
+        patient_df = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime(
+                    ["2023-01-01 00:00", "2023-01-01 00:05", "2023-01-01 00:10"]
+                ),
+                "p_num": ["patient_001", "patient_001", "patient_001"],
+                "glucose": [100, 105, 110],
+            }
+        ).set_index("datetime")
+        patient_df["datetime"] = patient_df.index
+
+        self.cache_manager.save_full_processed_data(
+            "test_dataset", {"patient_001": patient_df}
+        )
+        loaded_data = self.cache_manager.load_full_processed_data("test_dataset")
+
+        assert loaded_data is not None
+        loaded_df = loaded_data["patient_001"]
+        assert isinstance(loaded_df.index, pd.DatetimeIndex)
+        assert loaded_df.index.name == "datetime"
+        assert "datetime.1" not in loaded_df.columns
+        assert "datetime" not in loaded_df.columns
+
     def test_load_full_processed_data_not_exists(self):
         """Test loading full processed data when it doesn't exist."""
         with pytest.raises(ValueError, match="Configuration not found"):

@@ -71,7 +71,9 @@ def clean_tamborlane_2008_data(df: pd.DataFrame) -> pd.DataFrame:
         # Combine date and time - use infer_datetime_format for flexibility
         # errors="coerce" ensures unparseable values become NaT instead of raising
         datetime_str = (
-            data["device_date"].astype(str) + " " + data["device_time"].astype(str)
+            data["device_date"]
+            .astype("string")
+            .str.cat(data["device_time"].astype("string"), sep=" ")
         )
         data["datetime"] = pd.to_datetime(datetime_str, errors="coerce")
         logger.info("Created datetime column from device_date and device_time")
@@ -81,9 +83,12 @@ def clean_tamborlane_2008_data(df: pd.DataFrame) -> pd.DataFrame:
         logger.info("Created datetime column from display_time")
     elif "date" in data.columns and "time" in data.columns:
         # Combine date and time columns (legacy format)
-        data["datetime"] = pd.to_datetime(
-            data["date"].astype(str) + " " + data["time"].astype(str), errors="coerce"
+        datetime_str = (
+            data["date"]
+            .astype("string")
+            .str.cat(data["time"].astype("string"), sep=" ")
         )
+        data["datetime"] = pd.to_datetime(datetime_str, errors="coerce")
 
     # Ensure patient ID column exists and apply standardized format: tam_###
     if "p_num" in data.columns:
@@ -145,6 +150,11 @@ def clean_tamborlane_2008_data(df: pd.DataFrame) -> pd.DataFrame:
     return data
 
 
+def clean_dataset_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Canonical cleaner helper name for Tamborlane 2008 raw inputs."""
+    return clean_tamborlane_2008_data(df)
+
+
 def process_single_patient_tamborlane(
     patient_data_tuple: Tuple, store_intermediate_data: bool = False
 ) -> Tuple[str, pd.DataFrame]:
@@ -199,7 +209,7 @@ def process_single_patient_tamborlane(
 
     # Run preprocessing pipeline if available
     try:
-        from ...preprocessing.preprocessing_pipeline import preprocessing_pipeline
+        from ...preprocessing.pipeline import preprocessing_pipeline
 
         processed_data = preprocessing_pipeline(p_num, data_copy)
     except ImportError:
@@ -207,6 +217,16 @@ def process_single_patient_tamborlane(
         processed_data = data_copy
 
     return p_num, processed_data
+
+
+def process_single_patient_data(
+    patient_data_tuple: Tuple, store_intermediate_data: bool = False
+) -> Tuple[str, pd.DataFrame]:
+    """Canonical single-patient preprocessing helper name."""
+    return process_single_patient_tamborlane(
+        patient_data_tuple,
+        store_intermediate_data=store_intermediate_data,
+    )
 
 
 def extract_cgm_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -298,7 +318,9 @@ def validate_tamborlane_data(df: pd.DataFrame) -> Dict[str, Any]:
         metrics["missing_glucose"] = 0
 
     metrics["missing_datetime"] = (
-        df.index.isna().sum() if isinstance(df.index, pd.DatetimeIndex) else 0
+        int(pd.Series(df.index.isna(), dtype="bool").to_numpy().sum())
+        if isinstance(df.index, pd.DatetimeIndex)
+        else 0
     )
 
     # Glucose statistics

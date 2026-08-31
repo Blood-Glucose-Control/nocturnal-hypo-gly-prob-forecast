@@ -1,6 +1,5 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: cjrisi/christopher AT uwaterloo/gluroo DOT ca/com
 
 """
 Time-based preprocessing utilities for continuous glucose monitoring data.
@@ -34,12 +33,9 @@ Functions:
     get_train_validation_split: Create robust train and validation sets for a single patient with DatetimeIndex requirement for optimal performance
 """
 
-from typing import Any, Generator, cast
+from typing import Generator
 
 import pandas as pd
-from typing_extensions import deprecated
-
-from ..models import ColumnNames
 
 
 def create_datetime_index(
@@ -184,256 +180,6 @@ def split_patient_data_by_day(patients_dfs: pd.DataFrame, patient_id: str) -> di
     return daily_dfs
 
 
-@deprecated(
-    "Use get_train_validation_split_by_percentage instead. Datasets will have different spans so it no longer makes sense to use a fixed number of days. This function will only be used internally.",
-    category=DeprecationWarning,
-)
-def get_train_validation_split(
-    df: pd.DataFrame,
-    num_validation_days: int = 20,
-    day_start_hour: int = 6,
-    min_data_days: int = 1,
-    include_partial_days: bool = False,
-) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    """
-    Split a single patient's data into train and validation sets based on complete days.
-
-    This function separates a single patient's data into training and validation sets,
-    where the validation set contains the specified number of complete days. A day is
-    defined as starting at the specified hour (default: 6am) and ending just before
-    the same hour the next day.
-
-    IMPORTANT: This function requires the input DataFrame to have a DatetimeIndex for
-    optimal performance and semantic correctness of time-series operations.
-
-    Args:
-        df (pd.DataFrame): Input dataframe for a SINGLE patient with DatetimeIndex (REQUIRED)
-        num_validation_days (int): Number of complete days to use for validation
-        day_start_hour (int): Hour that defines the start of a day (default: 6 for 6am)
-        min_data_days (int): Minimum number of days of data required (default: 1)
-        include_partial_days (bool): Whether to include partial days at the end of data (default: False)
-
-    Returns:
-        tuple[pd.DataFrame, pd.DataFrame, dict]:
-            (train_data, validation_data, split_info)
-            where train_data and validation_data are DataFrames for the single patient
-
-    Raises:
-        ValueError: If DatetimeIndex is not found or insufficient data for requested validation period
-        TypeError: If the DataFrame index is not a DatetimeIndex
-    """
-    # Input validation
-    if not isinstance(df, pd.DataFrame):
-        raise ValueError("Input must be a pandas DataFrame")
-
-    # Check for DatetimeIndex (REQUIRED for optimal performance)
-    if not isinstance(df.index, pd.DatetimeIndex):
-        raise TypeError(
-            "DataFrame must have a DatetimeIndex for optimal time-series operations. "
-            "Please set your datetime column as the index using: "
-            "df.set_index('datetime_column_name', inplace=True)"
-        )
-
-    if num_validation_days <= 0:
-        raise ValueError("num_validation_days must be positive")
-
-    if not 0 <= day_start_hour <= 23:
-        raise ValueError("day_start_hour must be between 0 and 23")
-
-    if min_data_days <= 0:
-        raise ValueError("min_data_days must be positive")
-
-    # Work with a copy to avoid modifying original
-    df = df.copy()
-
-    # Initialize split info dictionary
-    split_info: dict[str, Any] = {
-        "data_start": df.index.min().strftime("%Y-%m-%d %H:%M:%S"),
-        "data_end": df.index.max().strftime("%Y-%m-%d %H:%M:%S"),
-        "total_records": len(df),
-        "validation_days_requested": num_validation_days,
-        "validation_days_actual": 0,
-        "day_start_hour": day_start_hour,
-        "include_partial_days": include_partial_days,
-        "dropped_partial_day_records": 0,
-        "dropped_partial_day_start": None,
-        "dropped_partial_day_end": None,
-    }
-
-    # Type assertion to help the type checker
-    datetime_index = cast(pd.DatetimeIndex, df.index)
-
-    # Get timestamps where hour matches day_start_hour (using efficient index operations)
-    day_boundary_mask = datetime_index.hour == day_start_hour
-    day_boundary_times = datetime_index[day_boundary_mask]
-
-    # Check if patient has enough data
-    if len(day_boundary_times) == 0:
-        raise ValueError(
-            f"No {day_start_hour}:00 timestamps found in the data. "
-            f"Cannot determine day boundaries for splitting."
-        )
-
-    # Calculate total days of data available (using efficient index operations)
-    total_data_span = (df.index.max() - df.index.min()).days
-
-    if total_data_span < min_data_days:
-        raise ValueError(
-            f"Insufficient data: {total_data_span} days < {min_data_days} required"
-        )
-
-    # Get the last day boundary timestamp
-    if include_partial_days:
-        # Use the latest data point
-        last_boundary = df.index.max()
-    else:
-        # Use the last day_start_hour timestamp
-        last_boundary = day_boundary_times.max()
-
-        # Calculate dropped partial day information when excluding partial days
-        original_end = df.index.max()
-        if original_end > last_boundary:
-            dropped_partial_data = df.loc[last_boundary:].iloc[1:]
-            update_dict: dict[str, Any] = {
-                "dropped_partial_day_records": len(dropped_partial_data),
-                "dropped_partial_day_start": last_boundary.strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
-                "dropped_partial_day_end": original_end.strftime("%Y-%m-%d %H:%M:%S"),
-            }
-            split_info.update(update_dict)
-
-    # Calculate the start of validation period
-    validation_start = last_boundary - pd.Timedelta(days=num_validation_days)
-
-    # Ensure we don't go before the start of available data
-    data_start = df.index.min()
-    if validation_start < data_start:
-        available_days = (last_boundary - data_start).days
-        raise ValueError(
-            f"Insufficient data for {num_validation_days} validation days: "
-            f"only {available_days} days available"
-        )
-
-    # Split the data using efficient index-based slicing
-    if include_partial_days:
-        # Include all data from validation_start onwards
-        validation_data = df.loc[validation_start:].copy()
-        train_data = df.loc[:validation_start].iloc[:-1].copy()
-    else:
-        # Use precise time range slicing
-        validation_data = df.loc[validation_start:last_boundary].copy()
-        train_data = df.loc[:validation_start].iloc[:-1].copy()
-
-    # Ensure we have meaningful data
-    if len(validation_data) == 0:
-        raise ValueError("Validation set is empty after split")
-
-    if len(train_data) == 0:
-        raise ValueError("Training set is empty after split")
-
-    # Calculate actual validation days
-    actual_validation_days = (
-        validation_data.index.max() - validation_data.index.min()
-    ).days
-
-    # Update split info with results
-    final_update_dict: dict[str, Any] = {
-        "validation_days_actual": actual_validation_days,
-        "train_records": len(train_data),
-        "validation_records": len(validation_data),
-        "split_ratio": len(validation_data) / len(df),
-        "train_data_start": train_data.index.min().strftime("%Y-%m-%d %H:%M:%S"),
-        "train_data_end": train_data.index.max().strftime("%Y-%m-%d %H:%M:%S"),
-        "validation_data_start": validation_data.index.min().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        ),
-        "validation_data_end": validation_data.index.max().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        ),
-    }
-    split_info.update(final_update_dict)
-
-    return train_data, validation_data, split_info
-
-
-def get_train_validation_split_by_percentage(
-    df: pd.DataFrame,
-    train_percentage: float = 0.8,
-) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
-    """
-    Split a single patient's data into train and validation sets based on a percentage of the total days.
-
-    This function separates a single patient's data into training and validation sets,
-    where the validation set contains the specified percentage of the total days.
-
-    IMPORTANT: This function requires the input DataFrame to have a DatetimeIndex for
-    optimal performance and semantic correctness of time-series operations.
-
-    Args:
-        df (pd.DataFrame): Input dataframe for a SINGLE patient with DatetimeIndex (REQUIRED)
-        train_percentage (float): Percentage of the total days to use for training. If 1, return the entire dataframe as train and empty dataframe as validation.
-
-    Returns:
-        tuple[pd.DataFrame, pd.DataFrame, dict]:
-            (train_data, validation_data, split_info)
-            where train_data is a DataFrame and validation_data is a DataFrame
-
-    Raises:
-        ValueError: If DatetimeIndex is not found or insufficient data for requested validation period
-        TypeError: If the DataFrame index is not a DatetimeIndex
-    """
-    if not isinstance(df, pd.DataFrame):
-        raise ValueError("Input must be a pandas DataFrame")
-    if not isinstance(df.index, pd.DatetimeIndex):
-        raise TypeError(
-            "DataFrame must have a DatetimeIndex. "
-            "Set your datetime column as index: df.set_index('datetime', inplace=True)"
-        )
-    if not (0 < train_percentage <= 1):
-        raise ValueError(
-            "train_percentage must be between 0 (exclusive) and 1 (inclusive)"
-        )
-
-    total_days = (df.index.max() - df.index.min()).days
-    if total_days < 2:
-        raise ValueError(
-            f"Insufficient data span for percentage split: {total_days} day(s) for pid {df[ColumnNames.P_NUM.value].iloc[0]}"
-        )
-
-    train_days = int(total_days * train_percentage)
-    # Ensure at least 1 day for both train and validation
-    train_days = max(1, min(train_days, total_days - 1))
-    num_validation_days = total_days - train_days
-
-    if train_percentage == 1:
-        train_df = df
-        val_df = pd.DataFrame(columns=df.columns)
-        info: dict[str, Any] = {
-            "train_days_actual": total_days,
-            "validation_days_actual": 0,
-        }
-    else:
-        # get_train_validation_split is only for internal use
-        train_df, val_df, info = get_train_validation_split(
-            df,
-            num_validation_days=num_validation_days,
-            day_start_hour=6,
-            min_data_days=1,
-            include_partial_days=False,
-        )
-        # Ensure info is properly typed
-        info = cast(dict[str, Any], info)
-
-    # Add percentage split specific information
-    info["split_method"] = "percentage"
-    info["train_percentage"] = train_percentage
-    info["total_days_estimated"] = total_days
-    info["train_days_estimated"] = train_days
-    info["validation_days_requested"] = num_validation_days
-    return train_df, val_df, info
-
-
 def iter_patient_context_forecast_splits(
     patients_dict: dict,
     patient_ids: list | None,
@@ -536,11 +282,10 @@ def iter_daily_context_forecast_splits(
         raise ValueError("forecast_horizon hours must be between 0 and 24")
 
     # Group by date
-    for date_key, day_data in patient_data.groupby(datetime_index.date):
-        # Convert date key to proper date object
-        current_date = pd.to_datetime(date_key)
+    for _, day_data in patient_data.groupby(datetime_index.date):
         # Get current day's input period data
         day_datetime_index = pd.to_datetime(day_data.index)
+        current_date = day_datetime_index.min().normalize()
 
         # Handle context period logic
         if context_start < context_end and context_end < 24:

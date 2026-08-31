@@ -26,9 +26,6 @@ import pandas as pd
 from ...cache_manager import get_cache_manager
 from ...dataset_configs import get_dataset_config
 from ...preprocessing.data_splitting import split_multipatient_dataframe
-from ...preprocessing.time_processing import (
-    get_train_validation_split,
-)
 from ..dataset_base import DatasetBase
 from .data_cleaner import (
     clean_brist1d_test_data,
@@ -40,7 +37,9 @@ from .data_cleaner import (
 logger = logging.getLogger(__name__)
 
 
-class BrisT1DDataLoader(DatasetBase):
+class BrisT1DDataLoader(
+    DatasetBase[dict[str, pd.DataFrame] | dict[str, dict[str, pd.DataFrame]]]
+):
     """Data loader for the Bristol T1D diabetes dataset from Kaggle.
 
     This class handles loading, processing, and caching of the Bristol T1D
@@ -60,7 +59,6 @@ class BrisT1DDataLoader(DatasetBase):
         keep_columns: Specific columns to load from the dataset.
         dataset_type: Type of dataset ('train' or 'test').
         use_cached: Whether to use cached processed data if available.
-        num_validation_days: Number of days to use for validation.
         parallel: Whether to use parallel processing.
         max_workers: Maximum number of workers for parallel processing.
         generic_patient_start_date: Starting date for all patients.
@@ -78,7 +76,6 @@ class BrisT1DDataLoader(DatasetBase):
         use_cached: bool = True,
         # Train/validation splitting
         dataset_type: str = "train",
-        num_validation_days: int = 20,
         # Parallel processing
         parallel: bool = True,
         max_workers: int = 14,
@@ -93,8 +90,6 @@ class BrisT1DDataLoader(DatasetBase):
             keep_columns (list[str] | None, optional): Specific columns to load from the dataset.
                 If provided, 'datetime' column is automatically included if not already present.
                 Defaults to None, which loads all columns.
-            num_validation_days (int, optional): Number of days to use for validation.
-                Only applies when dataset_type is 'train'. Defaults to 20.
             use_cached (bool, optional): Whether to use cached processed data if available.
                 Defaults to True.
             dataset_type (str, optional): Type of dataset to load ('train' or 'test').
@@ -112,7 +107,6 @@ class BrisT1DDataLoader(DatasetBase):
                 keep_columns = keep_columns + ["datetime"]
         self.generic_patient_start_date = generic_patient_start_date
         self.keep_columns = keep_columns
-        self.num_validation_days = num_validation_days
         self.use_cached = use_cached
         self.dataset_type = dataset_type
         self.parallel = parallel
@@ -136,6 +130,8 @@ class BrisT1DDataLoader(DatasetBase):
 
         # Preload data
         self.load_data()
+
+    # ==================== Properties ====================
 
     @property
     def dataset_name(self):
@@ -168,9 +164,9 @@ class BrisT1DDataLoader(DatasetBase):
         return list(self.processed_data.keys())
 
     @property
-    def data_shape_summary(self) -> dict[str | tuple[str, str], tuple[int, int]]:
+    def data_shape_summary(self) -> dict[str, tuple[int, int]]:
         """Get shape summary for each patient's data.
-        Returns a dict mapping patient_id or (patient_id, sub_id) to shape tuple.
+        Returns a dict mapping patient_id to shape tuple.
         """
         if not self.processed_data:
             return {}
@@ -214,6 +210,8 @@ class BrisT1DDataLoader(DatasetBase):
                         shape_summary[(patient_id, sub_id)] = sub_df.shape
         return shape_summary
 
+    # ==================== Public Methods ====================
+
     def load_data(self) -> None:
         """
         Load processed data from cache or process raw data and save to cache.
@@ -227,8 +225,6 @@ class BrisT1DDataLoader(DatasetBase):
         logger.info(f"\tDataset: {self.dataset_name} - {self.dataset_type}")
         logger.info(f"\tColumns: {self.keep_columns}")
         logger.info(f"\tGeneric patient start date: {self.generic_patient_start_date}")
-        if self.dataset_type != "test":
-            logger.info(f"\tNumber of validation days: {self.num_validation_days}")
         if self.parallel:
             logger.info(f"\tIn parallel with up to {self.max_workers} workers.\n")
         else:
@@ -283,6 +279,38 @@ class BrisT1DDataLoader(DatasetBase):
             logger.info(
                 f"Skipping train/validation split for test data or invalid processed data type. \nDataset: {self.dataset_type}\nProcessed data type: {type(self.processed_data)}"
             )
+
+    def load_raw(self):
+        """
+        Load the raw dataset from cache or fetch from source.
+        The raw dataset is automatically fetched from Kaggle if not available.
+        Then reads the appropriate CSV file.
+
+        Returns:
+            pd.DataFrame: The raw data loaded from the CSV file.
+        """
+        # Ensure raw data is available
+        raw_data_path = self.cache_manager.ensure_raw_data(
+            self.dataset_name, self.dataset_config
+        )
+
+        # Load the appropriate file based on dataset type
+        if self.dataset_type == "train":
+            file_path = raw_data_path / "train.csv"
+        elif self.dataset_type == "test":
+            file_path = raw_data_path / "test.csv"
+        else:
+            raise ValueError(
+                f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
+            )
+
+        if not file_path.exists():
+            raise FileNotFoundError(f"Required file not found: {file_path}")
+
+        # Return all columns
+        return pd.read_csv(file_path, low_memory=False)
+
+    # ==================== Protected Methods ====================
 
     def _load_from_cache(self, cached_data):
         """
@@ -360,9 +388,10 @@ class BrisT1DDataLoader(DatasetBase):
             self.train_dt_col_type = None
             self.val_dt_col_type = None
             self.num_train_days = 0
-            self.num_validation_days = 0
 
-    def _process_and_cache_data(self):
+    def _process_and_cache_data(
+        self,
+    ) -> dict[str, pd.DataFrame] | dict[str, dict[str, pd.DataFrame]]:
         """
         Try to load the raw data, process it and save it to cache.
         If the raw data is not available, fetch it from Kaggle.
@@ -371,36 +400,7 @@ class BrisT1DDataLoader(DatasetBase):
         self.processed_data = self._process_raw_data()
         if self.dataset_type == "test":
             self.test_data = self.processed_data
-
-    def load_raw(self):
-        """
-        Load the raw dataset from cache or fetch from source.
-        The raw dataset is automatically fetched from Kaggle if not available.
-        Then reads the appropriate CSV file.
-
-        Returns:
-            pd.DataFrame: The raw data loaded from the CSV file.
-        """
-        # Ensure raw data is available
-        raw_data_path = self.cache_manager.ensure_raw_data(
-            self.dataset_name, self.dataset_config
-        )
-
-        # Load the appropriate file based on dataset type
-        if self.dataset_type == "train":
-            file_path = raw_data_path / "train.csv"
-        elif self.dataset_type == "test":
-            file_path = raw_data_path / "test.csv"
-        else:
-            raise ValueError(
-                f"Unknown dataset_type: {self.dataset_type}. Must be 'train' or 'test'."
-            )
-
-        if not file_path.exists():
-            raise FileNotFoundError(f"Required file not found: {file_path}")
-
-        # Return all columns
-        return pd.read_csv(file_path, low_memory=False)
+        return self.processed_data
 
     def _process_raw_data(
         self,
@@ -655,9 +655,11 @@ class BrisT1DDataLoader(DatasetBase):
         logger.info("Loaded nested test data from cache")
         logger.info(f"Loaded data for {len(self.processed_data)} patients")
 
-    def _split_train_validation(self):
+    def _split_train_validation(
+        self,
+    ) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
         """
-        Split processed data into training and validation sets based on num_validation_days.
+        Split processed data into training and validation sets.
         Uses serialized caching to avoid re-splitting data with the same parameters.
         Maintains dictionary structure where each patient's data is split individually.
         Calculates metadata (datetime column types, number of training days) for later use.
@@ -672,7 +674,6 @@ class BrisT1DDataLoader(DatasetBase):
 
         # Define split parameters
         split_params = {
-            "num_validation_days": self.num_validation_days,
             "split_method": "get_train_validation_split",
             "dataset_type": self.dataset_type,
         }
@@ -688,9 +689,6 @@ class BrisT1DDataLoader(DatasetBase):
                 f"Loaded existing train/validation split from cache for {len(train_data_dict)} patients"
             )
         else:
-            logger.info(
-                f"No cached split found, splitting train/validation data with {self.num_validation_days} validation days..."
-            )
             # Split each patient's data individually
             train_data_dict = {}
             validation_data_dict = {}
@@ -720,8 +718,10 @@ class BrisT1DDataLoader(DatasetBase):
                 if "p_num" not in patient_data.columns:
                     patient_data["p_num"] = patient_id
 
-                patient_train, patient_validation, _ = get_train_validation_split(
-                    patient_data, num_validation_days=self.num_validation_days
+                patient_train, patient_validation, _ = (
+                    patient_data,
+                    patient_data,
+                    None,
                 )
                 train_data_dict[patient_id] = patient_train
                 validation_data_dict[patient_id] = patient_validation
@@ -757,3 +757,5 @@ class BrisT1DDataLoader(DatasetBase):
                 patient_dates = datetime_index.date
                 all_train_dates.update(patient_dates)
             self.num_train_days = len(all_train_dates)
+
+        return train_data_dict, validation_data_dict

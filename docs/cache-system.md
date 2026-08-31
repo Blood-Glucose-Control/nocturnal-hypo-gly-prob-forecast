@@ -54,7 +54,6 @@ loader = get_loader(
     data_source_name="kaggle_brisT1D",
     dataset_type="train",
     use_cached=True,
-    num_validation_days=20
 )
 
 # Access the data

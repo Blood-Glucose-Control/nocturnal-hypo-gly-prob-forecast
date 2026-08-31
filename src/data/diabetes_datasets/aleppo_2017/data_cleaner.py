@@ -95,7 +95,7 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def keep_overlapping_data(patient_df: pd.DataFrame) -> pd.DataFrame:
+def keep_overlapping_data(patient_df: pd.DataFrame) -> pd.DataFrame | None:
     """
     Args:
         patient_df: A dataframe that has been through data_translation (datetime is the index)
@@ -145,7 +145,7 @@ def keep_overlapping_data(patient_df: pd.DataFrame) -> pd.DataFrame:
 
 def process_one_patient(
     df_raw: pd.DataFrame, debug: bool = False, verbose: bool = False
-) -> pd.DataFrame:
+) -> pd.DataFrame | None:
     """
     Process the raw data for one patient:
         1. Translate the data (columns and units)
@@ -253,7 +253,7 @@ def clean_all_patients(
     interim_path: Path,
     processed_path: Path,
     parallel: bool = True,
-    max_workers: int = None,
+    max_workers: int | None = None,
 ) -> dict[str, pd.DataFrame]:
     """
     Clean all patients' data in the interim path and save the processed data to the processed path.
@@ -346,3 +346,18 @@ def clean_all_patients(
             logger.info(f"{'-' * 10}Done processing pid {p_num} {progress} {'-' * 10}")
 
     return processed_data
+
+
+def clean_dataset_data(
+    interim_path: Path,
+    processed_path: Path,
+    parallel: bool = True,
+    max_workers: int | None = None,
+) -> dict[str, pd.DataFrame]:
+    """Canonical cleaner helper name for Aleppo 2017 raw inputs."""
+    return clean_all_patients(
+        interim_path=interim_path,
+        processed_path=processed_path,
+        parallel=parallel,
+        max_workers=max_workers,
+    )

@@ -474,6 +474,38 @@ class CacheManager:
             f"Saved full processed data for {dataset_name} - {len(data)} patients"
         )
 
+    def _load_cached_patient_csv(self, csv_file: Path) -> pd.DataFrame:
+        """Load a cached patient CSV and normalize datetime index/column shape."""
+        df = pd.read_csv(csv_file, low_memory=False)
+
+        datetime_source_col: str
+        if "datetime" in df.columns:
+            datetime_source_col = "datetime"
+        elif "datetime.1" in df.columns:
+            datetime_source_col = "datetime.1"
+        else:
+            datetime_source_col = str(df.columns[0])
+
+        try:
+            datetime_index = pd.to_datetime(
+                df[datetime_source_col],
+                format="mixed",
+                errors="raise",
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "Failed parsing cached datetime values in "
+                f"{csv_file} (column: {datetime_source_col})"
+            ) from exc
+
+        df = df.drop(columns=[datetime_source_col])
+
+        if datetime_source_col == "datetime" and "datetime.1" in df.columns:
+            df = df.drop(columns=["datetime.1"])
+
+        df.index = pd.DatetimeIndex(datetime_index, name="datetime")
+        return df
+
     def load_full_processed_data(
         self, dataset_name: str
     ) -> Optional[Dict[str, pd.DataFrame]]:
@@ -499,10 +531,7 @@ class CacheManager:
                 # Extract patient ID from filename: remove _full.csv suffix
                 FULL_SUFFIX = "_full"
                 patient_id = csv_file.stem[: -len(FULL_SUFFIX)]  # Remove "_full" suffix
-                # Load the CSV with datetime index (first column is the index)
-                df = pd.read_csv(
-                    csv_file, index_col=0, parse_dates=True, low_memory=False
-                )
+                df = self._load_cached_patient_csv(csv_file)
                 result[patient_id] = df
 
             return result if result else None
@@ -648,13 +677,7 @@ class CacheManager:
 
                     if filename.endswith(suffix_to_remove):
                         patient_id = filename[: -len(suffix_to_remove)]
-                        # Load the CSV with datetime index
-                        df = pd.read_csv(
-                            csv_file,
-                            index_col="datetime",
-                            parse_dates=True,
-                            low_memory=False,  # This solved the mixed types warning but not sure it is gonna cause some memory issues.
-                        )
+                        df = self._load_cached_patient_csv(csv_file)
                         result[patient_id] = df
 
                 return result if result else None
