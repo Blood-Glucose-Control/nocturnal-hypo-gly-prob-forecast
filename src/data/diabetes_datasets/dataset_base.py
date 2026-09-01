@@ -45,19 +45,16 @@ Example:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Generic, TypeGuard, TypeVar, cast
+from typing import Any, TypeGuard, cast
 
 import pandas as pd
 
-ProcessedPatientData = dict[str, pd.DataFrame]
-NestedProcessedPatientData = dict[str, dict[str, pd.DataFrame]]
-ProcessedData = ProcessedPatientData | NestedProcessedPatientData
-ProcessedDataT = TypeVar("ProcessedDataT", bound=ProcessedData)
+ProcessedPatientDataFrames = dict[str, pd.DataFrame]
 
 logger = logging.getLogger(__name__)
 
 
-class DatasetBase(ABC, Generic[ProcessedDataT]):
+class DatasetBase(ABC):
     """Base class for dataset loading and processing.
 
     This abstract base class defines the interface for dataset handling classes
@@ -75,7 +72,7 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
     """
 
     def __init__(self):
-        self.processed_data: ProcessedDataT | None = None
+        self.processed_data: ProcessedPatientDataFrames | None = None
         self.raw_data: Any = None
 
     # ==================== Properties ====================
@@ -138,6 +135,106 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
                 result[str(patient_id)] = patient_data.shape
         return result
 
+    @property
+    def dataset_info(self) -> dict[str, object]:
+        """Get high-level dataset metadata and summary statistics."""
+        info: dict[str, object] = {
+            "dataset_name": self.dataset_name,
+            "num_patients": self.num_patients,
+            "patient_ids": self.patient_ids,
+            "timesteps_per_patient": {
+                "min": 0,
+                "max": 0,
+                "mean": 0.0,
+                "median": 0.0,
+                "total": 0,
+            },
+            "date_span": {"start": None, "end": None, "num_days": 0},
+            "glucose_summary_mmol_l": {
+                "mean": None,
+                "std": None,
+                "min": None,
+                "max": None,
+                "count": 0,
+            },
+        }
+
+        if not self.processed_data:
+            return info
+
+        patient_lengths = pd.Series(
+            [len(patient_df) for patient_df in self.processed_data.values()],
+            dtype="int64",
+        )
+        info["timesteps_per_patient"] = {
+            "min": int(patient_lengths.min()),
+            "max": int(patient_lengths.max()),
+            "mean": float(patient_lengths.mean()),
+            "median": float(patient_lengths.median()),
+            "total": int(patient_lengths.sum()),
+        }
+
+        all_datetime_indexes: list[pd.DatetimeIndex] = []
+        glucose_series_list: list[pd.Series] = []
+        for patient_df in self.processed_data.values():
+            if isinstance(patient_df.index, pd.DatetimeIndex):
+                patient_datetime = patient_df.index
+            elif "datetime" in patient_df.columns:
+                patient_datetime = pd.DatetimeIndex(
+                    pd.to_datetime(patient_df["datetime"], errors="coerce")
+                )
+            else:
+                patient_datetime = pd.DatetimeIndex([])
+
+            patient_datetime = patient_datetime[~pd.isna(patient_datetime)]
+            if len(patient_datetime) > 0:
+                all_datetime_indexes.append(patient_datetime)
+
+            if "bg_mM" in patient_df.columns:
+                patient_bg = pd.to_numeric(
+                    patient_df["bg_mM"], errors="coerce"
+                ).dropna()
+            elif "bg_mg_dl" in patient_df.columns:
+                patient_bg = (
+                    pd.to_numeric(patient_df["bg_mg_dl"], errors="coerce").dropna()
+                    / 18.0
+                )
+            else:
+                patient_bg = pd.Series(dtype="float64")
+
+            if not patient_bg.empty:
+                glucose_series_list.append(patient_bg)
+
+        if all_datetime_indexes:
+            all_datetimes = all_datetime_indexes[0]
+            for patient_datetime in all_datetime_indexes[1:]:
+                all_datetimes = all_datetimes.append(patient_datetime)
+
+            span_start = all_datetimes.min()
+            span_end = all_datetimes.max()
+            span_days = int((span_end.normalize() - span_start.normalize()).days + 1)
+            info["date_span"] = {
+                "start": span_start,
+                "end": span_end,
+                "num_days": span_days,
+            }
+
+        if glucose_series_list:
+            all_glucose = pd.concat(glucose_series_list, ignore_index=True)
+            info["glucose_summary_mmol_l"] = {
+                "mean": float(all_glucose.mean()),
+                "std": float(all_glucose.std()),
+                "min": float(all_glucose.min()),
+                "max": float(all_glucose.max()),
+                "count": int(all_glucose.count()),
+            }
+
+        data_metrics = getattr(self, "data_metrics", None)
+        if data_metrics:
+            info["metrics"] = data_metrics
+
+        return info
+
     # ==================== Public Abstract Methods ====================
     @abstractmethod
     def load_raw(self):
@@ -158,15 +255,16 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
         3. Split `processed_data` into train/validation dictionaries.
 
         Side Effects:
-            Sets self.processed_data, self.train_data, self.validation_data,
-            self.train_dt_col_type, self.val_dt_col_type, and self.num_train_days.
+            Sets self.processed_data
         """
         need_to_process_data = True
         if getattr(self, "use_cached", False):
             cached_data = self._load_cached_processed_data()
             if cached_data is not None:
                 filtered_cached_data = self._apply_keep_columns_filter(cached_data)
-                self.processed_data = cast(ProcessedDataT, filtered_cached_data)
+                self.processed_data = cast(
+                    ProcessedPatientDataFrames, filtered_cached_data
+                )
                 need_to_process_data = False
 
         if need_to_process_data:
@@ -175,9 +273,42 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
                 filtered_processed_data = self._apply_keep_columns_filter(
                     self.processed_data
                 )
-                self.processed_data = cast(ProcessedDataT, filtered_processed_data)
+                self.processed_data = cast(
+                    ProcessedPatientDataFrames, filtered_processed_data
+                )
 
-    def create_validation_table(self):
+    def get_patient_dataframe(self, patient_id: str) -> pd.DataFrame | None:
+        """Get processed data for a single patient.
+
+        Args:
+            patient_id: Patient identifier string.
+
+        Returns:
+            DataFrame for the patient, or None if not found.
+        """
+        if not self.processed_data:
+            return None
+        return self.processed_data.get(patient_id)
+
+    def get_stacked_patient_dataframe(self) -> pd.DataFrame:
+        """Combine all patients' data into a single DataFrame.
+
+        Returns:
+            Combined DataFrame with patient data indexed by (patient_id, datetime).
+
+        Raises:
+            ValueError: If no data available.
+        """
+        if not self.processed_data:
+            raise ValueError("No processed data available.")
+
+        return pd.concat(
+            self.processed_data.values(),
+            keys=self.processed_data.keys(),
+            names=["patient_id", "datetime"],
+        )
+
+    def create_validation_table(self) -> pd.DataFrame:
         """Create a validation table for the dataset.
 
         This method extracts comprehensive statistics for each patient in the dataset,
@@ -195,8 +326,6 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
                 - patient_id: Patient identifier
                 - num_days: Number of unique days in patient data
                 - num_data_points: Total number of data points (timestamps) for patient
-                - num_train_data_points: Number of data points in training set (if split)
-                - num_validation_data_points: Number of data points in validation set (if split)
                 - start_date: First timestamp in patient data
                 - end_date: Last timestamp in patient data
                 - date_type: 'artificial', 'real', or 'unknown' based on datetime inspection
@@ -219,38 +348,17 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
                 "Processed data must be a dict-like patient map. Call load_data() first."
             )
 
-        validation_rows = []
-
-        # Get train/validation data dictionaries if available
-        train_data_dict = getattr(self, "train_data", None)
-        validation_data_dict = getattr(self, "validation_data", None)
-
-        for patient_id, patient_df in self.processed_data.items():
-            if not isinstance(patient_df, pd.DataFrame) or patient_df.empty:
-                continue
-
-            row = self._extract_patient_stats(patient_id, patient_df)
-
-            # Add train/validation split counts if available
-            if train_data_dict is not None and patient_id in train_data_dict:
-                row["num_train_data_points"] = len(train_data_dict[patient_id])
-            else:
-                row["num_train_data_points"] = None
-
-            if validation_data_dict is not None and patient_id in validation_data_dict:
-                row["num_validation_data_points"] = len(
-                    validation_data_dict[patient_id]
-                )
-            else:
-                row["num_validation_data_points"] = None
-
-            validation_rows.append(row)
+        validation_rows = [
+            self._extract_patient_stats(patient_id, patient_df)
+            for patient_id, patient_df in self.processed_data.items()
+            if isinstance(patient_df, pd.DataFrame) and not patient_df.empty
+        ]
 
         return pd.DataFrame(validation_rows)
 
     # ==================== Protected Abstract Methods ====================
     @abstractmethod
-    def _process_and_cache_data(self) -> ProcessedDataT:
+    def _process_and_cache_data(self) -> ProcessedPatientDataFrames:
         """Process raw data and save/load it into self.processed_data."""
         raise NotImplementedError(
             "'_process_and_cache_data()' must be implemented by subclass"
@@ -258,14 +366,14 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
 
     # ==================== Protected Methods ====================
     def _is_processed_patient_data(
-        self, data: ProcessedDataT | None
-    ) -> TypeGuard[dict[str, pd.DataFrame]]:
+        self, data: ProcessedPatientDataFrames | None
+    ) -> TypeGuard[ProcessedPatientDataFrames]:
         """Check whether data is in the standardized patient->DataFrame shape."""
         return isinstance(data, dict) and all(
             isinstance(patient_data, pd.DataFrame) for patient_data in data.values()
         )
 
-    def _load_cached_processed_data(self) -> dict[str, pd.DataFrame] | None:
+    def _load_cached_processed_data(self) -> ProcessedPatientDataFrames | None:
         """Load processed patient data from cache when available."""
         cache_manager = getattr(self, "cache_manager", None)
         if cache_manager is None:
@@ -335,7 +443,30 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
             raise ValueError("Dataset is empty")
         return True
 
-    def _determine_date_type(self, patient_df: pd.DataFrame) -> str:
+    def _get_patient_datetime_index(
+        self, patient_df: pd.DataFrame
+    ) -> pd.DatetimeIndex | None:
+        """Extract a valid datetime index for a patient DataFrame."""
+        if isinstance(patient_df.index, pd.DatetimeIndex):
+            datetime_index = patient_df.index
+        elif "datetime" in patient_df.columns:
+            try:
+                datetime_index = pd.DatetimeIndex(
+                    pd.to_datetime(patient_df["datetime"], errors="coerce")
+                )
+            except (TypeError, ValueError, AttributeError):
+                return None
+        else:
+            return None
+
+        datetime_index = datetime_index[~pd.isna(datetime_index)]
+        if datetime_index.empty:
+            return None
+        return datetime_index
+
+    def _determine_date_type(
+        self, patient_df: pd.DataFrame, datetime_index: pd.DatetimeIndex | None = None
+    ) -> str:
         """
         Determine whether patient datetimes are 'artificial' or 'real' through heuristic analysis.
 
@@ -360,21 +491,12 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
             - If all timestamps fall in same year as generic_patient_start_date -> 'artificial'
             - Otherwise -> 'real'
         """
-        # Ensure datetime index or column
-        if not isinstance(patient_df.index, pd.DatetimeIndex):
-            if "datetime" in patient_df.columns:
-                try:
-                    idx = pd.DatetimeIndex(
-                        pd.to_datetime(patient_df["datetime"], errors="coerce")
-                    )
-                except (TypeError, ValueError, AttributeError):
-                    return "unknown"
-            else:
-                return "unknown"
-        else:
-            idx = pd.DatetimeIndex(patient_df.index)
-
-        if idx.empty or bool(pd.isna(idx).all()):
+        idx = (
+            datetime_index
+            if datetime_index is not None
+            else self._get_patient_datetime_index(patient_df)
+        )
+        if idx is None:
             return "unknown"
 
         generic_date = getattr(self, "generic_patient_start_date", None)
@@ -410,31 +532,18 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
             dict: Dictionary containing patient statistics
         """
         # Ensure datetime index
-        if not isinstance(patient_df.index, pd.DatetimeIndex):
-            if "datetime" in patient_df.columns:
-                try:
-                    patient_df = patient_df.set_index("datetime")
-                except (KeyError, ValueError, TypeError) as e:
-                    return {
-                        "patient_id": patient_id,
-                        "error": f"No datetime index available: {type(e).__name__}",
-                    }
-            else:
-                # Cannot process without datetime
-                return {
-                    "patient_id": patient_id,
-                    "error": "No datetime index available",
-                }
+        idx = self._get_patient_datetime_index(patient_df)
+        if idx is None:
+            return {"patient_id": patient_id, "error": "No datetime index available"}
 
         # Calculate temporal statistics
-        idx = pd.DatetimeIndex(patient_df.index)
         num_days = idx.normalize().nunique()
         num_data_points = len(patient_df)
         start_date = idx.min()
         end_date = idx.max()
 
-        # Determine date_type per patient using robust heuristic
-        date_type = self._determine_date_type(patient_df)
+        # Determine date_type per patient using the already prepared datetime index
+        date_type = self._determine_date_type(patient_df, datetime_index=idx)
 
         # Initialize stats dictionary
         stats = {
@@ -451,9 +560,10 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
             if demo_col in patient_df.columns:
                 # Get the most common value (mode) for this patient
                 values = patient_df[demo_col].dropna()
-                if len(values) > 0:
+                if not values.empty:
+                    mode_values = values.mode()
                     stats[demo_col] = (
-                        values.mode()[0] if len(values.mode()) > 0 else values.iloc[0]
+                        mode_values.iloc[0] if not mode_values.empty else values.iloc[0]
                     )
                 else:
                     stats[demo_col] = None
@@ -463,7 +573,7 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
         # Extract blood glucose statistics (bg_mM column)
         if "bg_mM" in patient_df.columns:
             bg_data = patient_df["bg_mM"].dropna()
-            if len(bg_data) > 0:
+            if not bg_data.empty:
                 stats["avg_bg_mM"] = bg_data.mean()
                 stats["min_bg_mM"] = bg_data.min()
                 stats["max_bg_mM"] = bg_data.max()
@@ -481,10 +591,10 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
             carbs_data = patient_df["food_g"].dropna()
             # Filter out zeros for min calculation to get actual carb intake events
             carbs_nonzero = carbs_data[carbs_data > 0]
-            if len(carbs_data) > 0:
+            if not carbs_data.empty:
                 stats["avg_carbs_g"] = carbs_data.mean()
                 stats["min_carbs_g"] = (
-                    carbs_nonzero.min() if len(carbs_nonzero) > 0 else 0.0
+                    carbs_nonzero.min() if not carbs_nonzero.empty else 0.0
                 )
                 stats["max_carbs_g"] = carbs_data.max()
             else:
@@ -501,10 +611,10 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
             insulin_data = patient_df["dose_units"].dropna()
             # Filter out zeros for min calculation to get actual insulin doses
             insulin_nonzero = insulin_data[insulin_data > 0]
-            if len(insulin_data) > 0:
+            if not insulin_data.empty:
                 stats["avg_insulin_units"] = insulin_data.mean()
                 stats["min_insulin_units"] = (
-                    insulin_nonzero.min() if len(insulin_nonzero) > 0 else 0.0
+                    insulin_nonzero.min() if not insulin_nonzero.empty else 0.0
                 )
                 stats["max_insulin_units"] = insulin_data.max()
             else:
@@ -517,3 +627,126 @@ class DatasetBase(ABC, Generic[ProcessedDataT]):
             stats["max_insulin_units"] = None
 
         return stats
+
+        # def _validate_brown_dataset(self) -> None:
+        #     """Compute and store validation metrics for the dataset."""
+        #     if not self.processed_data:
+        #         self.data_metrics = {}
+        #         return
+
+        #     # Combine all data for statistics
+        #     all_data = pd.concat(self.processed_data.values())
+
+        #     self.data_metrics = {
+        #         "total_rows": len(all_data),
+        #         "unique_patients": len(self.processed_data),
+        #         "patients_with_insulin": sum(
+        #             1
+        #             for df in self.processed_data.values()
+        #             if ColumnNames.IOB.value in df.columns
+        #             and df[ColumnNames.IOB.value].notna().any()
+        #         ),
+        #         "patients_cgm_only": sum(
+        #             1
+        #             for df in self.processed_data.values()
+        #             if ColumnNames.IOB.value not in df.columns
+        #             or df[ColumnNames.IOB.value].isna().all()
+        #         ),
+        #     }
+
+        #     # Glucose statistics
+        #     if ColumnNames.BG.value in all_data.columns:
+        #         bg = all_data[ColumnNames.BG.value].dropna()
+        #         self.data_metrics.update(
+        #             {
+        #                 "glucose_mean_mmol": round(bg.mean(), 2),
+        #                 "glucose_std_mmol": round(bg.std(), 2),
+        #                 "glucose_min_mmol": round(bg.min(), 2),
+        #                 "glucose_max_mmol": round(bg.max(), 2),
+        #             }
+        #         )
+
+        #     logger.info(f"Dataset validation: {self.data_metrics}")
+
+        # def _validate_tam_dataset(self) -> None:
+        #     """Validate the loaded dataset and compute quality metrics.
+
+        #     Combines all patient data and computes validation metrics including
+        #     total rows, unique patients, glucose statistics, and time-in-range
+        #     percentages. Results are stored in self.data_metrics and logged.
+
+        #     Side Effects:
+        #         Sets self.data_metrics with computed validation metrics.
+        #     """
+        #     if not self.processed_data:
+        #         logger.warning("No data to validate")
+        #         return
+
+        #     # Combine all patient data for overall metrics
+        #     all_data = []
+        #     for patient_df in self.processed_data.values():
+        #         if isinstance(patient_df, pd.DataFrame):
+        #             all_data.append(patient_df)
+
+        #     if all_data:
+        #         combined_df = pd.concat(all_data, ignore_index=False)
+        #         self.data_metrics = validate_tamborlane_data(combined_df)
+
+        #         logger.info("Dataset validation complete:")
+        #         logger.info(f"  Total rows: {self.data_metrics.get('total_rows', 0)}")
+        #         logger.info(
+        #             f"  Unique patients: {self.data_metrics.get('unique_patients', 0)}"
+        #         )
+        #         if "glucose_mean" in self.data_metrics:
+        #             logger.info(
+        #                 f"  Mean glucose: {self.data_metrics['glucose_mean']:.2f} mmol/L"
+        #             )
+        #             logger.info(
+        #                 f"  Std glucose: {self.data_metrics['glucose_std']:.2f} mmol/L"
+        #             )
+        #         elif "glucose_mean_mg_dl" in self.data_metrics:
+        #             logger.info(
+        #                 f"  Mean glucose: {self.data_metrics['glucose_mean_mg_dl']:.2f} mg/dL"
+        #             )
+        #             logger.info(
+        #                 f"  Std glucose: {self.data_metrics['glucose_std_mg_dl']:.2f} mg/dL"
+        #             )
+        #         if "time_in_range" in self.data_metrics:
+        #             logger.info(
+        #                 f"  Time in range: {self.data_metrics['time_in_range']:.1f}%"
+        #             )
+        #             logger.info(
+        #                 f"  Time below range: {self.data_metrics['time_below_range']:.1f}%"
+        #             )
+        #             logger.info(
+        #                 f"  Time above range: {self.data_metrics['time_above_range']:.1f}%"
+        #             )
+
+        # def _validate_lynch_dataset(self) -> None:
+        """
+        Validate that each patient's processed data has required structure.
+
+        Required columns:
+            - cgm
+            - bolus
+            - carbs
+            - exercise
+            - basal
+            - iob
+            - cob
+        """
+        required_columns = {"iob", "cob"}
+        if self.processed_data is None:
+            raise ValueError("processed_data is not loaded.")
+
+        for patient_id, patient_df in self.processed_data.items():
+            if not isinstance(patient_df, pd.DataFrame):
+                raise TypeError(
+                    f"Patient {patient_id} processed data must be a DataFrame, got {type(patient_df)}"
+                )
+
+            missing_columns = required_columns - set(patient_df.columns)
+            if missing_columns:
+                raise ValueError(
+                    f"Patient {patient_id} is missing required columns: {sorted(missing_columns)}"
+                )

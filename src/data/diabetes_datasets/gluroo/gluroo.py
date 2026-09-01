@@ -22,7 +22,7 @@ from ...cache_manager import get_cache_manager
 from ...dataset_configs import get_dataset_config
 from ...models import ColumnNames
 from ...preprocessing.pipeline import preprocessing_pipeline
-from ..dataset_base import DatasetBase
+from ..dataset_base import DatasetBase, ProcessedPatientDataFrames
 from .data_cleaner import data_translation
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ This need to work with huggingface trainer.
 """
 
 
-class GlurooDataLoader(DatasetBase[dict[str, pd.DataFrame]]):
+class GlurooDataLoader(DatasetBase):
     """
     Loader for Gluroo diabetes dataset with preprocessing and feature engineering.
 
@@ -52,7 +52,6 @@ class GlurooDataLoader(DatasetBase[dict[str, pd.DataFrame]]):
 
     Attributes:
         keep_columns (list[str] | None): Columns to keep from the raw data.
-        train_percentage (float): Percentage of data to use for training.
         config (dict | None): Configuration for data processing.
         use_cached (bool): Whether to use previously cached processed data.
         processed_data (dict[str, pd.DataFrame]): Processed data by patient ID.
@@ -66,8 +65,6 @@ class GlurooDataLoader(DatasetBase[dict[str, pd.DataFrame]]):
         keep_columns: list[str] | None = None,
         # Caching
         use_cached: bool = True,
-        # Train/Validation Splitting
-        train_percentage: float = 0.9,
         # Parallel Processing
         max_workers: int = 10,
         # Date Normalization (if applicable)
@@ -81,7 +78,6 @@ class GlurooDataLoader(DatasetBase[dict[str, pd.DataFrame]]):
         Args:
             keep_columns: Optional list of columns to retain per patient.
             use_cached: Whether to load cached processed data when available.
-            train_percentage: Fraction of each patient's timeline used for training.
             max_workers: Maximum worker count for parallel processing.
             config: Optional runtime configuration for Gluroo processing.
             parquet_batch_size: Batch size for Parquet loading operations.
@@ -93,7 +89,6 @@ class GlurooDataLoader(DatasetBase[dict[str, pd.DataFrame]]):
         """
         super().__init__()
         self.keep_columns = keep_columns
-        self.train_percentage = train_percentage
         self.cache_manager = get_cache_manager()
         self.dataset_config = get_dataset_config(self.dataset_name)
         self.use_cached = use_cached
@@ -185,7 +180,9 @@ class GlurooDataLoader(DatasetBase[dict[str, pd.DataFrame]]):
                 # Load the data again
                 self._load_all_into_processed_data()
 
-    def load_raw(self, patient_ids: list[str] | None = None) -> dict[str, pd.DataFrame]:
+    def load_raw(
+        self, patient_ids: list[str] | None = None
+    ) -> ProcessedPatientDataFrames:
         """
         Load raw data from TimescaleDB for specified patients.
 
@@ -193,7 +190,7 @@ class GlurooDataLoader(DatasetBase[dict[str, pd.DataFrame]]):
             patient_ids: List of patient IDs to load. If None, loads all patients.
 
         Returns:
-            dict[str, pd.DataFrame]: Dictionary mapping patient IDs (gid) to raw DataFrames
+            ProcessedPatientDataFrames: Dictionary mapping patient IDs (gid) to raw DataFrames
         """
         if patient_ids is None:
             # id is the base64 encoded

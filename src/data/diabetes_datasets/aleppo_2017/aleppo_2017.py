@@ -15,19 +15,17 @@ Data Sources:
 
 import logging
 
-import pandas as pd
-
 from ...cache_manager import get_cache_manager
 from ...dataset_configs import DatasetConfig, get_dataset_config
 from ...models import DatasetSourceType
-from ..dataset_base import DatasetBase
+from ..dataset_base import DatasetBase, ProcessedPatientDataFrames
 from .data_cleaner import clean_dataset_data
 from .preprocess import create_aleppo_csv
 
 logger = logging.getLogger(__name__)
 
 
-class Aleppo2017DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
+class Aleppo2017DataLoader(DatasetBase):
     """Data loader for the Aleppo 2017 (REPLACE-BG) CGM dataset.
 
     This class handles loading, processing, and caching of the Aleppo 2017
@@ -47,7 +45,6 @@ class Aleppo2017DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
     Attributes:
         keep_columns: Specific columns to load from the dataset.
         use_cached: Whether to use cached processed data if available.
-        train_percentage: Percentage of data to use for training.
         parallel: Whether to use parallel processing.
         max_workers: Maximum number of workers for parallel processing.
         config: Optional configuration dictionary.
@@ -63,8 +60,6 @@ class Aleppo2017DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
         keep_columns: list[str] | None = None,
         # Caching
         use_cached: bool = True,
-        # Train/Validation Splitting
-        train_percentage: float = 0.9,
         # Parallel Processing
         parallel: bool = True,
         max_workers: int = 14,
@@ -76,27 +71,26 @@ class Aleppo2017DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
         Args:
             keep_columns: Optional list of columns to retain per patient.
             use_cached: Whether to load cached processed data when available.
-            train_percentage: Fraction of each patient's timeline used for training.
             parallel: Whether patient processing should run in parallel.
             max_workers: Maximum worker count for parallel processing.
 
         Side Effects:
             Initializes cache/dataset configuration attributes and immediately
-            calls load_data() to populate processed_data, train_data, and
-            validation_data.
+            calls load_data() to populate processed_data.
         """
         super().__init__()
-        self.keep_columns = keep_columns
-        self.train_percentage = train_percentage
-        self.cache_manager = get_cache_manager()
-        self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
-        self.raw_data_path = None
         self.use_cached = use_cached
+        self.keep_columns = keep_columns
         self.parallel = parallel
         self.max_workers = max_workers
+
+        # Initialize cache manager
+        self.cache_manager = get_cache_manager()
+        self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
+
+        # Data Objects
+        self.raw_data = None
         self.processed_data = None
-        self.train_data = None
-        self.validation_data = None
 
         logger.info(
             "Initializing %s with use_cached=%s.",
@@ -126,75 +120,13 @@ class Aleppo2017DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
                 Notes: The Dexcom G4 was used to continuously monitor glucose levels for a span of 6 months.
             """
 
-    @property
-    def dataset_info(self) -> dict[str, object]:
-        """Get comprehensive information about the dataset.
-
-        Returns:
-            dict[str, object]: Dictionary containing dataset statistics and metadata
-                including dataset_name, num_patients, patient_ids, train_percentage,
-                parallel, max_workers, and optionally train_shapes, num_train_patients,
-                and num_validation_patients.
-        """
-        info = {
-            "dataset_name": self.dataset_name,
-            "num_patients": self.num_patients,
-            "patient_ids": self.patient_ids,
-            "train_percentage": self.train_percentage,
-            "parallel": self.parallel,
-            "max_workers": self.max_workers,
-        }
-        return info
-
     # ==================== Public Methods ====================
-
-    def get_patient_data(self, patient_id: str) -> pd.DataFrame | None:
-        """Get processed data for a specific patient.
-
-        Args:
-            patient_id: Patient identifier string.
-
-        Returns:
-            DataFrame for the patient, or None if not found.
-        """
-        if not self.processed_data:
-            return None
-        return self.processed_data.get(patient_id)
-
-    def get_combined_data(self, data_type: str = "all") -> pd.DataFrame:
-        """Combine all patients' data into a single DataFrame.
-
-        Args:
-            data_type: One of 'all', 'train', 'validation'.
-
-        Returns:
-            Combined DataFrame with patient data indexed by (patient_id, datetime).
-
-        Raises:
-            ValueError: If invalid data_type or no data available.
-        """
-        if data_type == "all":
-            data_dict = self.processed_data
-        elif data_type == "train":
-            data_dict = self.train_data
-        elif data_type == "validation":
-            data_dict = self.validation_data
-        else:
-            raise ValueError(
-                f"Invalid data_type: {data_type}. Use 'all', 'train', or 'validation'."
-            )
-
-        if not data_dict:
-            raise ValueError(f"No {data_type} data available.")
-
-        return pd.concat(
-            data_dict.values(), keys=data_dict.keys(), names=["patient_id"]
-        )
-
     def load_raw(self):
         """
-        Raw data of this dataset is not loadable (not in csv format). So we only check if the raw data exists.
-        If not we throw an error and give instructions to the user on how to download the data and place it in the correct cache directory.
+        Raw data of this dataset is not loadable (not in csv format).
+        So we only check if the raw data exists.
+        If not we throw an error and give instructions to the user on how to download
+            the data and place it in the correct cache directory.
         """
         self.raw_data_path = self.cache_manager.ensure_raw_data(
             self.dataset_name, self.dataset_config
@@ -202,17 +134,16 @@ class Aleppo2017DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
 
     # ==================== Protected Methods ====================
 
-    def _process_and_cache_data(self) -> dict[str, pd.DataFrame]:
+    def _process_and_cache_data(self) -> ProcessedPatientDataFrames:
         """
         We don't have the processed data cached so we need to load raw data then process it and save it to the cache.
         """
-        # This will guarantee the raw data exists or throw an error if it does not.
         self.load_raw()
         self.processed_data = self._process_raw_data()
         return self.processed_data
 
     # TODO: Maybe we don't need interim folder. Just process from the query to processed data directly?
-    def _process_raw_data(self) -> dict[str, pd.DataFrame]:
+    def _process_raw_data(self) -> ProcessedPatientDataFrames:
         """
         1.Transform the raw data from text to csv by patients (saved to interim folder)
         2.Do the processing on the csv files.

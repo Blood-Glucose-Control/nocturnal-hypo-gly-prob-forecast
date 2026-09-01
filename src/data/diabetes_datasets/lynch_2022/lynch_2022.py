@@ -21,9 +21,9 @@ from tqdm import tqdm
 
 from ...cache_manager import get_cache_manager
 from ...dataset_configs import get_dataset_config
-from ...models import DatasetSourceType
+from ...models import DatasetConfig, DatasetSourceType
 from ...preprocessing.data_splitting import split_multipatient_dataframe
-from ..dataset_base import DatasetBase
+from ..dataset_base import DatasetBase, ProcessedPatientDataFrames
 from .data_cleaner import (
     clean_dataset_data,
     load_raw_dataset_data,
@@ -33,7 +33,7 @@ from .data_cleaner import (
 logger = logging.getLogger(__name__)
 
 
-class Lynch2022DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
+class Lynch2022DataLoader(DatasetBase):
     """Data loader for the Lynch 2022 IOBP2 RCT dataset.
 
     This class handles loading, processing, and caching of the Lynch 2022
@@ -54,7 +54,6 @@ class Lynch2022DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
     Attributes:
         keep_columns: Specific columns to load from the dataset.
         use_cached: Whether to use cached processed data if available.
-        train_percentage: Percentage of data to use for training.
         parallel: Whether to use parallel processing.
         max_workers: Maximum number of workers for parallel processing.
         generic_patient_start_date: Starting date for all patients.
@@ -70,8 +69,6 @@ class Lynch2022DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
         keep_columns: list[str] | None = None,
         # Caching
         use_cached: bool = True,
-        # Train/Validation Splitting
-        train_percentage: float = 0.9,
         # Parallel Processing
         parallel: bool = True,
         max_workers: int = 14,
@@ -84,43 +81,33 @@ class Lynch2022DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
         Args:
             keep_columns: Optional list of columns to retain per patient.
             use_cached: Whether to load cached processed data when available.
-            train_percentage: Fraction of each patient's timeline used for training.
             parallel: Whether patient processing should run in parallel.
             max_workers: Maximum worker count for parallel processing.
             generic_patient_start_date: Synthetic date used when normalizing timestamps.
 
         Side Effects:
             Initializes cache/dataset configuration attributes and immediately
-            calls load_data() to populate processed_data, train_data, and
-            validation_data.
+            calls load_data() to populate processed_data.
         """
         # Ensure 'datetime' is included in keep_columns if specified
         if keep_columns is not None and "datetime" not in keep_columns:
             keep_columns = keep_columns + ["datetime"]
 
         super().__init__()
-
-        self.generic_patient_start_date = generic_patient_start_date
-        self.keep_columns = keep_columns
         self.use_cached = use_cached
-        self.train_percentage = train_percentage
+        self.keep_columns = keep_columns
         self.parallel = parallel
         self.max_workers = max_workers
 
+        self.generic_patient_start_date = generic_patient_start_date
+
         # Initialize cache manager
         self.cache_manager = get_cache_manager()
-        self.dataset_config = get_dataset_config(self.dataset_name)
+        self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
 
-        # Data attributes
+        # Data Objects
         self.raw_data = None
         self.processed_data = None
-        self.train_data = None
-        self.validation_data = None
-
-        # Metadata
-        self.train_dt_col_type = None
-        self.val_dt_col_type = None
-        self.num_train_days = None
 
         # Load data on init
         logger.info(
@@ -151,31 +138,6 @@ class Lynch2022DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
             """
 
     # ==================== Public Methods ====================
-
-    def to_dataframe(self) -> pd.DataFrame:
-        """Flatten processed_data into a single DataFrame indexed by (p_num, datetime)."""
-        if not self.processed_data:
-            return pd.DataFrame()
-
-        frames: list[pd.DataFrame] = []
-        for patient_id, patient_df in self.processed_data.items():
-            patient_frame = patient_df.copy()
-            if isinstance(patient_frame.index, pd.DatetimeIndex) or (
-                patient_frame.index.name == "datetime"
-            ):
-                patient_frame = patient_frame.reset_index()
-            if "p_num" not in patient_frame.columns:
-                patient_frame["p_num"] = patient_id
-            frames.append(patient_frame)
-
-        if not frames:
-            return pd.DataFrame()
-
-        combined_df = pd.concat(frames, ignore_index=True)
-        if "datetime" in combined_df.columns:
-            return combined_df.set_index(["p_num", "datetime"])
-        return combined_df.set_index("p_num")
-
     def load_raw(self):
         """Load the raw Lynch dataset from the pipe-separated txt files."""
         raw_data_path = self.cache_manager.get_absolute_path_by_type(
@@ -195,13 +157,13 @@ class Lynch2022DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
 
     # ==================== Protected Methods ====================
 
-    def _process_and_cache_data(self) -> dict[str, pd.DataFrame]:
+    def _process_and_cache_data(self) -> ProcessedPatientDataFrames:
         """Load raw data, process per patient, and return processed_data."""
         self.raw_data = self.load_raw()
         self.processed_data = self._process_raw_data()
         return self.processed_data
 
-    def _process_raw_data(self) -> dict[str, pd.DataFrame]:
+    def _process_raw_data(self) -> ProcessedPatientDataFrames:
         """Process raw Lynch 2022 data through the per-patient preprocessing pipeline."""
         store_in_between_data = False
         logger.info("Cleaning Lynch 2022 train data...")
@@ -270,32 +232,3 @@ class Lynch2022DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
         )
 
         return processed_dict
-
-    def _validate_dataset(self) -> None:
-        """
-        Validate that each patient's processed data has required structure.
-
-        Required columns:
-            - cgm
-            - bolus
-            - carbs
-            - exercise
-            - basal
-            - iob
-            - cob
-        """
-        required_columns = {"cgm", "bolus", "carbs", "exercise", "basal", "iob", "cob"}
-        if self.processed_data is None:
-            raise ValueError("processed_data is not loaded.")
-
-        for patient_id, patient_df in self.processed_data.items():
-            if not isinstance(patient_df, pd.DataFrame):
-                raise TypeError(
-                    f"Patient {patient_id} processed data must be a DataFrame, got {type(patient_df)}"
-                )
-
-            missing_columns = required_columns - set(patient_df.columns)
-            if missing_columns:
-                raise ValueError(
-                    f"Patient {patient_id} is missing required columns: {sorted(missing_columns)}"
-                )

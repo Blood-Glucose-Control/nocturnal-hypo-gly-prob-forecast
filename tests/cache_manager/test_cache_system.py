@@ -59,13 +59,15 @@ class TestCacheManager:
 
     def test_get_raw_data_path(self):
         """Test getting raw data path."""
-        path = self.cache_manager.get_raw_data_path(self.test_dataset)
+        path = self.cache_manager.get_absolute_path_by_type(self.test_dataset, "raw")
         expected = Path(self.temp_dir) / self.test_dataset / "raw"
         assert path == expected
 
     def test_get_processed_data_path(self):
         """Test getting processed data path."""
-        path = self.cache_manager.get_processed_data_path(self.test_dataset)
+        path = self.cache_manager.get_absolute_path_by_type(
+            self.test_dataset, "processed"
+        )
         expected = Path(self.temp_dir) / self.test_dataset / "processed"
         assert path == expected
 
@@ -364,11 +366,9 @@ class TestCacheIntegration:
         """Test that cache manager works with data loader."""
         from src.data.diabetes_datasets.data_loader import get_loader
 
-        # This should work with the new cache system
         try:
             loader = get_loader(
-                data_source_name=DatasetSourceType.KAGGLE_BRIS_T1D.value,
-                dataset_type="train",
+                data_source_name=DatasetSourceType.ALEPPO_2017.value,
                 use_cached=True,
             )
             assert loader is not None
@@ -376,6 +376,4 @@ class TestCacheIntegration:
             assert hasattr(loader, "cache_manager")
             assert hasattr(loader, "dataset_config")
         except Exception as e:
-            # If this fails, it might be because Kaggle credentials aren't set up
-            # or the data isn't available, which is expected in some test environments
             pytest.skip(f"Data loader test skipped: {e}")

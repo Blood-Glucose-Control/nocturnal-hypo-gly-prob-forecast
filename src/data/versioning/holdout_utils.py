@@ -514,6 +514,69 @@ def _validate_temporal_checks(
             logger.info("✓ Temporal ordering correct")
 
 
+def _log_dataset_runtime_info(dataset_info: Dict[str, object]) -> None:
+    """Log loader-provided runtime dataset summary."""
+
+    def as_dict(value: object) -> Dict[str, object]:
+        return value if isinstance(value, dict) else {}
+
+    def fmt_int(value: object) -> str:
+        return f"{int(value):,}" if isinstance(value, (int, float)) else "N/A"
+
+    def fmt_float(value: object, decimals: int = 2) -> str:
+        return (
+            f"{float(value):,.{decimals}f}"
+            if isinstance(value, (int, float))
+            else "N/A"
+        )
+
+    patient_ids_raw = dataset_info.get("patient_ids", [])
+    patient_ids: List[str] = (
+        [str(patient_id) for patient_id in patient_ids_raw]
+        if isinstance(patient_ids_raw, list)
+        else []
+    )
+    timesteps = as_dict(dataset_info.get("timesteps_per_patient", {}))
+    date_span = as_dict(dataset_info.get("date_span", {}))
+    glucose = as_dict(dataset_info.get("glucose_summary_mmol_l", {}))
+
+    patient_preview = patient_ids[:5]
+    hidden_count = len(patient_ids) - len(patient_preview)
+    patient_ids_display = (
+        f"{patient_preview} (+{hidden_count} more)"
+        if hidden_count > 0
+        else str(patient_preview)
+    )
+
+    logger.info("")
+    logger.info("Dataset Runtime Summary:")
+    logger.info(f"  Dataset: {dataset_info.get('dataset_name')}")
+    logger.info(f"  Number of patients: {dataset_info.get('num_patients')}")
+    logger.info(f"  Patient IDs (first 5): {patient_ids_display}")
+    logger.info(
+        "  Timesteps per patient: min=%s, max=%s, mean=%s, median=%s, total=%s",
+        fmt_int(timesteps.get("min")),
+        fmt_int(timesteps.get("max")),
+        fmt_float(timesteps.get("mean")),
+        fmt_float(timesteps.get("median")),
+        fmt_int(timesteps.get("total")),
+    )
+    logger.info(
+        "  Date span: start=%s, end=%s, num_days=%s",
+        date_span.get("start"),
+        date_span.get("end"),
+        date_span.get("num_days"),
+    )
+    logger.info(
+        "  Glucose (mmol/L): mean=%s, std=%s, min=%s, max=%s, count=%s",
+        fmt_float(glucose.get("mean")),
+        fmt_float(glucose.get("std")),
+        fmt_float(glucose.get("min")),
+        fmt_float(glucose.get("max")),
+        fmt_int(glucose.get("count")),
+    )
+
+
 def validate_holdout_config(
     dataset_name: str, registry: DatasetRegistry, verbose: bool = True
 ) -> Dict:
@@ -580,6 +643,7 @@ def validate_holdout_config(
             logger.info("✓ Data loaded successfully")
             logger.info(f"  - Training samples: {len(train_data):,}")
             logger.info(f"  - Holdout samples: {len(holdout_data):,}")
+            _log_dataset_runtime_info(registry.get_dataset_runtime_info(dataset_name))
 
         has_train_patient_col = "p_num" in train_data.columns
         has_holdout_patient_col = "p_num" in holdout_data.columns
