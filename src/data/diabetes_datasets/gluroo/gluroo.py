@@ -36,7 +36,7 @@ This need to work with huggingface trainer.
 """
 
 
-class GlurooDataLoader(DatasetBase[dict[str, pd.DataFrame]]):
+class GlurooDataLoader(DatasetBase):
     """
     Loader for Gluroo diabetes dataset with preprocessing and feature engineering.
 
