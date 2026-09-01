@@ -35,6 +35,7 @@ class DatasetRegistry:
         self.holdout_config_dir = Path(holdout_config_dir)
         self._loaded_configs: Dict[str, HoldoutConfig] = {}
         self._split_metadata: Dict[str, Dict] = {}  # dataset_name -> split metadata
+        self._dataset_runtime_info: Dict[str, Dict[str, object]] = {}
 
     def get_split_metadata(self, dataset_name: Optional[str] = None) -> Dict:
         """Get split metadata (skipped/adjusted patients, NaN fills).
@@ -82,7 +83,7 @@ class DatasetRegistry:
             logger.error(f"Error loading holdout config for {dataset_name}: {e}")
             return None
 
-    def load_dataset(self, dataset_name: str) -> pd.DataFrame:
+    def load_dataset(self, dataset_name: str) -> dict[str, pd.DataFrame]:
         """Load full dataset without applying holdout split.
 
         Args:
@@ -92,12 +93,31 @@ class DatasetRegistry:
             Full processed dataset
         """
         loader = get_loader(dataset_name, use_cached=True)  # type: ignore[arg-type]
+        self._dataset_runtime_info[dataset_name] = loader.dataset_info
         full_data = loader.processed_data
 
         if full_data is None:
             raise ValueError(f"No processed data available for dataset {dataset_name}")
 
         return full_data
+
+    def get_dataset_runtime_info(self, dataset_name: str) -> Dict[str, object]:
+        """Get runtime summary info from the dataset loader.
+
+        Args:
+            dataset_name: Name of dataset to load
+
+        Returns:
+            Loader-provided runtime summary dictionary.
+        """
+        cached_info = self._dataset_runtime_info.get(dataset_name)
+        if cached_info is not None:
+            return cached_info
+
+        loader = get_loader(dataset_name, use_cached=True)  # type: ignore[arg-type]
+        dataset_info = loader.dataset_info
+        self._dataset_runtime_info[dataset_name] = dataset_info
+        return dataset_info
 
     def load_dataset_with_split(
         self,

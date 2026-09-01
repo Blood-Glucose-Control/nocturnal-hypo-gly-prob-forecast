@@ -34,7 +34,6 @@ from typing import Literal, Union, overload
 
 from . import (
     Aleppo2017DataLoader,
-    BrisT1DDataLoader,
     Brown2019DataLoader,
     GlurooDataLoader,
     Lynch2022DataLoader,
@@ -45,10 +44,8 @@ from . import (
 @overload
 def get_loader(
     data_source_name: Literal["lynch_2022"],
-    dataset_type: str = "train",
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
-    train_percentage: float = ...,
     parallel: bool = True,
     max_workers: int = 14,
 ) -> Lynch2022DataLoader: ...
@@ -57,10 +54,8 @@ def get_loader(
 @overload
 def get_loader(
     data_source_name: Literal["brown_2019"],
-    dataset_type: str = "train",
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
-    train_percentage: float = ...,
     parallel: bool = True,
     max_workers: int = 14,
 ) -> Brown2019DataLoader: ...
@@ -68,23 +63,9 @@ def get_loader(
 
 @overload
 def get_loader(
-    data_source_name: Literal["kaggle_brisT1D"],
-    dataset_type: str = "train",
-    keep_columns: list[str] | None = None,
-    use_cached: bool = False,
-    train_percentage: float = ...,
-    parallel: bool = True,
-    max_workers: int = 14,
-) -> BrisT1DDataLoader: ...
-
-
-@overload
-def get_loader(
     data_source_name: Literal["gluroo"],
-    dataset_type: str = "train",
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
-    train_percentage: float = ...,
     parallel: bool = True,
     max_workers: int = 14,
     load_all: bool = False,
@@ -94,10 +75,8 @@ def get_loader(
 @overload
 def get_loader(
     data_source_name: Literal["aleppo_2017"],
-    dataset_type: str = "train",
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
-    train_percentage: float = ...,
     parallel: bool = True,
     max_workers: int = 14,
 ) -> Aleppo2017DataLoader: ...
@@ -106,26 +85,21 @@ def get_loader(
 @overload
 def get_loader(
     data_source_name: Literal["tamborlane_2008"],
-    dataset_type: str = "train",
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
-    train_percentage: float = ...,
     parallel: bool = True,
     max_workers: int = 14,
 ) -> Tamborlane2008DataLoader: ...
 
 
 def get_loader(
-    data_source_name: str = "kaggle_brisT1D",
-    dataset_type: str = "train",
+    data_source_name: str = "aleppo_2017",
     keep_columns: list[str] | None = None,
     use_cached: bool = False,
-    train_percentage: float = 0.9,
     parallel: bool = True,
     max_workers: int = 14,
     load_all: bool = False,
 ) -> Union[
-    BrisT1DDataLoader,
     GlurooDataLoader,
     Aleppo2017DataLoader,
     Lynch2022DataLoader,
@@ -141,14 +115,11 @@ def get_loader(
 
     Parameters:
         data_source_name (str): The name of the data source to load.
-                               Currently supports 'kaggle_brisT1D' and 'gluroo'.
-                               Default: 'kaggle_brisT1D'
-        dataset_type (str): The subset of data to load ('train', 'test', 'validation').
-                           Default: 'train'
+                               Currently supports 'aleppo_2017', 'lynch_2022', 'brown_2019', 'tamborlane_2008', and 'gluroo'.
+                               Default: 'aleppo_2017'
         keep_columns (list[str] | None): Specific columns to retain in the dataset.
                                        If None, all columns are loaded. Default: None
         use_cached (bool): Whether to use cached data if available. Default: False
-        train_percentage (float): Percentage of the data to use for training. Default: 0.9
 
     Returns:
         DatasetBase: A data loader instance implementing the DatasetBase interface.
@@ -156,15 +127,7 @@ def get_loader(
     Raises:
         ValueError: If an unsupported data source name is provided.
     """
-    if data_source_name == "kaggle_brisT1D":
-        return BrisT1DDataLoader(
-            keep_columns=keep_columns,
-            use_cached=use_cached,
-            dataset_type=dataset_type,
-            parallel=parallel,
-            max_workers=max_workers,
-        )
-    elif data_source_name == "gluroo":
+    if data_source_name == "gluroo":
         return GlurooDataLoader(
             keep_columns=keep_columns,
             # parallel=parallel,
@@ -175,7 +138,6 @@ def get_loader(
         return Aleppo2017DataLoader(
             keep_columns=keep_columns,
             use_cached=use_cached,
-            train_percentage=train_percentage,
             parallel=parallel,
             max_workers=max_workers,
         )
@@ -183,7 +145,6 @@ def get_loader(
         return Lynch2022DataLoader(
             keep_columns=keep_columns,
             use_cached=use_cached,
-            train_percentage=train_percentage,
             parallel=parallel,
             max_workers=max_workers,
         )
@@ -196,7 +157,6 @@ def get_loader(
         return Tamborlane2008DataLoader(
             keep_columns=keep_columns,
             use_cached=use_cached,
-            dataset_type=dataset_type,
             parallel=parallel,
             max_workers=max_workers,
             extract_features=True,

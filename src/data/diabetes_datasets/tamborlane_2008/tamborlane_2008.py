@@ -21,20 +21,19 @@ import pandas as pd
 
 from ...cache_manager import get_cache_manager
 from ...dataset_configs import get_dataset_config
-from ...models import DatasetSourceType
+from ...models import DatasetConfig, DatasetSourceType
 from ...preprocessing.data_splitting import split_multipatient_dataframe
-from ..dataset_base import DatasetBase
+from ..dataset_base import DatasetBase, ProcessedPatientDataFrames
 from .data_cleaner import (
     clean_dataset_data,
     extract_cgm_features,
     process_single_patient_data,
-    validate_tamborlane_data,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
+class Tamborlane2008DataLoader(DatasetBase):
     """Data loader for the Tamborlane 2008 CGM dataset.
 
     This class handles loading, processing, and caching of the Tamborlane 2008
@@ -55,7 +54,6 @@ class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
         keep_columns: Specific columns to load from the dataset.
         dataset_type: Type of dataset ('train' or 'test').
         use_cached: Whether to use cached processed data if available.
-        train_percentage: Percentage of data to use for training.
         parallel: Whether to use parallel processing.
         max_workers: Maximum number of workers for parallel processing.
         generic_patient_start_date: Starting date for all patients.
@@ -71,11 +69,8 @@ class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
         self,
         # Data Selection
         keep_columns: list[str] | None = None,
-        dataset_type: str = "train",
         # Caching
         use_cached: bool = True,
-        # Train/Validation Splitting
-        train_percentage: float = 0.9,
         # Parallel Processing
         parallel: bool = True,
         max_workers: int = 14,
@@ -92,7 +87,6 @@ class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
             keep_columns: Optional list of columns to retain per patient.
             dataset_type: Legacy configuration field retained for compatibility.
             use_cached: Whether to load cached processed data when available.
-            train_percentage: Fraction of each patient's timeline used for training.
             parallel: Whether patient processing should run in parallel.
             max_workers: Maximum worker count for parallel processing.
             generic_patient_start_date: Synthetic date used when normalizing timestamps.
@@ -101,8 +95,7 @@ class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
 
         Side Effects:
             Initializes cache/dataset configuration attributes and immediately
-            calls load_data() to populate processed_data, train_data, and
-            validation_data.
+            calls load_data() to populate processed_data.
         """
         super().__init__()
 
@@ -112,36 +105,22 @@ class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
             for col in required_cols:
                 if col not in keep_columns:
                     keep_columns.append(col)
-
-        self.keep_columns = keep_columns
-        self.train_percentage = train_percentage
         self.use_cached = use_cached
-        self.dataset_type = dataset_type
+        self.keep_columns = keep_columns
         self.parallel = parallel
-        self.generic_patient_start_date = generic_patient_start_date
         self.max_workers = max_workers
+
+        self.generic_patient_start_date = generic_patient_start_date
         self.extract_features = extract_features
         self.raw_data_path = Path(raw_data_path) if raw_data_path else None
 
         # Initialize cache manager
-        try:
-            self.cache_manager = get_cache_manager()
-            self.dataset_config = get_dataset_config(self.dataset_name)
-        except (ImportError, KeyError, FileNotFoundError) as e:
-            logger.warning(f"Cache manager initialization failed: {e}")
-            self.cache_manager = None
-            self.dataset_config = {}
+        self.cache_manager = get_cache_manager()
+        self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
 
-        # Data containers (raw_data and processed_data initialized by base class)
-        self.processed_data = {}
-        self.train_data: dict[str, pd.DataFrame] | None = None
-        self.validation_data: dict[str, pd.DataFrame] | None = None
-        self.data_metrics = {}
-
-        # Metadata
-        self.train_dt_col_type = None
-        self.val_dt_col_type = None
-        self.num_train_days = None
+        # Data Objects
+        self.raw_data = None
+        self.processed_data = None
 
         # Load data on initialization
         logger.info(
@@ -150,10 +129,6 @@ class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
             self.use_cached,
         )
         self.load_data()
-
-        # Validate data after loading
-        if self.processed_data:
-            self._validate_dataset()
 
     # ==================== Properties ====================
     @property
@@ -170,40 +145,6 @@ class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
                 Paper: https://www.nejm.org/doi/full/10.1056/NEJMoa0805017
 
             """
-
-    @property
-    def dataset_info(self) -> dict[str, object]:
-        """Get comprehensive information about the dataset.
-
-        Returns:
-            dict[str, object]: Dictionary containing dataset statistics and metadata
-                including dataset_name, num_patients, patient_ids, dataset_type,
-                extract_features, and optionally train_shapes,
-                validation_shapes, and metrics.
-        """
-        info = {
-            "dataset_name": self.dataset_name,
-            "num_patients": self.num_patients,
-            "patient_ids": self.patient_ids,
-            "dataset_type": self.dataset_type,
-            "extract_features": self.extract_features,
-        }
-
-        # Add data shapes
-        if self.train_data is not None:
-            info["train_shapes"] = {
-                pid: df.shape for pid, df in self.train_data.items()
-            }
-        if self.validation_data is not None:
-            info["validation_shapes"] = {
-                pid: df.shape for pid, df in self.validation_data.items()
-            }
-
-        # Add validation metrics if available
-        if self.data_metrics:
-            info["metrics"] = self.data_metrics
-
-        return info
 
     # ==================== Public Methods ====================
     def load_raw(self) -> pd.DataFrame:
@@ -311,94 +252,22 @@ class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
 
         return combined_df
 
-    def get_patient_data(self, patient_id: str) -> pd.DataFrame | None:
-        """Get processed data for a specific patient.
-
-        Args:
-            patient_id: The patient identifier string (e.g., 'p01', 'p02').
-
-        Returns:
-            pd.DataFrame | None: DataFrame containing the patient's CGM data,
-                or None if the patient is not found or no data is loaded.
-        """
-        if self.processed_data is None:
-            return None
-        return self.processed_data.get(patient_id)
-
-    def get_combined_data(self, data_type: str = "all") -> pd.DataFrame:
-        """Get all patients' data combined into a single DataFrame.
-
-        Args:
-            data_type: Which data subset to return. Options are:
-                - 'all': All processed data (default)
-                - 'train': Only training data
-                - 'validation': Only validation data
-
-        Returns:
-            pd.DataFrame: Combined DataFrame with all patients' data. Each
-                patient's data includes a 'p_num' column identifying the patient.
-                Returns empty DataFrame if no data is available.
-        """
-        if data_type == "train" and self.train_data:
-            data_dict = self.train_data
-        elif data_type == "validation" and self.validation_data:
-            data_dict = self.validation_data
-        else:
-            data_dict = self.processed_data
-
-        if not data_dict:
-            return pd.DataFrame()
-
-        # Combine all patient DataFrames
-        all_dfs = []
-        for patient_id, patient_df in data_dict.items():
-            if isinstance(patient_df, pd.DataFrame):
-                df_copy = patient_df.copy()
-                if "p_num" not in df_copy.columns:
-                    df_copy["p_num"] = patient_id
-                all_dfs.append(df_copy)
-
-        if all_dfs:
-            return pd.concat(all_dfs, ignore_index=False)
-        else:
-            return pd.DataFrame()
-
-    def save_processed_data(
-        self, output_path: str | Path, file_format: str = "csv"
-    ) -> None:
-        """Save processed data to files, one file per patient.
-
-        Args:
-            output_path: Directory path where files will be saved. Created if
-                it does not exist.
-            file_format: Output file format. Supported values are:
-                - 'csv': Comma-separated values (default)
-                - 'parquet': Apache Parquet columnar format
-
-        Raises:
-            ValueError: If an unsupported file format is specified.
-        """
-        output_path = Path(output_path)
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        if self.processed_data is None:
-            logger.warning("No processed data to save")
-            return
-
-        for patient_id, patient_df in self.processed_data.items():
-            if file_format == "csv":
-                file_path = output_path / f"patient_{patient_id}.csv"
-                patient_df.to_csv(file_path)
-            elif file_format == "parquet":
-                file_path = output_path / f"patient_{patient_id}.parquet"
-                patient_df.to_parquet(file_path)
-            else:
-                raise ValueError(f"Unsupported format: {file_format}")
-        num_patients = len(self.processed_data) if self.processed_data else 0
-        logger.info(f"Saved {num_patients} patient files to {output_path}")
-
     # ==================== Protected Methods ====================
-    def _process_raw_data(self) -> dict[str, pd.DataFrame]:
+    def _process_and_cache_data(self) -> ProcessedPatientDataFrames:
+        """Process raw data and cache the results.
+
+        Loads raw data via load_raw(), processes it via _process_raw_data(),
+        and stores results in self.processed_data. Caching is handled within
+        _process_raw_data().
+
+        Side Effects:
+            Sets self.raw_data and self.processed_data.
+        """
+        self.raw_data = self.load_raw()
+        self.processed_data = self._process_raw_data()
+        return self.processed_data
+
+    def _process_raw_data(self) -> ProcessedPatientDataFrames:
         """Process raw data with cleaning and feature extraction.
 
         Cleans the raw CGM data, splits by patient, processes each patient's
@@ -535,71 +404,3 @@ class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
             processed_results[patient_id] = processed_df
 
         return processed_results
-
-    def _validate_dataset(self) -> None:
-        """Validate the loaded dataset and compute quality metrics.
-
-        Combines all patient data and computes validation metrics including
-        total rows, unique patients, glucose statistics, and time-in-range
-        percentages. Results are stored in self.data_metrics and logged.
-
-        Side Effects:
-            Sets self.data_metrics with computed validation metrics.
-        """
-        if not self.processed_data:
-            logger.warning("No data to validate")
-            return
-
-        # Combine all patient data for overall metrics
-        all_data = []
-        for patient_df in self.processed_data.values():
-            if isinstance(patient_df, pd.DataFrame):
-                all_data.append(patient_df)
-
-        if all_data:
-            combined_df = pd.concat(all_data, ignore_index=False)
-            self.data_metrics = validate_tamborlane_data(combined_df)
-
-            logger.info("Dataset validation complete:")
-            logger.info(f"  Total rows: {self.data_metrics.get('total_rows', 0)}")
-            logger.info(
-                f"  Unique patients: {self.data_metrics.get('unique_patients', 0)}"
-            )
-            if "glucose_mean" in self.data_metrics:
-                logger.info(
-                    f"  Mean glucose: {self.data_metrics['glucose_mean']:.2f} mmol/L"
-                )
-                logger.info(
-                    f"  Std glucose: {self.data_metrics['glucose_std']:.2f} mmol/L"
-                )
-            elif "glucose_mean_mg_dl" in self.data_metrics:
-                logger.info(
-                    f"  Mean glucose: {self.data_metrics['glucose_mean_mg_dl']:.2f} mg/dL"
-                )
-                logger.info(
-                    f"  Std glucose: {self.data_metrics['glucose_std_mg_dl']:.2f} mg/dL"
-                )
-            if "time_in_range" in self.data_metrics:
-                logger.info(
-                    f"  Time in range: {self.data_metrics['time_in_range']:.1f}%"
-                )
-                logger.info(
-                    f"  Time below range: {self.data_metrics['time_below_range']:.1f}%"
-                )
-                logger.info(
-                    f"  Time above range: {self.data_metrics['time_above_range']:.1f}%"
-                )
-
-    def _process_and_cache_data(self) -> dict[str, pd.DataFrame]:
-        """Process raw data and cache the results.
-
-        Loads raw data via load_raw(), processes it via _process_raw_data(),
-        and stores results in self.processed_data. Caching is handled within
-        _process_raw_data().
-
-        Side Effects:
-            Sets self.raw_data and self.processed_data.
-        """
-        self.raw_data = self.load_raw()
-        self.processed_data = self._process_raw_data()
-        return self.processed_data
