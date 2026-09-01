@@ -54,7 +54,10 @@ ProcessedPatientDataFrames = dict[str, pd.DataFrame]
 logger = logging.getLogger(__name__)
 
 
-class DatasetBase(ABC):
+logger = logging.getLogger(__name__)
+
+
+class DatasetBase(ABC, Generic[ProcessedDataT]):
     """Base class for dataset loading and processing.
 
     This abstract base class defines the interface for dataset handling classes

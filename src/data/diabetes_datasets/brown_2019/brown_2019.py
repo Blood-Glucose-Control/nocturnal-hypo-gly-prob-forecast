@@ -95,6 +95,7 @@ class Brown2019DataLoader(DatasetBase):
         # Initialize cache manager
         self.cache_manager = get_cache_manager()
         self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
+        self.processed_data = None
 
         # Data Objects
         self.raw_data = None
@@ -107,6 +108,7 @@ class Brown2019DataLoader(DatasetBase):
             self.use_cached,
         )
         self.load_data()
+        self._validate_dataset()
 
     # ==================== Properties ====================
     @property

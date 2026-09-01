@@ -83,6 +83,9 @@ class Aleppo2017DataLoader(DatasetBase):
         self.keep_columns = keep_columns
         self.parallel = parallel
         self.max_workers = max_workers
+        self.processed_data = None
+        self.train_data = None
+        self.validation_data = None
 
         # Initialize cache manager
         self.cache_manager = get_cache_manager()
