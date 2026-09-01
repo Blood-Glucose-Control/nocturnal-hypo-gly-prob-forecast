@@ -54,9 +54,6 @@ ProcessedPatientDataFrames = dict[str, pd.DataFrame]
 logger = logging.getLogger(__name__)
 
 
-logger = logging.getLogger(__name__)
-
-
 class DatasetBase(ABC):
     """Base class for dataset loading and processing.
 
