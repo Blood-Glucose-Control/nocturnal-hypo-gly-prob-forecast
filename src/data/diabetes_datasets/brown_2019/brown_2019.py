@@ -108,7 +108,6 @@ class Brown2019DataLoader(DatasetBase):
             self.use_cached,
         )
         self.load_data()
-        self._validate_dataset()
 
     # ==================== Properties ====================
     @property

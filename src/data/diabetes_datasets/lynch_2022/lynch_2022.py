@@ -33,7 +33,7 @@ from .data_cleaner import (
 logger = logging.getLogger(__name__)
 
 
-class Lynch2022DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
+class Lynch2022DataLoader(DatasetBase):
     """Data loader for the Lynch 2022 IOBP2 RCT dataset.
 
     This class handles loading, processing, and caching of the Lynch 2022

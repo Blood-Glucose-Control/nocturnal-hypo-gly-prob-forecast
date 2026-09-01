@@ -33,7 +33,7 @@ from .data_cleaner import (
 logger = logging.getLogger(__name__)
 
 
-class Tamborlane2008DataLoader(DatasetBase[dict[str, pd.DataFrame]]):
+class Tamborlane2008DataLoader(DatasetBase):
     """Data loader for the Tamborlane 2008 CGM dataset.
 
     This class handles loading, processing, and caching of the Tamborlane 2008
