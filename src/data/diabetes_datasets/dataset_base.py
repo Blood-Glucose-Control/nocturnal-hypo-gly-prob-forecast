@@ -590,9 +590,9 @@ class DatasetBase(ABC):
             stats["min_bg_mM"] = None
             stats["max_bg_mM"] = None
 
-        # Extract carbohydrate statistics (food_g column)
-        if "food_g" in patient_df.columns:
-            carbs_data = patient_df["food_g"].dropna()
+        # Extract carbohydrate statistics (carbohydrate_g column)
+        if "carbohydrate_g" in patient_df.columns:
+            carbs_data = patient_df["carbohydrate_g"].dropna()
             # Filter out zeros for min calculation to get actual carb intake events
             carbs_nonzero = carbs_data[carbs_data > 0]
             if not carbs_data.empty:

@@ -32,8 +32,8 @@ class TestCoerceTimeFn:
         assert len(meal_rows) > 0
 
         # Check food_g values are preserved for meals
-        assert all(meal_rows["food_g"] > 0)
-        assert all(meal_rows["food_g_keep"] > 0)
+        assert all(meal_rows["carbohydrate_g"] > 0)
+        assert all(meal_rows["carbohydrate_g_keep"] > 0)
 
     def test_meal_announcement_handling(self, df_to_coerce, coerce_interval):
         """Test proper handling of meal announcements"""
@@ -43,14 +43,19 @@ class TestCoerceTimeFn:
         meal_rows = result[result["msg_type"] == "ANNOUNCE_MEAL"]
         assert len(meal_rows) > 0
 
-        # Check if food_g_keep is present and contains the right values
-        assert "food_g_keep" in result.columns
-        assert all(result[result["msg_type"] == "ANNOUNCE_MEAL"]["food_g"] > 0)
+        # Check if carbohydrate_g_keep is present and contains the right values
+        assert "carbohydrate_g_keep" in result.columns
+        assert all(result[result["msg_type"] == "ANNOUNCE_MEAL"]["carbohydrate_g"] > 0)
 
     def test_column_preservation(self, df_to_coerce, coerce_interval):
         """Test if essential columns are preserved"""
         result = coerce_time_fn(df_to_coerce.copy(), coerce_interval)
-        essential_columns = {"bg_mM", "msg_type", "food_g", "food_g_keep"}
+        essential_columns = {
+            "bg_mM",
+            "msg_type",
+            "carbohydrate_g",
+            "carbohydrate_g_keep",
+        }
         assert essential_columns.issubset(set(result.columns))
 
     @pytest.mark.parametrize(

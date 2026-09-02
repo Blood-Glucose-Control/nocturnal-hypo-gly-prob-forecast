@@ -134,8 +134,8 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
     #   cgm_rows["time"] = cgm_rows["DeviceDtTm"] - pd.Timedelta(minutes=5)
     cgm_rows["time"] = cgm_rows["DeviceDtTm"]
 
-    # food_g = 0: MealSize is categorical text, kept separately as meal_size_text
-    cgm_rows["food_g"] = 0.0
+    # carbohydrate_g = 0: MealSize is categorical text, kept separately as meal_size_text
+    cgm_rows["carbohydrate_g"] = 0.0
 
     # Extract demographics
     demo_cols = ["PtID", "DiagAge", "Sex"]
@@ -145,7 +145,14 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
         demo_subset["DiagAge"] = pd.to_numeric(demo_subset["DiagAge"], errors="coerce")
 
     # Build output frame
-    out_cols = ["PtID", "time", "CGMVal", "dose_units", "food_g", "meal_size_text"]
+    out_cols = [
+        "PtID",
+        "time",
+        "CGMVal",
+        "dose_units",
+        "carbohydrate_g",
+        "meal_size_text",
+    ]
     out = cgm_rows[out_cols].rename(columns={"PtID": "id", "CGMVal": "gl"})
 
     # Merge demographics
@@ -181,8 +188,8 @@ def load_lynch2022_raw_dataset(base_dir: Path) -> pd.DataFrame:
         out["sex"] = np.nan
     out["insulinModality"] = 1  # iLet is automated insulin delivery
     out["hr_bpm"] = np.nan
-    out["steps"] = np.nan
-    out["cals"] = np.nan
+    out["step_count"] = np.nan
+    out["calories"] = np.nan
     out["activity"] = np.nan
 
     logger.info(
@@ -217,20 +224,20 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
         lambda pid: format_patient_id("lynch_2022", str(pid))
     )
 
-    # dose_units and food_g are already calculated in load_lynch2022_raw_dataset
+    # dose_units and carbohydrate_g are already calculated in load_lynch2022_raw_dataset
     # Ensure they exist and have proper types
     if "dose_units" not in df.columns:
         df["dose_units"] = 0.0
     else:
         df["dose_units"] = df["dose_units"].fillna(0.0)
 
-    if "food_g" not in df.columns:
-        df["food_g"] = 0.0
+    if "carbohydrate_g" not in df.columns:
+        df["carbohydrate_g"] = 0.0
     else:
-        df["food_g"] = df["food_g"].fillna(0.0)
+        df["carbohydrate_g"] = df["carbohydrate_g"].fillna(0.0)
 
     # Ensure other physiological columns exist
-    for col in ["hr_bpm", "steps", "cals", "activity"]:
+    for col in ["hr_bpm", "step_count", "calories", "activity"]:
         if col not in df.columns:
             df[col] = np.nan
 
@@ -246,11 +253,11 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
         "datetime",
         "bg_mM",
         "dose_units",
-        "food_g",
+        "carbohydrate_g",
         "meal_size_text",
         "hr_bpm",
-        "steps",
-        "cals",
+        "step_count",
+        "calories",
         "activity",
         "msg_type",
         "age_at_diagnosis",

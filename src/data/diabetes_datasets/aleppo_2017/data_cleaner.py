@@ -162,12 +162,12 @@ def process_one_patient(
     if verbose:
         start_dt = df.index.min()
         end_dt = df.index.max()
-        food_g = df[df[ColumnNames.FOOD_G.value].notna()]
+        carb_rows = df[df[ColumnNames.CARBOHYDRATE_G.value].notna()]
         bolus = df[df[ColumnNames.DOSE_UNITS.value].notna()]
         logger.info(
             f"Patient {pid} processed data spans from {start_dt} to {end_dt} ({(end_dt - start_dt)})"
         )
-        logger.info(f"Number of rows with food intake: {len(food_g)}")
+        logger.info(f"Number of rows with carbohydrate intake: {len(carb_rows)}")
         logger.info(f"Number of rows with bolus: {len(bolus)}")
 
     # Resampling to constant interval, rollover basal rate and derive cob and iob

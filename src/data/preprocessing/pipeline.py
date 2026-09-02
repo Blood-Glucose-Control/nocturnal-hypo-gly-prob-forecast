@@ -35,7 +35,7 @@ Example:
     ...     'patient_id': ['001'] * 100,
     ...     'bg_mM': [5.5, 6.1, 5.8, ...],
     ...     'msg_type': ['', 'ANNOUNCE_MEAL', '', ...],
-    ...     'food_g': [0, 30, 0, ...],
+    ...     'carbohydrate_g': [0, 30, 0, ...],
     ...     'dose_units': [0, 0, 5, ...]
     ... })
     >>>
@@ -44,7 +44,7 @@ Example:
 
 Notes:
     - Input DataFrame must contain core columns: datetime, patient_id, bg_mM
-    - Optional columns (msg_type, food_g, dose_units, rate) enhance features but don't block processing
+    - Optional columns (msg_type, carbohydrate_g, dose_units, rate) enhance features but don't block processing
     - CGM-only datasets are supported (COB/IOB will be set to NaN)
     - Patient identifier is used for logging and tracking purposes
     - Processing includes comprehensive logging for monitoring pipeline execution
@@ -58,7 +58,7 @@ from typing import Literal
 import pandas as pd
 
 from .feature_engineering import create_physiological_features
-from .validation import validate_required_columns
+from .validation import validate_no_legacy_columns, validate_required_columns
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ REQUIRED_COLUMNS = [
 # Optional columns - enhance features but don't block processing
 OPTIONAL_COLUMNS = [
     "msg_type",  # Message type: ANNOUNCE_MEAL | ''
-    "food_g",  # Carbs in grams (enables COB calculation)
+    "carbohydrate_g",  # Carbs in grams (enables COB calculation)
     "dose_units",  # Insulin units (enables IOB calculation)
     "rate",  # Basal rate U/hr (enables basal rollover)
 ]
@@ -116,6 +116,7 @@ def preprocessing_pipeline(
     logger.info("==============================")
 
     validate_required_columns(df, REQUIRED_COLUMNS)
+    validate_no_legacy_columns(df)
 
     # Log which optional columns are present
     present_optional = [col for col in OPTIONAL_COLUMNS if col in df.columns]

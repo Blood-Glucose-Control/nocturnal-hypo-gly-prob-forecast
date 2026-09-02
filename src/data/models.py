@@ -24,7 +24,8 @@ class ColumnNames(str, Enum):
     P_NUM = "patient_id"
     DOSE_UNITS = "dose_units"
     BOLUS = "bolus"
-    FOOD_G = "carbohydrate_g"
+    CARBOHYDRATE_G = "carbohydrate_g"
+    FOOD_G = "carbohydrate_g"  # Legacy alias; prefer CARBOHYDRATE_G
     MSG_TYPE = "msg_type"
     COB = "cob"
     CARB_AVAILABILITY = "carb_availability"
