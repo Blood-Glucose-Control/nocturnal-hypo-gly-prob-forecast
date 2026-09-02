@@ -436,7 +436,7 @@ def main() -> None:
             context_df = (
                 model_episode["context_df"].copy().reset_index(names="datetime")
             )
-            context_df["p_num"] = patient_id
+            context_df["patient_id"] = patient_id
             context_df["episode_id"] = args.episode_id
 
             try:

@@ -1,6 +1,5 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """
 Dataset configurations for automatic data fetching and processing.
@@ -13,17 +12,6 @@ for each dataset type.
 from typing import Dict
 
 from .models import DatasetConfig, DatasetSourceType
-
-# Configuration for the Kaggle Bristol T1D dataset
-KAGGLE_BRIST1D_CONFIG: DatasetConfig = DatasetConfig(
-    source=DatasetSourceType.KAGGLE_BRIS_T1D,
-    competition_name="brist1d",
-    required_files=["train.csv", "test.csv", "sample_submission.csv"],
-    description="Bristol Type 1 Diabetes dataset from Kaggle",
-    cache_path="kaggle_brisT1D",
-    citation="Bristol Type 1 Diabetes Dataset, Kaggle Competition",
-    url="https://www.kaggle.com/competitions/brist1d",
-)
 
 # Configuration for the Gluroo dataset
 GLUROO_CONFIG: DatasetConfig = DatasetConfig(
@@ -50,21 +38,11 @@ SIMGLUCOSE_CONFIG: DatasetConfig = DatasetConfig(
 # Aleppo dataset
 ALEPPO_2017_CONFIG: DatasetConfig = DatasetConfig(
     source=DatasetSourceType.ALEPPO_2017,
-    cache_path="aleppo_2017",
     description="Aleppo dataset",
+    citation="Aleppo et al. 2017",
     required_files=["Data Tables"],
     url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Aleppo-(2017)",
-    citation="Aleppo Dataset",
-)
-
-# Lynch 2022 dataset
-LYNCH_2022_CONFIG: DatasetConfig = DatasetConfig(
-    source=DatasetSourceType.LYNCH_2022,
-    description="Lynch 2022 IOBP2 RCT dataset",
-    citation="Lynch et al. 2022",
-    required_files=["IOBP2 RCT Public Dataset"],
-    url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Lynch-2022",
-    cache_path="lynch_2022",
+    cache_path="aleppo_2017",
 )
 
 # Configuration for the Brown 2019 DCLP3 dataset
@@ -78,6 +56,15 @@ BROWN_2019_CONFIG: DatasetConfig = DatasetConfig(
     cache_path="brown_2019",
 )
 
+# Lynch 2022 dataset
+LYNCH_2022_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.LYNCH_2022,
+    description="Lynch 2022 IOBP2 RCT dataset",
+    citation="Lynch et al. 2022",
+    required_files=["IOBP2 RCT Public Dataset"],
+    url="https://github.com/IrinaStatsLab/Awesome-CGM/wiki/Lynch-2022",
+    cache_path="lynch_2022",
+)
 
 # Configuration for the Tamborlane 2008 dataset
 TAMBORLANE_2008_CONFIG: DatasetConfig = DatasetConfig(
@@ -91,7 +78,6 @@ TAMBORLANE_2008_CONFIG: DatasetConfig = DatasetConfig(
 
 # Mapping of dataset names to their configurations
 DATASET_CONFIGS = {
-    DatasetSourceType.KAGGLE_BRIS_T1D.value: KAGGLE_BRIST1D_CONFIG,
     DatasetSourceType.GLUROO.value: GLUROO_CONFIG,
     DatasetSourceType.SIMGLUCOSE.value: SIMGLUCOSE_CONFIG,
     DatasetSourceType.ALEPPO_2017.value: ALEPPO_2017_CONFIG,

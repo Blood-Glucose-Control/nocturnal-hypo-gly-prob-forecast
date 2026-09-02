@@ -65,7 +65,7 @@ loader = Brown2019DataLoader(use_cached=False)
 | Column | Description |
 |--------|-------------|
 | datetime (index) | Timestamp (5-min intervals) |
-| p_num | Patient ID |
+| patient_id | Patient ID |
 | period | "1. Baseline" or "2. Post Randomization" |
 | bg_mM | Blood glucose (mmol/L) |
 | rate | Basal rate (U/hr), NaN for CGM-only patients |

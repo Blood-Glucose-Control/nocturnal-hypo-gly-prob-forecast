@@ -47,7 +47,6 @@ nav:
         - run_benchmark: api-reference/tuning/run_benchmark.md
       - Utils:
         - config_loader: api-reference/utils/config_loader.md
-        - kaggle_utils: api-reference/utils/kaggle_util.md
   - Contributing: contributing.md
 markdown_extensions:
   - pymdownx.highlight

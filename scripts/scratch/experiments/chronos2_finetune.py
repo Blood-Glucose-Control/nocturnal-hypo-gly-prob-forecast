@@ -97,7 +97,7 @@ def main():
     train_df = registry.load_training_data_only(args.dataset)
 
     print(f"  Dataset: {args.dataset}")
-    print(f"  Train: {train_df.shape} ({train_df['p_num'].nunique()} patients)")
+    print(f"  Train: {train_df.shape} ({train_df['patient_id'].nunique()} patients)")
 
     # =========================================================================
     # Step 2: Configure the model

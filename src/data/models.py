@@ -1,6 +1,5 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 from enum import Enum
 
@@ -8,7 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class DatasetSourceType(str, Enum):
-    KAGGLE_BRIS_T1D = "kaggle_brisT1D"
     LOCAL = "local"
     GLUROO = "gluroo"
     HUGGING_FACE = "hugging_face"
@@ -23,10 +21,11 @@ class DatasetSourceType(str, Enum):
 class ColumnNames(str, Enum):
     BG = "bg_mM"
     DATETIME = "datetime"  # This shoud be INDEX
-    P_NUM = "p_num"
+    P_NUM = "patient_id"
     DOSE_UNITS = "dose_units"
     BOLUS = "bolus"
-    FOOD_G = "food_g"
+    CARBOHYDRATE_G = "carbohydrate_g"
+    FOOD_G = "carbohydrate_g"  # Legacy alias; prefer CARBOHYDRATE_G
     MSG_TYPE = "msg_type"
     COB = "cob"
     CARB_AVAILABILITY = "carb_availability"
@@ -35,8 +34,8 @@ class ColumnNames(str, Enum):
     # Time features
     HOUR_SIN = "hour_sin"
     HOUR_COS = "hour_cos"
-    CALS = "cals"
-    STEPS = "steps"
+    CALS = "calories"
+    STEPS = "step_count"
     HR_BPM = "hr_bpm"
     ACTIVITY = "activity"
     RECORD_TYPE = (
@@ -67,10 +66,4 @@ class DatasetConfig(BaseModel):
     url: str = Field(pattern=r"^https?://")
     description: str = Field(min_length=1)
     citation: str = Field(min_length=1)
-
-    # For Kaggle datasets
-    competition_name: str | None = (
-        None  # Competition name of the dataset (for Kaggle datasets)
-    )
-
     hf_dataset_id: str | None = None

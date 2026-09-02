@@ -55,8 +55,8 @@ To insert data:
 psql -d "postgres://postgres:password@127.0.0.1:5433/gluroo_datasets" -f src/data/diabetes_datasets/gluroo/db/insert_data.sql
 ```
 
-To add a p_num column to the groups table:
-Reason we need to do this is because we need to partition the data by p_num for faster lookups.
+To add a patient_id column to the groups table:
+Reason we need to do this is because we need to partition the data by patient_id for faster lookups.
 ```bash
 psql -d "postgres://postgres:password@127.0.0.1:5433/gluroo_datasets" -f src/data/diabetes_datasets/gluroo/db/add_patient_id.sql
 ```

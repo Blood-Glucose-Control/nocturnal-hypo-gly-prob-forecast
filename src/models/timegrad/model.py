@@ -235,7 +235,7 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
         """Train TimeGrad on blood glucose data.
 
         Args:
-            train_data: DataFrame with 'bg_mM' and 'p_num' columns,
+            train_data: DataFrame with 'bg_mM' and 'patient_id' columns,
                         or a pre-built GluonTS ListDataset.
             output_dir: Directory for saving outputs.
 
@@ -270,11 +270,11 @@ class TimeGradForecaster(BaseTimeSeriesFoundationModel):
         }
 
     def _dataframe_to_list_dataset(self, df: pd.DataFrame) -> ListDataset:
-        """Convert a DataFrame with bg_mM + p_num into a GluonTS ListDataset."""
+        """Convert a DataFrame with bg_mM + patient_id into a GluonTS ListDataset."""
         from pts.feature import lags_for_fourier_time_features_from_frequency
 
         bg_col = "bg_mM"
-        patient_col = "p_num"
+        patient_col = "patient_id"
         lag_offsets = lags_for_fourier_time_features_from_frequency(self.config.freq)
         max_lag = max(lag_offsets) if lag_offsets else 0
         min_required_steps = (

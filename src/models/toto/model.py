@@ -356,14 +356,14 @@ class TotoForecaster(BaseTimeSeriesFoundationModel):
         with 'timestamp', 'target', and optional covariate fields.
 
         Args:
-            train_data: DataFrame with 'bg_mM', 'datetime', and 'p_num' columns.
+            train_data: DataFrame with 'bg_mM', 'datetime', and 'patient_id' columns.
 
         Returns:
             HuggingFace Dataset with timestamp/target fields per series.
         """
         import datasets as hfds
 
-        patient_col = "p_num" if "p_num" in train_data.columns else "id"
+        patient_col = "patient_id" if "patient_id" in train_data.columns else "id"
         bg_col = "bg_mM"
         time_col = "datetime"
         covariate_cols = self.config.covariate_cols or []

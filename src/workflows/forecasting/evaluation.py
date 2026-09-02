@@ -92,7 +92,7 @@ def _generate_forecasts(
         for dataset_name in dataset_names:
             logger.info(f"  --- Generating forecast for dataset: {dataset_name} ---")
             holdout_data = registry.load_holdout_data_only(dataset_name)
-            patient_col = "p_num" if "p_num" in holdout_data.columns else "id"
+            patient_col = "patient_id" if "patient_id" in holdout_data.columns else "id"
             valid_patients = holdout_data[patient_col].dropna()
             if valid_patients.empty:
                 logger.warning(
@@ -107,7 +107,7 @@ def _generate_forecasts(
             logger.info(f"  Patient data shape: {patient_data.shape}")
 
             if model_features:
-                required_cols = ["p_num", "id", "datetime"]
+                required_cols = ["patient_id", "id", "datetime"]
                 forecast_cols = [
                     col
                     for col in model_features + required_cols

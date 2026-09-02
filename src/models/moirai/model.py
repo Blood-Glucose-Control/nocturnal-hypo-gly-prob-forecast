@@ -336,7 +336,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             train_data: One of:
 
                 * ``pd.DataFrame`` — multi-patient DataFrame from the holdout
-                  workflow (columns: ``p_num``, ``datetime``, ``bg_mM``, …).
+                  workflow (columns: ``patient_id``, ``datetime``, ``bg_mM``, …).
                 * ``dict`` — ``{patient_id: [episode_list]}`` with episode dicts
                   containing ``context_df`` and ``target_bg``.
                 * ``list[dict]`` — flat list of episode dicts.
@@ -870,7 +870,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                     covariate_cols=cov_cols,
                     source_name="training DataFrame",
                 )
-            for _, pat_df in train_data.groupby("p_num"):
+            for _, pat_df in train_data.groupby("patient_id"):
                 if "datetime" in pat_df.columns:
                     pat_df = pat_df.set_index("datetime").sort_index()
                 elif not isinstance(pat_df.index, pd.DatetimeIndex):

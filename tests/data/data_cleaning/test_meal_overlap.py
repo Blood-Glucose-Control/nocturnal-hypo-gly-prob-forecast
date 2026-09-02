@@ -20,7 +20,9 @@ class TestMealOverlap:
         testing a function while using the same function to test it)
         """
         result_df = erase_meal_overlap_fn(sample_meal_df, meal_length, min_carbs)
-        assert result_df["food_g"].sum() == sample_meal_df["food_g"].sum()
+        assert (
+            result_df["carbohydrate_g"].sum() == sample_meal_df["carbohydrate_g"].sum()
+        )
 
     def test_overlapping_meals_combined(self, sample_meal_df, meal_length, min_carbs):
         """
@@ -40,14 +42,14 @@ class TestMealOverlap:
             window_entries = result_df.loc[idx + pd.Timedelta(seconds=1) : window_end]
 
             # Check that all food_g values in window after ANNOUNCE_MEAL are 0
-            assert (window_entries["food_g"] == 0).all(), (
+            assert (window_entries["carbohydrate_g"] == 0).all(), (
                 f"Found non-zero food_g values after ANNOUNCE_MEAL at {idx}"
             )
 
             # Check that the ANNOUNCE_MEAL entry contains the sum from original data
             original_window = sample_meal_df.loc[idx:window_end]
-            expected_sum = original_window["food_g"].sum()
-            assert result_df.at[idx, "food_g"] == expected_sum, (
+            expected_sum = original_window["carbohydrate_g"].sum()
+            assert result_df.at[idx, "carbohydrate_g"] == expected_sum, (
                 f"ANNOUNCE_MEAL at {idx} does not contain correct sum of food_g values"
             )
 
@@ -57,6 +59,6 @@ class TestMealOverlap:
         """
         result_df = erase_meal_overlap_fn(sample_meal_df, meal_length, min_carbs)
         announce_meals = result_df[result_df["msg_type"] == "ANNOUNCE_MEAL"]
-        assert (announce_meals["food_g"] >= min_carbs).all(), (
+        assert (announce_meals["carbohydrate_g"] >= min_carbs).all(), (
             "Found ANNOUNCE_MEAL entries with food_g below min_carbs threshold"
         )

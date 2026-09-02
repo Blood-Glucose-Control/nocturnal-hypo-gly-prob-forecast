@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def convert_to_patient_dict(
     flat_df: pd.DataFrame,
-    patient_col: str = "p_num",
+    patient_col: str = "patient_id",
     time_col: str = "datetime",
 ) -> Dict[str, pd.DataFrame]:
     """Convert flat patient rows into per-patient DataFrames with DatetimeIndex."""

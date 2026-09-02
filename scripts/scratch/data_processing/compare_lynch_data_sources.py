@@ -49,7 +49,7 @@ def _load_holdout_patients() -> list[str]:
     return cfg["patient_config"]["holdout_patients"]
 
 
-def _count_potential_midnight_episodes(df: pd.DataFrame, p_num: str) -> int:
+def _count_potential_midnight_episodes(df: pd.DataFrame, patient_id: str) -> int:
     """
     Count nights where at least EPISODE_LEN rows exist after midnight.
     Timestamps must already be on 5-min boundaries.
@@ -98,7 +98,7 @@ def main():
     print(f"   Source: {txt_base}")
     raw_new = load_lynch2022_raw_dataset(txt_base)
     cleaned_new = clean_lynch2022_train_data(raw_new)
-    new_patients = set(cleaned_new["p_num"].unique())
+    new_patients = set(cleaned_new["patient_id"].unique())
     print(f"   Patients: {len(new_patients)}")
     print(f"   Total rows: {len(cleaned_new):,}")
     print(
@@ -140,7 +140,7 @@ def main():
     raw_id = sample_pid_str.split("_")[1]  # "372"
     if raw_id in bb_cgm:
         bb_pt = bb_cgm[raw_id].set_index("datetime")["cgm_mgdl"]
-        our_pt = cleaned_new[cleaned_new["p_num"] == sample_pid_str].set_index(
+        our_pt = cleaned_new[cleaned_new["patient_id"] == sample_pid_str].set_index(
             "datetime"
         )["bg_mM"]
         our_pt_mgdl = our_pt * 18.0
@@ -174,11 +174,17 @@ def main():
     section("4. Potential midnight episodes — holdout patients")
     print(f"   Checking {len(holdout_patients)} holdout patients...")
     episode_results = []
-    for p_num in holdout_patients:
-        pt_df = cleaned_new[cleaned_new["p_num"] == p_num].set_index("datetime")
-        n_episodes = _count_potential_midnight_episodes(pt_df, p_num)
+    for patient_id in holdout_patients:
+        pt_df = cleaned_new[cleaned_new["patient_id"] == patient_id].set_index(
+            "datetime"
+        )
+        n_episodes = _count_potential_midnight_episodes(pt_df, patient_id)
         episode_results.append(
-            {"patient": p_num, "rows": len(pt_df), "potential_episodes": n_episodes}
+            {
+                "patient": patient_id,
+                "rows": len(pt_df),
+                "potential_episodes": n_episodes,
+            }
         )
 
     ep_df = pd.DataFrame(episode_results)

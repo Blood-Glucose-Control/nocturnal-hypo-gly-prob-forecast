@@ -73,7 +73,7 @@
       "type": "string"
     },
     "patient_col": {
-      "default": "p_num",
+      "default": "patient_id",
       "minLength": 1,
       "title": "Patient Col",
       "type": "string"

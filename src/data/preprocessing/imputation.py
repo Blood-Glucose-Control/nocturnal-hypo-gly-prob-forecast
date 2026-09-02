@@ -46,10 +46,10 @@ def impute_missing_values(
                 # Use linear or nearest neighbor interpolation for heart rate
                 # TODO: Need more research on this
                 transform = Imputer(method=hr_method)
-            elif "step" in col.lower():
+            elif "step_count" in col.lower():
                 # Use constant imputation with 0 for steps
                 transform = Imputer(method=step_method, value=0)
-            elif "cals" in col.lower():
+            elif "calories" in col.lower():
                 # Use constant imputation with minimum value for calories
                 min_val = df[col].min()
                 transform = Imputer(method=cal_method, value=min_val)

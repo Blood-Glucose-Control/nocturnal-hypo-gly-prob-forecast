@@ -57,8 +57,8 @@ def ensure_regular_time_intervals(
     if df.shape[0] <= 1:
         raise ValueError("DataFrame must contain more than 1 row")
 
-    if "p_num" not in df.columns:
-        raise ValueError("DataFrame must contain 'p_num' column")
+    if "patient_id" not in df.columns:
+        raise ValueError("DataFrame must contain 'patient_id' column")
 
     if not isinstance(df.index, pd.DatetimeIndex):
         raise ValueError("DataFrame must have datetime index")
@@ -112,7 +112,7 @@ def ensure_regular_time_intervals(
     # This preserves the regular time grid while capturing shifted data
 
     logger.info(
-        f"Post-ensure_regular_time_intervals(): \n\t\t\tPatient {df['p_num'].iloc[0]} \n\t\t\t - old index length: {len(df.index)}, \n\t\t\t - new index length: {len(mapped_data.index)}"
+        f"Post-ensure_regular_time_intervals(): \n\t\t\tPatient {df['patient_id'].iloc[0]} \n\t\t\t - old index length: {len(df.index)}, \n\t\t\t - new index length: {len(mapped_data.index)}"
     )
 
     return mapped_data, freq
@@ -150,8 +150,8 @@ def ensure_regular_time_intervals_with_aggregation(
     if df.shape[0] <= 1:
         raise ValueError("DataFrame must contain more than 1 row")
 
-    if "p_num" not in df.columns:
-        raise ValueError("DataFrame must contain 'p_num' column")
+    if "patient_id" not in df.columns:
+        raise ValueError("DataFrame must contain 'patient_id' column")
 
     if not isinstance(df.index, pd.DatetimeIndex):
         raise ValueError("DataFrame must have datetime index")
@@ -220,7 +220,7 @@ def ensure_regular_time_intervals_with_aggregation(
         freq=f"{freq}min",
     )
 
-    # Reindex to full grid; ensure p_num retained for empty bins
+    # Reindex to full grid; ensure patient_id retained for empty bins
     result_df = grouped.reindex(full_time_range)
     result_df.index.name = datetime_col
     if ColumnNames.P_NUM.value in result_df.columns:
@@ -230,7 +230,7 @@ def ensure_regular_time_intervals_with_aggregation(
 
     logger.info(
         f"Post-ensure_regular_time_intervals_with_aggregation(): \n\t\t\t"
-        f"Patient {df['p_num'].iloc[0]} \n\t\t\t "
+        f"Patient {df['patient_id'].iloc[0]} \n\t\t\t "
         f"- old index length: {len(df.index)}, \n\t\t\t "
         f"- new index length: {len(result_df.index)}"
     )

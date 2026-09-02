@@ -60,7 +60,7 @@ def test_zero_shot_predict_batch_includes_episode_col_in_pipeline_ids(monkeypatc
     panel = pd.DataFrame(
         {
             "episode_id": ["ep1", "ep1", "ep2", "ep2"],
-            "p_num": ["p1", "p1", "p2", "p2"],
+            "patient_id": ["p1", "p1", "p2", "p2"],
             "datetime": pd.date_range("2024-01-01", periods=4, freq="5min"),
             "bg_mM": [5.0, 6.0, 7.5, 8.5],
             "iob": [0.1, 0.2, 0.3, 0.4],
@@ -69,7 +69,7 @@ def test_zero_shot_predict_batch_includes_episode_col_in_pipeline_ids(monkeypatc
 
     results = model._predict_batch(panel, episode_col="episode_id")
 
-    assert captured["id_columns"] == ["episode_id", "p_num"]
+    assert captured["id_columns"] == ["episode_id", "patient_id"]
     assert captured["target_columns"] == ["bg_mM"]
     assert set(results) == {"ep1", "ep2"}
     np.testing.assert_array_equal(results["ep1"], np.array([6.0, 7.0]))

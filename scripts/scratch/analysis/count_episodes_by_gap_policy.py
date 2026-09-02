@@ -123,7 +123,7 @@ def main() -> None:
     ap.add_argument("--forecast-length", type=int, default=96)
     ap.add_argument("--interval-mins", type=int, default=5)
     ap.add_argument("--target-col", default="bg_mM")
-    ap.add_argument("--patient-col", default="p_num")
+    ap.add_argument("--patient-col", default="patient_id")
     ap.add_argument(
         "--output",
         default="results/grand_summary/episode_count_sensitivity.csv",

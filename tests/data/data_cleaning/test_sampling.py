@@ -21,7 +21,7 @@ class TestEnsureRegularTimeIntervals:
         )
 
         data = {
-            "p_num": ["patient_01"] * 12,
+            "patient_id": ["patient_01"] * 12,
             "bg_mM": [5.0, 5.2, 5.1, 4.9, 5.3, 5.0, 4.8, 5.1, 5.2, 4.9, 5.0, 5.1],
             "hr_bpm": [70, 72, 71, 69, 73, 70, 68, 71, 72, 69, 70, 71],
         }
@@ -48,7 +48,7 @@ class TestEnsureRegularTimeIntervals:
         datetime_index = pd.to_datetime(datetime_list)
 
         data = {
-            "p_num": ["patient_01"] * 6,
+            "patient_id": ["patient_01"] * 6,
             "bg_mM": [5.0, 5.2, 5.1, 4.9, 5.3, 5.0],
             "hr_bpm": [70, 72, 71, 69, 73, 70],
         }
@@ -75,7 +75,7 @@ class TestEnsureRegularTimeIntervals:
         datetime_index = pd.to_datetime(datetime_list)
 
         data = {
-            "p_num": ["patient_01"] * 6,
+            "patient_id": ["patient_01"] * 6,
             "bg_mM": [5.0, 5.2, 5.1, 4.9, 5.3, 5.0],
             "hr_bpm": [70, 72, 71, 69, 73, 70],
         }
@@ -94,7 +94,7 @@ class TestEnsureRegularTimeIntervals:
         assert isinstance(result.index, pd.DatetimeIndex)
 
         # Check that all original data is preserved
-        assert all(result["p_num"] == "patient_01")
+        assert all(result["patient_id"] == "patient_01")
         assert len(result["bg_mM"].dropna()) == len(sample_regular_data)
 
     def test_basic_functionality_irregular_data(self, sample_irregular_data):
@@ -151,7 +151,7 @@ class TestEnsureRegularTimeIntervals:
     def test_empty_dataframe(self):
         """Test function handles empty DataFrame gracefully."""
         # Create empty DataFrame with proper structure
-        empty_df = pd.DataFrame(columns=["p_num", "id", "bg_mM", "hr_bpm"])
+        empty_df = pd.DataFrame(columns=["patient_id", "id", "bg_mM", "hr_bpm"])
         empty_df.index = pd.DatetimeIndex([])
         empty_df.index.name = "datetime"
 
@@ -160,14 +160,14 @@ class TestEnsureRegularTimeIntervals:
         # Should return empty DataFrame with same structure
         assert len(result) == 0
         assert isinstance(result, pd.DataFrame)
-        assert list(result.columns) == ["p_num", "id", "bg_mM", "hr_bpm"]
+        assert list(result.columns) == ["patient_id", "id", "bg_mM", "hr_bpm"]
 
     def test_data_types_preserved(self, sample_irregular_data):
         """Test that data types are preserved in the result where possible."""
         result, freq = ensure_regular_time_intervals(sample_irregular_data)
 
         # Check that string/object data types match original
-        assert result["p_num"].dtype == sample_irregular_data["p_num"].dtype
+        assert result["patient_id"].dtype == sample_irregular_data["patient_id"].dtype
 
         # Check that float columns preserve their type
         assert result["bg_mM"].dtype == sample_irregular_data["bg_mM"].dtype
@@ -217,7 +217,7 @@ class TestEnsureRegularTimeIntervals:
         datetime_index = pd.to_datetime(datetime_list)
 
         data = {
-            "p_num": ["patient_01"] * 3,
+            "patient_id": ["patient_01"] * 3,
             "id": [f"patient_01_{i}" for i in range(3)],
             "bg_mM": [5.0, 5.2, 5.1],
             "hr_bpm": [70, 72, 71],

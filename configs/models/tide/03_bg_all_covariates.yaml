@@ -45,7 +45,7 @@ imputation_threshold_mins: 45
 # Covariates
 covariate_cols: ["iob", "insulin_availability", "cob"]
 target_col: "bg_mM"
-patient_col: "p_num"
+patient_col: "patient_id"
 time_col: "datetime"
 interval_mins: 5
 

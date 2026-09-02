@@ -219,10 +219,10 @@ def step3_load_training_data(
         for ds_name, meta in split_metadata.items():
             n_skipped = len(meta.get("skipped_patients", {}))
             n_adjusted = len(meta.get("adjusted_patients", {}))
-            n_filled = meta.get("nan_p_num_filled", 0)
+            n_filled = meta.get("nan_patient_id_filled", 0)
             if n_skipped or n_adjusted or n_filled:
                 logger.info(
-                    f"  {ds_name}: {n_skipped} skipped, {n_adjusted} adjusted, {n_filled:,} NaN p_num filled"
+                    f"  {ds_name}: {n_skipped} skipped, {n_adjusted} adjusted, {n_filled:,} NaN patient_id filled"
                 )
     # Print detailed column comparison table
     print_dataset_column_table(column_info, list(combined_data.columns))
@@ -234,9 +234,9 @@ def step3_load_training_data(
     logger.info(f"  Datasets: {', '.join(dataset_names)}")
 
     if (
-        "p_num" in combined_data.columns or "id" in combined_data.columns
+        "patient_id" in combined_data.columns or "id" in combined_data.columns
     ):  # TODO: investigate this 'id' thing
-        patient_col = "p_num" if "p_num" in combined_data.columns else "id"
+        patient_col = "patient_id" if "patient_id" in combined_data.columns else "id"
         n_patients = len(combined_data[patient_col].unique())
         logger.info(f"  Total patients: {n_patients}")
 
@@ -520,7 +520,7 @@ def step5_train_model(
     train_data_for_model = combined_data
     model_feature_cols = get_model_feature_override_columns(model_config_overrides)
     if model_feature_cols:
-        required_cols = ["p_num", "id", "datetime"]
+        required_cols = ["patient_id", "id", "datetime"]
         all_cols = [
             col
             for col in model_feature_cols + required_cols
@@ -703,7 +703,7 @@ def step7_resume_training(
     train_data_for_model = combined_data
     model_feature_cols = get_model_feature_override_columns(model_config_overrides)
     if model_feature_cols:
-        required_cols = ["p_num", "id", "datetime"]
+        required_cols = ["patient_id", "id", "datetime"]
         all_cols = [
             col
             for col in model_feature_cols + required_cols

@@ -9,7 +9,7 @@ def sample_meal_df():
     dates = pd.date_range(start="2024-01-01", periods=5, freq="h")
     data = {
         "msg_type": ["ANNOUNCE_MEAL", "", "ANNOUNCE_MEAL", "ANNOUNCE_MEAL", ""],
-        "food_g": [50.0, 0.0, 30.0, 20.0, 0.0],
+        "carbohydrate_g": [50.0, 0.0, 30.0, 20.0, 0.0],
         "day_start_shift": [1, 1, 1, 2, 2],
     }
     return pd.DataFrame(data, index=dates)
@@ -51,7 +51,7 @@ def df_to_coerce():
                 "",
                 "",
             ],
-            "food_g": [0, 50, 0, 0, 75, 0, 0, 0, 0, 0],
+            "carbohydrate_g": [0, 50, 0, 0, 75, 0, 0, 0, 0, 0],
         }
     )
     df.set_index("datetime", inplace=True)

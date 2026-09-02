@@ -179,7 +179,7 @@ manager = HoldoutManager(config)
 # Apply split to your data
 train_data, holdout_data = manager.split_data(
     data=your_dataframe,
-    patient_col="p_num",
+    patient_col="patient_id",
     time_col="time"
 )
 

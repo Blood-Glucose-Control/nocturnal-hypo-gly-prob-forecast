@@ -1,124 +1,134 @@
-"""
-Example script demonstrating the new centralized cache system.
+"""Example script demonstrating centralized cache usage."""
 
-This script shows how to use the refactored data loaders with automatic
-data fetching and centralized caching.
-"""
+from __future__ import annotations
 
 import logging
+from pathlib import Path
+
+import pandas as pd
 
 from src.data.cache_manager import get_cache_manager
 from src.data.diabetes_datasets.data_loader import get_loader
 
-# Set up logging to see what's happening
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+MAX_PREVIEW_FILES = 3
+MAX_PREVIEW_SUBDIRS = 3
 
-def main():
-    """
-    Demonstrate the new cache system functionality.
-    """
-    print("=== Centralized Cache System Demo ===\n")
 
-    # Get cache manager to show cache structure
-    cache_manager = get_cache_manager()
-    print(f"Cache root directory: {cache_manager.cache_root}\n")
-
-    # Example 1: Load Kaggle Bristol T1D dataset (will auto-fetch if not available)
-    print("1. Loading Kaggle Bristol T1D dataset...")
-    try:
-        # This will automatically fetch data from Kaggle if not in cache
-        loader = get_loader(
-            data_source_name="kaggle_brisT1D",
-            dataset_type="train",
-            use_cached=True,
-            num_validation_days=20,
-        )
-
-        print("   ✓ Dataset loaded successfully!")
-        print(f"   ✓ Dataset name: {loader.dataset_name}")
-        print(f"   ✓ Training data shape: {loader.train_data.shape}")
-        print(f"   ✓ Validation data shape: {loader.validation_data.shape}")
-        print(f"   ✓ Number of training days: {loader.num_train_days}")
-
-    except Exception as e:
-        print(f"   ✗ Error loading dataset: {e}")
-        print("   Note: Make sure you have Kaggle API credentials set up")
-
-    print()
-
-    # Example 2: Load test data (will use cached processed data if available)
-    print("2. Loading test data...")
-    try:
-        test_loader = get_loader(
-            data_source_name="kaggle_brisT1D", dataset_type="test", use_cached=True
-        )
-
-        print("   ✓ Test data loaded successfully!")
-        print(f"   ✓ Number of patients: {len(test_loader.processed_data)}")
-
-        # Show first patient's data
-        first_patient = list(test_loader.processed_data.keys())[0]
-        first_patient_data = test_loader.processed_data[first_patient]
-        print(
-            f"   ✓ First patient ({first_patient}) has {len(first_patient_data)} test rows"
-        )
-
-    except Exception as e:
-        print(f"   ✗ Error loading test data: {e}")
-
-    print()
-
-    # Example 3: Show cache structure
-    print("3. Cache directory structure:")
-    try:
-        from pathlib import Path
-
-        cache_root = Path("cache/data")
-        if cache_root.exists():
-            for dataset_dir in cache_root.iterdir():
-                if dataset_dir.is_dir():
-                    print(f"   📁 {dataset_dir.name}/")
-                    for subdir in dataset_dir.iterdir():
-                        if subdir.is_dir():
-                            print(f"      📁 {subdir.name}/")
-                            if subdir.name == "Raw":
-                                for file in subdir.iterdir():
-                                    if file.is_file():
-                                        print(f"         📄 {file.name}")
-                            elif subdir.name == "Processed":
-                                for type_dir in subdir.iterdir():
-                                    if type_dir.is_dir():
-                                        print(f"         📁 {type_dir.name}/")
-                                        if type_dir.name == "test":
-                                            # Count patient directories
-                                            patient_count = len(
-                                                [
-                                                    d
-                                                    for d in type_dir.iterdir()
-                                                    if d.is_dir()
-                                                ]
-                                            )
-                                            print(
-                                                f"            📁 {patient_count} patient directories"
-                                            )
-        else:
-            print("   No cache directory found yet")
-
-    except Exception as e:
-        print(f"   ✗ Error exploring cache: {e}")
-
-    print()
-
-    # Example 4: Cache management
-    print("4. Cache management options:")
-    print("   - Clear specific dataset: cache_manager.clear_cache('kaggle_brisT1D')")
-    print("   - Clear all cache: cache_manager.clear_cache()")
-    print(
-        "   - Check cache info: cache_manager.get_dataset_cache_path('kaggle_brisT1D')"
+def _iter_sorted_dirs(path: Path) -> list[Path]:
+    return sorted(
+        (entry for entry in path.iterdir() if entry.is_dir()), key=lambda p: p.name
     )
 
+
+def _iter_sorted_files(path: Path) -> list[Path]:
+    return sorted(
+        (entry for entry in path.iterdir() if entry.is_file()), key=lambda p: p.name
+    )
+
+
+def _find_child_dir(parent: Path, child_name: str) -> Path | None:
+    expected_path = parent / child_name
+    if expected_path.is_dir():
+        return expected_path
+
+    lower_child_name = child_name.lower()
+    for entry in _iter_sorted_dirs(parent):
+        if entry.name.lower() == lower_child_name:
+            return entry
+    return None
+
+
+def _print_patient_preview(processed_data: dict[str, pd.DataFrame]) -> None:
+    first_patient_id = sorted(processed_data.keys())[0]
+    first_patient_df = processed_data[first_patient_id]
+
+    print(f"   ✓ Example patient: {first_patient_id}")
+    print(f"   ✓ Patient frame shape: {first_patient_df.shape}")
+    print("   ✓ Head:")
+    print(first_patient_df.head(3).to_string())
+
+
+def _print_directory_summary(dir_path: Path, indent: str = "      ") -> None:
+    files = _iter_sorted_files(dir_path)
+    subdirs = _iter_sorted_dirs(dir_path)
+    print(f"{indent}📁 {dir_path.name}/ ({len(subdirs)} dirs, {len(files)} files)")
+
+    for file_path in files[:MAX_PREVIEW_FILES]:
+        print(f"{indent}   📄 {file_path.name}")
+    if len(files) > MAX_PREVIEW_FILES:
+        print(f"{indent}   ... {len(files) - MAX_PREVIEW_FILES} more files")
+
+    for subdir in subdirs[:MAX_PREVIEW_SUBDIRS]:
+        nested_file_count = len(_iter_sorted_files(subdir))
+        nested_dir_count = len(_iter_sorted_dirs(subdir))
+        print(
+            f"{indent}   📁 {subdir.name}/ ({nested_dir_count} dirs, {nested_file_count} files)"
+        )
+    if len(subdirs) > MAX_PREVIEW_SUBDIRS:
+        print(f"{indent}   ... {len(subdirs) - MAX_PREVIEW_SUBDIRS} more directories")
+
+
+def _show_cache_structure(cache_root: Path) -> None:
+    print("2. Cache directory structure (readable summary):")
+    if not cache_root.is_dir():
+        print("   No cache directory found yet")
+        return
+
+    dataset_dirs = _iter_sorted_dirs(cache_root)
+    if not dataset_dirs:
+        print("   Cache directory exists but has no dataset folders yet")
+        return
+
+    for dataset_dir in dataset_dirs:
+        print(f"   📁 {dataset_dir.name}/")
+
+        raw_dir = _find_child_dir(dataset_dir, "raw")
+        if raw_dir is not None:
+            _print_directory_summary(raw_dir, indent="      ")
+        else:
+            print("      raw/ (missing)")
+
+        processed_dir = _find_child_dir(dataset_dir, "processed")
+        if processed_dir is not None:
+            _print_directory_summary(processed_dir, indent="      ")
+        else:
+            print("      processed/ (missing)")
+
+
+def main() -> None:
+    print("=== Centralized Cache System Demo ===\n")
+
+    cache_manager = get_cache_manager()
+    cache_root = Path(cache_manager.cache_root)
+    print(f"Cache root directory: {cache_root}\n")
+
+    print("1. Loading Aleppo T1D dataset...")
+    loader = get_loader(
+        data_source_name="aleppo_2017",
+        use_cached=True,
+    )
+    processed_data = loader.processed_data
+    if not isinstance(processed_data, dict) or not processed_data:
+        raise ValueError(
+            "Expected non-empty dict[str, DataFrame] in loader.processed_data."
+        )
+
+    print("   ✓ Dataset loaded successfully!")
+    print(f"   ✓ Dataset name: {loader.dataset_name}")
+    print(f"   ✓ Number of patients: {len(processed_data)}")
+    _print_patient_preview(processed_data)
+    print()
+
+    _show_cache_structure(cache_root)
+    print()
+
+    print("3. Cache management options:")
+    print("   - Clear specific dataset: cache_manager.clear_cache('aleppo_2017')")
+    print("   - Clear all cache: cache_manager.clear_cache()")
+    print("   - Check cache info: cache_manager.get_dataset_cache_path('aleppo_2017')")
     print("\n=== Demo Complete ===")
 
 

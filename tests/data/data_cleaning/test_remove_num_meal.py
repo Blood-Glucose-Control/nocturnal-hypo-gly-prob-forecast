@@ -36,7 +36,7 @@ def test_remove_num_meal():
     df = pd.DataFrame(
         {
             "msg_type": mock_data.msg_type,
-            "food_g": mock_data.food_g,
+            "carbohydrate_g": mock_data.food_g,
         },
         index=pd.to_datetime(mock_data.timestamps),
     )
@@ -51,7 +51,7 @@ def test_remove_num_meal():
     expected_df = pd.DataFrame(
         {
             "msg_type": ["ANNOUNCE_MEAL", "ANNOUNCE_MEAL"],
-            "food_g": [80, 90],
+            "carbohydrate_g": [80, 90],
         },
         index=pd.to_datetime(expected_timestamps),
     )

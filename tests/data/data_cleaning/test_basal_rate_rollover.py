@@ -22,10 +22,10 @@ class TestRolloverBasalRate:
         )
 
         data = {
-            "p_num": ["patient_01"] * 18,
+            "patient_id": ["patient_01"] * 18,
             "bg_mM": [5.0] * 18,
             "dose_units": [0.0] * 18,
-            "food_g": [0.0] * 18,
+            "carbohydrate_g": [0.0] * 18,
             ColumnNames.BASAL_DURATION_MINS.value: [None] * 18,
         }
 
@@ -53,10 +53,10 @@ class TestRolloverBasalRate:
         )
 
         data = {
-            "p_num": ["patient_01"] * 15,
+            "patient_id": ["patient_01"] * 15,
             "bg_mM": [5.0] * 15,
             "dose_units": [0.0] * 15,
-            "food_g": [0.0] * 15,
+            "carbohydrate_g": [0.0] * 15,
             ColumnNames.BASAL_DURATION_MINS.value: [None] * 15,
         }
 
@@ -84,10 +84,10 @@ class TestRolloverBasalRate:
         )
 
         data = {
-            "p_num": ["patient_01"] * 8,
+            "patient_id": ["patient_01"] * 8,
             "bg_mM": [5.0] * 8,
             "dose_units": [0.0] * 8,
-            "food_g": [0.0] * 8,
+            "carbohydrate_g": [0.0] * 8,
             ColumnNames.BASAL_DURATION_MINS.value: [None] * 8,
         }
 
@@ -189,7 +189,7 @@ class TestRolloverBasalRate:
         """Test that function handles missing RATE column gracefully."""
         df = pd.DataFrame(
             {
-                "p_num": ["patient_01"],
+                "patient_id": ["patient_01"],
                 "bg_mM": [5.0],
                 "dose_units": [0.0],
             },
@@ -210,7 +210,7 @@ class TestRolloverBasalRate:
         )
 
         data = {
-            "p_num": ["patient_01"] * 15,
+            "patient_id": ["patient_01"] * 15,
             "bg_mM": [5.0] * 15,
             "dose_units": [0.0] * 15,
             ColumnNames.RATE.value: [0.0] * 15,
@@ -232,7 +232,7 @@ class TestRolloverBasalRate:
         )
 
         data = {
-            "p_num": ["patient_01"] * 20,
+            "patient_id": ["patient_01"] * 20,
             "bg_mM": [5.0] * 20,
             "dose_units": [0.0] * 20,
             ColumnNames.BASAL_DURATION_MINS.value: [None] * 20,
@@ -281,10 +281,10 @@ class TestRolloverBasalAutomated:
         )
 
         data = {
-            "p_num": ["patient_01"] * 18,
+            "patient_id": ["patient_01"] * 18,
             "bg_mM": [5.0] * 18,
             "dose_units": [0.0] * 18,
-            "food_g": [0.0] * 18,
+            "carbohydrate_g": [0.0] * 18,
             ColumnNames.RATE.value: [None] * 18,  # Will set specific rates
         }
 
@@ -458,7 +458,7 @@ class TestRolloverBasalTempEdgeCases:
         )
 
         data = {
-            "p_num": ["patient_01"] * 10,
+            "patient_id": ["patient_01"] * 10,
             "bg_mM": [5.0] * 10,
             "dose_units": [0.0] * 10,
             ColumnNames.RATE.value: [None] * 10,  # All NaN
@@ -482,7 +482,7 @@ class TestRolloverBasalTempEdgeCases:
         )
 
         data = {
-            "p_num": ["patient_01"] * 12,
+            "patient_id": ["patient_01"] * 12,
             "bg_mM": [5.0] * 12,
             "dose_units": [0.0] * 12,
             ColumnNames.RATE.value: [None] * 12,
@@ -525,7 +525,7 @@ class TestRolloverBasalTempEdgeCases:
         )
 
         data = {
-            "p_num": ["patient_01"] * 10,
+            "patient_id": ["patient_01"] * 10,
             "bg_mM": [5.0] * 10,
             "dose_units": [0.0] * 10,
             ColumnNames.RATE.value: [None] * 10,

@@ -20,7 +20,7 @@ class TestIterDailyForecastPeriods:
 
         data = {
             "bg_mM": [5.5 + i * 0.1 for i in range(len(datetime_index))],
-            "food_g": [0] * len(datetime_index),
+            "carbohydrate_g": [0] * len(datetime_index),
             "dose_units": [0] * len(datetime_index),
         }
 
@@ -81,7 +81,7 @@ class TestIterDailyForecastPeriods:
     def test_invalid_datetime_index(self):
         """Test error handling for invalid datetime index."""
         # DataFrame without datetime index
-        df = pd.DataFrame({"bg_mM": [5.5, 6.0, 5.8], "food_g": [0, 30, 0]})
+        df = pd.DataFrame({"bg_mM": [5.5, 6.0, 5.8], "carbohydrate_g": [0, 30, 0]})
 
         with pytest.raises(ValueError, match="Patient data must have datetime index"):
             list(iter_daily_context_forecast_splits(df))
@@ -92,7 +92,7 @@ class TestIterDailyForecastPeriods:
             {
                 "datetime": pd.date_range("2024-01-01", periods=100, freq="5min"),
                 "bg_mM": [5.5] * 100,
-                "food_g": [0] * 100,
+                "carbohydrate_g": [0] * 100,
             }
         )
 
@@ -151,7 +151,7 @@ class TestIterPatientContextForecastSplits:
 
             data = {
                 "bg_mM": [5.5 + i * 0.1 for i in range(len(datetime_index))],
-                "food_g": [0] * len(datetime_index),
+                "carbohydrate_g": [0] * len(datetime_index),
                 "dose_units": [0] * len(datetime_index),
             }
 
@@ -248,7 +248,7 @@ class TestIntegration:
         patient_data = pd.DataFrame(
             {
                 "bg_mM": [5.5 + (i % 100) * 0.05 for i in range(len(datetime_index))],
-                "food_g": [
+                "carbohydrate_g": [
                     30 if i % 72 == 0 else 0 for i in range(len(datetime_index))
                 ],  # Meals every 6 hours
                 "dose_units": [

@@ -89,10 +89,6 @@ class Lynch2022DataLoader(DatasetBase):
             Initializes cache/dataset configuration attributes and immediately
             calls load_data() to populate processed_data.
         """
-        # Ensure 'datetime' is included in keep_columns if specified
-        if keep_columns is not None and "datetime" not in keep_columns:
-            keep_columns = keep_columns + ["datetime"]
-
         super().__init__()
         self.use_cached = use_cached
         self.keep_columns = keep_columns
@@ -173,12 +169,12 @@ class Lynch2022DataLoader(DatasetBase):
         logger.info("Running preprocessing pipeline on Lynch 2022 train data...")
 
         multipatient_data_dict = split_multipatient_dataframe(
-            pre_processed_data, "p_num"
+            pre_processed_data, "patient_id"
         )
 
         patient_data_tuples = [
-            (p_num, patient_df, self.generic_patient_start_date)
-            for p_num, patient_df in multipatient_data_dict.items()
+            (patient_id, patient_df, self.generic_patient_start_date)
+            for patient_id, patient_df in multipatient_data_dict.items()
         ]
 
         if self.parallel:
@@ -202,13 +198,13 @@ class Lynch2022DataLoader(DatasetBase):
                     desc="Processing Lynch patients",
                     unit="patient",
                 ):
-                    p_num = futures[future]
+                    patient_id = futures[future]
                     try:
                         patient_id, processed_data = future.result()
                         processed_dict[patient_id] = processed_data
                     except Exception as exc:
                         logger.error(
-                            f"Lynch patient {p_num} generated an exception: {exc}"
+                            f"Lynch patient {patient_id} generated an exception: {exc}"
                         )
                         raise exc
         else:

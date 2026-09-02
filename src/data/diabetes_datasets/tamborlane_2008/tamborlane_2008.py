@@ -52,7 +52,6 @@ class Tamborlane2008DataLoader(DatasetBase):
 
     Attributes:
         keep_columns: Specific columns to load from the dataset.
-        dataset_type: Type of dataset ('train' or 'test').
         use_cached: Whether to use cached processed data if available.
         parallel: Whether to use parallel processing.
         max_workers: Maximum number of workers for parallel processing.
@@ -85,7 +84,6 @@ class Tamborlane2008DataLoader(DatasetBase):
 
         Args:
             keep_columns: Optional list of columns to retain per patient.
-            dataset_type: Legacy configuration field retained for compatibility.
             use_cached: Whether to load cached processed data when available.
             parallel: Whether patient processing should run in parallel.
             max_workers: Maximum worker count for parallel processing.
@@ -98,13 +96,6 @@ class Tamborlane2008DataLoader(DatasetBase):
             calls load_data() to populate processed_data.
         """
         super().__init__()
-
-        # Ensure required columns are included
-        if keep_columns is not None:
-            required_cols = ["datetime", "bg_mM", "p_num", "bg_mg_dl"]
-            for col in required_cols:
-                if col not in keep_columns:
-                    keep_columns.append(col)
         self.use_cached = use_cached
         self.keep_columns = keep_columns
         self.parallel = parallel
@@ -290,15 +281,17 @@ class Tamborlane2008DataLoader(DatasetBase):
         cleaned_data = clean_dataset_data(self.raw_data)
 
         # Split by patient
-        if "p_num" not in cleaned_data.columns:
+        if "patient_id" not in cleaned_data.columns:
             # If no patient column, treat as single patient
             logger.warning(
                 "No patient ID column found, treating as single patient dataset"
             )
-            cleaned_data["p_num"] = "patient_001"
+            cleaned_data["patient_id"] = "patient_001"
 
         # Use the splitter function
-        multipatient_data_dict = split_multipatient_dataframe(cleaned_data, "p_num")
+        multipatient_data_dict = split_multipatient_dataframe(
+            cleaned_data, "patient_id"
+        )
         logger.info(f"Processing {len(multipatient_data_dict)} patients")
 
         # Log sample of data for each patient
@@ -358,8 +351,8 @@ class Tamborlane2008DataLoader(DatasetBase):
         with ProcessPoolExecutor(max_workers=self.max_workers) as executor:
             # Prepare data tuples
             patient_data_tuples = [
-                (p_num, patient_df, self.generic_patient_start_date)
-                for p_num, patient_df in multipatient_data_dict.items()
+                (patient_id, patient_df, self.generic_patient_start_date)
+                for patient_id, patient_df in multipatient_data_dict.items()
             ]
 
             # Submit all tasks
@@ -372,13 +365,13 @@ class Tamborlane2008DataLoader(DatasetBase):
 
             # Collect results
             for future in as_completed(future_to_patient):
-                p_num = future_to_patient[future]
+                patient_id = future_to_patient[future]
                 try:
                     patient_id, result = future.result()
                     processed_results[patient_id] = result
                     logger.info(f"Successfully processed patient {patient_id}")
                 except Exception as exc:
-                    logger.error(f"Patient {p_num} generated an exception: {exc}")
+                    logger.error(f"Patient {patient_id} generated an exception: {exc}")
 
         return processed_results
 
@@ -397,9 +390,13 @@ class Tamborlane2008DataLoader(DatasetBase):
         """
         processed_results = {}
 
-        for p_num, patient_df in multipatient_data_dict.items():
-            logger.info(f"Processing patient {p_num}...")
-            patient_data_tuple = (p_num, patient_df, self.generic_patient_start_date)
+        for patient_id, patient_df in multipatient_data_dict.items():
+            logger.info(f"Processing patient {patient_id}...")
+            patient_data_tuple = (
+                patient_id,
+                patient_df,
+                self.generic_patient_start_date,
+            )
             patient_id, processed_df = process_single_patient_data(patient_data_tuple)
             processed_results[patient_id] = processed_df
 

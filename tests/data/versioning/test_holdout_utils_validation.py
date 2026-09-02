@@ -80,10 +80,10 @@ def _hybrid_config() -> HoldoutConfig:
     )
 
 
-def test_validate_holdout_config_flags_inconsistent_p_num_columns() -> None:
+def test_validate_holdout_config_flags_inconsistent_patient_id_columns() -> None:
     train_data = pd.DataFrame(
         {
-            "p_num": [1] * 120,
+            "patient_id": [1] * 120,
             "datetime": pd.date_range("2024-01-01", periods=120, freq="h"),
             "bg": [100.0] * 120,
         }
@@ -106,7 +106,7 @@ def test_validate_holdout_config_detects_temporal_ordering_for_numeric_patients(
 ):
     train_data = pd.DataFrame(
         {
-            "p_num": [1, 1, 2, 2],
+            "patient_id": [1, 1, 2, 2],
             "datetime": pd.to_datetime(
                 [
                     "2024-01-01T00:00:00",
@@ -120,7 +120,7 @@ def test_validate_holdout_config_detects_temporal_ordering_for_numeric_patients(
     )
     holdout_data = pd.DataFrame(
         {
-            "p_num": [1, 2],
+            "patient_id": [1, 2],
             "datetime": pd.to_datetime(["2024-01-04T00:00:00", "2024-01-03T00:00:00"]),
             "bg": [102.0, 97.0],
         }
@@ -135,14 +135,14 @@ def test_validate_holdout_config_detects_temporal_ordering_for_numeric_patients(
 def test_validate_holdout_config_accepts_datetime_temporal_column() -> None:
     train_data = pd.DataFrame(
         {
-            "p_num": [1, 1],
+            "patient_id": [1, 1],
             "datetime": pd.to_datetime(["2024-01-05T00:00:00", "2024-01-06T00:00:00"]),
             "bg": [100.0, 101.0],
         }
     )
     holdout_data = pd.DataFrame(
         {
-            "p_num": [1],
+            "patient_id": [1],
             "datetime": pd.to_datetime(["2024-01-04T00:00:00"]),
             "bg": [102.0],
         }
@@ -157,14 +157,14 @@ def test_validate_holdout_config_accepts_datetime_temporal_column() -> None:
 def test_validate_holdout_config_uses_temporal_config_thresholds() -> None:
     train_data = pd.DataFrame(
         {
-            "p_num": [1] * 50,
+            "patient_id": [1] * 50,
             "datetime": pd.date_range("2024-01-01", periods=50, freq="h"),
             "bg": [100.0] * 50,
         }
     )
     holdout_data = pd.DataFrame(
         {
-            "p_num": [1] * 10,
+            "patient_id": [1] * 10,
             "datetime": pd.date_range("2024-01-03", periods=10, freq="h"),
             "bg": [101.0] * 10,
         }
@@ -183,14 +183,14 @@ def test_validate_holdout_config_uses_temporal_config_thresholds() -> None:
 def test_validate_holdout_config_rejects_time_column_without_datetime() -> None:
     train_data = pd.DataFrame(
         {
-            "p_num": [1, 1],
+            "patient_id": [1, 1],
             "time": pd.date_range("2024-01-01", periods=2, freq="h"),
             "bg": [100.0, 101.0],
         }
     )
     holdout_data = pd.DataFrame(
         {
-            "p_num": [1],
+            "patient_id": [1],
             "time": pd.date_range("2024-01-02", periods=1, freq="h"),
             "bg": [102.0],
         }
@@ -205,14 +205,14 @@ def test_validate_holdout_config_rejects_time_column_without_datetime() -> None:
 def test_validate_holdout_config_uses_patient_config_thresholds() -> None:
     train_data = pd.DataFrame(
         {
-            "p_num": [1, 1, 2, 2],
+            "patient_id": [1, 1, 2, 2],
             "datetime": pd.date_range("2024-01-01", periods=4, freq="h"),
             "bg": [100.0, 101.0, 99.0, 98.0],
         }
     )
     holdout_data = pd.DataFrame(
         {
-            "p_num": [3, 3],
+            "patient_id": [3, 3],
             "datetime": pd.date_range("2024-01-02", periods=2, freq="h"),
             "bg": [102.0, 103.0],
         }
@@ -240,13 +240,13 @@ def test_validate_holdout_config_patient_split_skips_temporal_datetime_requireme
 ):
     train_data = pd.DataFrame(
         {
-            "p_num": [1, 1, 2, 2],
+            "patient_id": [1, 1, 2, 2],
             "bg": [100.0, 101.0, 99.0, 98.0],
         }
     )
     holdout_data = pd.DataFrame(
         {
-            "p_num": [3, 3],
+            "patient_id": [3, 3],
             "bg": [102.0, 103.0],
         }
     )
@@ -262,13 +262,13 @@ def test_validate_holdout_config_patient_split_skips_temporal_datetime_requireme
 def test_validate_holdout_config_hybrid_runs_temporal_checks() -> None:
     train_data = pd.DataFrame(
         {
-            "p_num": [1, 2],
+            "patient_id": [1, 2],
             "bg": [100.0, 99.0],
         }
     )
     holdout_data = pd.DataFrame(
         {
-            "p_num": [3],
+            "patient_id": [3],
             "bg": [102.0],
         }
     )

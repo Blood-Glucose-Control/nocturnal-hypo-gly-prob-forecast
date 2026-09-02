@@ -20,7 +20,7 @@ checkpoint_save_steps: 100
 
 covariate_cols: [iob, insulin_availability]
 target_col: "bg_mM"
-patient_col: "p_num"
+patient_col: "patient_id"
 time_col: "datetime"
 interval_mins: 5
 

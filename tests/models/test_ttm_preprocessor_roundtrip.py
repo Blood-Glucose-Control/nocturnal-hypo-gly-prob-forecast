@@ -43,12 +43,12 @@ def synthetic_glucose_data() -> pd.DataFrame:
     Need enough rows to create sliding windows for train/val/test split.
 
     Returns:
-        DataFrame with columns: p_num, datetime, bg_mM, iob, insulin_availability
+        DataFrame with columns: patient_id, datetime, bg_mM, iob, insulin_availability
     """
     np.random.seed(42)
 
     patients = []
-    for p_num in range(1, 6):  # 5 patients
+    for patient_id in range(1, 6):  # 5 patients
         n_rows = 1000  # More rows to ensure enough windows
 
         # Create timestamps (5-minute intervals)
@@ -66,7 +66,7 @@ def synthetic_glucose_data() -> pd.DataFrame:
 
         patient_df = pd.DataFrame(
             {
-                "p_num": str(p_num),  # Must be string or int, not float
+                "patient_id": str(patient_id),  # Must be string or int, not float
                 "datetime": timestamps,
                 "bg_mM": glucose,
                 "iob": iob,
@@ -456,7 +456,7 @@ class TestEndToEndRoundtrip:
 
         # Get a small sample for prediction
         sample_data = synthetic_glucose_data[
-            synthetic_glucose_data["p_num"] == "1"
+            synthetic_glucose_data["patient_id"] == "1"
         ].head(100)
 
         try:
@@ -493,7 +493,7 @@ class TestEndToEndRoundtrip:
 
         # Get sample and predict
         sample_data = synthetic_glucose_data[
-            synthetic_glucose_data["p_num"] == "1"
+            synthetic_glucose_data["patient_id"] == "1"
         ].head(100)
 
         try:
@@ -587,7 +587,7 @@ class TestDiagnostics:
         zs_model = TTMForecaster(zs_config)
 
         sample_data = synthetic_glucose_data[
-            synthetic_glucose_data["p_num"] == "1"
+            synthetic_glucose_data["patient_id"] == "1"
         ].head(100)
 
         try:

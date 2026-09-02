@@ -228,7 +228,7 @@ def run_inference(
     n = len(selected_episodes)
     for i, ep in enumerate(selected_episodes):
         ctx = ep["context_df"].copy().reset_index(names="datetime")
-        ctx["p_num"] = ep["patient_id"]
+        ctx["patient_id"] = ep["patient_id"]
         target = ep["target_bg"][:forecast_length]
         try:
             pred = model.predict(ctx)[:forecast_length]

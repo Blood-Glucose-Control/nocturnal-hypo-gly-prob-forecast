@@ -61,7 +61,7 @@ def _make_flat_df(n_patients=3, n_days=5, include_iob=True):
             n_days=n_days, include_iob=include_iob, start=f"2024-{i:02d}-01"
         )
         pdf = pdf.reset_index()
-        pdf["p_num"] = float(i)  # Brown 2019 uses float64 patient IDs
+        pdf["patient_id"] = float(i)  # Brown 2019 uses float64 patient IDs
         frames.append(pdf)
     return pd.concat(frames, ignore_index=True)
 
@@ -133,13 +133,13 @@ class TestChronos2:
         """Registry flat df → patient dict. Regression: float 1.0 → key "1" not "1.0"."""
         flat = _make_flat_df(n_patients=3, n_days=2)
         flat = flat.sample(frac=1, random_state=42).reset_index(drop=True)  # shuffle
-        result = convert_to_patient_dict(flat, "p_num", "datetime")
+        result = convert_to_patient_dict(flat, "patient_id", "datetime")
 
         assert set(result.keys()) == {"1", "2", "3"}  # clean strings, not "1.0"
         for pdf in result.values():
             assert isinstance(pdf.index, pd.DatetimeIndex)
             assert pdf.index.is_monotonic_increasing
-            assert "p_num" not in pdf.columns
+            assert "patient_id" not in pdf.columns
 
     def test_midnight_episodes(self):
         """Episodes are midnight-anchored with correct dimensions."""
@@ -195,7 +195,7 @@ class TestChronos2:
         from src.data.preprocessing.gap_handling import segment_all_patients
 
         flat = _make_flat_df(n_patients=2, n_days=5)
-        patient_dict = convert_to_patient_dict(flat, "p_num", "datetime")
+        patient_dict = convert_to_patient_dict(flat, "patient_id", "datetime")
         segments = segment_all_patients(
             patient_dict,
             imputation_threshold_mins=45,

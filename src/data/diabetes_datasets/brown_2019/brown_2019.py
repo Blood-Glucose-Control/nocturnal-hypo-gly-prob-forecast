@@ -208,14 +208,6 @@ class Brown2019DataLoader(DatasetBase):
                     patient_id = futures[future]
                     try:
                         pid, patient_df = future.result()
-
-                        # Filter columns if requested
-                        if self.keep_columns is not None:
-                            available_cols = [
-                                c for c in self.keep_columns if c in patient_df.columns
-                            ]
-                            patient_df = patient_df[available_cols]
-
                         patient_dict[pid] = patient_df
                     except Exception as e:
                         logger.error(f"Patient {patient_id} failed: {e}")
@@ -225,14 +217,6 @@ class Brown2019DataLoader(DatasetBase):
             for patient_tuple in tqdm(patient_tuples, desc="Processing patients"):
                 try:
                     pid, patient_df = process_single_patient_data(patient_tuple)
-
-                    # Filter columns if requested
-                    if self.keep_columns is not None:
-                        available_cols = [
-                            c for c in self.keep_columns if c in patient_df.columns
-                        ]
-                        patient_df = patient_df[available_cols]
-
                     patient_dict[pid] = patient_df
                 except Exception as e:
                     logger.error(f"Patient {patient_tuple[0]} failed: {e}")

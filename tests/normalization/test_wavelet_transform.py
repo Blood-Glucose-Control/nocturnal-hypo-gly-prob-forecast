@@ -16,7 +16,7 @@
 
 #         # Create two patients' worth of data
 #         patients_data = []
-#         for p_num in [1, 2]:
+#         for patient_id in [1, 2]:
 #             # Create a signal with known frequencies for better testing
 #             # NOTE: just combining diff frequency components for testing
 #             # maybe use bgl data itself here?
@@ -33,8 +33,8 @@
 #                 {
 #                     "datetime": dates,
 #                     "bg-0:00": values,
-#                     "p_num": p_num,
-#                     "id": [f"{p_num}_{i}" for i in range(len(dates))],
+#                     "patient_id": patient_id,
+#                     "id": [f"{patient_id}_{i}" for i in range(len(dates))],
 #                 }
 #             )
 #             patients_data.append(patient_df)
@@ -50,14 +50,14 @@
 #         """
 #         Test behavior with empty series
 #         """
-#         empty_series = pd.DataFrame({"bg-0:00": [], "p_num": 1})
+#         empty_series = pd.DataFrame({"bg-0:00": [], "patient_id": 1})
 #         # ensure error raised
 #         with pytest.raises(ValueError):
 #             normalizer(empty_series)
 
 #     def test_series_shorter_than_window(self, normalizer):
 #         """Test behavior when series is shorter than window size"""
-#         short_series = pd.DataFrame({"bg-0:00": np.random.randn(10), "p_num": 1})
+#         short_series = pd.DataFrame({"bg-0:00": np.random.randn(10), "patient_id": 1})
 #         normalized = normalizer(short_series)
 
 #         # check non-empty and non-nan
@@ -96,7 +96,7 @@
 
 #     def test_empty_data(self, normalizer):
 #         """Test behavior with empty DataFrame"""
-#         empty_df = pd.DataFrame({"bg-0:00": [], "p_num": []})
+#         empty_df = pd.DataFrame({"bg-0:00": [], "patient_id": []})
 #         with pytest.raises(ValueError):
 #             normalizer(empty_df)
 
@@ -104,7 +104,7 @@
 #         """Test handling of data with length not power of 2"""
 #         dates = pd.date_range(start="2023-01-01", periods=100, freq="H")
 #         values = np.random.randn(100)
-#         data = pd.DataFrame({"bg-0:00": values, "p_num": 1}, index=dates)
+#         data = pd.DataFrame({"bg-0:00": values, "patient_id": 1}, index=dates)
 
 #         transformed = normalizer(data)
 #         # Should either pad to next power of 2 or handle non-power-2 length appropriately
@@ -118,7 +118,7 @@
 #             {
 #                 "bg-0:00": np.random.randn(128),
 #                 "bg-1:00": np.random.randn(128),
-#                 "p_num": [1, 2] * 64,
+#                 "patient_id": [1, 2] * 64,
 #             },
 #             index=dates,
 #         )

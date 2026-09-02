@@ -3,44 +3,12 @@
 ## Overview
 This document describes the data sources and standardized format used in our benchmark pipeline for nocturnal hypoglycemia prediction.
 
-## Historical Context
-Our benchmark pipeline was originally built on the Kaggle Bristol Type 1 Diabetes Dataset, which has influenced some of our naming conventions and data structures. This historical context helps explain certain design decisions:
-
-- **Column naming convention**: The `-0:00` suffix in column names (e.g., `bg-0:00`) indicates current time measurements. While we could use `+1:00` for future measurements, this is not currently utilized in our pipeline. We are trying ot remove this so it technically shouldn't exist anymore.
-- **Time intervals**: The Kaggle dataset combines data from different types of continuous glucose monitors (CGMs):
-  - Dexcom users: 5-minute intervals
-  - Libre users: 15-minute intervals
-- **Time column**: The `time` column was originally used to distinguish between these different interval types in the Kaggle dataset.
-
-- **WIP**: We are removing all `-0:00` suffixes to avoid confusion. **THIS IS A BREAKING CHANGE.**
-
 ## Supported Datasets
 
-1. [Bristol Type 1 Diabetes Dataset](https://www.kaggle.com/competitions/brist1d)
-   - A comprehensive dataset from Kaggle
-   - Contains both 5-minute interval and 15-minute interval users
-   - Multiple patients in a single CSV file (not that common)
-   - **Prerequisite**: Check out [Authentication](https://www.kaggle.com/docs/api) of the Kaggle API. We use the CLI tool to fetch data from Kaggle.
-
-2. Gluroo Dataset
-   - Internal dataset from Christopher and Walker
-   - Contains additional features like protein content and glucose trends
-   - Includes meal announcements and intervention data
-
-3. simglucose (Coming Soon)
-   - Planned integration from benchmark repo as a package
-   - Will provide simulated data for testing and validation
-
-4. Aleppo
-   - CGM study with 225 participants
-
-5. Lynch 2022
-   - IOBP2 RCT dataset
-
-6. Tamborlane 2008
-
-7. Brown 2019
-
+1. Aleppo 2017
+2. Brown 2019
+3. Lynch 2022
+4. Tamborlane 2008
 
 ## Data Format Standardization
 
@@ -53,7 +21,7 @@ The DataFrame index should be `datetime`.
 | Column | Type | Description | Source | Required? |
 |--------|------|-------------|---------|-----------|
 | `datetime` | `pd.Timestamp` **INDEX** | Primary timestamp for each measurement | Mapped from `time` or original `datetime` | **Required** |
-| `p_num` | `str` | Patient identifier (e.g., "p01", "glu001") | Artificially created by dataset loader | **Required** |
+| `patient_id` | `str` | Patient identifier (e.g., "p01", "glu001") | Artificially created by dataset loader | **Required** |
 | `bg_mM` | `float` | Blood glucose measurement in mmol/L | Original data source, converted from mg/dL if needed | **Required** |
 
 ### Optional Columns (Enhance Features but Don't Block Processing)
@@ -79,49 +47,14 @@ These columns are computed by the preprocessing pipeline from the optional colum
 
 > **Note:** CGM-only datasets (e.g., some Type 2 diabetes patients, pre-training scenarios) are supported. The pipeline will skip COB/IOB calculations and set those features to NaN if the source columns are missing.
 
-### Optional Activity Metrics
-These columns are also available but not used as much due to limited data availability:
-
-| Column | Type | Description | Source |
-|--------|------|-------------|---------|
-| `cals` | `float` | Total calories burnt in last 5 minutes | Mapped from `cals-0:00` |
-| `steps` | `float` | Number of steps taken | Original data source |
-| `hr_bpm` | `float` | Heart rate in beats per minute | Original data source |
-| `activity` | `float` | Activity level | Original data source |
-
-## Message Types (Gluroo Dataset)
-The dataset includes three types of messages that are processed during data transformation:
-
-1. `DOSE_INSULIN` - Records insulin administration events
-2. `ANNOUNCE_MEAL` - Captures meal announcements and carbohydrate intake
-3. `INTERVENTION_SNACK` - Tracks snack interventions (TODO: Add this to the `clean_dataset`)
-
-### Dataset-Specific Features
-
-#### Kaggle Dataset
-| Column | Type | Description |
-|--------|------|-------------|
-| `time` | `pd.Timestamp` | Time of day (HH:MM:SS format) used to determine patient CGM interval type, converted to `datetime` index |
-
-#### Gluroo Dataset
-| Column | Type | Description |
-|--------|------|-------------|
-| `food_protein` | `float` | Protein content in grams |
-| `trend` | `str` | Glucose trend (e.g., "rising", "falling") from Dexcom/Libre |
-| `food_g` | `float` | Food grams (standardized carbohydrate column) |
-| `food_g_keep` | `float` | Original meal carbohydrate values (for tracking only) |
-| `affects_fob` | `bool` | Food on board flag |
-| `affects_iob` | `bool` | Insulin on board flag |
-| `day_start_shift` | `int` | Day start definition for data processing |
-
 ## Dataset Standardization Process
 
 To add a new dataset to the pipeline, follow these steps:
 
-A good example: `src\data\diabetes_datasets\kaggle_bris_t1d\bris_t1d.py`
+A good example: `src\data\diabetes_datasets\brown_2019\brown_2019.py`
 
 ### 1. Fetch Raw Data
-- If the data source can be fetched from Kaggle or Hugging Face, use `cache_manager` to fetch the raw data
+- If the data source can be fetched, use `cache_manager` to fetch the raw data
 - If the data cannot be fetched via API, make sure documentation is included to inform users where to download and place the data in the repository
 - Check out `cache-system.md` for more details
 
@@ -193,8 +126,8 @@ Implement a data cleaner that performs the following steps in order:
    - Convert the `time` column to `datetime` and set it as the index (if there is no time column, artificially create one starting from a random date)
    - Convert "food" rows to `food_g` and set `msg_type` to `ANNOUNCE_MEAL`
    - Convert "insulin" column to `dose_units` if available. Note that this column can contain small consecutive numbers for pump patients or discrete large numbers for non-pump patients
-   - Add `p_num`. If your dataset has multiple patients, give each a unique ID like "p01", "p02"
-   - **Required columns**: `datetime`, `p_num`, `bg_mM`
+   - Add `patient_id`. If your dataset has multiple patients, give each a unique ID like "p01", "p02"
+   - **Required columns**: `datetime`, `patient_id`, `bg_mM`
    - **Optional columns**: `dose_units`, `food_g`, `msg_type`, `rate` (enhance features but don't block processing)
    - Add `cals`, `steps`, `hr_bpm`, and `activity` if they exist
    - Ensure the `datetime` column exists and is set as the DataFrame index
@@ -210,9 +143,6 @@ Implement a data cleaner that performs the following steps in order:
 
 ### 4. Documentation
 Document all the changes
-
-### 5. Reference Implementation
-See existing implementations in `src/data/datasets/gluroo` and `src/data/datasets/kaggle_bris_t1d` for working examples.
 
 ## Future Improvements
 - Add `INTERVENTION_SNACK` message type to `preprocessing_pipeline`. We could use a threshold like < 10g = `INTERVENTION_SNACK`, >= 10g = `ANNOUNCE_MEAL`

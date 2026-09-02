@@ -31,7 +31,7 @@ Example:
     >>>
     >>> # DataFrame with datetime index and required columns
     >>> df = pd.DataFrame({
-    ...     'food_g': [0, 30, 0, 0],
+    ...     'carbohydrate_g': [0, 30, 0, 0],
     ...     'dose_units': [0, 0, 5, 0]
     ... }, index=pd.date_range('2024-01-01', periods=4, freq='5min'))
     >>>
@@ -40,7 +40,7 @@ Example:
 
 Notes:
     - Input DataFrame must have a DatetimeIndex
-    - Minimum required columns: 'food_g' (carbs in grams), 'dose_units' (insulin units)
+    - Minimum required columns: 'carbohydrate_g' (carbs in grams), 'dose_units' (insulin units)
     - Processing time scales with data size due to physiological model calculations
     - Output includes all original columns plus derived physiological features
 """
@@ -190,7 +190,7 @@ def create_physiological_features(
 
     Args:
         df (pd.DataFrame): Input DataFrame with datetime index. Optional columns:
-                          'food_g' (carbs) enables COB calculation,
+                          'carbohydrate_g' (carbs) enables COB calculation,
                           'dose_units' (insulin) enables IOB calculation,
                           'rate' (basal) enables basal rollover.
         use_aggregation (bool, optional): Whether to use aggregation to ensure regular time intervals.
@@ -241,15 +241,17 @@ def create_physiological_features(
         "This may take a while depending on the size of the data."
     )
 
-    # Conditionally compute COB (requires food_g column with at least some data)
+    # Conditionally compute COB (requires carbohydrate_g column with at least some data)
     if (
-        ColumnNames.FOOD_G.value in df.columns
-        and df[ColumnNames.FOOD_G.value].notna().any()
+        ColumnNames.CARBOHYDRATE_G.value in df.columns
+        and df[ColumnNames.CARBOHYDRATE_G.value].notna().any()
     ):
         logger.info("\tCreating COB and carb availability columns...")
         df = create_cob_and_carb_availability_cols(df, freq)
     else:
-        logger.info("\tSkipping COB (no food_g column or all NaN) - setting to NaN")
+        logger.info(
+            "\tSkipping COB (no carbohydrate_g column or all NaN) - setting to NaN"
+        )
         df[ColumnNames.COB.value] = np.nan
         df[ColumnNames.CARB_AVAILABILITY.value] = np.nan
 

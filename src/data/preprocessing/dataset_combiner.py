@@ -117,8 +117,8 @@ def combine_datasets_for_training(
             logger.info(f"  {dataset_name}: {count:,} samples ({pct:.1f}%)")
 
     # Print sample counts per patient if available
-    if "p_num" in combined_data.columns or "id" in combined_data.columns:
-        patient_col = "p_num" if "p_num" in combined_data.columns else "id"
+    if "patient_id" in combined_data.columns or "id" in combined_data.columns:
+        patient_col = "patient_id" if "patient_id" in combined_data.columns else "id"
         n_patients = len(combined_data[patient_col].unique())
         logger.info(f"\nTotal unique patients: {n_patients}")
 

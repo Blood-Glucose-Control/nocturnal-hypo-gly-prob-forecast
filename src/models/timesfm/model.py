@@ -643,7 +643,9 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
         total_len = cl + hl
         model_dtype = next(self.hf_model.parameters()).dtype
 
-        patient_col = next((c for c in ["p_num", "id"] if c in test_data.columns), None)
+        patient_col = next(
+            (c for c in ["patient_id", "id"] if c in test_data.columns), None
+        )
 
         context_windows: List[torch.Tensor] = []
         target_windows: List[np.ndarray] = []
@@ -776,7 +778,7 @@ class TimesFMForecaster(BaseTimeSeriesFoundationModel):
             if target_col not in train_data.columns:
                 raise ValueError(f"DataFrame must contain '{target_col}' column")
             patient_col = next(
-                (c for c in ["p_num", "id"] if c in train_data.columns), None
+                (c for c in ["patient_id", "id"] if c in train_data.columns), None
             )
             if patient_col:
                 patient_dfs = {

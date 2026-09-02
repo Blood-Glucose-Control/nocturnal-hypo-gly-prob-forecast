@@ -88,7 +88,7 @@ class Chronos2Config(ModelConfig):
     # Empty list = single-target mode (backward compatible, uses covariates).
     # covariate_cols are ignored in multi-target mode.
     joint_target_cols: List[str] = field(default_factory=list)
-    patient_col: str = "p_num"
+    patient_col: str = "patient_id"
     time_col: str = "datetime"
 
     # Data grid

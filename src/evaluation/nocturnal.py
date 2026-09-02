@@ -163,7 +163,7 @@ def evaluate_nocturnal_forecasting(
             # with a longer window for fair multi-context comparison.
             if _ep_ctx > context_length:
                 ctx = ctx.iloc[-context_length:].reset_index(drop=True)
-            ctx["p_num"] = patient_id
+            ctx["patient_id"] = patient_id
             ctx[episode_col] = ep_id
             context_dfs.append(ctx)
             episode_metadata.append(

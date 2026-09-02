@@ -10,14 +10,14 @@ import pandas as pd
 
 
 def split_multipatient_dataframe(
-    data: pd.DataFrame, patient_col: str = "p_num"
+    data: pd.DataFrame, patient_col: str = "patient_id"
 ) -> dict[str, pd.DataFrame]:
     """
     Convert multi-patient data to single patient data.
 
     Args:
-        data (pd.DataFrame): Multi-patient data, with p_num column.
-        patient_col (str): Column name for patient IDs. Default is "p_num".
+        data (pd.DataFrame): Multi-patient data, with patient_id column.
+        patient_col (str): Column name for patient IDs. Default is "patient_id".
 
     Returns:
         dict[str, pd.DataFrame]: Dictionary mapping patient IDs to their data.

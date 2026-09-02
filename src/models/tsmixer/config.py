@@ -33,7 +33,7 @@ class TSMixerConfig(ModelConfig):
     num_epochs: int = 10
     learning_rate: float = 1e-3
     target_col: str = "bg_mM"
-    patient_col: str = "p_num"
+    patient_col: str = "patient_id"
     time_col: str = "datetime"
     interval_mins: int = 5
     covariate_cols: List[str] = field(default_factory=list)

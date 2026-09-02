@@ -46,7 +46,7 @@ Comprehensive scan of git history completed. **No active secrets, credentials, o
 - ✅ **No actual PHI found**
 - ⚠️ Code uses generic `patient_id` variable names (expected for medical ML research)
 - ✅ All patient references are:
-  - Generic variable names in code (`patient_id`, `p_num`)
+  - Generic variable names in code (`patient_id`, `patient_id`)
   - Test data with dummy values (patient_id = 1, 2, etc.)
   - No real names, dates of birth, medical record numbers, or SSNs
 

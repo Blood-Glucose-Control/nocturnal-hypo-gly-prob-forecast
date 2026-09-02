@@ -49,7 +49,7 @@ All datasets are transformed into a standardized format for our benchmark pipeli
 | Column     | Type                   | Description                                 | Source                    | Required?    |
 | ---------- | ---------------------- | ------------------------------------------- | ------------------------- | ------------ |
 | `datetime` | `pd.Timestamp` (INDEX) | Primary timestamp for data manipulation     | Created during processing | **Required** |
-| `p_num`    | `str`                  | Patient identifier                          | Original dataset          | **Required** |
+| `patient_id`    | `str`                  | Patient identifier                          | Original dataset          | **Required** |
 | `bg_mM`    | `float`                | Blood glucose measurement in mmol/L         | Original dataset          | **Required** |
 
 ### Optional Columns (Enhance Features but Don't Block Processing)

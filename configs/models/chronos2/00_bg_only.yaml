@@ -33,7 +33,7 @@ checkpoint_save_steps: 2000
 # BG only — no covariates
 covariate_cols: []
 target_col: "bg_mM"
-patient_col: "p_num"
+patient_col: "patient_id"
 time_col: "datetime"
 interval_mins: 5
 

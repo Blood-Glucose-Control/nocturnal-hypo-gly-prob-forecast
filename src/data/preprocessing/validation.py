@@ -18,8 +18,8 @@ Example:
     >>> import pandas as pd
     >>> from src.data.preprocessing.validation import validate_required_columns
     >>>
-    >>> df = pd.DataFrame({'datetime': [...], 'bg_mM': [...], 'food_g': [...]})
-    >>> required_cols = ['datetime', 'bg_mM', 'food_g']
+    >>> df = pd.DataFrame({'datetime': [...], 'bg_mM': [...], 'carbohydrate_g': [...]})
+    >>> required_cols = ['datetime', 'bg_mM', 'carbohydrate_g']
     >>> validate_required_columns(df, required_cols)  # Returns True if valid
 
     >>> # Will raise ValueError if columns are missing
@@ -35,6 +35,8 @@ Notes:
 from typing import List
 
 import pandas as pd
+
+LEGACY_TO_CANONICAL_COLUMNS = {"food_g": "carbohydrate_g"}
 
 
 def validate_required_columns(df: pd.DataFrame, required_columns: List[str]) -> bool:
@@ -67,5 +69,25 @@ def validate_required_columns(df: pd.DataFrame, required_columns: List[str]) -> 
         raise ValueError(
             f"Data is not in the correct format. Missing columns: {missing_columns}. "
             f"Available columns: {sorted(df_columns_set)}"
+        )
+    return True
+
+
+def validate_no_legacy_columns(df: pd.DataFrame) -> bool:
+    """Reject legacy column names that should be normalized at ingestion boundaries."""
+    found_legacy = [
+        legacy_col
+        for legacy_col in LEGACY_TO_CANONICAL_COLUMNS
+        if legacy_col in df.columns
+    ]
+    if found_legacy:
+        expected = {
+            legacy_col: LEGACY_TO_CANONICAL_COLUMNS[legacy_col]
+            for legacy_col in found_legacy
+        }
+        raise ValueError(
+            "Legacy carbohydrate column names are not supported in preprocessing input. "
+            f"Found legacy columns: {found_legacy}. "
+            f"Use canonical columns instead: {expected}."
         )
     return True

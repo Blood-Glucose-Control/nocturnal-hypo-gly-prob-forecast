@@ -62,10 +62,10 @@ def get_patient_ids_from_dataset(dataset_name: str) -> List[str]:
 
         elif isinstance(data, pd.DataFrame):
             # Single DataFrame with patient column
-            if "p_num" in data.columns:
-                patient_ids = data["p_num"].unique().tolist()
+            if "patient_id" in data.columns:
+                patient_ids = data["patient_id"].unique().tolist()
                 logger.info(
-                    f"Data is DataFrame with 'p_num' column, {len(patient_ids)} unique patients"
+                    f"Data is DataFrame with 'patient_id' column, {len(patient_ids)} unique patients"
                 )
             elif "patient_id" in data.columns:
                 patient_ids = data["patient_id"].unique().tolist()
@@ -260,13 +260,15 @@ def _validate_patient_split_checks(
             f"{config.holdout_type.value}"
         )
 
-    has_train_patient_col = "p_num" in train_data.columns
-    has_holdout_patient_col = "p_num" in holdout_data.columns
+    has_train_patient_col = "patient_id" in train_data.columns
+    has_holdout_patient_col = "patient_id" in holdout_data.columns
 
     if has_train_patient_col and has_holdout_patient_col:
-        train_patients = sorted(str(p) for p in train_data["p_num"].dropna().unique())
+        train_patients = sorted(
+            str(p) for p in train_data["patient_id"].dropna().unique()
+        )
         holdout_patients = sorted(
-            str(p) for p in holdout_data["p_num"].dropna().unique()
+            str(p) for p in holdout_data["patient_id"].dropna().unique()
         )
         results["train_patients"] = train_patients
         results["holdout_patients"] = holdout_patients
@@ -309,21 +311,21 @@ def _validate_patient_split_checks(
     elif has_train_patient_col != has_holdout_patient_col:
         missing_side = "holdout" if has_train_patient_col else "train"
         results["errors"].append(
-            f"Inconsistent split columns: 'p_num' missing from {missing_side} data"
+            f"Inconsistent split columns: 'patient_id' missing from {missing_side} data"
         )
         if verbose:
             logger.error(
-                f"✗ Inconsistent split columns: 'p_num' missing from {missing_side} data"
+                f"✗ Inconsistent split columns: 'patient_id' missing from {missing_side} data"
             )
     else:
         results["errors"].append(
             "Invalid split columns: patient/hybrid holdout requires "
-            "'p_num' in both splits"
+            "'patient_id' in both splits"
         )
         if verbose:
             logger.error(
                 "✗ Invalid split columns: patient/hybrid holdout requires "
-                "'p_num' in both splits"
+                "'patient_id' in both splits"
             )
 
     if (
@@ -333,8 +335,8 @@ def _validate_patient_split_checks(
     ):
         min_train_patients = config.patient_config.min_train_patients
         min_holdout_patients = config.patient_config.min_holdout_patients
-        train_patient_count = int(train_data["p_num"].dropna().nunique())
-        holdout_patient_count = int(holdout_data["p_num"].dropna().nunique())
+        train_patient_count = int(train_data["patient_id"].dropna().nunique())
+        holdout_patient_count = int(holdout_data["patient_id"].dropna().nunique())
 
         if train_patient_count < min_train_patients:
             results["errors"].append(
@@ -392,22 +394,22 @@ def _validate_temporal_checks(
         if config.holdout_type == HoldoutType.TEMPORAL:
             missing_side = "holdout" if has_train_patient_col else "train"
             results["errors"].append(
-                f"Inconsistent split columns: 'p_num' missing from {missing_side} data"
+                f"Inconsistent split columns: 'patient_id' missing from {missing_side} data"
             )
             if verbose:
                 logger.error(
                     "✗ Inconsistent split columns: "
-                    f"'p_num' missing from {missing_side} data"
+                    f"'patient_id' missing from {missing_side} data"
                 )
         return
 
     if config.holdout_type == HoldoutType.TEMPORAL:
         if has_train_patient_col and has_holdout_patient_col:
             train_patients = sorted(
-                str(p) for p in train_data["p_num"].dropna().unique()
+                str(p) for p in train_data["patient_id"].dropna().unique()
             )
             holdout_patients = sorted(
-                str(p) for p in holdout_data["p_num"].dropna().unique()
+                str(p) for p in holdout_data["patient_id"].dropna().unique()
             )
             results["train_patients"] = train_patients
             results["holdout_patients"] = holdout_patients
@@ -474,16 +476,20 @@ def _validate_temporal_checks(
 
     if has_train_patient_col and has_holdout_patient_col:
         train_by_patient = (
-            pd.DataFrame({"p_num": train_data["p_num"], "datetime": train_time})
-            .dropna(subset=["p_num", "datetime"])
-            .groupby("p_num", dropna=True)["datetime"]
+            pd.DataFrame(
+                {"patient_id": train_data["patient_id"], "datetime": train_time}
+            )
+            .dropna(subset=["patient_id", "datetime"])
+            .groupby("patient_id", dropna=True)["datetime"]
             .max()
             .rename("max_train_datetime")
         )
         holdout_by_patient = (
-            pd.DataFrame({"p_num": holdout_data["p_num"], "datetime": holdout_time})
-            .dropna(subset=["p_num", "datetime"])
-            .groupby("p_num", dropna=True)["datetime"]
+            pd.DataFrame(
+                {"patient_id": holdout_data["patient_id"], "datetime": holdout_time}
+            )
+            .dropna(subset=["patient_id", "datetime"])
+            .groupby("patient_id", dropna=True)["datetime"]
             .min()
             .rename("min_holdout_datetime")
         )
@@ -645,8 +651,8 @@ def validate_holdout_config(
             logger.info(f"  - Holdout samples: {len(holdout_data):,}")
             _log_dataset_runtime_info(registry.get_dataset_runtime_info(dataset_name))
 
-        has_train_patient_col = "p_num" in train_data.columns
-        has_holdout_patient_col = "p_num" in holdout_data.columns
+        has_train_patient_col = "patient_id" in train_data.columns
+        has_holdout_patient_col = "patient_id" in holdout_data.columns
 
         if config.holdout_type == HoldoutType.PATIENT_BASED:
             _validate_patient_split_checks(

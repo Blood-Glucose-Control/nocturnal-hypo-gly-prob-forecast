@@ -122,7 +122,7 @@ class DatasetRegistry:
     def load_dataset_with_split(
         self,
         dataset_name: str,
-        patient_col: str = "p_num",
+        patient_col: str = "patient_id",
         time_col: str = "datetime",
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Load dataset and apply holdout split.
@@ -176,7 +176,7 @@ class DatasetRegistry:
     def load_training_data_only(
         self,
         dataset_name: str,
-        patient_col: str = "p_num",
+        patient_col: str = "patient_id",
         time_col: str = "datetime",
     ) -> pd.DataFrame:
         """Load only the training portion of a dataset.
@@ -200,7 +200,7 @@ class DatasetRegistry:
     def load_holdout_data_only(
         self,
         dataset_name: str,
-        patient_col: str = "p_num",
+        patient_col: str = "patient_id",
         time_col: str = "datetime",
     ) -> pd.DataFrame:
         """Load only the holdout portion of a dataset.

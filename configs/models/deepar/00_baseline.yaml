@@ -25,7 +25,7 @@ gradient_clip_val: 10.0
 
 covariate_cols: []
 target_col: "bg_mM"
-patient_col: "p_num"
+patient_col: "patient_id"
 time_col: "datetime"
 interval_mins: 5
 

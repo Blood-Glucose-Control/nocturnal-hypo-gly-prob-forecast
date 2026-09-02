@@ -16,11 +16,11 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
 
     1. blood glucose values from mg/dL to mmol/L.
     2. Convert date to datetime
-    3. p_num is already included from the database query (integer value)
+    3. patient_id is already included from the database query (integer value)
     4. Sets datetime as index (required by preprocessing pipeline)
 
     Args:
-        df_raw (pd.DataFrame): Input DataFrame with raw Gluroo data (must contain p_num column from database)
+        df_raw (pd.DataFrame): Input DataFrame with raw Gluroo data (must contain patient_id column from database)
 
     Returns:
         pd.DataFrame: DataFrame with standardized column names and formats, with datetime index
@@ -30,7 +30,7 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
 
     df = df_raw.copy()
-    # p_num is already included from the database query (integer value)
+    # patient_id is already included from the database query (integer value)
     df.rename(
         columns={
             "patient_id": ColumnNames.P_NUM.value,
@@ -41,7 +41,7 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     )
 
     # Convert columns to numeric (handles object dtype from database)
-    numeric_columns = ["bg_mM", "food_g", "dose_units", "exercise_mins"]
+    numeric_columns = ["bg_mM", "carbohydrate_g", "dose_units", "exercise_mins"]
     for col in numeric_columns:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
@@ -118,11 +118,11 @@ def meal_identification_cleaning_pipeline(
     df.index = pd.DatetimeIndex(df.index)
 
     # From meal identification repo
-    print("Patient ID:", df["p_num"].iloc[0])
-    print(df[["id", "bg_mM", "food_g", "msg_type"]].iloc[330:340])
+    print("Patient ID:", df["patient_id"].iloc[0])
+    print(df[["id", "bg_mM", "carbohydrate_g", "msg_type"]].iloc[330:340])
     df = coerce_time_fn(data=df, coerce_time_interval=coerce_time_interval)
     df["day_start_shift"] = (df.index - day_start_time).to_series().dt.date
-    print(df[["id", "bg_mM", "food_g", "msg_type"]].head())
+    print(df[["id", "bg_mM", "carbohydrate_g", "msg_type"]].head())
     df = erase_consecutive_nan_values(df, max_consecutive_nan_values_per_day)
     df = erase_meal_overlap_fn(df, meal_length, min_carbs)
     df = keep_top_n_carb_meals(df, n_top_carb_meals=n_top_carb_meals)
@@ -179,7 +179,7 @@ def coerce_time_fn(
 
     Args:
         data (pd.DataFrame): The input DataFrame with a 'datetime' index and columns including
-                           'msg_type', 'bg_mM', and 'food_g'.
+                           'msg_type', 'bg_mM', and 'carbohydrate_g'.
         coerce_time_interval (pd.Timedelta): The interval for time resampling.
 
     Returns:
@@ -241,15 +241,20 @@ def coerce_time_fn(
     data_resampled = non_meals.join(meal_announcements, how="left", rsuffix="_meal")
 
     # Combine the columns
-    for col in ["bg_mM", "msg_type", "food_g"]:
+    for col in ["bg_mM", "msg_type", "carbohydrate_g"]:
         meal_col = f"{col}_meal"
         if meal_col in data_resampled.columns:
             data_resampled[col] = data_resampled[col + "_meal"].combine_first(
                 data_resampled[col]
             )
 
-    # Retain 'food_g_keep' from meal announcements data_resampled = data.resample(resample_rule).first()
-    data_resampled["food_g_keep"] = data_resampled.get("food_g_meal", 0)
+    # Retain meal-specific carbohydrate values after aligned resampling.
+    if "carbohydrate_g_meal" in data_resampled.columns:
+        data_resampled["carbohydrate_g_keep"] = data_resampled[
+            "carbohydrate_g_meal"
+        ].fillna(0)
+    else:
+        data_resampled["carbohydrate_g_keep"] = 0
 
     # Identify columns that end with '_meal'
     columns_to_drop = data_resampled.filter(regex="_meal$").columns
@@ -314,7 +319,7 @@ def erase_meal_overlap_fn(patient_df, meal_length, min_carbs):
     4. Clears the overlapping meals to avoid double-counting
 
     Args:
-        patient_df (pd.DataFrame): DataFrame with columns 'msg_type', 'food_g', and datetime index.
+        patient_df (pd.DataFrame): DataFrame with columns 'msg_type', 'carbohydrate_g', and datetime index.
         meal_length (pd.Timedelta): The duration to look ahead for detecting overlapping meals.
         min_carbs (int): Minimum amount of carbohydrates to consider a significant meal.
 
@@ -326,7 +331,7 @@ def erase_meal_overlap_fn(patient_df, meal_length, min_carbs):
 
     for idx in announce_meal_indices:
         # Skip meals below the carbohydrate threshold
-        if patient_df.at[idx, "food_g"] <= min_carbs:
+        if patient_df.at[idx, "carbohydrate_g"] <= min_carbs:
             patient_df.at[idx, "msg_type"] = "LOW_CARB_MEAL"
             continue
 
@@ -336,14 +341,16 @@ def erase_meal_overlap_fn(patient_df, meal_length, min_carbs):
         # Get the events within the time window, excluding the current event
         window_events = patient_df.loc[idx + pd.Timedelta(seconds=1) : window_end]
 
-        # Sum the 'food_g' counts greater than 0 within the window
-        food_g_sum = window_events[window_events["food_g"] > 0]["food_g"].sum()
+        # Sum carbohydrate values greater than 0 within the window
+        food_g_sum = window_events[window_events["carbohydrate_g"] > 0][
+            "carbohydrate_g"
+        ].sum()
 
         # Add the sum to the original 'ANNOUNCE_MEAL' event
-        patient_df.at[idx, "food_g"] += food_g_sum
+        patient_df.at[idx, "carbohydrate_g"] += food_g_sum
 
         # Erase the other events that fell within the window
-        patient_df.loc[window_events.index, ["food_g", "msg_type"]] = [0, ""]
+        patient_df.loc[window_events.index, ["carbohydrate_g", "msg_type"]] = [0, ""]
 
     return patient_df
 
@@ -360,7 +367,7 @@ def keep_top_n_carb_meals(patient_df, n_top_carb_meals):
     4. Resets other meals to zero carbs
 
     Args:
-        patient_df (pd.DataFrame): DataFrame with columns 'msg_type', 'food_g',
+        patient_df (pd.DataFrame): DataFrame with columns 'msg_type', 'carbohydrate_g',
                                  'day_start_shift', and datetime index.
         n_top_carb_meals (int): Number of top carbohydrate meals to keep per day.
 
@@ -388,7 +395,7 @@ def keep_top_n_carb_meals(patient_df, n_top_carb_meals):
 
     # Identify top n meal indices per group
     top_meal_indices = grouped.apply(
-        lambda x: x.nlargest(n_top_carb_meals, "food_g"), include_groups=False
+        lambda x: x.nlargest(n_top_carb_meals, "carbohydrate_g"), include_groups=False
     ).index.get_level_values(1)
 
     # Mask to identify meals to keep
@@ -396,9 +403,10 @@ def keep_top_n_carb_meals(patient_df, n_top_carb_meals):
         patient_df["msg_type"] == "ANNOUNCE_MEAL"
     )
 
-    # Set 'food_g' and 'msg_type' for non-top meals to 0 and '0' respectively
+    # Set non-top meal carbohydrate and msg_type values to 0 and '' respectively
     patient_df.loc[
-        ~keep_mask & (patient_df["msg_type"] == "ANNOUNCE_MEAL"), ["food_g", "msg_type"]
+        ~keep_mask & (patient_df["msg_type"] == "ANNOUNCE_MEAL"),
+        ["carbohydrate_g", "msg_type"],
     ] = [0, "0"]
 
     return patient_df
