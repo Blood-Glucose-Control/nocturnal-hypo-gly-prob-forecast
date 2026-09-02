@@ -50,7 +50,7 @@ fi
 
 # GPU memory optimization
 export PYTORCH_ALLOC_CONF=expandable_segments:True
-export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-4}
+export OMpatient_id_THREADS=${SLURM_CPUS_PER_TASK:-4}
 
 # Create log directory
 mkdir -p slurm_logs

@@ -138,7 +138,7 @@ def build_episode_panel(
                 continue
             ep_id = f"{patient_id}::ep{i:03d}"
             ctx = ep["context_df"].copy().reset_index(names="datetime")
-            ctx["p_num"] = patient_id
+            ctx["patient_id"] = patient_id
             ctx["episode_id"] = ep_id
             context_dfs.append(ctx)
             episode_metadata.append(

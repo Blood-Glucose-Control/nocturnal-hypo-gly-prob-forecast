@@ -14,5 +14,5 @@ psql -d "${DATABASE_URL}" -f src/data/diabetes_datasets/gluroo/db/schema.sql
 # To insert data
 psql -d "${DATABASE_URL}" -f src/data/diabetes_datasets/gluroo/db/insert_data.sql
 
-# To add a p_num column to the groups table (partitioning support)
+# To add a patient_id column to the groups table (partitioning support)
 psql -d "${DATABASE_URL}" -f src/data/diabetes_datasets/gluroo/db/add_patient_id.sql

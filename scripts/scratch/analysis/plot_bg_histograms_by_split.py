@@ -64,7 +64,7 @@ def main() -> None:
     p.add_argument("--config-dir", default=DEFAULT_CONFIG_DIR)
     p.add_argument("--datasets", nargs="+", default=DATASETS)
     p.add_argument("--target-col", default="bg_mM")
-    p.add_argument("--patient-col", default="p_num")
+    p.add_argument("--patient-col", default="patient_id")
     p.add_argument("--bin-min", type=float, default=2.0)
     p.add_argument("--bin-max", type=float, default=22.0)
     p.add_argument("--bin-width", type=float, default=0.5)

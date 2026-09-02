@@ -233,13 +233,13 @@ def _deprecated_create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.Da
     if not isinstance(result_df.index, pd.DatetimeIndex):
         raise ValueError("DataFrame must have a datetime index")
 
-    n_patients = result_df["p_num"].nunique()
+    n_patients = result_df["patient_id"].nunique()
 
     if n_patients > 1:
         # Process each patient separately
         # TODO:TONY - This is a bottleneck. We should parallelize this.
 
-        for _, patient_df in result_df.groupby("p_num"):
+        for _, patient_df in result_df.groupby("patient_id"):
             # Calculate for this patient
             for meal_time in patient_df.index[patient_df["food_g"].notna()]:
                 meal_value = patient_df.loc[meal_time, "food_g"]

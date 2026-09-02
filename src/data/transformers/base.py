@@ -76,7 +76,7 @@ class PatientGroupTransformer(BaseTransformer):
     to each patient's data subset, then recombines the results.
     """
 
-    def __init__(self, transformer: BaseTransformer, patient_col: str = "p_num"):
+    def __init__(self, transformer: BaseTransformer, patient_col: str = "patient_id"):
         """
         Args:
             transformer: A transformer with fit_transform method

@@ -22,6 +22,6 @@ TRUNCATE TABLE groups;
 -- Import readings data
 \COPY readings FROM '/Users/tonychan/GlucoseML/nocturnal-hypo-gly-prob-forecast/cache/data/gluroo/raw/readings.csv' WITH (FORMAT csv, HEADER true, DELIMITER ',');
 
--- After importing, assign integer p_num to each patient
+-- After importing, assign integer patient_id to each patient
 -- Run: \i add_patient_id.sql
 -- Or manually: Assign sequential integer IDs based on gid sort order

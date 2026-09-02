@@ -115,7 +115,7 @@ class TestCacheManager:
                 "datetime": pd.to_datetime(
                     ["2023-01-01 00:00", "2023-01-01 00:05", "2023-01-01 00:10"]
                 ),
-                "p_num": ["patient_001", "patient_001", "patient_001"],
+                "patient_id": ["patient_001", "patient_001", "patient_001"],
                 "glucose": [100, 105, 110],
             }
         ).set_index("datetime")
@@ -210,10 +210,8 @@ class TestCacheManager:
 
     def test_get_processed_data_path_for_type(self):
         """Test getting processed data path for specific type."""
-        path = self.cache_manager.get_processed_data_path_for_type(
-            "test_dataset", "train"
-        )
-        expected = Path(self.temp_dir) / "test_dataset" / "processed" / "train"
+        path = self.cache_manager.get_absolute_path_by_type("test_dataset", "processed")
+        expected = Path(self.temp_dir) / "test_dataset" / "processed"
         assert path == expected
 
     def test_raw_data_exists_with_files(self):
@@ -232,7 +230,7 @@ class TestCacheManager:
         )
 
         # Should return False when required files are missing
-        raw_path = self.cache_manager.get_raw_data_path("test_dataset")
+        raw_path = self.cache_manager.get_absolute_path_by_type("test_dataset", "raw")
         raw_path.mkdir(parents=True, exist_ok=True)
         assert not self.cache_manager._raw_data_exists(raw_path, dataset_config)
 
@@ -250,7 +248,7 @@ class TestCacheManager:
             citation="Test",
             url="https://test.com",
         )
-        raw_path = self.cache_manager.get_raw_data_path("test_dataset")
+        raw_path = self.cache_manager.get_absolute_path_by_type("test_dataset", "raw")
 
         # Should return False when directory doesn't exist
         assert not self.cache_manager._raw_data_exists(raw_path, dataset_config)
@@ -325,9 +323,8 @@ class TestDatasetConfigs:
 
     def test_get_dataset_config(self):
         """Test getting dataset configuration."""
-        config = get_dataset_config(DatasetSourceType.KAGGLE_BRIS_T1D.value)
-        assert config.source == DatasetSourceType.KAGGLE_BRIS_T1D
-        assert config.competition_name == "brist1d"
+        config = get_dataset_config(DatasetSourceType.ALEPPO_2017.value)
+        assert config.source == DatasetSourceType.ALEPPO_2017
 
     def test_get_dataset_config_invalid(self):
         """Test getting invalid dataset configuration."""
@@ -337,13 +334,16 @@ class TestDatasetConfigs:
     def test_list_available_datasets(self):
         """Test listing available datasets."""
         datasets = list_available_datasets()
-        assert DatasetSourceType.KAGGLE_BRIS_T1D.value in datasets
         assert DatasetSourceType.GLUROO.value in datasets
         assert DatasetSourceType.SIMGLUCOSE.value in datasets
+        assert DatasetSourceType.ALEPPO_2017.value in datasets
+        assert DatasetSourceType.LYNCH_2022.value in datasets
+        assert DatasetSourceType.TAMBORLANE_2008.value in datasets
+        assert DatasetSourceType.BROWN_2019.value in datasets
 
     def test_get_dataset_info(self):
         """Test getting dataset information."""
-        info = get_dataset_info(DatasetSourceType.KAGGLE_BRIS_T1D.value)
+        info = get_dataset_info(DatasetSourceType.ALEPPO_2017.value)
         assert "description" in info
         assert "citation" in info
         assert "url" in info

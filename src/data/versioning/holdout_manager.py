@@ -38,7 +38,7 @@ class HoldoutManager:
         self._split_metadata: Dict = {
             "skipped_patients": {},  # patient_id -> reason string
             "adjusted_patients": {},  # patient_id -> adjustment details
-            "nan_p_num_filled": 0,  # count of NaN p_num values filled
+            "nan_patient_id_filled": 0,  # count of NaN patient_id values filled
         }
 
     def get_split_metadata(self) -> Dict:
@@ -48,14 +48,14 @@ class HoldoutManager:
             Dict with keys:
                 - skipped_patients: {patient_id: reason}
                 - adjusted_patients: {patient_id: details}
-                - nan_p_num_filled: count of NaN p_num values filled
+                - nan_patient_id_filled: count of NaN patient_id values filled
         """
         return self._split_metadata
 
     def split_data(
         self,
         data: Union[pd.DataFrame, Dict[str, pd.DataFrame]],
-        patient_col: str = "p_num",
+        patient_col: str = "patient_id",
         time_col: str = "time",
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Split data into training and holdout sets.
@@ -76,7 +76,7 @@ class HoldoutManager:
 
         # Fill NaN patient IDs using the dict key (patient ID).
         # Raw data from resampling/time-alignment can contain gap-fill rows
-        # where p_num and other original columns are NaN. Since each dict entry
+        # where patient_id and other original columns are NaN. Since each dict entry
         # is keyed by the known patient ID, we can safely fill these.
         if patient_col:
             n_filled_total = 0
@@ -91,7 +91,7 @@ class HoldoutManager:
                     f"Filled {n_filled_total:,} NaN {patient_col} values "
                     f"using patient dict keys (gap-fill rows from resampling)"
                 )
-                self._split_metadata["nan_p_num_filled"] = int(n_filled_total)
+                self._split_metadata["nan_patient_id_filled"] = int(n_filled_total)
 
         # Apply holdout strategy
         if self.config.holdout_type == HoldoutType.TEMPORAL:
@@ -436,7 +436,7 @@ class HoldoutManager:
         self,
         train_data: pd.DataFrame,
         holdout_data: pd.DataFrame,
-        patient_col: str = "p_num",
+        patient_col: str = "patient_id",
     ) -> Dict[str, bool]:
         """Validate that split was performed correctly.
 

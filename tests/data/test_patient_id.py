@@ -23,7 +23,6 @@ class TestDatasetPrefixes:
             "brown_2019",
             "tamborlane_2008",
             "lynch_2022",
-            "kaggle_brisT1D",
             "gluroo",
         ]
         for dataset in expected_datasets:
@@ -47,7 +46,6 @@ class TestFormatPatientId:
         assert format_patient_id("brown_2019", 92) == "bro_92"
         assert format_patient_id("tamborlane_2008", 50) == "tam_50"
         assert format_patient_id("lynch_2022", 270) == "lyn_270"
-        assert format_patient_id("kaggle_brisT1D", 12345) == "bri_12345"
 
     def test_string_input(self):
         """Test with string patient IDs."""
@@ -105,7 +103,6 @@ class TestGetPrefixForDataset:
         assert get_prefix_for_dataset("brown_2019") == "bro"
         assert get_prefix_for_dataset("tamborlane_2008") == "tam"
         assert get_prefix_for_dataset("lynch_2022") == "lyn"
-        assert get_prefix_for_dataset("kaggle_brisT1D") == "bri"
         assert get_prefix_for_dataset("gluroo") == "glu"
 
     def test_unknown_dataset_raises_error(self):

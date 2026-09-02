@@ -16,11 +16,11 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
 
     1. blood glucose values from mg/dL to mmol/L.
     2. Convert date to datetime
-    3. p_num is already included from the database query (integer value)
+    3. patient_id is already included from the database query (integer value)
     4. Sets datetime as index (required by preprocessing pipeline)
 
     Args:
-        df_raw (pd.DataFrame): Input DataFrame with raw Gluroo data (must contain p_num column from database)
+        df_raw (pd.DataFrame): Input DataFrame with raw Gluroo data (must contain patient_id column from database)
 
     Returns:
         pd.DataFrame: DataFrame with standardized column names and formats, with datetime index
@@ -30,7 +30,7 @@ def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
 
     df = df_raw.copy()
-    # p_num is already included from the database query (integer value)
+    # patient_id is already included from the database query (integer value)
     df.rename(
         columns={
             "patient_id": ColumnNames.P_NUM.value,
@@ -118,7 +118,7 @@ def meal_identification_cleaning_pipeline(
     df.index = pd.DatetimeIndex(df.index)
 
     # From meal identification repo
-    print("Patient ID:", df["p_num"].iloc[0])
+    print("Patient ID:", df["patient_id"].iloc[0])
     print(df[["id", "bg_mM", "food_g", "msg_type"]].iloc[330:340])
     df = coerce_time_fn(data=df, coerce_time_interval=coerce_time_interval)
     df["day_start_shift"] = (df.index - day_start_time).to_series().dt.date

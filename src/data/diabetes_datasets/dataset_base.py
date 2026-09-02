@@ -45,13 +45,19 @@ Example:
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, TypeGuard, cast
+from typing import Any, TypeGuard
 
 import pandas as pd
 
-ProcessedPatientDataFrames = dict[str, pd.DataFrame]
+from ..cache_manager import CacheManager
+
+PatientID = str
+PatientDataFrame = pd.DataFrame
+ProcessedPatientDataFrames = dict[PatientID, PatientDataFrame]
 
 logger = logging.getLogger(__name__)
+
+REQUIRED_KEEP_COLUMNS = ["datetime", "patient_id", "bg_mM"]
 
 
 class DatasetBase(ABC):
@@ -257,25 +263,19 @@ class DatasetBase(ABC):
         Side Effects:
             Sets self.processed_data
         """
-        need_to_process_data = True
         if getattr(self, "use_cached", False):
             cached_data = self._load_cached_processed_data()
             if cached_data is not None:
-                filtered_cached_data = self._apply_keep_columns_filter(cached_data)
-                self.processed_data = cast(
-                    ProcessedPatientDataFrames, filtered_cached_data
-                )
-                need_to_process_data = False
+                self.processed_data = cached_data
+                return
 
-        if need_to_process_data:
-            self._process_and_cache_data()
-            if self._is_processed_patient_data(self.processed_data):
-                filtered_processed_data = self._apply_keep_columns_filter(
-                    self.processed_data
-                )
-                self.processed_data = cast(
-                    ProcessedPatientDataFrames, filtered_processed_data
-                )
+        processed_data = self._process_and_cache_data()
+        if not self._is_processed_patient_data(processed_data):
+            raise TypeError(
+                "Processed data must be a dict[str, DataFrame]. "
+                "Child loader returned an invalid processed data shape."
+            )
+        self.processed_data = self._apply_keep_columns_filter(processed_data)
 
     def get_patient_dataframe(self, patient_id: str) -> pd.DataFrame | None:
         """Get processed data for a single patient.
@@ -375,57 +375,61 @@ class DatasetBase(ABC):
 
     def _load_cached_processed_data(self) -> ProcessedPatientDataFrames | None:
         """Load processed patient data from cache when available."""
-        cache_manager = getattr(self, "cache_manager", None)
+        cache_manager: CacheManager | None = getattr(self, "cache_manager", None)
         if cache_manager is None:
             raise ValueError(
                 "Cache manager is not initialized. Child class must set self.cache_manager."
             )
 
+        keep_columns = self._get_effective_keep_columns()
         cached_data = cache_manager.load_processed_data(
             self.dataset_name,
             file_format="csv",
+            keep_columns=keep_columns,
         )
         if cached_data is None:
             return None
         return cached_data
 
-    def _apply_keep_columns_filter(
-        self, patient_data: dict[str, pd.DataFrame]
-    ) -> dict[str, pd.DataFrame]:
-        """Filter processed patient data to keep_columns while preserving datetime index."""
+    def _get_effective_keep_columns(self) -> list[str] | None:
         keep_columns = getattr(self, "keep_columns", None)
+        if keep_columns is None:
+            return None
+
+        return list(dict.fromkeys([*REQUIRED_KEEP_COLUMNS, *keep_columns]))
+
+    def _apply_keep_columns_filter(
+        self, patient_data: ProcessedPatientDataFrames
+    ) -> ProcessedPatientDataFrames:
+        """Filter processed patient data to keep_columns.
+
+        Expects each patient DataFrame to already use a DatetimeIndex.
+        """
+        keep_columns = self._get_effective_keep_columns()
         if keep_columns is None:
             return patient_data
 
-        columns_to_keep = [column for column in keep_columns if column != "datetime"]
-        if not columns_to_keep:
-            return patient_data
+        cols_to_keep = [column for column in keep_columns if column != "datetime"]
+        filtered_data: ProcessedPatientDataFrames = {}
+        for p_id, p_df in patient_data.items():
+            if not isinstance(p_df.index, pd.DatetimeIndex):
+                raise ValueError(
+                    f"Patient {p_id} processed data must use DatetimeIndex before keep_columns filtering."
+                )
 
-        filtered_data: dict[str, pd.DataFrame] = {}
-        for patient_id, patient_df in patient_data.items():
-            available_cols = [
-                col for col in columns_to_keep if col in patient_df.columns
-            ]
-            missing_cols = [
-                col for col in columns_to_keep if col not in patient_df.columns
-            ]
+            available_cols = [col for col in cols_to_keep if col in p_df.columns]
+            missing_cols = [col for col in cols_to_keep if col not in p_df.columns]
             if missing_cols:
                 logger.warning(
                     "Patient %s missing requested columns %s; available=%s",
-                    patient_id,
+                    p_id,
                     missing_cols,
-                    list(patient_df.columns),
+                    list(p_df.columns),
                 )
 
-            filtered_df = patient_df[available_cols] if available_cols else patient_df
-            if patient_df.index.name != "datetime" and "datetime" in patient_df.columns:
-                filtered_df = filtered_df.set_index(patient_df["datetime"])
-                filtered_df.index.name = "datetime"
-            filtered_data[patient_id] = filtered_df
+            filtered_df = p_df[available_cols] if available_cols else p_df
+            filtered_data[p_id] = filtered_df
 
-        if filtered_data:
-            first_patient_df = next(iter(filtered_data.values()))
-            self.keep_columns = ["datetime", *first_patient_df.columns.tolist()]
         return filtered_data
 
     def _validate_data(self, data):
@@ -723,30 +727,30 @@ class DatasetBase(ABC):
         #             )
 
         # def _validate_lynch_dataset(self) -> None:
-        """
-        Validate that each patient's processed data has required structure.
+        # """
+        # Validate that each patient's processed data has required structure.
 
-        Required columns:
-            - cgm
-            - bolus
-            - carbs
-            - exercise
-            - basal
-            - iob
-            - cob
-        """
-        required_columns = {"iob", "cob"}
-        if self.processed_data is None:
-            raise ValueError("processed_data is not loaded.")
+        # Required columns:
+        #     - cgm
+        #     - bolus
+        #     - carbs
+        #     - exercise
+        #     - basal
+        #     - iob
+        #     - cob
+        # """
+        # required_columns = {"iob", "cob"}
+        # if self.processed_data is None:
+        #     raise ValueError("processed_data is not loaded.")
 
-        for patient_id, patient_df in self.processed_data.items():
-            if not isinstance(patient_df, pd.DataFrame):
-                raise TypeError(
-                    f"Patient {patient_id} processed data must be a DataFrame, got {type(patient_df)}"
-                )
+        # for patient_id, patient_df in self.processed_data.items():
+        #     if not isinstance(patient_df, pd.DataFrame):
+        #         raise TypeError(
+        #             f"Patient {patient_id} processed data must be a DataFrame, got {type(patient_df)}"
+        #         )
 
-            missing_columns = required_columns - set(patient_df.columns)
-            if missing_columns:
-                raise ValueError(
-                    f"Patient {patient_id} is missing required columns: {sorted(missing_columns)}"
-                )
+        #     missing_columns = required_columns - set(patient_df.columns)
+        #     if missing_columns:
+        #         raise ValueError(
+        #             f"Patient {patient_id} is missing required columns: {sorted(missing_columns)}"
+        #         )

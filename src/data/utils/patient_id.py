@@ -1,6 +1,5 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """Patient ID formatting utilities for standardized patient identification across datasets.
 
@@ -22,7 +21,6 @@ DATASET_PREFIXES: dict[str, str] = {
     "brown_2019": "bro",
     "tamborlane_2008": "tam",
     "lynch_2022": "lyn",
-    "kaggle_brisT1D": "bri",
     "gluroo": "glu",  # Reserved for future use
 }
 
@@ -127,17 +125,15 @@ def get_patient_column(df) -> str:
         df: DataFrame containing patient data (pandas DataFrame)
 
     Returns:
-        Name of the patient column ('p_num' or 'id')
+        Name of the patient column ('patient_id')
 
     Raises:
-        ValueError: If neither expected column is found
+        ValueError: If the expected column is not found
     """
-    if "p_num" in df.columns:
-        return "p_num"
-    elif "id" in df.columns:
-        return "id"
+    if "patient_id" in df.columns:
+        return "patient_id"
     else:
         raise ValueError(
-            f"Expected patient column 'p_num' or 'id' not found. "
+            f"Expected patient column 'patient_id' not found. "
             f"Available columns: {list(df.columns)}"
         )

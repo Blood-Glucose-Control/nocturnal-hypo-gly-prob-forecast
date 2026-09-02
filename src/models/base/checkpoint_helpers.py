@@ -231,13 +231,13 @@ def list_intermediate_checkpoint_adapters(
     )
     materializable: list[tuple[str, int, str]] = []
     for checkpoint_name in checkpoints:
-        step_num = int(checkpoint_name.split("-")[1])
+        stepatient_id = int(checkpoint_name.split("-")[1])
         adapter_src = os.path.join(w0_dir, checkpoint_name, adapter_filename)
         if not os.path.exists(adapter_src):
             if log_fn is not None:
                 log_fn(f"  {checkpoint_name}: no {adapter_filename}, skipping")
             continue
-        materializable.append((checkpoint_name, step_num, adapter_src))
+        materializable.append((checkpoint_name, stepatient_id, adapter_src))
     return materializable
 
 

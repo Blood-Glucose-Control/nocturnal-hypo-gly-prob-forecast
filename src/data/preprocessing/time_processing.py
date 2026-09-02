@@ -58,11 +58,11 @@ def create_datetime_index(
 
     # Create a cumulative sum of the absolute time differences
     df["cumulative_diff"] = (
-        df.groupby("p_num")["time_diff"].cumsum().fillna(pd.Timedelta(0))
+        df.groupby("patient_id")["time_diff"].cumsum().fillna(pd.Timedelta(0))
     )
 
     # Create a fixed start timestamp for each patient
-    start_times = df.groupby("p_num")["datetime"].transform("first")
+    start_times = df.groupby("patient_id")["datetime"].transform("first")
 
     # Add cumulative time difference to the fixed start timestamp
     df["datetime"] = start_times + df["cumulative_diff"]
@@ -82,7 +82,7 @@ def _create_time_diff_cols(df: pd.DataFrame) -> pd.DataFrame:
     df["temp_datetime"] = pd.to_datetime(df["time"], format="%H:%M:%S")
 
     # First create raw time differences
-    df["time_diff_raw"] = df.groupby("p_num")["temp_datetime"].diff()
+    df["time_diff_raw"] = df.groupby("patient_id")["temp_datetime"].diff()
 
     # time_diff_raw is negative across day boundaries e.g. when the current row is at 23:59:59 and the next is at 00:00:00
     # Create a new column with the absolute value of time_diff
@@ -147,7 +147,7 @@ def split_patient_data_by_day(patients_dfs: pd.DataFrame, patient_id: str) -> di
         Dictionary of DataFrames, with keys as '{patient_id}_{day}' and values as daily DataFrames
     """
     # Convert time column to datetime and extract time and hour components
-    patient_copy = patients_dfs[patients_dfs["p_num"] == patient_id].copy()
+    patient_copy = patients_dfs[patients_dfs["patient_id"] == patient_id].copy()
 
     patient_copy["time"] = pd.to_datetime(patient_copy["time"]).dt.strftime("%H:%M:%S")
     patient_copy["hour"] = pd.to_datetime(patient_copy["time"]).dt.hour
@@ -172,8 +172,8 @@ def split_patient_data_by_day(patients_dfs: pd.DataFrame, patient_id: str) -> di
     daily_dfs = {}
     for day in range(patient_copy["day"].max() + 1):
         daily_df = patient_copy[patient_copy["day"] == day].copy()
-        # Drop id and p_num columns since they're in the key
-        daily_df = daily_df.drop(columns=["id", "p_num", "day"])
+        # Drop id and patient_id columns since they're in the key
+        daily_df = daily_df.drop(columns=["id", "patient_id", "day"])
         key = f"{patient_id}_{day}"
         daily_dfs[key] = daily_df
 

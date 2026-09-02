@@ -36,7 +36,7 @@ def example_1_load_training_data():
     logger.info("Example 1: Loading Training Data Only")
     logger.info("=" * 60)
 
-    dataset_name = "kaggle_brisT1D"
+    dataset_name = "aleppo_2017"
 
     # This is the recommended way to load data for training
     # It ensures holdout data is never accidentally used
@@ -46,8 +46,8 @@ def example_1_load_training_data():
     logger.info(f"  Shape: {train_data.shape}")
     logger.info(f"  Columns: {list(train_data.columns)}")
 
-    if "p_num" in train_data.columns:
-        unique_patients = train_data["p_num"].unique()
+    if "patient_id" in train_data.columns:
+        unique_patients = train_data["patient_id"].unique()
         logger.info(f"  Patients: {len(unique_patients)} ({list(unique_patients)})")
 
     # Now you can train your model on train_data
@@ -62,7 +62,7 @@ def example_2_load_holdout_data():
     logger.info("Example 2: Loading Holdout Data Only")
     logger.info("=" * 60)
 
-    dataset_name = "kaggle_brisT1D"
+    dataset_name = "aleppo_2017"
 
     # This should ONLY be used for final model evaluation
     # Never use this data for training or hyperparameter tuning
@@ -71,8 +71,8 @@ def example_2_load_holdout_data():
     logger.info(f"Loaded holdout data for {dataset_name}")
     logger.info(f"  Shape: {holdout_data.shape}")
 
-    if "p_num" in holdout_data.columns:
-        unique_patients = holdout_data["p_num"].unique()
+    if "patient_id" in holdout_data.columns:
+        unique_patients = holdout_data["patient_id"].unique()
         logger.info(f"  Patients: {len(unique_patients)} ({list(unique_patients)})")
 
     # Now you can evaluate your trained model on holdout_data
@@ -87,7 +87,7 @@ def example_3_load_both_splits():
     logger.info("Example 3: Loading Both Splits")
     logger.info("=" * 60)
 
-    dataset_name = "kaggle_brisT1D"
+    dataset_name = "aleppo_2017"
 
     # Load both splits at once
     train_data, holdout_data = load_split_data(dataset_name)
@@ -100,9 +100,9 @@ def example_3_load_both_splits():
     )
 
     # Verify no overlap
-    if "p_num" in train_data.columns and "p_num" in holdout_data.columns:
-        train_patients = set(train_data["p_num"].unique())
-        holdout_patients = set(holdout_data["p_num"].unique())
+    if "patient_id" in train_data.columns and "patient_id" in holdout_data.columns:
+        train_patients = set(train_data["patient_id"].unique())
+        holdout_patients = set(holdout_data["patient_id"].unique())
         overlap = train_patients & holdout_patients
 
         if overlap:
@@ -126,7 +126,7 @@ def example_4_get_split_info():
     logger.info(f"Available datasets: {datasets}")
 
     # Get detailed info for a specific dataset
-    dataset_name = "kaggle_brisT1D"
+    dataset_name = "aleppo_2017"
     info = registry.get_split_info(dataset_name)
 
     logger.info(f"\nConfiguration for {dataset_name}:")
@@ -158,7 +158,7 @@ def example_5_validate_split():
     from src.data.versioning.holdout_config import HoldoutConfig
     from src.data.versioning.holdout_manager import HoldoutManager
 
-    dataset_name = "kaggle_brisT1D"
+    dataset_name = "aleppo_2017"
 
     # Load configuration
     config = HoldoutConfig.load(f"configs/data/holdout/{dataset_name}.yaml")
@@ -172,6 +172,9 @@ def example_5_validate_split():
     data = loader.processed_data
 
     manager = HoldoutManager(config)
+    if data is None:
+        logger.error("No processed data available for splitting.")
+        return
     train_data, holdout_data = manager.split_data(data)
 
     # Validate split

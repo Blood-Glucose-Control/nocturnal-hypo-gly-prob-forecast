@@ -41,16 +41,16 @@ def clean_tamborlane_2008_data(df: pd.DataFrame) -> pd.DataFrame:
     column_mapping = {
         # Map from actual column names to standardized names
         "RecID": "record_id",
-        "PtID": "p_num",
+        "PtID": "patient_id",
         "DeviceDate": "device_date",
         "DeviceTime": "device_time",
         "GlucoseValue": "bg_mg_dl",
         "GlucoseDisplayTime": "display_time",
         # Legacy mappings for compatibility
-        "Subject ID": "p_num",
-        "Subject_ID": "p_num",
-        "patient_id": "p_num",
-        "Patient_ID": "p_num",
+        "Subject ID": "patient_id",
+        "Subject_ID": "patient_id",
+        "patient_id": "patient_id",
+        "Patient_ID": "patient_id",
         "Time": "datetime",
         "timestamp": "datetime",
         "Timestamp": "datetime",
@@ -91,13 +91,13 @@ def clean_tamborlane_2008_data(df: pd.DataFrame) -> pd.DataFrame:
         data["datetime"] = pd.to_datetime(datetime_str, errors="coerce")
 
     # Ensure patient ID column exists and apply standardized format: tam_###
-    if "p_num" in data.columns:
-        data["p_num"] = data["p_num"].apply(
+    if "patient_id" in data.columns:
+        data["patient_id"] = data["patient_id"].apply(
             lambda x: format_patient_id("tamborlane_2008", x)
         )
     else:
         logger.warning("No patient ID column found, will assign generic ID")
-        data["p_num"] = "tam_1"
+        data["patient_id"] = "tam_1"
 
     # Convert glucose from mg/dL to mmol/L for consistency
     if "bg_mg_dl" in data.columns:
@@ -142,8 +142,8 @@ def clean_tamborlane_2008_data(df: pd.DataFrame) -> pd.DataFrame:
     data["msg_type"] = "cgm"  # All readings are CGM in this dataset
 
     # Sort by patient and time
-    if "p_num" in data.columns and "datetime" in data.columns:
-        data = data.sort_values(["p_num", "datetime"])
+    if "patient_id" in data.columns and "datetime" in data.columns:
+        data = data.sort_values(["patient_id", "datetime"])
 
     logger.info(f"Cleaning complete. Final dataset has {len(data)} rows")
 
@@ -162,14 +162,14 @@ def process_single_patient_tamborlane(
     Process a single patient's data including datetime creation and preprocessing.
 
     Args:
-        patient_data_tuple: Tuple containing (p_num, data, generic_patient_start_date)
+        patient_data_tuple: Tuple containing (patient_id, data, generic_patient_start_date)
         store_intermediate_data: Whether to save intermediate data to cache
 
     Returns:
-        Tuple containing (p_num, processed_data)
+        Tuple containing (patient_id, processed_data)
     """
-    p_num, data, generic_patient_start_date = patient_data_tuple
-    logger.info(f"Processing Tamborlane patient {p_num} data...")
+    patient_id, data, generic_patient_start_date = patient_data_tuple
+    logger.info(f"Processing Tamborlane patient {patient_id} data...")
 
     # Create a copy to avoid modifying the original
     data_copy = data.copy()
@@ -184,7 +184,7 @@ def process_single_patient_tamborlane(
     else:
         # Create datetime column if it doesn't exist
         logger.warning(
-            f"No datetime column found for patient {p_num}, creating from index or row number"
+            f"No datetime column found for patient {patient_id}, creating from index or row number"
         )
         # Assuming 5-minute intervals for CGM data if no time info available
         data_copy["datetime"] = pd.date_range(
@@ -201,22 +201,22 @@ def process_single_patient_tamborlane(
 
         cache_manager = get_cache_manager()
         dir_path = (
-            cache_manager.get_cleaning_step_data_path("tamborlane_2008")
+            cache_manager.get_absolute_path_by_type("tamborlane_2008", "cleaning_step")
             / "datetime_index"
         )
         dir_path.mkdir(parents=True, exist_ok=True)
-        data_copy.to_csv(dir_path / f"{p_num}.csv", index=True)
+        data_copy.to_csv(dir_path / f"{patient_id}.csv", index=True)
 
     # Run preprocessing pipeline if available
     try:
         from ...preprocessing.pipeline import preprocessing_pipeline
 
-        processed_data = preprocessing_pipeline(p_num, data_copy)
+        processed_data = preprocessing_pipeline(patient_id, data_copy)
     except ImportError:
         logger.warning("Preprocessing pipeline not available, returning data as-is")
         processed_data = data_copy
 
-    return p_num, processed_data
+    return patient_id, processed_data
 
 
 def process_single_patient_data(
@@ -307,7 +307,9 @@ def validate_tamborlane_data(df: pd.DataFrame) -> Dict[str, Any]:
 
     # Basic statistics
     metrics["total_rows"] = len(df)
-    metrics["unique_patients"] = df["p_num"].nunique() if "p_num" in df.columns else 0
+    metrics["unique_patients"] = (
+        df["patient_id"].nunique() if "patient_id" in df.columns else 0
+    )
 
     # Data completeness
     if "bg_mM" in df.columns:
@@ -348,9 +350,13 @@ def validate_tamborlane_data(df: pd.DataFrame) -> Dict[str, Any]:
         metrics["mean_interval_minutes"] = time_diffs.mean().total_seconds() / 60
 
     # Per-patient statistics
-    if "p_num" in df.columns and ("bg_mM" in df.columns or "bg_mg_dl" in df.columns):
+    if "patient_id" in df.columns and (
+        "bg_mM" in df.columns or "bg_mg_dl" in df.columns
+    ):
         glucose_col = "bg_mM" if "bg_mM" in df.columns else "bg_mg_dl"
-        patient_stats = df.groupby("p_num").agg({glucose_col: ["count", "mean", "std"]})
+        patient_stats = df.groupby("patient_id").agg(
+            {glucose_col: ["count", "mean", "std"]}
+        )
         metrics["mean_readings_per_patient"] = patient_stats[
             (glucose_col, "count")
         ].mean()

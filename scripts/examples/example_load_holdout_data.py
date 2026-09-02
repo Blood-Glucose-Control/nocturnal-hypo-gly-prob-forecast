@@ -48,8 +48,8 @@ def load_training_example(dataset_name: str, config_dir: str):
     logger.info(f"✓ Training data loaded: {len(train_data):,} samples")
     logger.info(f"  Columns: {list(train_data.columns)}")
 
-    if "p_num" in train_data.columns:
-        n_patients = len(train_data["p_num"].unique())
+    if "patient_id" in train_data.columns:
+        n_patients = len(train_data["patient_id"].unique())
         logger.info(f"  Patients: {n_patients}")
 
     return train_data
@@ -74,8 +74,8 @@ def load_holdout_example(dataset_name: str, config_dir: str):
     logger.info(f"✓ Holdout data loaded: {len(holdout_data):,} samples")
     logger.info(f"  Columns: {list(holdout_data.columns)}")
 
-    if "p_num" in holdout_data.columns:
-        n_patients = len(holdout_data["p_num"].unique())
+    if "patient_id" in holdout_data.columns:
+        n_patients = len(holdout_data["patient_id"].unique())
         logger.info(f"  Patients: {n_patients}")
 
     return holdout_data
@@ -114,9 +114,9 @@ def load_both_example(dataset_name: str, config_dir: str):
     logger.info(f"  Training: {len(train_data):,} samples")
     logger.info(f"  Holdout: {len(holdout_data):,} samples")
 
-    if "p_num" in train_data.columns:
-        train_patients = set(str(p) for p in train_data["p_num"].unique())
-        holdout_patients = set(str(p) for p in holdout_data["p_num"].unique())
+    if "patient_id" in train_data.columns:
+        train_patients = set(str(p) for p in train_data["patient_id"].unique())
+        holdout_patients = set(str(p) for p in holdout_data["patient_id"].unique())
         overlap = train_patients & holdout_patients
 
         logger.info("\n  Patient statistics:")

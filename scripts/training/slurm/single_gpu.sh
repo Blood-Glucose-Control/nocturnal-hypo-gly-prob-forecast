@@ -81,7 +81,7 @@ cd "$PROJECT_ROOT"
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-0}"
-export OMP_NUM_THREADS="${OMP_NUM_THREADS:-${SLURM_CPUS_PER_TASK:-8}}"
+export OMpatient_id_THREADS="${OMpatient_id_THREADS:-${SLURM_CPUS_PER_TASK:-8}}"
 export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
 
 WORKFLOW_SCRIPT="scripts/workflows/forecasting/run_forecasting_workflow.sh"
@@ -104,7 +104,7 @@ echo "Output base dir: $OUTPUT_BASE_DIR"
 echo "Skip training: $SKIP_TRAINING"
 echo "Skip steps: ${SKIP_STEPS:-none}"
 echo "CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
-echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
+echo "OMpatient_id_THREADS: $OMpatient_id_THREADS"
 echo "Run ID: $RUN_ID"
 echo "========================================="
 echo ""

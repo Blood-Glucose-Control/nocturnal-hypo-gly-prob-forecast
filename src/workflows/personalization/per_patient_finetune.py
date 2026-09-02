@@ -484,7 +484,7 @@ def run_single_patient(
 
     # ── Stage 1 baseline evaluation ─────────────────────────────────────────
     eval_test_df = test_df.copy()
-    eval_test_df["p_num"] = str(patient_id)
+    eval_test_df["patient_id"] = str(patient_id)
 
     logger.info("\n--- Stage 1 Baseline Evaluation (on test window) ---")
     stage1_results = evaluate_nocturnal_forecasting(

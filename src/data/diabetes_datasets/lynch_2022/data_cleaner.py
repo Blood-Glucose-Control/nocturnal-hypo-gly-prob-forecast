@@ -1,11 +1,8 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """
 Data cleaning utilities for the Lynch 2022 IOBP2 RCT dataset.
-
-Minimal, Kaggle-style helpers to:
 - load SAS tables
 - standardize to the common schema
 - run preprocessing for train/test flows
@@ -216,7 +213,9 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
     # Patient ID with standardized format: lyn_###
     if df["id"].isna().any():
         raise ValueError("Lynch data contains missing patient IDs in 'id' column.")
-    df["p_num"] = df["id"].map(lambda pid: format_patient_id("lynch_2022", str(pid)))
+    df["patient_id"] = df["id"].map(
+        lambda pid: format_patient_id("lynch_2022", str(pid))
+    )
 
     # dose_units and food_g are already calculated in load_lynch2022_raw_dataset
     # Ensure they exist and have proper types
@@ -243,7 +242,7 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
         df["meal_size_text"] = df["meal_size_text"].fillna("").astype(str)
 
     cols = [
-        "p_num",
+        "patient_id",
         "datetime",
         "bg_mM",
         "dose_units",
@@ -261,15 +260,17 @@ def clean_lynch2022_train_data(raw_data: pd.DataFrame) -> pd.DataFrame:
         "device",
         "dataset",
     ]
-    df = df[cols].sort_values(["p_num", "datetime"]).reset_index(drop=True)
+    df = df[cols].sort_values(["patient_id", "datetime"]).reset_index(drop=True)
 
     # Optional debug cache
     cache_manager = get_cache_manager()
-    cache_dir = cache_manager.get_cleaning_step_data_path("lynch_2022")
+    cache_dir = cache_manager.get_absolute_path_by_type("lynch_2022", "cleaning_step")
     cache_dir.mkdir(parents=True, exist_ok=True)
     df.to_csv(cache_dir / "train_after_cleaning.csv", index=False)
 
-    logger.info("Prepared Lynch train data with %d patients", df["p_num"].nunique())
+    logger.info(
+        "Prepared Lynch train data with %d patients", df["patient_id"].nunique()
+    )
     return df
 
 
@@ -286,9 +287,9 @@ def clean_lynch2022_test_data(
     """
     cleaned = clean_lynch2022_train_data(raw_data)
     patient_groups = defaultdict(dict)
-    for idx, (p_num, group) in enumerate(cleaned.groupby("p_num"), start=1):
+    for idx, (patient_id, group) in enumerate(cleaned.groupby("patient_id"), start=1):
         instance_id = f"instance_{idx:03d}"
-        patient_groups[p_num][instance_id] = group.reset_index(drop=True)
+        patient_groups[patient_id][instance_id] = group.reset_index(drop=True)
     logger.info("Prepared Lynch test-style data for %d patients", len(patient_groups))
     return patient_groups
 
@@ -299,10 +300,10 @@ def process_single_patient_data(
     """
     Run preprocessing pipeline for a single patient's training data.
     Args:
-        patient_data_tuple: (p_num, data, generic_patient_start_date)
+        patient_data_tuple: (patient_id, data, generic_patient_start_date)
     """
-    p_num, data, _ = patient_data_tuple
-    logger.info(f"Processing Lynch patient {p_num} (train)")
+    patient_id, data, _ = patient_data_tuple
+    logger.info(f"Processing Lynch patient {patient_id} (train)")
     data_copy = data.copy()
     data_copy["datetime"] = pd.to_datetime(data_copy["datetime"], errors="coerce")
     data_copy = (
@@ -313,18 +314,19 @@ def process_single_patient_data(
 
     if store_in_between_data:
         cache_manager = get_cache_manager()
-        cache_dir = cache_manager.get_cleaning_step_data_path("lynch_2022")
+        cache_dir = cache_manager.get_absolute_path_by_type(
+            "lynch_2022", "cleaning_step"
+        )
         cache_dir.mkdir(parents=True, exist_ok=True)
-        data_copy.to_csv(cache_dir / f"{p_num}_pre_pipeline.csv")
+        data_copy.to_csv(cache_dir / f"{patient_id}_pre_pipeline.csv")
 
-    processed_data = preprocessing_pipeline(p_num, data_copy, use_aggregation=True)
-    return p_num, processed_data
+    processed_data = preprocessing_pipeline(patient_id, data_copy, use_aggregation=True)
+    return patient_id, processed_data
 
 
 def process_patient_prediction_instances(
     patient_item: tuple,
     base_cache_path: Path,
-    generic_patient_start_date: pd.Timestamp = pd.Timestamp("2024-01-01"),
     save_individual_files: bool = False,
 ) -> tuple[str, dict[str, pd.DataFrame]]:
     """

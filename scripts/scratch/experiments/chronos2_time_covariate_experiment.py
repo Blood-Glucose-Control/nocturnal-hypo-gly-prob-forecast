@@ -383,9 +383,11 @@ def main():
     registry = DatasetRegistry(holdout_config_dir="configs/data/holdout_10pct")
     train_flat, holdout_flat = registry.load_dataset_with_split("brown_2019")
 
-    print(f"Train: {len(train_flat):,} rows, {train_flat['p_num'].nunique()} patients")
     print(
-        f"Holdout: {len(holdout_flat):,} rows, {holdout_flat['p_num'].nunique()} patients"
+        f"Train: {len(train_flat):,} rows, {train_flat['patient_id'].nunique()} patients"
+    )
+    print(
+        f"Holdout: {len(holdout_flat):,} rows, {holdout_flat['patient_id'].nunique()} patients"
     )
 
     # Verify required features exist

@@ -1,19 +1,19 @@
--- Add string p_num column to groups table
--- Format: gluroo_{p_num} where p_num is 0-indexed
+-- Add string patient_id column to groups table
+-- Format: gluroo_{patient_id} where patient_id is 0-indexed
 -- This makes partitioning much easier than using UUID-based indexing
 
--- Add p_num column (nullable first, then we'll populate it)
-ALTER TABLE groups ADD COLUMN IF NOT EXISTS p_num VARCHAR(50);
+-- Add patient_id column (nullable first, then we'll populate it)
+ALTER TABLE groups ADD COLUMN IF NOT EXISTS patient_id VARCHAR(50);
 
 -- Create index for faster lookups
-CREATE INDEX IF NOT EXISTS groups_p_num_idx ON groups (p_num);
+CREATE INDEX IF NOT EXISTS groups_patient_id_idx ON groups (patient_id);
 
 -- Assign sequential string IDs to existing groups (sorted by gid for deterministic ordering)
 -- Format: gluroo_0, gluroo_1, gluroo_2, etc.
--- This ensures consistent p_num assignment across runs
+-- This ensures consistent patient_id assignment across runs
 UPDATE groups
 SET
-    p_num = 'gluroo_' || (subquery.row_num - 1)::TEXT -- 0-indexed
+    patient_id = 'gluroo_' || (subquery.row_num - 1)::TEXT -- 0-indexed
 FROM (
         SELECT gid, ROW_NUMBER() OVER (
                 ORDER BY gid
@@ -23,8 +23,8 @@ FROM (
 WHERE
     groups.gid = subquery.gid;
 
--- Make p_num NOT NULL after populating
-ALTER TABLE groups ALTER COLUMN p_num SET NOT NULL;
+-- Make patient_id NOT NULL after populating
+ALTER TABLE groups ALTER COLUMN patient_id SET NOT NULL;
 
 -- Create unique constraint to ensure one-to-one mapping
-CREATE UNIQUE INDEX IF NOT EXISTS groups_p_num_unique_idx ON groups (p_num);
+CREATE UNIQUE INDEX IF NOT EXISTS groups_patient_id_unique_idx ON groups (patient_id);

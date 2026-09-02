@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS readings (
 
 CREATE TABLE IF NOT EXISTS groups (
     gid TEXT NOT NULL PRIMARY KEY, -- Obscured UUID
-    p_num TEXT, -- Sequential string ID (0-indexed) for efficient partitioning gluroo_{p_num}
+    patient_id TEXT, -- Sequential string ID (0-indexed) for efficient partitioning gluroo_{patient_id}
     num_members INT,
     date_created TIMESTAMPTZ NOT NULL DEFAULT now(),
     rapid_insulin TEXT,
@@ -107,7 +107,7 @@ BEGIN
     CREATE INDEX IF NOT EXISTS messages_gid_date_idx ON messages (gid, date);
     CREATE INDEX IF NOT EXISTS messages_gid_idx ON messages (gid);
 
-    -- Create index for p_num lookups
-    CREATE INDEX IF NOT EXISTS groups_p_num_idx ON groups (p_num);
-    CREATE UNIQUE INDEX IF NOT EXISTS groups_p_num_unique_idx ON groups (p_num);
+    -- Create index for patient_id lookups
+    CREATE INDEX IF NOT EXISTS groups_patient_id_idx ON groups (patient_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS groups_patient_id_unique_idx ON groups (patient_id);
 END $$;

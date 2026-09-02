@@ -247,7 +247,7 @@ def _make_holdout_df(
     interval_mins: int = 5,
     start: str = "2024-01-01",
     bg_value: float = 7.0,
-    patient_col: str = "p_num",
+    patient_col: str = "patient_id",
 ) -> pd.DataFrame:
     """Create a combined holdout DataFrame with multiple patients."""
     frames = []
@@ -288,24 +288,27 @@ class TestBuildPatientEpisodes:
             for ep in eps:
                 assert ep["patient_id"] == pid
 
-    def test_patient_id_column_p_num(self):
-        """Detects p_num as the patient column."""
-        holdout = _make_holdout_df(["p1", "p2"], patient_col="p_num")
+    def test_patient_id_column_patient_id(self):
+        """Detects patient_id as the patient column."""
+        holdout = _make_holdout_df(["p1", "p2"], patient_col="patient_id")
         result = build_patient_episodes(
             holdout, ["p1"], context_length=144, forecast_length=72
         )
         assert "p1" in result
 
     def test_patient_id_column_id(self):
-        """Detects id as the patient column."""
+        """Rejects legacy id patient column."""
         holdout = _make_holdout_df(["p1", "p2"], patient_col="id")
-        result = build_patient_episodes(
-            holdout, ["p1"], context_length=144, forecast_length=72
-        )
-        assert "p1" in result
+        with pytest.raises(
+            ValueError,
+            match="Expected patient column 'patient_id' not found",
+        ):
+            build_patient_episodes(
+                holdout, ["p1"], context_length=144, forecast_length=72
+            )
 
     def test_missing_patient_column_raises(self):
-        """Raises ValueError when neither p_num nor id column exists."""
+        """Raises ValueError when neither patient_id nor id column exists."""
         holdout = _make_holdout_df(["p1"], patient_col="subject")
         with pytest.raises(ValueError, match="Expected patient column"):
             build_patient_episodes(

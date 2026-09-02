@@ -25,7 +25,7 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
 
         df = pd.DataFrame(
             {
-                "p_num": ["patient_01", "patient_01", "patient_01", "patient_01"],
+                "patient_id": ["patient_01", "patient_01", "patient_01", "patient_01"],
                 "bg_mM": [5.0, 6.0, 4.0, 7.0],  # BG should be averaged within bin
                 "rate": [0.8, 0.6, 0.4, 1.0],  # rate should be averaged within bin
                 "hr_bpm": [70, 72, 74, 69],  # other numeric should be summed within bin
@@ -54,8 +54,8 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
         # Index name preserved as 'datetime'
         assert result.index.name == "datetime"
 
-        # p_num should be filled for empty bins (e.g., 00:10) and match original
-        assert result.loc["2024-01-01 00:10:00", "p_num"] == "patient_01"
+        # patient_id should be filled for empty bins (e.g., 00:10) and match original
+        assert result.loc["2024-01-01 00:10:00", "patient_id"] == "patient_01"
 
         # Check aggregation at 00:05:00 (two rows mapped here: 00:05 and 00:06)
         bg_mean = np.mean([6.0, 4.0])
@@ -73,9 +73,9 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
         assert result.loc["2024-01-01 00:00:00", "bg_mM"] == 5.0
         assert result.loc["2024-01-01 00:15:00", "bg_mM"] == 7.0
 
-        # Empty bin (00:10) should exist, with NaNs in numeric/categorical except p_num
+        # Empty bin (00:10) should exist, with NaNs in numeric/categorical except patient_id
         row_0010 = result.loc["2024-01-01 00:10:00"]
-        assert row_0010["p_num"] == "patient_01"
+        assert row_0010["patient_id"] == "patient_01"
         assert row_0010["bg_mM"] != row_0010["bg_mM"]  # NaN
         assert row_0010["hr_bpm"] != row_0010["hr_bpm"]  # NaN
         assert row_0010["food_g"] != row_0010["food_g"]  # NaN
@@ -83,30 +83,30 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
         assert row_0010["msg_type"] != row_0010["msg_type"]  # NaN
 
     def test_empty_dataframe(self):
-        empty = pd.DataFrame(columns=["p_num", "bg_mM"])
+        empty = pd.DataFrame(columns=["patient_id", "bg_mM"])
         empty.index = pd.DatetimeIndex([])
         empty.index.name = "datetime"
 
         result, freq = ensure_regular_time_intervals_with_aggregation(empty)
         assert freq == 0
         assert result.empty
-        assert list(result.columns) == ["p_num", "bg_mM"]
+        assert list(result.columns) == ["patient_id", "bg_mM"]
 
     def test_validation_errors(self):
         # Non-DatetimeIndex
-        df = pd.DataFrame({"p_num": ["p1", "p1"], "bg_mM": [5.0, 6.0]})
+        df = pd.DataFrame({"patient_id": ["p1", "p1"], "bg_mM": [5.0, 6.0]})
         with pytest.raises(ValueError, match="datetime index"):
             ensure_regular_time_intervals_with_aggregation(df)
 
-        # Missing p_num
+        # Missing patient_id
         dt = pd.date_range("2024-01-01", periods=2, freq="5min")
         df = pd.DataFrame({"bg_mM": [5.0, 6.0]}, index=dt)
         df.index.name = "datetime"
-        with pytest.raises(ValueError, match="p_num"):
+        with pytest.raises(ValueError, match="patient_id"):
             ensure_regular_time_intervals_with_aggregation(df)
 
         # Too few rows (<=1)
-        df = pd.DataFrame({"p_num": ["p1"], "bg_mM": [5.0]}, index=dt[:1])
+        df = pd.DataFrame({"patient_id": ["p1"], "bg_mM": [5.0]}, index=dt[:1])
         df.index.name = "datetime"
         with pytest.raises(ValueError, match="more than 1 row"):
             ensure_regular_time_intervals_with_aggregation(df)
@@ -134,7 +134,7 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
 
         df = pd.DataFrame(
             {
-                "p_num": [
+                "patient_id": [
                     "patient_02",
                     "patient_02",
                     "patient_02",
@@ -173,22 +173,22 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
         # Verify data at rounded bins
         # 00:00:00 bin should have data from 00:02:30
         assert np.isclose(result.loc["2024-01-01 00:00:00", "bg_mM"], 5.0)
-        assert result.loc["2024-01-01 00:00:00", "p_num"] == "patient_02"
+        assert result.loc["2024-01-01 00:00:00", "patient_id"] == "patient_02"
 
         # 00:05:00 bin should have data from 00:07:25 only
         assert np.isclose(result.loc["2024-01-01 00:05:00", "bg_mM"], 6.0)
-        assert result.loc["2024-01-01 00:05:00", "p_num"] == "patient_02"
+        assert result.loc["2024-01-01 00:05:00", "patient_id"] == "patient_02"
 
         # 00:10:00 bin should have data from 00:08:00
         assert np.isclose(result.loc["2024-01-01 00:10:00", "bg_mM"], 4.0)
-        assert result.loc["2024-01-01 00:10:00", "p_num"] == "patient_02"
+        assert result.loc["2024-01-01 00:10:00", "patient_id"] == "patient_02"
 
         # 00:15:00 bin should have data aggregated from 00:13:00 and 00:17:25
         bg_mean_15 = np.mean([7.0, 8.0])
         rate_mean_15 = np.mean([1.0, 1.2])
         assert np.isclose(result.loc["2024-01-01 00:15:00", "bg_mM"], bg_mean_15)
         assert np.isclose(result.loc["2024-01-01 00:15:00", "rate"], rate_mean_15)
-        assert result.loc["2024-01-01 00:15:00", "p_num"] == "patient_02"
+        assert result.loc["2024-01-01 00:15:00", "patient_id"] == "patient_02"
 
     def test_edge_case_large_time_offset(self):
         """
@@ -213,7 +213,7 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
 
         df = pd.DataFrame(
             {
-                "p_num": ["patient_03"] * 10,
+                "patient_id": ["patient_03"] * 10,
                 "bg_mM": [5.0, 5.5, 6.0, 6.5, 4.0, 7.0, 7.5, 8.0, 8.5, 9.0],
                 "rate": [0.8, 0.9, 0.6, 0.7, 0.4, 1.0, 1.1, 1.2, 1.3, 1.4],
                 "hr_bpm": [70, 71, 72, 73, 74, 69, 70, 71, 72, 73],
@@ -284,7 +284,7 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
 
         df = pd.DataFrame(
             {
-                "p_num": ["patient_01"] * 4,
+                "patient_id": ["patient_01"] * 4,
                 "bg_mM": [6.0, 7.0, 5.5, 6.5],
                 "rate": [0.8, 0.0, 0.0, 0.6],  # Two pump suspensions (rate=0)
                 "hr_bpm": [70, 72, 74, 69],
@@ -324,7 +324,7 @@ class TestEnsureRegularTimeIntervalsWithAggregation:
 
         df = pd.DataFrame(
             {
-                "p_num": ["patient_01"] * 4,
+                "patient_id": ["patient_01"] * 4,
                 "bg_mM": [6.0, 7.0, 5.0, 6.5],
                 "rate": [0.8, 0.0, 0.4, 0.6],  # 00:05 bin: mean(0.0, 0.4) = 0.2
                 "hr_bpm": [70, 72, 74, 69],

@@ -46,12 +46,7 @@ class Aleppo2017DataLoader(DatasetBase):
         keep_columns: Specific columns to load from the dataset.
         use_cached: Whether to use cached processed data if available.
         parallel: Whether to use parallel processing.
-        max_workers: Maximum number of workers for parallel processing.
-        config: Optional configuration dictionary.
-
-    Example:
-        >>> loader = Aleppo2017DataLoader(use_cached=True)
-        >>> pretraining_dict = loader.processed_data
+        max_workers: Maximum number of workers for parallel procepprocessed_data
     """
 
     def __init__(

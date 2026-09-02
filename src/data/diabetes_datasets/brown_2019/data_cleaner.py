@@ -7,7 +7,7 @@ Data cleaning utilities for the Brown 2019 DCLP3 diabetes dataset.
 
 Pipeline Steps:
 1. Parse timestamps (use DataDtTm_adjusted for basal/bolus - corrects bad dates)
-2. Minimal rename (PtID → p_num for groupby compatibility)
+2. Minimal rename (PtID → patient_id for groupby compatibility)
 3. Floor timestamps to 5-min grid (preserves causality)
 4. Aggregate collisions (CGM=mean, Bolus=sum, Basal=last)
 5. Create regular 5-min grid for CGM
@@ -139,7 +139,7 @@ def clean_brown_2019_data(
     Returns:
         Cleaned and merged DataFrame with columns:
         - datetime (index)
-        - p_num: Patient ID
+        - patient_id: Patient ID
         - period: "1. Baseline" or "2. Post Randomization"
         - bg_mM: Blood glucose mmol/L
         - bg_mgdL: Blood glucose mg/dL
@@ -193,12 +193,12 @@ def clean_brown_2019_data(
         f"Bolus datetime range: {bolus_df[dt_col].min()} to {bolus_df[dt_col].max()}"
     )
 
-    # ========== STEP 2: Minimal rename (only PtID → p_num for groupby) ==========
+    # ========== STEP 2: Minimal rename (only PtID → patient_id for groupby) ==========
     # Keep all other raw column names until final step
-    p_num_col = ColumnNames.P_NUM.value
-    cgm_df = cgm_df.rename(columns={RAW_COLS["patient_id"]: p_num_col})
-    basal_df = basal_df.rename(columns={RAW_COLS["patient_id"]: p_num_col})
-    bolus_df = bolus_df.rename(columns={RAW_COLS["patient_id"]: p_num_col})
+    patient_id_col = ColumnNames.P_NUM.value
+    cgm_df = cgm_df.rename(columns={RAW_COLS["patient_id"]: patient_id_col})
+    basal_df = basal_df.rename(columns={RAW_COLS["patient_id"]: patient_id_col})
+    bolus_df = bolus_df.rename(columns={RAW_COLS["patient_id"]: patient_id_col})
 
     # Drop raw datetime columns (we have 'datetime' now)
     cgm_df = cgm_df.drop(columns=["DataDtTm"])
@@ -218,19 +218,19 @@ def clean_brown_2019_data(
     # - Basal: last (most recent rate is what's active)
 
     cgm_agg = (
-        cgm_df.groupby([p_num_col, dt_col])
+        cgm_df.groupby([patient_id_col, dt_col])
         .agg({RAW_COLS["cgm_value"]: "mean", RAW_COLS["period"]: "first"})
         .reset_index()
     )
 
     bolus_agg = (
-        bolus_df.groupby([p_num_col, dt_col])
+        bolus_df.groupby([patient_id_col, dt_col])
         .agg({RAW_COLS["bolus_amount"]: "sum", RAW_COLS["bolus_type"]: "first"})
         .reset_index()
     )
 
     basal_agg = (
-        basal_df.groupby([p_num_col, dt_col])
+        basal_df.groupby([patient_id_col, dt_col])
         .agg({RAW_COLS["basal_rate"]: "last"})
         .reset_index()
     )
@@ -241,7 +241,7 @@ def clean_brown_2019_data(
 
     # ========== STEP 5: Create regular 5-min grid for CGM ==========
     cgm_indexed = cgm_agg.set_index(dt_col)
-    patient_dict = split_multipatient_dataframe(cgm_indexed, patient_col=p_num_col)
+    patient_dict = split_multipatient_dataframe(cgm_indexed, patient_col=patient_id_col)
 
     logger.info(f"Creating regular 5-min grid for {len(patient_dict)} patients...")
 
@@ -261,15 +261,15 @@ def clean_brown_2019_data(
     # ========== STEP 6: Merge insulin data onto CGM backbone ==========
     merged = cgm_regular.merge(
         bolus_agg[
-            [p_num_col, dt_col, RAW_COLS["bolus_amount"], RAW_COLS["bolus_type"]]
+            [patient_id_col, dt_col, RAW_COLS["bolus_amount"], RAW_COLS["bolus_type"]]
         ],
-        on=[p_num_col, dt_col],
+        on=[patient_id_col, dt_col],
         how="left",
     )
 
     merged = merged.merge(
-        basal_agg[[p_num_col, dt_col, RAW_COLS["basal_rate"]]],
-        on=[p_num_col, dt_col],
+        basal_agg[[patient_id_col, dt_col, RAW_COLS["basal_rate"]]],
+        on=[patient_id_col, dt_col],
         how="left",
     )
 
@@ -286,18 +286,20 @@ def clean_brown_2019_data(
     # Basal: Keep SPARSE (only rate-change events)
     # The preprocessing pipeline's _rollover_basal_automated() will handle forward-fill
     # and conversion to dose_units during IOB calculation
-    merged = merged.sort_values([p_num_col, dt_col])
+    merged = merged.sort_values([patient_id_col, dt_col])
 
     # Log NaN analysis
-    patients_with_pump = set(basal_agg[p_num_col].unique())
-    all_patients = set(merged[p_num_col].unique())
+    patients_with_pump = set(basal_agg[patient_id_col].unique())
+    all_patients = set(merged[patient_id_col].unique())
     patients_without_pump = all_patients - patients_with_pump
 
     logger.info(f"Patients with pump data: {len(patients_with_pump)}")
     logger.info(f"Patients without pump data: {len(patients_without_pump)}")
 
     total_nan = merged[RAW_COLS["basal_rate"]].isna().sum()
-    rows_from_no_pump = merged[merged[p_num_col].isin(patients_without_pump)].shape[0]
+    rows_from_no_pump = merged[
+        merged[patient_id_col].isin(patients_without_pump)
+    ].shape[0]
     logger.info(
         f"Basal NaN breakdown: {rows_from_no_pump:,} from no-pump patients ({rows_from_no_pump / total_nan * 100:.1f}%), "
         f"{total_nan - rows_from_no_pump:,} from leading NaN ({(total_nan - rows_from_no_pump) / total_nan * 100:.1f}%)"
@@ -321,7 +323,7 @@ def clean_brown_2019_data(
     # Select and order final columns
     final_columns = [
         dt_col,
-        p_num_col,
+        patient_id_col,
         "period",
         ColumnNames.BG.value,
         ColumnNames.RATE.value,
@@ -333,12 +335,12 @@ def clean_brown_2019_data(
     output_df = output_df.set_index(dt_col).sort_index()
 
     # Apply standardized patient ID format: bro_###
-    output_df[p_num_col] = output_df[p_num_col].apply(
+    output_df[patient_id_col] = output_df[patient_id_col].apply(
         lambda x: format_patient_id("brown_2019", x)
     )
 
     logger.info(
-        f"Final output: {output_df.shape[0]:,} rows, {output_df[p_num_col].nunique()} patients"
+        f"Final output: {output_df.shape[0]:,} rows, {output_df[patient_id_col].nunique()} patients"
     )
 
     return output_df
@@ -384,13 +386,13 @@ def process_single_patient_data(args: tuple) -> tuple[str, pd.DataFrame]:
     return str(patient_id), patient_df
 
 
-def process_single_patient(patient_df: pd.DataFrame, p_num: str) -> pd.DataFrame:
+def process_single_patient(patient_df: pd.DataFrame, patient_id: str) -> pd.DataFrame:
     """
     Backward-compatible wrapper around process_single_patient_data.
 
     Args:
         patient_df: Single patient DataFrame (datetime indexed).
-        p_num: Patient identifier for logging.
+        patient_id: Patient identifier for logging.
 
     Returns:
         Processed DataFrame with additional derived columns.
@@ -400,7 +402,7 @@ def process_single_patient(patient_df: pd.DataFrame, p_num: str) -> pd.DataFrame
         patient_df = patient_df.set_index(dt_col)
 
     _patient_id, processed_df = process_single_patient_data(
-        (p_num, patient_df, True, "automated")
+        (patient_id, patient_df, True, "automated")
     )
     return processed_df
 

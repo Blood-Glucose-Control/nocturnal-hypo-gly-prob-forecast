@@ -24,15 +24,6 @@ We will contrast our forecasts over various categories, including age groups, ge
 
 For instructions on getting started with our project and the commmit/PR procedure please see our wiki article: [Getting Started Developing with this Repo](https://github.com/Blood-Glucose-Control/nocturnal-hypo-gly-prob-forecast/wiki/Get-Started-Developing-with-this-Repo)
 
-### Data Downloads
-#### Kaggle
-
-Kaggle download/submit helper scripts were intentionally removed from this repo.
-If you need the BrisT1D dataset locally, use the Kaggle CLI directly and place the
-downloaded files under:
-
-`cache/data/kaggle_bris_t1d/raw/`
-
 ## License
 
 This project is licensed under a custom research license based on CC BY-NC 4.0. The software is freely available for academic institutions and non-profit research organizations, but commercial use requires a separate commercial license.

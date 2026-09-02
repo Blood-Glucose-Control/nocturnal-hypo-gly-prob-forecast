@@ -176,7 +176,7 @@ dropout: 0.1
 learning_rate: 0.001
 covariate_cols: [iob, cob]
 target_col: bg_mM
-patient_col: p_num
+patient_col: patient_id
 time_col: datetime
 interval_mins: 5
 imputation_threshold_mins: 45
@@ -621,7 +621,7 @@ def test_tsmixer_smoke_profile_builds_runtime_payload() -> None:
     assert runtime_config["num_epochs"] == 1
     assert runtime_config["batch_size"] == 32
     assert runtime_config["target_col"] == "bg_mM"
-    assert runtime_config["patient_col"] == "p_num"
+    assert runtime_config["patient_col"] == "patient_id"
     assert runtime_config["time_col"] == "datetime"
 
 

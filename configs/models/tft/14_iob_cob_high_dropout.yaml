@@ -24,7 +24,7 @@ gradient_clip_val: 1.0
 
 covariate_cols: ["iob", "cob"]
 target_col: "bg_mM"
-patient_col: "p_num"
+patient_col: "patient_id"
 time_col: "datetime"
 interval_mins: 5
 

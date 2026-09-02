@@ -55,7 +55,7 @@ class TFTConfig(ModelConfig):
     # IOB/COB are past-only features (not known at forecast origin).
     covariate_cols: List[str] = field(default_factory=list)
     target_col: str = "bg_mM"
-    patient_col: str = "p_num"
+    patient_col: str = "patient_id"
     time_col: str = "datetime"
     interval_mins: int = 5
 

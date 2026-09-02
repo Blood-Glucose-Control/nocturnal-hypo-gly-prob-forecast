@@ -299,10 +299,10 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
         info_print(f"Materialising {len(checkpoints)} intermediate checkpoints...")
         snapshots_base = os.path.join(output_dir, "snapshots")
         main_model_pt = os.path.join(output_dir, "model.pt")
-        for _, step_num, adapter_src in checkpoints:
-            snapshot_dir = os.path.join(snapshots_base, f"step_{step_num}")
+        for _, stepatient_id, adapter_src in checkpoints:
+            snapshot_dir = os.path.join(snapshots_base, f"step_{stepatient_id}")
             if os.path.exists(snapshot_dir):
-                info_print(f"  step_{step_num}: already exists, skipping")
+                info_print(f"  step_{stepatient_id}: already exists, skipping")
                 continue
 
             shadow_predictor = os.path.join(snapshot_dir, "predictor")
@@ -320,7 +320,7 @@ class Chronos2Forecaster(BaseTimeSeriesFoundationModel):
                 config_payload=self.config.to_dict(),
             )
 
-            info_print(f"  Snapshot step_{step_num} → {snapshot_model_pt}")
+            info_print(f"  Snapshot step_{stepatient_id} → {snapshot_model_pt}")
 
         info_print(f"Intermediate checkpoints materialised at {snapshots_base}")
 

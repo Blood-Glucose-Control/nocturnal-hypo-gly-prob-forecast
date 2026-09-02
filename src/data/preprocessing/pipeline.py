@@ -32,7 +32,7 @@ Example:
     >>> # Raw patient data with required columns
     >>> df = pd.DataFrame({
     ...     'datetime': pd.date_range('2024-01-01', periods=100, freq='5min'),
-    ...     'p_num': ['001'] * 100,
+    ...     'patient_id': ['001'] * 100,
     ...     'bg_mM': [5.5, 6.1, 5.8, ...],
     ...     'msg_type': ['', 'ANNOUNCE_MEAL', '', ...],
     ...     'food_g': [0, 30, 0, ...],
@@ -43,7 +43,7 @@ Example:
     >>> # Returns DataFrame with original data plus IOB, COB, and availability features
 
 Notes:
-    - Input DataFrame must contain core columns: datetime, p_num, bg_mM
+    - Input DataFrame must contain core columns: datetime, patient_id, bg_mM
     - Optional columns (msg_type, food_g, dose_units, rate) enhance features but don't block processing
     - CGM-only datasets are supported (COB/IOB will be set to NaN)
     - Patient identifier is used for logging and tracking purposes
@@ -65,7 +65,7 @@ logger = logging.getLogger(__name__)
 # Core columns - always required for pipeline to function
 REQUIRED_COLUMNS = [
     "datetime",  # Datetime of the data (not the index)
-    "p_num",  # Patient number (id)
+    "patient_id",  # Patient number (id)
     "bg_mM",  # Blood glucose in mmol/L
 ]
 
@@ -79,7 +79,7 @@ OPTIONAL_COLUMNS = [
 
 
 def preprocessing_pipeline(
-    p_num: str,
+    patient_id: str,
     df: pd.DataFrame,
     use_aggregation: bool = False,
     basal_delivery_type: Literal["temp", "automated"] | None = None,
@@ -92,7 +92,7 @@ def preprocessing_pipeline(
     insulin availability, and carb availability features.
 
     Args:
-        p_num (str): Patient identifier for logging purposes
+        patient_id (str): Patient identifier for logging purposes
         df (pd.DataFrame): Raw patient data containing datetime, blood glucose,
                           meal announcements, carb intake, and insulin doses
         use_aggregation (bool, optional): Whether to use aggregation to ensure regular time intervals.
@@ -112,7 +112,7 @@ def preprocessing_pipeline(
     """
     # TODO: Create an option for both serial and parallel processing of the multipatient files.
     logger.info("==============================")
-    logger.info(f"Preprocessing patient {p_num}")
+    logger.info(f"Preprocessing patient {patient_id}")
     logger.info("==============================")
 
     validate_required_columns(df, REQUIRED_COLUMNS)
@@ -135,6 +135,6 @@ def preprocessing_pipeline(
             basal_delivery_type=basal_delivery_type,
         )
     except Exception as e:
-        logger.error(f"Error preprocessing patient {p_num}: {e}")
+        logger.error(f"Error preprocessing patient {patient_id}: {e}")
         raise
     return processed_df

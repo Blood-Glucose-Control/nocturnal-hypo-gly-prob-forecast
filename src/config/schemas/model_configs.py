@@ -59,7 +59,7 @@ class TSMixerModelConfigSchema(BaseConfigSchema):
 
     covariate_cols: list[str] = Field(default_factory=list)
     target_col: str = Field(default="bg_mM")
-    patient_col: str = Field(default="p_num")
+    patient_col: str = Field(default="patient_id")
     time_col: str = Field(default="datetime")
     interval_mins: int = Field(default=5, gt=0)
     imputation_threshold_mins: int = Field(default=45, gt=0)
@@ -368,7 +368,7 @@ class AutoGluonModelConfigSchema(BaseConfigSchema):
 
     covariate_cols: list[str] = Field(default_factory=list)
     target_col: str = Field(default="bg_mM", min_length=1)
-    patient_col: str = Field(default="p_num", min_length=1)
+    patient_col: str = Field(default="patient_id", min_length=1)
     time_col: str = Field(default="datetime", min_length=1)
     interval_mins: int = Field(default=5, gt=0)
 

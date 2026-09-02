@@ -1,13 +1,12 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 """
 Cache Manager for centralized data caching.
 
-This module provides a centralized cache management system for all datasets
-in the nocturnal project. It handles:
-- Automatic data fetching from external sources (Kaggle, HuggingFace, etc.)
+This module provides a centralized cache management system for all datasets.
+It handles:
+- Automatic data fetching from external sources
 - Cache directory structure management
 - Raw and processed data storage
 - Cache validation and cleanup
@@ -19,12 +18,10 @@ Root_dir/cache/data/{DatasetName}/processed
 
 import logging
 import shutil
-import subprocess
 from pathlib import Path
-from typing import Dict, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 import pandas as pd
-from typing_extensions import deprecated
 
 from ..utils.os_helper import get_project_root
 from .dataset_configs import (
@@ -87,28 +84,13 @@ class CacheManager:
             raise ValueError(f"Cache path not specified for dataset {dataset_name}")
         return self.get_dataset_cache_path(relative_cache_path) / data_type
 
-    @deprecated("No longer used, use get_absolute_path_by_type directly instead")
-    def get_raw_data_path(self, dataset_name: str) -> Path:
-        """Get the raw data path for a specific dataset."""
-        return self.get_absolute_path_by_type(dataset_name, "raw")
-
-    @deprecated("No longer used, use get_absolute_path_by_type directly instead")
-    def get_cleaning_step_data_path(self, dataset_name: str) -> Path:
-        """Get the cleaning step data path for a specific dataset."""
-        return self.get_absolute_path_by_type(dataset_name, "cleaning_step")
-
-    @deprecated("No longer used, use get_absolute_path_by_type directly instead")
-    def get_processed_data_path(self, dataset_name: str) -> Path:
-        """Get the processed data path for a specific dataset."""
-        return self.get_absolute_path_by_type(dataset_name, "processed")
-
     def ensure_raw_data(self, dataset_name: str, dataset_config: DatasetConfig) -> Path:
         """
         Ensure raw data iwavailable given a dataset configuration, fetching it if necessary.
 
         Args:
             dataset_name (str): Name of the dataset
-            dataset_config (Dict[str, Any]): Configuration for the dataset
+            dataset_config (DatasetConfig): Configuration for the dataset
 
         Returns:
             Path: Path to the raw data directory where we guarantee the raw data exist
@@ -130,9 +112,7 @@ class CacheManager:
             f"Raw data for {dataset_name} not found in cache: {raw_path} \n fetching from source"
         )
         source = dataset_config.source
-        if source == DatasetSourceType.KAGGLE_BRIS_T1D:
-            self._fetch_kaggle_data(dataset_name, raw_path, dataset_config)
-        elif source == DatasetSourceType.HUGGING_FACE:
+        if source == DatasetSourceType.HUGGING_FACE:
             self._fetch_huggingface_data(dataset_name, raw_path, dataset_config)
         elif source in (
             DatasetSourceType.ALEPPO_2017,
@@ -167,74 +147,6 @@ class CacheManager:
             return all((raw_path / file).exists() for file in required_files)
 
         return any(raw_path.iterdir())
-
-    def _fetch_kaggle_data(
-        self, dataset_name: str, raw_path: Path, dataset_config: DatasetConfig
-    ):
-        """
-        Fetch data from Kaggle. Note that Kaggle datasets already have their own caching mechanism.
-
-        Args:
-            dataset_name (str): Name of the dataset
-            raw_path (Path): Path to store the raw data
-            dataset_config (Dict[str, Any]): Dataset configuration
-
-        Raises:
-            RuntimeError: If Kaggle data fetching fails
-        """
-        raw_path.mkdir(parents=True, exist_ok=True)
-
-        competition_name = dataset_config.competition_name
-        if not competition_name:
-            raise ValueError(
-                f"Kaggle competition name not specified for dataset {dataset_name}"
-            )
-
-        try:
-            # Download from Kaggle
-            # Reference: https://github.com/Kaggle/kaggle-api/blob/main/docs/README.md#download-competition-files
-            # For example: kaggle competitions download -c brist1d -p cache/data/kaggle_brisT1D/Raw
-            logger.info(
-                f"Downloading {dataset_name} from Kaggle and saving to {raw_path}"
-            )
-            cmd = [
-                "kaggle",
-                "competitions",
-                "download",
-                "-c",
-                competition_name,
-                "-p",
-                str(raw_path),
-            ]
-            # Show the command to the user and ask for confirmation before running
-            print(
-                "\nWe automatically run the following command to download data from Kaggle:\n"
-            )
-            print("  " + " ".join(cmd) + "\n")
-            confirm = input("Proceed? Type 'y' or 'yes' to continue: ").strip().lower()
-            if confirm not in ("y", "yes"):
-                logger.info("Kaggle download aborted by user.")
-                return
-            print(f"Running command: {cmd}. This may take a while...")
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
-            logger.info(f"Downloaded {dataset_name} from Kaggle")
-
-            # Extract zip files
-            zip_files = list(raw_path.glob("*.zip"))
-            for zip_file in zip_files:
-                shutil.unpack_archive(str(zip_file), str(raw_path))
-                zip_file.unlink()  # Remove zip file after extraction
-
-            logger.info(f"Extracted {dataset_name} data")
-
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(
-                f"Failed to fetch Kaggle data for {dataset_name}: {e.stderr}"
-            )
-        except Exception as e:
-            raise RuntimeError(
-                f"Unexpected error fetching Kaggle data for {dataset_name}: {str(e)}"
-            )
 
     # TODO: Test this function once we do have a HuggingFace dataset to test with
     def _fetch_huggingface_data(
@@ -393,65 +305,6 @@ class CacheManager:
                 f"Failed to copy local data for {dataset_name}: {str(e)}"
             )
 
-    @deprecated(
-        "Deprecated because we no longer want to save by dataset type. It should just be processed data (we split at the code level)"
-    )
-    def get_processed_data_path_for_type(
-        self, dataset_name: str, dataset_type: str
-    ) -> Path:
-        """
-        Get the processed data path for a specific dataset type.
-
-        Args:
-            dataset_name (str): Name of the dataset
-            dataset_type (str): Type of dataset (train, test, etc.)
-
-        Returns:
-            Path: Path to the processed data for the specific type
-        """
-        processed_path = self.get_processed_data_path(dataset_name)
-        return processed_path / dataset_type
-
-    @deprecated(
-        "Deprecated because we no longer want to save by dataset type. It should just be processed data (we split at the code level). Use save_full_processed_data instead"
-    )
-    def save_processed_data(
-        self,
-        dataset_name: str,
-        dataset_type: str,
-        patient_id,
-        data,
-        file_format: str = "csv",
-    ):
-        """
-        Save processed data to cache. The index is datetime.
-
-        Args:
-            dataset_name (str): Name of the dataset
-            dataset_type (str): Type of dataset (train, test, etc.)
-            patient_id: ID of the patient
-            data: Data to save (DataFrame, dict, etc.)
-            file_format (str): Format to save the data in
-        """
-        processed_path = self.get_processed_data_path_for_type(
-            dataset_name, dataset_type
-        )
-        processed_path.mkdir(parents=True, exist_ok=True)
-
-        if file_format == "csv":
-            if hasattr(data, "to_csv"):
-                data.to_csv(
-                    processed_path / f"{patient_id}_{dataset_type}.csv", index=True
-                )
-            else:
-                raise ValueError(f"Cannot save data of type {type(data)} as CSV")
-        else:
-            raise ValueError(f"Unsupported file format: {file_format}")
-
-        logger.info(
-            f"\tSaved processed {dataset_type} data for {dataset_name} - patient: {patient_id}"
-        )
-
     def save_full_processed_data(
         self, dataset_name: str, data: dict[str, pd.DataFrame]
     ):
@@ -474,9 +327,32 @@ class CacheManager:
             f"Saved full processed data for {dataset_name} - {len(data)} patients"
         )
 
-    def _load_cached_patient_csv(self, csv_file: Path) -> pd.DataFrame:
+    def _load_cached_patient_csv(
+        self, csv_file: Path, keep_columns: List[str] | None = None
+    ) -> pd.DataFrame:
         """Load a cached patient CSV and normalize datetime index/column shape."""
-        df = pd.read_csv(csv_file, low_memory=False)
+        read_columns: List[str] | None = None
+        if keep_columns is not None:
+            header_columns = pd.read_csv(csv_file, nrows=0).columns.tolist()
+            if not header_columns:
+                raise ValueError(f"No columns found in cached patient file {csv_file}")
+
+            if "datetime" in header_columns:
+                datetime_source_col = "datetime"
+            elif "datetime.1" in header_columns:
+                datetime_source_col = "datetime.1"
+            else:
+                datetime_source_col = str(header_columns[0])
+
+            requested_columns = set(keep_columns)
+            requested_columns.add(datetime_source_col)
+            read_columns = [
+                column for column in header_columns if column in requested_columns
+            ]
+            if datetime_source_col not in read_columns:
+                read_columns.insert(0, datetime_source_col)
+
+        df = pd.read_csv(csv_file, low_memory=False, usecols=read_columns)
 
         datetime_source_col: str
         if "datetime" in df.columns:
@@ -556,7 +432,7 @@ class CacheManager:
         """
         import pickle
 
-        processed_path = self.get_processed_data_path(dataset_name)
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
         splits_path = processed_path / "splits"
         splits_path.mkdir(parents=True, exist_ok=True)
 
@@ -592,7 +468,7 @@ class CacheManager:
         """
         import pickle
 
-        processed_path = self.get_processed_data_path(dataset_name)
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
         splits_path = processed_path / "splits"
 
         if not splits_path.exists():
@@ -640,7 +516,7 @@ class CacheManager:
         self,
         dataset_name: str,
         file_format: str = "csv",
-        dataset_type: str | None = None,
+        keep_columns: List[str] | None = None,
     ) -> dict[str, pd.DataFrame] | None:
         """
         Load processed data with datetime index from cache. processed data has a naming convention of {patient_id}_full.csv
@@ -648,20 +524,11 @@ class CacheManager:
         Args:
             dataset_name (str): Name of the dataset
             file_format (str): Format of the saved data
-            dataset_type (str): Type of dataset (train, test, etc.) - Only used for kaggle_brisT1D for now because its test data is not in csv format
 
         Returns:
             Dictionary with patient IDs as keys and DataFrames as values, or None if not found
             Note: For test data with nested structure, returns None to trigger custom loading
         """
-        # Special handling for test data with nested structure - return None to trigger custom loading
-        if (
-            dataset_type == "test"
-            and dataset_name == DatasetSourceType.KAGGLE_BRIS_T1D.value
-        ):
-            return None
-
-        # We do the split at the code level not the cache level so we no longer need dataset_type here.
         processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
 
         if file_format == "csv":
@@ -677,7 +544,10 @@ class CacheManager:
 
                     if filename.endswith(suffix_to_remove):
                         patient_id = filename[: -len(suffix_to_remove)]
-                        df = self._load_cached_patient_csv(csv_file)
+                        df = self._load_cached_patient_csv(
+                            csv_file,
+                            keep_columns=keep_columns,
+                        )
                         result[patient_id] = df
 
                 return result if result else None
@@ -700,9 +570,7 @@ class CacheManager:
         import gzip
         import pickle
 
-        processed_path = self.get_processed_data_path_for_type(
-            dataset_name, dataset_type
-        )
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
 
         nested_data_file = processed_path / "nested_test_data.pkl.gz"
 
@@ -727,9 +595,7 @@ class CacheManager:
         Returns:
             bool: True if nested test data exists, False otherwise
         """
-        processed_path = self.get_processed_data_path_for_type(
-            dataset_name, dataset_type
-        )
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
         nested_data_file = processed_path / "nested_test_data.pkl.gz"
         return nested_data_file.exists()
 

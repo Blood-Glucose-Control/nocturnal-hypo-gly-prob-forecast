@@ -39,7 +39,7 @@ def _make_flat_df(n_patients=2, n_days=3, include_iob=False):
             {
                 "datetime": pd.date_range(f"2024-{i:02d}-01", periods=n, freq="5min"),
                 "bg_mM": rng.normal(8.0, 1.5, n).clip(2.2, 22.0),
-                "p_num": float(i),
+                "patient_id": float(i),
             }
         )
         if include_iob:

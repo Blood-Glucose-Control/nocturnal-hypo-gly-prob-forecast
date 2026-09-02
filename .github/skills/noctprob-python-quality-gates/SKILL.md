@@ -10,7 +10,7 @@ Use this skill for Python changes in this repository.
 ## 1) Interpreter expectations
 
 - Use the shared `.noctprob-venv` for general/core work.
-- For model-family work and model training/inference flows, use the model-specific
+- For model-family (`src/models/*`) work and model training/inference flows, use the model-specific
   environment in `.venvs/<family>/bin/python` when that family has isolated deps.
 - If imports are unexpectedly unresolved in model code, verify the selected
   interpreter before concluding the code is broken.

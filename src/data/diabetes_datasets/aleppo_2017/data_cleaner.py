@@ -1,23 +1,15 @@
 # Copyright (c) 2025 Blood-Glucose-Control
 # Licensed under Custom Research License (see LICENSE file)
-# For commercial licensing, contact: christopher/cjrisi AT gluroo/uwaterloo DOT com/ca
 
 import logging
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
-# from src.data.preprocessing.sampling import (
-#     grouped_ensure_regular_time_intervals_with_interpolation,
-#     InterpolationMethod,
-# )
-# from src.data.preprocessing.time_processing import ensure_datetime_index
 from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
 from pydantic import BaseModel
 
-# from src.data.preprocessing.sampling import create_subpatients
 from ....utils.os_helper import get_project_root
 from ....utils.unit import mg_dl_to_mmol_l
 from ...models import ColumnNames
@@ -43,7 +35,7 @@ default_config = PreprocessConfig()
 # 	pid	date	tableType	bolusType	normalBolus	expectedNormalBolus	extendedBolus	expectedExtendedBolus	bgInput	foodG	iob	cr	isf	bgMgdl	rate	suprBasalType	suprRate
 def data_translation(df_raw: pd.DataFrame) -> pd.DataFrame:
     """
-    'pid' -> p_num
+    'pid' -> patient_id
     'date' -> datetime
     'tableType' -> msg_type (bolus, wizard, cgm). wizard contains information like carbs intake
     'eventType': This is bolus type
@@ -214,38 +206,38 @@ def process_single_patient_file(patient_file_tuple: tuple) -> tuple:
             and processed_path is the destination directory.
 
     Returns:
-        tuple: Tuple containing (p_num, df) where p_num is the patient ID
+        tuple: Tuple containing (patient_id, df) where patient_id is the patient ID
             and df is the processed DataFrame.
     """
     filename, interim_path, processed_path = patient_file_tuple
 
     df = pd.read_csv(interim_path / filename)
 
-    # Process the patient first to get the formatted p_num for the output filename
+    # Process the patient first to get the formatted patient_id for the output filename
     df = process_one_patient(df)
 
     if df is None or df.empty:
         raise ValueError(f"Processed data is None or empty for patient {filename}")
 
-    raw_p_num = df[ColumnNames.P_NUM.value].iloc[0]
-    p_num = format_patient_id("aleppo_2017", raw_p_num)
-    df[ColumnNames.P_NUM.value] = p_num
+    raw_patient_id = df[ColumnNames.P_NUM.value].iloc[0]
+    patient_id = format_patient_id("aleppo_2017", raw_patient_id)
+    df[ColumnNames.P_NUM.value] = patient_id
 
     # Use formatted patient ID for output filename
-    save_path = processed_path / f"{p_num}_full.csv"
+    save_path = processed_path / f"{patient_id}_full.csv"
 
     # Don't process if already exists
     if save_path.exists():
         # Read the existing file and return it
         df = pd.read_csv(save_path, index_col=0)
-        logger.info(f"Skipping pid {p_num} because {save_path} already exists.")
-        return (p_num, df)
+        logger.info(f"Skipping pid {patient_id} because {save_path} already exists.")
+        return (patient_id, df)
 
     # Save the processed data
     df.to_csv(save_path, index=True)
-    logger.info(f"Done processing pid {p_num}")
+    logger.info(f"Done processing pid {patient_id}")
 
-    return (p_num, df)
+    return (patient_id, df)
 
 
 # We can parallelize this by using multiprocessing because each patient is independent of each other.
@@ -297,10 +289,10 @@ def clean_all_patients(
                 filename = future_to_filename[future]
                 progress = f"({index}/{total_patients})"
                 try:
-                    p_num, df = future.result()
-                    processed_data[p_num] = df
+                    patient_id, df = future.result()
+                    processed_data[patient_id] = df
                     logger.info(
-                        f"Successfully processed patient {p_num} from {filename} {progress}"
+                        f"Successfully processed patient {patient_id} from {filename} {progress}"
                     )
                     logger.info(
                         f"{'-' * 10}Done processing pid {filename} {progress} {'-' * 10}"
@@ -316,7 +308,7 @@ def clean_all_patients(
             progress = f"({index}/{total_patients})"
             df = pd.read_csv(interim_path / filename)
 
-            # Process to get formatted p_num for output filename
+            # Process to get formatted patient_id for output filename
             df = process_one_patient(df)
             if df is None or df.empty:
                 logger.error(
@@ -324,26 +316,28 @@ def clean_all_patients(
                 )
                 continue
 
-            raw_p_num = df[ColumnNames.P_NUM.value].iloc[0]
-            p_num = format_patient_id("aleppo_2017", raw_p_num)
-            df[ColumnNames.P_NUM.value] = p_num
+            raw_patient_id = df[ColumnNames.P_NUM.value].iloc[0]
+            patient_id = format_patient_id("aleppo_2017", raw_patient_id)
+            df[ColumnNames.P_NUM.value] = patient_id
 
             # Use formatted patient ID for output filename
-            save_path = processed_path / f"{p_num}_full.csv"
+            save_path = processed_path / f"{patient_id}_full.csv"
 
             # Don't save if the processed data already exists
             if save_path.exists():
                 logger.info(
-                    f"Skipping pid {p_num} because {save_path} already exists {progress}."
+                    f"Skipping pid {patient_id} because {save_path} already exists {progress}."
                 )
                 df = pd.read_csv(save_path, index_col=0)
-                processed_data[p_num] = df
+                processed_data[patient_id] = df
                 continue
 
             # Save the processed data
-            processed_data[p_num] = df
+            processed_data[patient_id] = df
             df.to_csv(save_path, index=True)
-            logger.info(f"{'-' * 10}Done processing pid {p_num} {progress} {'-' * 10}")
+            logger.info(
+                f"{'-' * 10}Done processing pid {patient_id} {progress} {'-' * 10}"
+            )
 
     return processed_data
 

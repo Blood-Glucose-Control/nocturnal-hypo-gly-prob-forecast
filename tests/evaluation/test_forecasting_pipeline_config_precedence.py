@@ -64,7 +64,7 @@ def test_step5_preserves_yaml_precedence_when_cli_overrides_are_none(
 
     combined = pd.DataFrame(
         {
-            "p_num": [1],
+            "patient_id": [1],
             "id": [1],
             "datetime": [pd.Timestamp("2025-01-01")],
             "bg_mM": [6.0],

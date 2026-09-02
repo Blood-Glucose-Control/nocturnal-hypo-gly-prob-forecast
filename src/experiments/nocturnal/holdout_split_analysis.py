@@ -306,7 +306,7 @@ def cohort_summary(
     forecast_length: int = 96,
     target_col: str = "bg_mM",
     interval_mins: int = 5,
-    patient_col: str = "p_num",
+    patient_col: str = "patient_id",
 ) -> dict:
     """Compute the per-cohort summary stats requested for the variance check.
 
@@ -375,7 +375,7 @@ def build_three_way_cohort_stats(
     forecast_length: int = 96,
     target_col: str = "bg_mM",
     interval_mins: int = 5,
-    patient_col: str = "p_num",
+    patient_col: str = "patient_id",
 ) -> list[dict]:
     """Compute cohort stats for ``patient_holdout``, ``temporal_holdout``,
     and ``temporal_train`` for one dataset.

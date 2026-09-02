@@ -152,6 +152,8 @@ def get_loader(
         return Brown2019DataLoader(
             keep_columns=keep_columns,
             use_cached=use_cached,
+            parallel=parallel,
+            max_workers=max_workers,
         )
     elif data_source_name == "tamborlane_2008":
         return Tamborlane2008DataLoader(
