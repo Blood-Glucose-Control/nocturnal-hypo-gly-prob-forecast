@@ -23,13 +23,13 @@ class TestKeepTopNMeals:
 
         # For each day, check that the kept meals are the top n by carbs
         for day, day_meals in grouped_original:
-            top_n_carbs = day_meals.nlargest(n_top_carb_meals, "food_g")[
-                "food_g"
+            top_n_carbs = day_meals.nlargest(n_top_carb_meals, "carbohydrate_g")[
+                "carbohydrate_g"
             ].values
             kept_meals = result_df[
                 (result_df["day_start_shift"] == day)
                 & (result_df["msg_type"] == "ANNOUNCE_MEAL")
-            ]["food_g"].values
+            ]["carbohydrate_g"].values
 
             assert len(kept_meals) <= n_top_carb_meals
             assert all(carb in top_n_carbs for carb in kept_meals)
@@ -49,8 +49,10 @@ class TestKeepTopNMeals:
             kept_meals = result_df[
                 (result_df["day_start_shift"] == day)
                 & (result_df["msg_type"] == "ANNOUNCE_MEAL")
-            ]["food_g"].values
+            ]["carbohydrate_g"].values
             assert all(
                 kept_meals
-                == day_meals.nlargest(n_top_carb_meals, "food_g")["food_g"].values
+                == day_meals.nlargest(n_top_carb_meals, "carbohydrate_g")[
+                    "carbohydrate_g"
+                ].values
             )

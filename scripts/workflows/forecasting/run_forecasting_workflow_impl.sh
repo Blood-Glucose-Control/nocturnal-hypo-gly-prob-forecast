@@ -163,9 +163,9 @@ echo ""
 
 # Set optimal threading based on available CPUs
 CPU_COUNT=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
-export OMpatient_id_THREADS=${OMpatient_id_THREADS:-$CPU_COUNT}
+export OMP_NUM_THREADS=${OMP_NUM_THREADS:-$CPU_COUNT}
 echo "CPU cores available: $CPU_COUNT"
-echo "OMpatient_id_THREADS: $OMpatient_id_THREADS"
+echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
 
 # =============================================================================
 # RUN WORKFLOW

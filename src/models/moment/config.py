@@ -76,7 +76,7 @@ class MomentDataConfig:
                 "carb_availability",
                 "insulin_availability",
                 "iob",
-                "steps",
+                "step_count",
             ]
 
         if self.target_features is None:

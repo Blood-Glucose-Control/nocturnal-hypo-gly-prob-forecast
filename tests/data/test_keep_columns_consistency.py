@@ -27,7 +27,7 @@ def _sample_cached_processed_data() -> dict[str, pd.DataFrame]:
             "patient_id": ["p001"] * 4,
             "bg_mM": [6.1, 6.0, 5.9, 6.2],
             "dose_units": [0.0, 0.5, 0.0, 1.0],
-            "food_g": [0.0, 10.0, 0.0, 0.0],
+            "carbohydrate_g": [0.0, 10.0, 0.0, 0.0],
         },
         index=pd.date_range("2024-01-01 00:00:00", periods=4, freq="5min"),
     )
@@ -114,7 +114,7 @@ def test_base_keep_columns_none_returns_full_processed_schema():
         "patient_id",
         "bg_mM",
         "dose_units",
-        "food_g",
+        "carbohydrate_g",
     ]
     assert patient_df.index.name == "datetime"
 

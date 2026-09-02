@@ -120,7 +120,7 @@ fi
 cpus_per_task="${SLURM_CPUS_PER_TASK:-32}"
 if [[ "$strategy" == "cpu" ]]; then
     export CUDA_VISIBLE_DEVICES=""
-    export OMpatient_id_THREADS="${OMpatient_id_THREADS:-$cpus_per_task}"
+    export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$cpus_per_task}"
     export WORLD_SIZE=1
 else
     gpu_csv="$(IFS=,; echo "${selected_gpus[*]}")"
@@ -130,7 +130,7 @@ else
     fi
     export CUDA_DEVICE_ORDER=PCI_BUS_ID
     export CUDA_VISIBLE_DEVICES="$gpu_csv"
-    export OMpatient_id_THREADS="${OMpatient_id_THREADS:-$threads_per_gpu}"
+    export OMP_NUM_THREADS="${OMP_NUM_THREADS:-$threads_per_gpu}"
     export WORLD_SIZE="$target_num_gpus"
 fi
 export PYTORCH_ALLOC_CONF="${PYTORCH_ALLOC_CONF:-expandable_segments:True}"
@@ -159,7 +159,7 @@ echo "Target GPUs: $target_num_gpus"
 echo "Strategy: $strategy"
 echo "CUDA_VISIBLE_DEVICES: ${CUDA_VISIBLE_DEVICES:-<none>}"
 echo "WORLD_SIZE: $WORLD_SIZE"
-echo "OMpatient_id_THREADS: $OMpatient_id_THREADS"
+echo "OMP_NUM_THREADS: $OMP_NUM_THREADS"
 echo "Run ID: $RUN_ID"
 echo "========================================="
 echo ""

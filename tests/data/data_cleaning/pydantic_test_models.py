@@ -12,7 +12,7 @@ class MealRecord(BaseModel):
 
     timestamp: datetime
     msg_type: str
-    food_g: float
+    carbohydrate_g: float
     day_start_shift: Optional[int] = None
 
     @field_validator("msg_type")
@@ -22,10 +22,10 @@ class MealRecord(BaseModel):
             raise ValueError(f"msg_type must be one of {valid_types}")
         return v
 
-    @field_validator("food_g")
-    def validate_food_g(cls, v):
+    @field_validator("carbohydrate_g")
+    def validate_carbohydrate_g(cls, v):
         if v < 0:
-            raise ValueError("food_g must be non-negative")
+            raise ValueError("carbohydrate_g must be non-negative")
         return v
 
 

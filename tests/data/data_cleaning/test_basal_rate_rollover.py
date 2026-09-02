@@ -25,7 +25,7 @@ class TestRolloverBasalRate:
             "patient_id": ["patient_01"] * 18,
             "bg_mM": [5.0] * 18,
             "dose_units": [0.0] * 18,
-            "food_g": [0.0] * 18,
+            "carbohydrate_g": [0.0] * 18,
             ColumnNames.BASAL_DURATION_MINS.value: [None] * 18,
         }
 
@@ -56,7 +56,7 @@ class TestRolloverBasalRate:
             "patient_id": ["patient_01"] * 15,
             "bg_mM": [5.0] * 15,
             "dose_units": [0.0] * 15,
-            "food_g": [0.0] * 15,
+            "carbohydrate_g": [0.0] * 15,
             ColumnNames.BASAL_DURATION_MINS.value: [None] * 15,
         }
 
@@ -87,7 +87,7 @@ class TestRolloverBasalRate:
             "patient_id": ["patient_01"] * 8,
             "bg_mM": [5.0] * 8,
             "dose_units": [0.0] * 8,
-            "food_g": [0.0] * 8,
+            "carbohydrate_g": [0.0] * 8,
             ColumnNames.BASAL_DURATION_MINS.value: [None] * 8,
         }
 
@@ -284,7 +284,7 @@ class TestRolloverBasalAutomated:
             "patient_id": ["patient_01"] * 18,
             "bg_mM": [5.0] * 18,
             "dose_units": [0.0] * 18,
-            "food_g": [0.0] * 18,
+            "carbohydrate_g": [0.0] * 18,
             ColumnNames.RATE.value: [None] * 18,  # Will set specific rates
         }
 

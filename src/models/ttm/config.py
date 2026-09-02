@@ -79,7 +79,7 @@ class TTMConfig(ModelConfig):
             "carb_availability",
             "insulin_availability",
             "iob",
-            "steps",
+            "step_count",
         ]
     )
     target_features: List[str] = field(default_factory=lambda: ["bg_mM"])

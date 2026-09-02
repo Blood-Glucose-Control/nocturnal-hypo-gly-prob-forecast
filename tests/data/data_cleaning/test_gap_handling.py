@@ -227,7 +227,7 @@ class TestEdgeCasesAndContracts:
                     np.nan,
                     2.0,
                 ],
-                "food_g": [
+                "carbohydrate_g": [
                     10.0,
                     np.nan,
                     np.nan,
@@ -287,7 +287,7 @@ class TestEdgeCasesAndContracts:
         )
         # Event columns still have NaN (not interpolated to fractional values)
         assert result["p1_seg_0"]["dose_units"].isna().sum() == 18
-        assert result["p1_seg_0"]["food_g"].isna().sum() == 19
+        assert result["p1_seg_0"]["carbohydrate_g"].isna().sum() == 19
 
     def test_segmentation_only_at_bg_gaps_not_event_gaps(self):
         """
@@ -312,7 +312,7 @@ class TestEdgeCasesAndContracts:
                     9.0,
                     10.0,
                 ],
-                "steps": [
+                "step_count": [
                     100.0,
                     np.nan,
                     np.nan,
@@ -337,14 +337,14 @@ class TestEdgeCasesAndContracts:
         np.testing.assert_array_almost_equal(
             result["p1_seg_0"]["bg_mM"].values, [1.0, 2.0, 3.0]
         )
-        assert result["p1_seg_0"]["steps"].iloc[0] == 100.0
-        assert result["p1_seg_0"]["steps"].isna().sum() == 2
+        assert result["p1_seg_0"]["step_count"].iloc[0] == 100.0
+        assert result["p1_seg_0"]["step_count"].isna().sum() == 2
         # Second segment: bg values [9, 10], steps has 1 NaN
         np.testing.assert_array_almost_equal(
             result["p1_seg_1"]["bg_mM"].values, [9.0, 10.0]
         )
-        assert result["p1_seg_1"]["steps"].iloc[-1] == 1000.0
-        assert result["p1_seg_1"]["steps"].isna().sum() == 1
+        assert result["p1_seg_1"]["step_count"].iloc[-1] == 1000.0
+        assert result["p1_seg_1"]["step_count"].isna().sum() == 1
 
     def test_input_data_not_mutated(self):
         df = _make_series_df([1.0, np.nan, np.nan, 4.0, 5.0])

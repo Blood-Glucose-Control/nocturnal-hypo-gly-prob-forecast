@@ -115,8 +115,8 @@ def create_cob_and_carb_availability_cols(
 
     logger.info("\tProcessing glucose dynamics")
     # Single patient processing only
-    for meal_time in result_df.index[result_df["food_g"].notna()]:
-        meal_value = result_df.loc[meal_time, "food_g"]
+    for meal_time in result_df.index[result_df["carbohydrate_g"].notna()]:
+        meal_value = result_df.loc[meal_time, "carbohydrate_g"]
         # Simulate glucose dynamics
         meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
             meal_value, CARB_ABSORPTION, ts_min, T_ACTION_MAX_MIN
@@ -169,11 +169,11 @@ def _deprecated_2_create_cob_and_carb_availability_cols(
         raise ValueError("DataFrame must have a datetime index")
 
     # Single patient processing only
-    for meal_time in result_df.index[result_df["food_g"].notna()]:
+    for meal_time in result_df.index[result_df["carbohydrate_g"].notna()]:
         # print(f"\n Processing meal at {meal_time}")
         # print(f" Meal time type: {type(meal_time)}")
         # print(f" Meal time index: {result_df.loc[meal_time, 'id']}")
-        meal_value = result_df.loc[meal_time, "food_g"]
+        meal_value = result_df.loc[meal_time, "carbohydrate_g"]
         # print(f" Meal value: {meal_value} g")
         meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
             meal_value, CARB_ABSORPTION, ts_min, T_ACTION_MAX_MIN
@@ -241,8 +241,8 @@ def _deprecated_create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.Da
 
         for _, patient_df in result_df.groupby("patient_id"):
             # Calculate for this patient
-            for meal_time in patient_df.index[patient_df["food_g"].notna()]:
-                meal_value = patient_df.loc[meal_time, "food_g"]
+            for meal_time in patient_df.index[patient_df["carbohydrate_g"].notna()]:
+                meal_value = patient_df.loc[meal_time, "carbohydrate_g"]
                 meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
                     meal_value, CARB_ABSORPTION, TS_MIN, T_ACTION_MAX_MIN
                 )
@@ -275,8 +275,8 @@ def _deprecated_create_cob_and_carb_availability_cols(df: pd.DataFrame) -> pd.Da
                     next_index += pd.Timedelta(minutes=1)  # Use timedelta
     else:
         # Single patient processing
-        for meal_time in result_df.index[result_df["food_g"].notna()]:
-            meal_value = result_df.loc[meal_time, "food_g"]
+        for meal_time in result_df.index[result_df["carbohydrate_g"].notna()]:
+            meal_value = result_df.loc[meal_time, "carbohydrate_g"]
             meal_avail, cob = calculate_carb_availability_and_cob_single_meal(
                 meal_value, CARB_ABSORPTION, TS_MIN, T_ACTION_MAX_MIN
             )
