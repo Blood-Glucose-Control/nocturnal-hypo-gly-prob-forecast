@@ -26,10 +26,16 @@ STATIC_COVARIATES_FILE = "static_covariates.csv"
 PROCESSED_PATIENT_PARQUET_DIR = "patient_timeseries_parquet"
 PATIENT_PARTITION_PREFIX = "patient_id="
 PATIENT_PARQUET_SUFFIX = ".parquet"
-STATIC_CATEGORICAL_COLUMNS = (
+STATIC_COVARIATE_COLUMNS = (
+    "age",
+    "age_of_diagnosis",
+    "age_at_diagnosis",
+    "air_temp",
     "cgm_device",
     "ethnicity",
+    "extension_date",
     "gender",
+    "height",
     "insulin_delivery_algorithm",
     "insulin_delivery_device",
     "insulin_delivery_modality",
@@ -37,9 +43,11 @@ STATIC_CATEGORICAL_COLUMNS = (
     "insulin_type_bolus",
     "is_test",
     "is_pregnant",
+    "randomization_date",
     "source_file",
     "subject_split_across_traintest",
     "treatment_group",
+    "weight",
 )
 
 
@@ -589,7 +597,7 @@ class MetabonetDataLoader(DatasetBase):
             return static_row, patient_df
 
         columns_to_drop: list[str] = []
-        for column in STATIC_CATEGORICAL_COLUMNS:
+        for column in STATIC_COVARIATE_COLUMNS:
             if column not in patient_df.columns:
                 continue
             non_null_values = patient_df[column].dropna().tolist()

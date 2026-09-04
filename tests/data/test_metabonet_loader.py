@@ -92,7 +92,7 @@ def test_metabonet_loader_processes_train_cache_without_load_all(
         }
     )
     assert static_patient_id_prefixes == ["101", "202"]
-    assert "age" not in static_covariates_df.columns
+    assert "age" in static_covariates_df.columns
     assert "treatment_group" in static_covariates_df.columns
     assert "ethnicity" in static_covariates_df.columns
     assert "is_test" in static_covariates_df.columns
@@ -125,7 +125,7 @@ def test_metabonet_loader_load_all_materializes_processed_data(
         if patient_id.split("_", 1)[0] == "101"
     )
     assert "bg_mM" in loader.processed_data[patient_101_id].columns
-    assert "age" in loader.processed_data[patient_101_id].columns
+    assert "age" not in loader.processed_data[patient_101_id].columns
     assert "treatment_group" not in loader.processed_data[patient_101_id].columns
 
 
@@ -208,8 +208,8 @@ def test_metabonet_loader_uses_fixed_static_covariate_column_policy(
         if patient_id.split("_", 1)[0] == "101"
     )
     patient_df = loader.processed_data[patient_101_id]
-    assert "age" in patient_df.columns
-    assert "age_of_diagnosis" in patient_df.columns
+    assert "age" not in patient_df.columns
+    assert "age_of_diagnosis" not in patient_df.columns
     assert "treatment_group" not in patient_df.columns
     static_covariates_df = pd.read_csv(
         cache_manager.get_absolute_path_by_type("metabonet", "processed")
@@ -218,6 +218,8 @@ def test_metabonet_loader_uses_fixed_static_covariate_column_policy(
     patient_101_static = static_covariates_df.loc[
         static_covariates_df["patient_id"].astype(str) == patient_101_id
     ]
+    assert patient_101_static["age"].iloc[0] == 30
+    assert patient_101_static["age_of_diagnosis"].iloc[0] == 12
     assert patient_101_static["treatment_group"].iloc[0] == "A"
 
 
