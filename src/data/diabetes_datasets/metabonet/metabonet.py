@@ -23,30 +23,32 @@ from .data_cleaner import (
 logger = logging.getLogger(__name__)
 PROCESSED_COMPLETE_MARKER = ".metabonet_train_cache_complete"
 STATIC_COVARIATES_FILE = "static_covariates.csv"
+PIECEWISE_STATIC_COVARIATES_FILE = "piecewise_static_covariates.parquet"
 PROCESSED_PATIENT_PARQUET_DIR = "patient_timeseries_parquet"
 PATIENT_PARTITION_PREFIX = "patient_id="
 PATIENT_PARQUET_SUFFIX = ".parquet"
 STATIC_COVARIATE_COLUMNS = (
     "age",
     "age_of_diagnosis",
-    "age_at_diagnosis",
-    "air_temp",
-    "cgm_device",
     "ethnicity",
     "extension_date",
     "gender",
+    "is_test",
+    "is_pregnant",
+    "randomization_date",
+    "source_file",
+    "treatment_group",
+)
+PIECEWISE_STATIC_COVARIATE_COLUMNS = (
     "height",
+    "weight",
+    "cgm_device",
     "insulin_delivery_algorithm",
     "insulin_delivery_device",
     "insulin_delivery_modality",
     "insulin_type_basal",
     "insulin_type_bolus",
-    "is_test",
-    "is_pregnant",
-    "randomization_date",
-    "source_file",
     "subject_split_across_traintest",
-    "treatment_group",
     "weight",
 )
 
@@ -83,6 +85,7 @@ class MetabonetDataLoader(DatasetBase):
         self.dataset_config: DatasetConfig = get_dataset_config(self.dataset_name)
         self.test_data: dict[str, dict[str, pd.DataFrame]] = {}
         self.static_covariates: pd.DataFrame | None = None
+        self.piecewise_static_covariates: pd.DataFrame | None = None
 
         logger.info(
             "Initializing %s with use_cached=%s.",
@@ -112,6 +115,9 @@ class MetabonetDataLoader(DatasetBase):
                         )
                     self.processed_data = cached_data
                     self.static_covariates = self._load_static_covariates_from_cache()
+                    self.piecewise_static_covariates = (
+                        self._load_piecewise_static_covariates_from_cache()
+                    )
                 else:
                     self.processed_data = self._apply_keep_columns_filter(
                         self._process_and_cache_data()
@@ -124,6 +130,9 @@ class MetabonetDataLoader(DatasetBase):
                     )
                     self.processed_data = {}
                     self.static_covariates = self._load_static_covariates_from_cache()
+                    self.piecewise_static_covariates = (
+                        self._load_piecewise_static_covariates_from_cache()
+                    )
                 else:
                     self.processed_data = self._process_and_cache_data()
         else:
@@ -287,7 +296,9 @@ class MetabonetDataLoader(DatasetBase):
         grouped = normalized_train_df.groupby("patient_id", sort=False)
         total_patients = int(normalized_train_df["patient_id"].nunique())
         train_data: ProcessedPatientDataFrames = {}
-        static_rows: list[dict[str, object]] = []
+        static_covariates_by_patient: dict[str, dict[str, object]] = {}
+        piecewise_rows: list[dict[str, object]] = []
+        piecewise_active_states: dict[tuple[str, str], dict[str, object]] = {}
 
         processed_path = self.cache_manager.get_absolute_path_by_type(
             self.dataset_name, "processed"
@@ -303,21 +314,44 @@ class MetabonetDataLoader(DatasetBase):
             desc="Processing Metabonet train patients",
             unit="patient",
         ):
+            normalized_patient_id = str(patient_id)
+            self._update_piecewise_covariate_segments(
+                patient_df=patient_df,
+                patient_id=normalized_patient_id,
+                active_states=piecewise_active_states,
+                completed_rows=piecewise_rows,
+            )
             static_row, timeseries_df = self._split_static_covariates_from_patient_df(
                 patient_df.copy(),
-                str(patient_id),
+                normalized_patient_id,
             )
-            static_rows.append(static_row)
+            existing_static_row = static_covariates_by_patient.get(
+                normalized_patient_id
+            )
+            if existing_static_row is None:
+                static_covariates_by_patient[normalized_patient_id] = static_row
+            else:
+                static_covariates_by_patient[normalized_patient_id] = (
+                    self._merge_static_covariate_rows(
+                        existing_static_row,
+                        static_row,
+                    )
+                )
             self._write_patient_parquet_fragment(
                 processed_path=processed_path,
-                patient_id=str(patient_id),
+                patient_id=normalized_patient_id,
                 timeseries_df=timeseries_df,
                 fragment_id="000000",
             )
             if self.load_all:
-                train_data[str(patient_id)] = timeseries_df
+                train_data[normalized_patient_id] = timeseries_df
 
-        self._save_static_covariates(static_rows)
+        self._finalize_piecewise_covariate_segments(
+            active_states=piecewise_active_states,
+            completed_rows=piecewise_rows,
+        )
+        self._save_static_covariates(list(static_covariates_by_patient.values()))
+        self._save_piecewise_static_covariates(piecewise_rows)
         self._write_processed_completion_marker(total_patients)
         if self.load_all:
             return train_data
@@ -347,6 +381,8 @@ class MetabonetDataLoader(DatasetBase):
         patient_partitions_path.mkdir(parents=True, exist_ok=True)
 
         static_covariates_by_patient: dict[str, dict[str, object]] = {}
+        piecewise_rows: list[dict[str, object]] = []
+        piecewise_active_states: dict[tuple[str, str], dict[str, object]] = {}
         seen_patients: set[str] = set()
         patient_progress = tqdm(
             desc="Processing Metabonet train patients", unit="patient"
@@ -368,6 +404,12 @@ class MetabonetDataLoader(DatasetBase):
                 "patient_id", sort=False
             ):
                 normalized_patient_id = str(patient_id)
+                self._update_piecewise_covariate_segments(
+                    patient_df=patient_df,
+                    patient_id=normalized_patient_id,
+                    active_states=piecewise_active_states,
+                    completed_rows=piecewise_rows,
+                )
                 static_row, timeseries_df = (
                     self._split_static_covariates_from_patient_df(
                         patient_df.copy(),
@@ -401,7 +443,12 @@ class MetabonetDataLoader(DatasetBase):
         if not seen_patients:
             raise ValueError("Metabonet train parquet has no patient IDs.")
 
+        self._finalize_piecewise_covariate_segments(
+            active_states=piecewise_active_states,
+            completed_rows=piecewise_rows,
+        )
         self._save_static_covariates(list(static_covariates_by_patient.values()))
+        self._save_piecewise_static_covariates(piecewise_rows)
         self._write_processed_completion_marker(len(seen_patients))
 
         if self.load_all:
@@ -496,6 +543,12 @@ class MetabonetDataLoader(DatasetBase):
         if not marker_path.exists():
             return False
 
+        if self.split_static_covariates:
+            if not (processed_path / STATIC_COVARIATES_FILE).exists():
+                return False
+            if not (processed_path / PIECEWISE_STATIC_COVARIATES_FILE).exists():
+                return False
+
         patient_partition_dirs = self._list_cached_patient_partition_dirs(
             processed_path
         )
@@ -531,6 +584,9 @@ class MetabonetDataLoader(DatasetBase):
         current_static_covariates = processed_path / STATIC_COVARIATES_FILE
         if current_static_covariates.exists():
             current_static_covariates.unlink()
+        piecewise_static_covariates = processed_path / PIECEWISE_STATIC_COVARIATES_FILE
+        if piecewise_static_covariates.exists():
+            piecewise_static_covariates.unlink()
         for stale_static_covariates in processed_path.glob("*_static_covariates.csv"):
             if stale_static_covariates.name == STATIC_COVARIATES_FILE:
                 continue
@@ -603,8 +659,14 @@ class MetabonetDataLoader(DatasetBase):
             non_null_values = patient_df[column].dropna().tolist()
             static_row[column] = non_null_values[0] if non_null_values else None
             columns_to_drop.append(column)
+        for column in PIECEWISE_STATIC_COVARIATE_COLUMNS:
+            if column in patient_df.columns:
+                columns_to_drop.append(column)
 
-        return static_row, patient_df.drop(columns=columns_to_drop, errors="ignore")
+        return static_row, patient_df.drop(
+            columns=list(dict.fromkeys(columns_to_drop)),
+            errors="ignore",
+        )
 
     def _save_static_covariates(self, static_rows: list[dict[str, object]]) -> None:
         if not static_rows:
@@ -631,6 +693,120 @@ class MetabonetDataLoader(DatasetBase):
         if not static_covariates_path.exists():
             return None
         return pd.read_csv(static_covariates_path, low_memory=False)
+
+    def _save_piecewise_static_covariates(
+        self, piecewise_rows: list[dict[str, object]]
+    ) -> None:
+        if not piecewise_rows:
+            self.piecewise_static_covariates = pd.DataFrame(
+                columns=[
+                    "patient_id",
+                    "covariate",
+                    "start_datetime",
+                    "end_datetime",
+                    "value",
+                ]
+            )
+        else:
+            self.piecewise_static_covariates = pd.DataFrame(piecewise_rows)
+
+        processed_path = self.cache_manager.get_absolute_path_by_type(
+            self.dataset_name, "processed"
+        )
+        processed_path.mkdir(parents=True, exist_ok=True)
+        self.piecewise_static_covariates.to_parquet(
+            processed_path / PIECEWISE_STATIC_COVARIATES_FILE,
+            index=False,
+        )
+
+    def _load_piecewise_static_covariates_from_cache(self) -> pd.DataFrame | None:
+        processed_path = self.cache_manager.get_absolute_path_by_type(
+            self.dataset_name, "processed"
+        )
+        piecewise_covariates_path = processed_path / PIECEWISE_STATIC_COVARIATES_FILE
+        if not piecewise_covariates_path.exists():
+            return None
+        return pd.read_parquet(piecewise_covariates_path)
+
+    def _update_piecewise_covariate_segments(
+        self,
+        *,
+        patient_df: pd.DataFrame,
+        patient_id: str,
+        active_states: dict[tuple[str, str], dict[str, object]],
+        completed_rows: list[dict[str, object]],
+    ) -> None:
+        if not self.split_static_covariates:
+            return
+
+        for covariate in PIECEWISE_STATIC_COVARIATE_COLUMNS:
+            if covariate not in patient_df.columns:
+                continue
+            series = patient_df[covariate].dropna()
+            if series.empty:
+                continue
+
+            state_key = (patient_id, covariate)
+            for timestamp, value in series.items():
+                active_state = active_states.get(state_key)
+                if active_state is None:
+                    active_states[state_key] = {
+                        "start_datetime": timestamp,
+                        "last_seen_datetime": timestamp,
+                        "value": value,
+                    }
+                    continue
+
+                last_seen_datetime = active_state["last_seen_datetime"]
+                if not isinstance(last_seen_datetime, pd.Timestamp):
+                    raise ValueError(
+                        "Piecewise covariate tracker encountered invalid timestamp type."
+                    )
+                if timestamp < last_seen_datetime:
+                    raise ValueError(
+                        "Piecewise covariate timestamps are not monotonic for "
+                        f"patient {patient_id}, covariate {covariate}."
+                    )
+
+                if active_state["value"] == value:
+                    active_state["last_seen_datetime"] = timestamp
+                    continue
+
+                completed_rows.append(
+                    {
+                        "patient_id": patient_id,
+                        "covariate": covariate,
+                        "start_datetime": active_state["start_datetime"],
+                        "end_datetime": timestamp,
+                        "value": active_state["value"],
+                    }
+                )
+                active_states[state_key] = {
+                    "start_datetime": timestamp,
+                    "last_seen_datetime": timestamp,
+                    "value": value,
+                }
+
+    def _finalize_piecewise_covariate_segments(
+        self,
+        *,
+        active_states: dict[tuple[str, str], dict[str, object]],
+        completed_rows: list[dict[str, object]],
+    ) -> None:
+        if not self.split_static_covariates:
+            return
+
+        for (patient_id, covariate), state in active_states.items():
+            completed_rows.append(
+                {
+                    "patient_id": patient_id,
+                    "covariate": covariate,
+                    "start_datetime": state["start_datetime"],
+                    "end_datetime": None,
+                    "value": state["value"],
+                }
+            )
+        active_states.clear()
 
     def _merge_static_covariate_rows(
         self,

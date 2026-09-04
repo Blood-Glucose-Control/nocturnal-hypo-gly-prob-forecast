@@ -27,6 +27,7 @@ def _write_metabonet_split_files(raw_path: Path) -> None:
             "treatment_group": ["A", "A", "B"],
             "ethnicity": ["eth_a", "eth_a", "eth_b"],
             "is_test": [False, False, False],
+            "cgm_device": ["dexcom_g6", "dexcom_g6", "libre_2"],
         }
     )
     test_df = pd.DataFrame(
@@ -84,6 +85,9 @@ def test_metabonet_loader_processes_train_cache_without_load_all(
     static_covariates_df = pd.read_csv(
         processed_path / metabonet_module.STATIC_COVARIATES_FILE
     )
+    piecewise_covariates_df = pd.read_parquet(
+        processed_path / metabonet_module.PIECEWISE_STATIC_COVARIATES_FILE
+    )
     assert not (processed_path / "540_static_covariates.csv").exists()
     static_patient_id_prefixes = sorted(
         {
@@ -93,9 +97,12 @@ def test_metabonet_loader_processes_train_cache_without_load_all(
     )
     assert static_patient_id_prefixes == ["101", "202"]
     assert "age" in static_covariates_df.columns
+    assert "cgm_device" not in static_covariates_df.columns
     assert "treatment_group" in static_covariates_df.columns
     assert "ethnicity" in static_covariates_df.columns
     assert "is_test" in static_covariates_df.columns
+    assert set(piecewise_covariates_df["covariate"]) == {"cgm_device"}
+    assert loader.piecewise_static_covariates is not None
 
 
 def test_metabonet_loader_load_all_materializes_processed_data(
@@ -127,6 +134,7 @@ def test_metabonet_loader_load_all_materializes_processed_data(
     assert "bg_mM" in loader.processed_data[patient_101_id].columns
     assert "age" not in loader.processed_data[patient_101_id].columns
     assert "treatment_group" not in loader.processed_data[patient_101_id].columns
+    assert "cgm_device" not in loader.processed_data[patient_101_id].columns
 
 
 def test_metabonet_loader_load_test_data_returns_nested_segments(
@@ -180,6 +188,7 @@ def test_metabonet_loader_uses_fixed_static_covariate_column_policy(
             "age_of_diagnosis": [12, 12, 20],
             "source_file": ["cohort_a.csv", "cohort_a.csv", "cohort_b.csv"],
             "treatment_group": ["A", "A", "B"],
+            "cgm_device": ["dexcom_g6", "dexcom_g7", "libre_2"],
         }
     )
     test_df = pd.DataFrame(
@@ -211,9 +220,14 @@ def test_metabonet_loader_uses_fixed_static_covariate_column_policy(
     assert "age" not in patient_df.columns
     assert "age_of_diagnosis" not in patient_df.columns
     assert "treatment_group" not in patient_df.columns
+    assert "cgm_device" not in patient_df.columns
     static_covariates_df = pd.read_csv(
         cache_manager.get_absolute_path_by_type("metabonet", "processed")
         / metabonet_module.STATIC_COVARIATES_FILE
+    )
+    piecewise_covariates_df = pd.read_parquet(
+        cache_manager.get_absolute_path_by_type("metabonet", "processed")
+        / metabonet_module.PIECEWISE_STATIC_COVARIATES_FILE
     )
     patient_101_static = static_covariates_df.loc[
         static_covariates_df["patient_id"].astype(str) == patient_101_id
@@ -221,6 +235,13 @@ def test_metabonet_loader_uses_fixed_static_covariate_column_policy(
     assert patient_101_static["age"].iloc[0] == 30
     assert patient_101_static["age_of_diagnosis"].iloc[0] == 12
     assert patient_101_static["treatment_group"].iloc[0] == "A"
+
+    patient_101_piecewise = piecewise_covariates_df.loc[
+        (piecewise_covariates_df["patient_id"].astype(str) == patient_101_id)
+        & (piecewise_covariates_df["covariate"] == "cgm_device")
+    ].sort_values("start_datetime")
+    assert patient_101_piecewise["value"].tolist() == ["dexcom_g6", "dexcom_g7"]
+    assert patient_101_piecewise["end_datetime"].isna().sum() == 1
 
 
 def test_metabonet_loader_keep_columns_always_includes_required_fields(
@@ -375,6 +396,9 @@ def test_reset_processed_patient_cache_removes_legacy_static_files(tmp_path: Pat
     (processed_path / metabonet_module.STATIC_COVARIATES_FILE).write_text(
         "patient_id\n", encoding="utf-8"
     )
+    (processed_path / metabonet_module.PIECEWISE_STATIC_COVARIATES_FILE).write_bytes(
+        b"parquet"
+    )
     (processed_path / "540_static_covariates.csv").write_text(
         "patient_id\n", encoding="utf-8"
     )
@@ -393,6 +417,9 @@ def test_reset_processed_patient_cache_removes_legacy_static_files(tmp_path: Pat
 
     assert not (processed_path / metabonet_module.PROCESSED_COMPLETE_MARKER).exists()
     assert not (processed_path / metabonet_module.STATIC_COVARIATES_FILE).exists()
+    assert not (
+        processed_path / metabonet_module.PIECEWISE_STATIC_COVARIATES_FILE
+    ).exists()
     assert not (processed_path / "540_static_covariates.csv").exists()
     assert not (processed_path / "123_static_covariates.csv").exists()
     assert not (processed_path / "101_full.csv").exists()
