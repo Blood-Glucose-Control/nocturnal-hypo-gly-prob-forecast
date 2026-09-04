@@ -28,6 +28,7 @@ def _write_metabonet_split_files(raw_path: Path) -> None:
             "ethnicity": ["eth_a", "eth_a", "eth_b"],
             "is_test": [False, False, False],
             "cgm_device": ["dexcom_g6", "dexcom_g6", "libre_2"],
+            "subject_split_across_traintest": [False, False, True],
         }
     )
     test_df = pd.DataFrame(
@@ -101,7 +102,11 @@ def test_metabonet_loader_processes_train_cache_without_load_all(
     assert "treatment_group" in static_covariates_df.columns
     assert "ethnicity" in static_covariates_df.columns
     assert "is_test" in static_covariates_df.columns
-    assert set(piecewise_covariates_df["covariate"]) == {"cgm_device"}
+    assert set(piecewise_covariates_df["covariate"]) == {
+        "cgm_device",
+        "subject_split_across_traintest",
+    }
+    assert "value_type" in piecewise_covariates_df.columns
     assert loader.piecewise_static_covariates is not None
 
 

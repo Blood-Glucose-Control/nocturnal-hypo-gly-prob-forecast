@@ -713,6 +713,16 @@ class MetabonetDataLoader(DatasetBase):
             )
         else:
             self.piecewise_static_covariates = pd.DataFrame(piecewise_rows)
+            self.piecewise_static_covariates["value_type"] = (
+                self.piecewise_static_covariates["value"].map(
+                    self._get_piecewise_value_type
+                )
+            )
+            self.piecewise_static_covariates["value"] = (
+                self.piecewise_static_covariates["value"].map(
+                    self._serialize_piecewise_value
+                )
+            )
 
         processed_path = self.cache_manager.get_absolute_path_by_type(
             self.dataset_name, "processed"
@@ -731,6 +741,26 @@ class MetabonetDataLoader(DatasetBase):
         if not piecewise_covariates_path.exists():
             return None
         return pd.read_parquet(piecewise_covariates_path)
+
+    def _serialize_piecewise_value(self, value: object) -> str | None:
+        if pd.isna(value):
+            return None
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, pd.Timestamp):
+            return value.isoformat()
+        return str(value)
+
+    def _get_piecewise_value_type(self, value: object) -> str:
+        if pd.isna(value):
+            return "null"
+        if isinstance(value, bool):
+            return "bool"
+        if isinstance(value, (int, float)):
+            return "number"
+        if isinstance(value, pd.Timestamp):
+            return "datetime"
+        return "string"
 
     def _update_piecewise_covariate_segments(
         self,
