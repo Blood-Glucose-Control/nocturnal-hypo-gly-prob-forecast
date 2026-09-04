@@ -109,9 +109,14 @@ class MetabonetDataLoader(DatasetBase):
     def load_data(self) -> None:
         if self.use_cached:
             if self.load_all:
-                cached_data = self._load_cached_processed_data()
-                if cached_data is not None:
+                if self._processed_cache_exists():
+                    cached_data = self._load_cached_processed_data()
+                    if cached_data is None:
+                        raise ValueError(
+                            "Metabonet cache marker exists but cached processed data could not be loaded."
+                        )
                     self.processed_data = cached_data
+                    self.static_covariates = self._load_static_covariates_from_cache()
                 else:
                     self.processed_data = self._apply_keep_columns_filter(
                         self._process_and_cache_data()
@@ -556,8 +561,12 @@ class MetabonetDataLoader(DatasetBase):
         marker_path = processed_path / PROCESSED_COMPLETE_MARKER
         if marker_path.exists():
             marker_path.unlink()
-        stale_static_covariates = processed_path / "540_static_covariates.csv"
-        if stale_static_covariates.exists():
+        current_static_covariates = processed_path / STATIC_COVARIATES_FILE
+        if current_static_covariates.exists():
+            current_static_covariates.unlink()
+        for stale_static_covariates in processed_path.glob("*_static_covariates.csv"):
+            if stale_static_covariates.name == STATIC_COVARIATES_FILE:
+                continue
             stale_static_covariates.unlink()
         for patient_csv in processed_path.glob("*_full.csv"):
             patient_csv.unlink()
