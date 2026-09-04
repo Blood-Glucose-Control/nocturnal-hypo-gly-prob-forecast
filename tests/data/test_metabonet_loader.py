@@ -425,3 +425,50 @@ def test_reset_processed_patient_cache_removes_legacy_static_files(tmp_path: Pat
     assert not (processed_path / "101_full.csv").exists()
     assert not (processed_path / "101_full.parquet").exists()
     assert not partitions_path.exists()
+
+
+def test_finalize_piecewise_segments_handles_out_of_order_batch_arrival():
+    loader = object.__new__(MetabonetDataLoader)
+    loader.split_static_covariates = True
+
+    observation_map: dict[tuple[str, str], list[tuple[pd.Timestamp, object]]] = {}
+    completed_rows: list[dict[str, object]] = []
+
+    patient_id = "4_ctr3-98898d528d"
+    later_chunk = pd.DataFrame(
+        {"weight": [71.0]},
+        index=pd.DatetimeIndex(
+            pd.to_datetime(["2024-01-03 00:00:00"]), name="datetime"
+        ),
+    )
+    earlier_chunk = pd.DataFrame(
+        {"weight": [69.0, 70.0]},
+        index=pd.DatetimeIndex(
+            pd.to_datetime(["2024-01-01 00:00:00", "2024-01-02 00:00:00"]),
+            name="datetime",
+        ),
+    )
+
+    loader._update_piecewise_covariate_segments(
+        patient_df=later_chunk,
+        patient_id=patient_id,
+        observation_map=observation_map,
+    )
+    loader._update_piecewise_covariate_segments(
+        patient_df=earlier_chunk,
+        patient_id=patient_id,
+        observation_map=observation_map,
+    )
+    loader._finalize_piecewise_covariate_segments(
+        observation_map=observation_map,
+        completed_rows=completed_rows,
+    )
+
+    weight_segments = [
+        row
+        for row in completed_rows
+        if row["patient_id"] == patient_id and row["covariate"] == "weight"
+    ]
+    assert len(weight_segments) == 3
+    assert [row["value"] for row in weight_segments] == [69.0, 70.0, 71.0]
+    assert weight_segments[-1]["end_datetime"] is None

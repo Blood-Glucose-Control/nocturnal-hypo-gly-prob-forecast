@@ -298,7 +298,9 @@ class MetabonetDataLoader(DatasetBase):
         train_data: ProcessedPatientDataFrames = {}
         static_covariates_by_patient: dict[str, dict[str, object]] = {}
         piecewise_rows: list[dict[str, object]] = []
-        piecewise_active_states: dict[tuple[str, str], dict[str, object]] = {}
+        piecewise_observations: dict[
+            tuple[str, str], list[tuple[pd.Timestamp, object]]
+        ] = {}
 
         processed_path = self.cache_manager.get_absolute_path_by_type(
             self.dataset_name, "processed"
@@ -318,8 +320,7 @@ class MetabonetDataLoader(DatasetBase):
             self._update_piecewise_covariate_segments(
                 patient_df=patient_df,
                 patient_id=normalized_patient_id,
-                active_states=piecewise_active_states,
-                completed_rows=piecewise_rows,
+                observation_map=piecewise_observations,
             )
             static_row, timeseries_df = self._split_static_covariates_from_patient_df(
                 patient_df.copy(),
@@ -347,7 +348,7 @@ class MetabonetDataLoader(DatasetBase):
                 train_data[normalized_patient_id] = timeseries_df
 
         self._finalize_piecewise_covariate_segments(
-            active_states=piecewise_active_states,
+            observation_map=piecewise_observations,
             completed_rows=piecewise_rows,
         )
         self._save_static_covariates(list(static_covariates_by_patient.values()))
@@ -382,7 +383,9 @@ class MetabonetDataLoader(DatasetBase):
 
         static_covariates_by_patient: dict[str, dict[str, object]] = {}
         piecewise_rows: list[dict[str, object]] = []
-        piecewise_active_states: dict[tuple[str, str], dict[str, object]] = {}
+        piecewise_observations: dict[
+            tuple[str, str], list[tuple[pd.Timestamp, object]]
+        ] = {}
         seen_patients: set[str] = set()
         patient_progress = tqdm(
             desc="Processing Metabonet train patients", unit="patient"
@@ -407,8 +410,7 @@ class MetabonetDataLoader(DatasetBase):
                 self._update_piecewise_covariate_segments(
                     patient_df=patient_df,
                     patient_id=normalized_patient_id,
-                    active_states=piecewise_active_states,
-                    completed_rows=piecewise_rows,
+                    observation_map=piecewise_observations,
                 )
                 static_row, timeseries_df = (
                     self._split_static_covariates_from_patient_df(
@@ -444,7 +446,7 @@ class MetabonetDataLoader(DatasetBase):
             raise ValueError("Metabonet train parquet has no patient IDs.")
 
         self._finalize_piecewise_covariate_segments(
-            active_states=piecewise_active_states,
+            observation_map=piecewise_observations,
             completed_rows=piecewise_rows,
         )
         self._save_static_covariates(list(static_covariates_by_patient.values()))
@@ -733,8 +735,7 @@ class MetabonetDataLoader(DatasetBase):
         *,
         patient_df: pd.DataFrame,
         patient_id: str,
-        active_states: dict[tuple[str, str], dict[str, object]],
-        completed_rows: list[dict[str, object]],
+        observation_map: dict[tuple[str, str], list[tuple[pd.Timestamp, object]]],
     ) -> None:
         if not self.split_static_covariates:
             return
@@ -747,66 +748,66 @@ class MetabonetDataLoader(DatasetBase):
                 continue
 
             state_key = (patient_id, covariate)
-            for timestamp, value in series.items():
-                active_state = active_states.get(state_key)
-                if active_state is None:
-                    active_states[state_key] = {
-                        "start_datetime": timestamp,
-                        "last_seen_datetime": timestamp,
-                        "value": value,
-                    }
+            covariate_observations = observation_map.setdefault(state_key, [])
+            covariate_observations.extend(
+                [(timestamp, value) for timestamp, value in series.items()]
+            )
+
+    def _finalize_piecewise_covariate_segments(
+        self,
+        *,
+        observation_map: dict[tuple[str, str], list[tuple[pd.Timestamp, object]]],
+        completed_rows: list[dict[str, object]],
+    ) -> None:
+        if not self.split_static_covariates:
+            return
+
+        for (patient_id, covariate), observations in observation_map.items():
+            sorted_observations = sorted(observations, key=lambda row: row[0])
+            current_start: pd.Timestamp | None = None
+            current_value: object | None = None
+            for timestamp, value in sorted_observations:
+                if current_value is None:
+                    current_start = timestamp
+                    current_value = value
                     continue
 
-                last_seen_datetime = active_state["last_seen_datetime"]
-                if not isinstance(last_seen_datetime, pd.Timestamp):
+                if value == current_value:
+                    continue
+
+                if current_start is None:
                     raise ValueError(
-                        "Piecewise covariate tracker encountered invalid timestamp type."
-                    )
-                if timestamp < last_seen_datetime:
-                    raise ValueError(
-                        "Piecewise covariate timestamps are not monotonic for "
-                        f"patient {patient_id}, covariate {covariate}."
+                        "Piecewise covariate segment start is unexpectedly None."
                     )
 
-                if active_state["value"] == value:
-                    active_state["last_seen_datetime"] = timestamp
+                if timestamp == current_start:
+                    current_value = value
                     continue
 
                 completed_rows.append(
                     {
                         "patient_id": patient_id,
                         "covariate": covariate,
-                        "start_datetime": active_state["start_datetime"],
+                        "start_datetime": current_start,
                         "end_datetime": timestamp,
-                        "value": active_state["value"],
+                        "value": current_value,
                     }
                 )
-                active_states[state_key] = {
-                    "start_datetime": timestamp,
-                    "last_seen_datetime": timestamp,
-                    "value": value,
-                }
+                current_start = timestamp
+                current_value = value
 
-    def _finalize_piecewise_covariate_segments(
-        self,
-        *,
-        active_states: dict[tuple[str, str], dict[str, object]],
-        completed_rows: list[dict[str, object]],
-    ) -> None:
-        if not self.split_static_covariates:
-            return
-
-        for (patient_id, covariate), state in active_states.items():
+            if current_start is None:
+                continue
             completed_rows.append(
                 {
                     "patient_id": patient_id,
                     "covariate": covariate,
-                    "start_datetime": state["start_datetime"],
+                    "start_datetime": current_start,
                     "end_datetime": None,
-                    "value": state["value"],
+                    "value": current_value,
                 }
             )
-        active_states.clear()
+        observation_map.clear()
 
     def _merge_static_covariate_rows(
         self,
