@@ -782,6 +782,9 @@ class MetabonetDataLoader(DatasetBase):
             state_key = (patient_id, covariate)
             covariate_observations = observation_map.setdefault(state_key, [])
             change_points = series[series.ne(series.shift())]
+            last_timestamp = series.index[-1]
+            if last_timestamp not in change_points.index:
+                change_points = pd.concat([change_points, series.iloc[[-1]]])
             covariate_observations.extend(
                 [(timestamp, value) for timestamp, value in change_points.items()]
             )

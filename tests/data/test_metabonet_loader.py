@@ -497,3 +497,55 @@ def test_finalize_piecewise_segments_handles_out_of_order_batch_arrival():
     assert len(weight_segments) == 3
     assert [row["value"] for row in weight_segments] == [69.0, 70.0, 71.0]
     assert weight_segments[-1]["end_datetime"] is None
+
+
+def test_finalize_piecewise_segments_preserves_chunk_spanning_reversion():
+    loader = object.__new__(MetabonetDataLoader)
+    loader.split_static_covariates = True
+
+    observation_map: dict[tuple[str, str], list[tuple[pd.Timestamp, object]]] = {}
+    completed_rows: list[dict[str, object]] = []
+
+    patient_id = "77_ctr1-1f7f7f7f7f"
+    first_chunk = pd.DataFrame(
+        {"cgm_device": ["dexcom_g6", "dexcom_g6"]},
+        index=pd.DatetimeIndex(
+            pd.to_datetime(["2024-01-01 00:00:00", "2024-01-03 00:00:00"]),
+            name="datetime",
+        ),
+    )
+    second_chunk = pd.DataFrame(
+        {"cgm_device": ["dexcom_g7"]},
+        index=pd.DatetimeIndex(
+            pd.to_datetime(["2024-01-02 00:00:00"]),
+            name="datetime",
+        ),
+    )
+
+    loader._update_piecewise_covariate_segments(
+        patient_df=first_chunk,
+        patient_id=patient_id,
+        observation_map=observation_map,
+    )
+    loader._update_piecewise_covariate_segments(
+        patient_df=second_chunk,
+        patient_id=patient_id,
+        observation_map=observation_map,
+    )
+    loader._finalize_piecewise_covariate_segments(
+        observation_map=observation_map,
+        completed_rows=completed_rows,
+    )
+
+    cgm_segments = [
+        row
+        for row in completed_rows
+        if row["patient_id"] == patient_id and row["covariate"] == "cgm_device"
+    ]
+    assert len(cgm_segments) == 3
+    assert [row["value"] for row in cgm_segments] == [
+        "dexcom_g6",
+        "dexcom_g7",
+        "dexcom_g6",
+    ]
+    assert cgm_segments[-1]["end_datetime"] is None
