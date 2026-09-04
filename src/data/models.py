@@ -15,6 +15,7 @@ class DatasetSourceType(str, Enum):
     BROWN_2019 = "brown_2019"
     SIMGLUCOSE = "simglucose"
     TAMBORLANE_2008 = "tamborlane_2008"
+    METABONET = "metabonet"
 
 
 # TODO: Add to the mean_cols list in sampling.py / ensure_regular_time_intervals_with_aggregation if the column is describing rate of change.

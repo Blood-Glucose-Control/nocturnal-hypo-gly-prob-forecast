@@ -118,6 +118,7 @@ class CacheManager:
             DatasetSourceType.ALEPPO_2017,
             DatasetSourceType.LYNCH_2022,
             DatasetSourceType.BROWN_2019,
+            DatasetSourceType.METABONET,
         ):
             self._fetch_manual_download_data(dataset_name, raw_path, dataset_config)
         elif source == DatasetSourceType.LOCAL:
@@ -583,6 +584,20 @@ class CacheManager:
                 return None
 
         return None
+
+    def save_nested_test_data(
+        self, dataset_name: str, nested_data: dict[str, dict[str, pd.DataFrame]]
+    ) -> None:
+        """Save nested test data as a compressed pickle file."""
+        import gzip
+        import pickle
+
+        processed_path = self.get_absolute_path_by_type(dataset_name, "processed")
+        processed_path.mkdir(parents=True, exist_ok=True)
+        nested_data_file = processed_path / "nested_test_data.pkl.gz"
+
+        with gzip.open(nested_data_file, "wb") as f:
+            pickle.dump(nested_data, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def nested_test_data_exists(self, dataset_name: str, dataset_type: str) -> bool:
         """

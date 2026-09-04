@@ -10,6 +10,7 @@ from .gluroo.gluroo import GlurooDataLoader
 from .lynch_2022.lynch_2022 import (
     Lynch2022DataLoader,
 )
+from .metabonet.metabonet import MetabonetDataLoader
 from .tamborlane_2008.tamborlane_2008 import (
     Tamborlane2008DataLoader,
 )
@@ -21,4 +22,5 @@ __all__ = [
     "Lynch2022DataLoader",
     "GlurooDataLoader",
     "Tamborlane2008DataLoader",
+    "MetabonetDataLoader",
 ]

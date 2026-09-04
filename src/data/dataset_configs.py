@@ -76,6 +76,16 @@ TAMBORLANE_2008_CONFIG: DatasetConfig = DatasetConfig(
     cache_path="tamborlane_2008",
 )
 
+# MetaboNet contest dataset
+METABONET_CONFIG: DatasetConfig = DatasetConfig(
+    source=DatasetSourceType.METABONET,
+    description="MetaboNet contest dataset with pre-defined train/test splits",
+    citation="MetaboNet Contest Dataset",
+    required_files=[],
+    url="https://metabo-net.org",
+    cache_path="metabonet",
+)
+
 # Mapping of dataset names to their configurations
 DATASET_CONFIGS = {
     DatasetSourceType.GLUROO.value: GLUROO_CONFIG,
@@ -84,6 +94,7 @@ DATASET_CONFIGS = {
     DatasetSourceType.LYNCH_2022.value: LYNCH_2022_CONFIG,
     DatasetSourceType.TAMBORLANE_2008.value: TAMBORLANE_2008_CONFIG,
     DatasetSourceType.BROWN_2019.value: BROWN_2019_CONFIG,
+    DatasetSourceType.METABONET.value: METABONET_CONFIG,
 }
 
 
