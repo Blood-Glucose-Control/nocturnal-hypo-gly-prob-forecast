@@ -183,6 +183,53 @@ class TestCacheManager:
             validation_data["patient_001"], loaded_val["patient_001"]
         )
 
+    def test_save_and_load_nested_test_data(self):
+        """Test saving and loading nested test data."""
+        nested_test_data = {
+            "patient_001": {
+                "segment_1": pd.DataFrame(
+                    {
+                        "datetime": pd.to_datetime(
+                            ["2023-01-01 00:00", "2023-01-01 00:05"]
+                        ),
+                        "patient_id": ["patient_001", "patient_001"],
+                        "bg_mM": [5.5, 5.6],
+                    }
+                ).set_index("datetime")
+            },
+            "patient_002": {
+                "segment_9": pd.DataFrame(
+                    {
+                        "datetime": pd.to_datetime(
+                            ["2023-01-02 00:00", "2023-01-02 00:05"]
+                        ),
+                        "patient_id": ["patient_002", "patient_002"],
+                        "bg_mM": [6.1, 6.2],
+                    }
+                ).set_index("datetime")
+            },
+        }
+
+        self.cache_manager.save_nested_test_data("test_dataset", nested_test_data)
+        loaded_nested = self.cache_manager.load_nested_test_data(
+            "test_dataset",
+            dataset_type="test",
+        )
+
+        assert loaded_nested is not None
+        assert self.cache_manager.nested_test_data_exists(
+            "test_dataset",
+            dataset_type="test",
+        )
+        pd.testing.assert_frame_equal(
+            loaded_nested["patient_001"]["segment_1"],
+            nested_test_data["patient_001"]["segment_1"],
+        )
+        pd.testing.assert_frame_equal(
+            loaded_nested["patient_002"]["segment_9"],
+            nested_test_data["patient_002"]["segment_9"],
+        )
+
     def test_load_split_data_different_params(self):
         """Test loading split data with different parameters returns None."""
         # Save with one set of parameters
@@ -340,6 +387,7 @@ class TestDatasetConfigs:
         assert DatasetSourceType.LYNCH_2022.value in datasets
         assert DatasetSourceType.TAMBORLANE_2008.value in datasets
         assert DatasetSourceType.BROWN_2019.value in datasets
+        assert DatasetSourceType.METABONET.value in datasets
 
     def test_get_dataset_info(self):
         """Test getting dataset information."""

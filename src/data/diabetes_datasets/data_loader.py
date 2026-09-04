@@ -37,6 +37,7 @@ from . import (
     Brown2019DataLoader,
     GlurooDataLoader,
     Lynch2022DataLoader,
+    MetabonetDataLoader,
     Tamborlane2008DataLoader,
 )
 
@@ -92,6 +93,17 @@ def get_loader(
 ) -> Tamborlane2008DataLoader: ...
 
 
+@overload
+def get_loader(
+    data_source_name: Literal["metabonet"],
+    keep_columns: list[str] | None = None,
+    use_cached: bool = False,
+    parallel: bool = True,
+    max_workers: int = 14,
+    load_all: bool = False,
+) -> MetabonetDataLoader: ...
+
+
 def get_loader(
     data_source_name: str = "aleppo_2017",
     keep_columns: list[str] | None = None,
@@ -105,6 +117,7 @@ def get_loader(
     Lynch2022DataLoader,
     Brown2019DataLoader,
     Tamborlane2008DataLoader,
+    MetabonetDataLoader,
 ]:
     """
     Factory function to create and return the appropriate data loader instance.
@@ -115,7 +128,7 @@ def get_loader(
 
     Parameters:
         data_source_name (str): The name of the data source to load.
-                               Currently supports 'aleppo_2017', 'lynch_2022', 'brown_2019', 'tamborlane_2008', and 'gluroo'.
+                               Currently supports 'aleppo_2017', 'lynch_2022', 'brown_2019', 'tamborlane_2008', 'metabonet', and 'gluroo'.
                                Default: 'aleppo_2017'
         keep_columns (list[str] | None): Specific columns to retain in the dataset.
                                        If None, all columns are loaded. Default: None
@@ -130,6 +143,7 @@ def get_loader(
     if data_source_name == "gluroo":
         return GlurooDataLoader(
             keep_columns=keep_columns,
+            use_cached=use_cached,
             # parallel=parallel,
             max_workers=max_workers,
             load_all=load_all,
@@ -162,6 +176,14 @@ def get_loader(
             parallel=parallel,
             max_workers=max_workers,
             extract_features=True,
+        )
+    elif data_source_name == "metabonet":
+        return MetabonetDataLoader(
+            keep_columns=keep_columns,
+            use_cached=use_cached,
+            parallel=parallel,
+            max_workers=max_workers,
+            load_all=load_all,
         )
     else:
         raise ValueError(f"Invalid dataset_name: {data_source_name}.")
