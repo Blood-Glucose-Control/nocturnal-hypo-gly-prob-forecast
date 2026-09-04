@@ -26,16 +26,10 @@ STATIC_COVARIATES_FILE = "static_covariates.csv"
 PROCESSED_PATIENT_PARQUET_DIR = "patient_timeseries_parquet"
 PATIENT_PARTITION_PREFIX = "patient_id="
 PATIENT_PARQUET_SUFFIX = ".parquet"
-STATIC_COVARIATE_COLUMNS = (
-    "age",
-    "age_of_diagnosis",
-    "age_at_diagnosis",
-    "air_temp",
+STATIC_CATEGORICAL_COLUMNS = (
     "cgm_device",
     "ethnicity",
-    "extension_date",
     "gender",
-    "height",
     "insulin_delivery_algorithm",
     "insulin_delivery_device",
     "insulin_delivery_modality",
@@ -43,11 +37,9 @@ STATIC_COVARIATE_COLUMNS = (
     "insulin_type_bolus",
     "is_test",
     "is_pregnant",
-    "randomization_date",
     "source_file",
     "subject_split_across_traintest",
     "treatment_group",
-    "weight",
 )
 
 
@@ -597,7 +589,7 @@ class MetabonetDataLoader(DatasetBase):
             return static_row, patient_df
 
         columns_to_drop: list[str] = []
-        for column in STATIC_COVARIATE_COLUMNS:
+        for column in STATIC_CATEGORICAL_COLUMNS:
             if column not in patient_df.columns:
                 continue
             non_null_values = patient_df[column].dropna().tolist()
@@ -641,41 +633,9 @@ class MetabonetDataLoader(DatasetBase):
         for key, value in new_row.items():
             if key == "patient_id":
                 continue
-
-            non_null_values = pd.unique(patient_df[column].dropna())
-            column_state = patient_tracking.setdefault(
-                column,
-                {
-                    "value": non_null_values[0] if len(non_null_values) > 0 else None,
-                    "varied": False,
-                },
-            )
-            if len(non_null_values) == 0:
-                continue
-            if len(non_null_values) > 1:
-                column_state["varied"] = True
-                continue
-
-            if column_state["value"] is None:
-                column_state["value"] = non_null_values[0]
-                continue
-
-            if column_state["value"] != non_null_values[0]:
-                column_state["varied"] = True
-
-    def _build_static_covariate_rows(
-        self,
-        static_tracking: dict[str, dict[str, StaticColumnState]],
-    ) -> list[dict[str, object]]:
-        static_rows: list[dict[str, object]] = []
-        for patient_id, patient_tracking in static_tracking.items():
-            static_row: dict[str, object] = {"patient_id": patient_id}
-            for column, state in patient_tracking.items():
-                if state["varied"]:
-                    continue
-                static_row[column] = state["value"]
-            static_rows.append(static_row)
-        return static_rows
+            if key not in merged_row or merged_row[key] is None:
+                merged_row[key] = value
+        return merged_row
 
     def _configure_pyarrow_threads(self) -> int:
         import pyarrow as pa
