@@ -658,8 +658,10 @@ class MetabonetDataLoader(DatasetBase):
         for column in STATIC_COVARIATE_COLUMNS:
             if column not in patient_df.columns:
                 continue
-            non_null_values = patient_df[column].dropna().tolist()
-            static_row[column] = non_null_values[0] if non_null_values else None
+            non_null_series = patient_df[column].dropna()
+            static_row[column] = (
+                non_null_series.iloc[0] if not non_null_series.empty else None
+            )
             columns_to_drop.append(column)
         for column in PIECEWISE_STATIC_COVARIATE_COLUMNS:
             if column in patient_df.columns:
@@ -749,8 +751,9 @@ class MetabonetDataLoader(DatasetBase):
 
             state_key = (patient_id, covariate)
             covariate_observations = observation_map.setdefault(state_key, [])
+            change_points = series[series.ne(series.shift())]
             covariate_observations.extend(
-                [(timestamp, value) for timestamp, value in series.items()]
+                [(timestamp, value) for timestamp, value in change_points.items()]
             )
 
     def _finalize_piecewise_covariate_segments(
