@@ -7,7 +7,6 @@ import logging
 import os
 import shutil
 from pathlib import Path
-from typing import TypedDict
 
 import pandas as pd
 from tqdm import tqdm
@@ -42,6 +41,7 @@ STATIC_COVARIATE_COLUMNS = (
     "insulin_delivery_modality",
     "insulin_type_basal",
     "insulin_type_bolus",
+    "is_test",
     "is_pregnant",
     "randomization_date",
     "source_file",
@@ -49,11 +49,6 @@ STATIC_COVARIATE_COLUMNS = (
     "treatment_group",
     "weight",
 )
-
-
-class StaticColumnState(TypedDict):
-    value: object
-    varied: bool
 
 
 class MetabonetDataLoader(DatasetBase):
@@ -109,9 +104,14 @@ class MetabonetDataLoader(DatasetBase):
     def load_data(self) -> None:
         if self.use_cached:
             if self.load_all:
-                cached_data = self._load_cached_processed_data()
-                if cached_data is not None:
+                if self._processed_cache_exists():
+                    cached_data = self._load_cached_processed_data()
+                    if cached_data is None:
+                        raise ValueError(
+                            "Metabonet cache marker exists but cached processed data could not be loaded."
+                        )
                     self.processed_data = cached_data
+                    self.static_covariates = self._load_static_covariates_from_cache()
                 else:
                     self.processed_data = self._apply_keep_columns_filter(
                         self._process_and_cache_data()
@@ -333,11 +333,7 @@ class MetabonetDataLoader(DatasetBase):
         use_threads = thread_count > 1
 
         parquet_columns = pq.ParquetFile(train_file_path).schema.names
-        if "patient_id" in parquet_columns:
-            patient_id_column = "patient_id"
-        elif "id" in parquet_columns:
-            patient_id_column = "id"
-        else:
+        if "patient_id" not in parquet_columns and "id" not in parquet_columns:
             raise ValueError(
                 "Metabonet train parquet must include either 'patient_id' or 'id' column."
             )
@@ -350,40 +346,10 @@ class MetabonetDataLoader(DatasetBase):
         patient_partitions_path = self._get_patient_partitions_path(processed_path)
         patient_partitions_path.mkdir(parents=True, exist_ok=True)
 
-        static_drop_columns_by_patient: dict[str, set[str]] = {}
-        if self.split_static_covariates:
-            static_rows, seen_patient_ids = (
-                self._collect_static_covariates_from_parquet(
-                    train_file_path=train_file_path,
-                    patient_id_column=patient_id_column,
-                    use_threads=use_threads,
-                )
-            )
-            self._save_static_covariates(static_rows)
-            static_drop_columns_by_patient = {
-                str(row["patient_id"]): {
-                    column for column in row.keys() if column != "patient_id"
-                }
-                for row in static_rows
-            }
-            total_patients = len(seen_patient_ids)
-        else:
-            self._save_static_covariates([])
-            seen_patient_ids = self._collect_unique_patient_ids_from_parquet(
-                train_file_path=train_file_path,
-                patient_id_column=patient_id_column,
-                use_threads=use_threads,
-            )
-            total_patients = len(seen_patient_ids)
-
-        if total_patients <= 0:
-            raise ValueError("Metabonet train parquet has no patient IDs.")
-
+        static_covariates_by_patient: dict[str, dict[str, object]] = {}
         seen_patients: set[str] = set()
         patient_progress = tqdm(
-            total=total_patients,
-            desc="Processing Metabonet train patients",
-            unit="patient",
+            desc="Processing Metabonet train patients", unit="patient"
         )
         parquet_file = pq.ParquetFile(train_file_path)
         for batch_index, batch in enumerate(
@@ -402,16 +368,24 @@ class MetabonetDataLoader(DatasetBase):
                 "patient_id", sort=False
             ):
                 normalized_patient_id = str(patient_id)
-                if self.split_static_covariates:
-                    columns_to_drop = static_drop_columns_by_patient.get(
-                        normalized_patient_id, set()
+                static_row, timeseries_df = (
+                    self._split_static_covariates_from_patient_df(
+                        patient_df.copy(),
+                        normalized_patient_id,
                     )
-                    timeseries_df = patient_df.drop(
-                        columns=list(columns_to_drop),
-                        errors="ignore",
-                    )
+                )
+                existing_static_row = static_covariates_by_patient.get(
+                    normalized_patient_id
+                )
+                if existing_static_row is None:
+                    static_covariates_by_patient[normalized_patient_id] = static_row
                 else:
-                    timeseries_df = patient_df
+                    static_covariates_by_patient[normalized_patient_id] = (
+                        self._merge_static_covariate_rows(
+                            existing_static_row,
+                            static_row,
+                        )
+                    )
 
                 self._write_patient_parquet_fragment(
                     processed_path=processed_path,
@@ -424,13 +398,11 @@ class MetabonetDataLoader(DatasetBase):
                     patient_progress.update(1)
         patient_progress.close()
 
-        if len(seen_patients) != total_patients:
-            raise ValueError(
-                "Metabonet processing mismatch: discovered patient count does not "
-                f"match parquet metadata ({len(seen_patients)} != {total_patients})."
-            )
+        if not seen_patients:
+            raise ValueError("Metabonet train parquet has no patient IDs.")
 
-        self._write_processed_completion_marker(total_patients)
+        self._save_static_covariates(list(static_covariates_by_patient.values()))
+        self._write_processed_completion_marker(len(seen_patients))
 
         if self.load_all:
             cached_data = self._load_cached_processed_data()
@@ -556,8 +528,12 @@ class MetabonetDataLoader(DatasetBase):
         marker_path = processed_path / PROCESSED_COMPLETE_MARKER
         if marker_path.exists():
             marker_path.unlink()
-        stale_static_covariates = processed_path / "540_static_covariates.csv"
-        if stale_static_covariates.exists():
+        current_static_covariates = processed_path / STATIC_COVARIATES_FILE
+        if current_static_covariates.exists():
+            current_static_covariates.unlink()
+        for stale_static_covariates in processed_path.glob("*_static_covariates.csv"):
+            if stale_static_covariates.name == STATIC_COVARIATES_FILE:
+                continue
             stale_static_covariates.unlink()
         for patient_csv in processed_path.glob("*_full.csv"):
             patient_csv.unlink()
@@ -624,10 +600,9 @@ class MetabonetDataLoader(DatasetBase):
         for column in STATIC_COVARIATE_COLUMNS:
             if column not in patient_df.columns:
                 continue
-            non_null_values = patient_df[column].dropna().unique().tolist()
-            if len(non_null_values) <= 1:
-                static_row[column] = non_null_values[0] if non_null_values else None
-                columns_to_drop.append(column)
+            non_null_values = patient_df[column].dropna().tolist()
+            static_row[column] = non_null_values[0] if non_null_values else None
+            columns_to_drop.append(column)
 
         return static_row, patient_df.drop(columns=columns_to_drop, errors="ignore")
 
@@ -657,164 +632,18 @@ class MetabonetDataLoader(DatasetBase):
             return None
         return pd.read_csv(static_covariates_path, low_memory=False)
 
-    def _collect_static_covariates_from_parquet(
+    def _merge_static_covariate_rows(
         self,
-        *,
-        train_file_path: Path,
-        patient_id_column: str,
-        use_threads: bool,
-    ) -> tuple[list[dict[str, object]], set[str]]:
-        import pyarrow.parquet as pq
-
-        parquet_file = pq.ParquetFile(train_file_path)
-        datetime_columns = [
-            column
-            for column in ("datetime", "date", "timestamp")
-            if column in parquet_file.schema.names
-        ]
-        if not datetime_columns:
-            raise ValueError(
-                "Metabonet train parquet must include one datetime column alias "
-                "('datetime', 'date', or 'timestamp')."
-            )
-        if "source_file" not in parquet_file.schema.names:
-            raise ValueError(
-                "Metabonet train parquet must include 'source_file' for unique patient identifiers."
-            )
-
-        available_static_columns = [
-            column
-            for column in STATIC_COVARIATE_COLUMNS
-            if column in parquet_file.schema.names
-        ]
-        read_columns = list(
-            dict.fromkeys(
-                [
-                    patient_id_column,
-                    "source_file",
-                    *datetime_columns,
-                    *available_static_columns,
-                ]
-            )
-        )
-
-        static_tracking: dict[str, dict[str, StaticColumnState]] = {}
-        seen_patients: set[str] = set()
-        static_progress = tqdm(
-            desc="Collecting static covariates",
-            unit="patient",
-        )
-        for batch in parquet_file.iter_batches(
-            columns=read_columns,
-            batch_size=1_000_000,
-            use_threads=use_threads,
-        ):
-            normalized_batch_df = normalize_metabonet_dataframe(
-                batch.to_pandas(),
-                split_name="train",
-                require_bg=False,
-            )
-            for patient_id, patient_df in normalized_batch_df.groupby(
-                "patient_id", sort=False
-            ):
-                normalized_patient_id = str(patient_id)
-                self._update_static_tracking(
-                    static_tracking=static_tracking,
-                    patient_id=normalized_patient_id,
-                    patient_df=patient_df,
-                    candidate_columns=available_static_columns,
-                )
-                if normalized_patient_id not in seen_patients:
-                    seen_patients.add(normalized_patient_id)
-                    static_progress.update(1)
-        static_progress.close()
-
-        return self._build_static_covariate_rows(static_tracking), seen_patients
-
-    def _collect_unique_patient_ids_from_parquet(
-        self,
-        *,
-        train_file_path: Path,
-        patient_id_column: str,
-        use_threads: bool,
-    ) -> set[str]:
-        import pyarrow.parquet as pq
-
-        parquet_file = pq.ParquetFile(train_file_path)
-        datetime_columns = [
-            column
-            for column in ("datetime", "date", "timestamp")
-            if column in parquet_file.schema.names
-        ]
-        if not datetime_columns:
-            raise ValueError(
-                "Metabonet train parquet must include one datetime column alias "
-                "('datetime', 'date', or 'timestamp')."
-            )
-        if "source_file" not in parquet_file.schema.names:
-            raise ValueError(
-                "Metabonet train parquet must include 'source_file' for unique patient identifiers."
-            )
-
-        read_columns = list(
-            dict.fromkeys([patient_id_column, "source_file", *datetime_columns])
-        )
-        seen_patients: set[str] = set()
-        for batch in parquet_file.iter_batches(
-            columns=read_columns,
-            batch_size=1_000_000,
-            use_threads=use_threads,
-        ):
-            normalized_batch_df = normalize_metabonet_dataframe(
-                batch.to_pandas(),
-                split_name="train",
-                require_bg=False,
-            )
-            seen_patients.update(normalized_batch_df["patient_id"].astype(str).unique())
-        return seen_patients
-
-    def _update_static_tracking(
-        self,
-        *,
-        static_tracking: dict[str, dict[str, StaticColumnState]],
-        patient_id: str,
-        patient_df: pd.DataFrame,
-        candidate_columns: list[str] | None = None,
-    ) -> None:
-        columns_to_check = candidate_columns or list(STATIC_COVARIATE_COLUMNS)
-        patient_tracking = static_tracking.setdefault(patient_id, {})
-        for column in columns_to_check:
-            if column not in patient_df.columns:
+        existing_row: dict[str, object],
+        new_row: dict[str, object],
+    ) -> dict[str, object]:
+        merged_row = dict(existing_row)
+        for key, value in new_row.items():
+            if key == "patient_id":
                 continue
-
-            non_null_values = pd.unique(patient_df[column].dropna())
-            if len(non_null_values) == 0:
-                continue
-
-            column_state = patient_tracking.setdefault(
-                column,
-                {"value": non_null_values[0], "varied": False},
-            )
-            if len(non_null_values) > 1:
-                column_state["varied"] = True
-                continue
-
-            if column_state["value"] != non_null_values[0]:
-                column_state["varied"] = True
-
-    def _build_static_covariate_rows(
-        self,
-        static_tracking: dict[str, dict[str, StaticColumnState]],
-    ) -> list[dict[str, object]]:
-        static_rows: list[dict[str, object]] = []
-        for patient_id, patient_tracking in static_tracking.items():
-            static_row: dict[str, object] = {"patient_id": patient_id}
-            for column, state in patient_tracking.items():
-                if state["varied"]:
-                    continue
-                static_row[column] = state["value"]
-            static_rows.append(static_row)
-        return static_rows
+            if key not in merged_row or merged_row[key] is None:
+                merged_row[key] = value
+        return merged_row
 
     def _configure_pyarrow_threads(self) -> int:
         import pyarrow as pa
