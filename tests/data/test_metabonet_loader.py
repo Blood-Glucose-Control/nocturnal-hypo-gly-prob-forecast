@@ -432,6 +432,26 @@ def test_reset_processed_patient_cache_removes_legacy_static_files(tmp_path: Pat
     assert not partitions_path.exists()
 
 
+def test_save_piecewise_static_covariates_empty_keeps_value_type_column(
+    tmp_path: Path,
+):
+    loader = object.__new__(MetabonetDataLoader)
+    loader.cache_manager = CacheManager(cache_root=str(tmp_path))
+
+    loader._save_piecewise_static_covariates([])
+
+    assert loader.piecewise_static_covariates is not None
+    assert "value_type" in loader.piecewise_static_covariates.columns
+
+    piecewise_path = (
+        loader.cache_manager.get_absolute_path_by_type("metabonet", "processed")
+        / metabonet_module.PIECEWISE_STATIC_COVARIATES_FILE
+    )
+    saved_piecewise = pd.read_parquet(piecewise_path)
+    assert "value_type" in saved_piecewise.columns
+    assert saved_piecewise.empty
+
+
 def test_finalize_piecewise_segments_handles_out_of_order_batch_arrival():
     loader = object.__new__(MetabonetDataLoader)
     loader.split_static_covariates = True

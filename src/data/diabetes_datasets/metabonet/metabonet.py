@@ -49,7 +49,6 @@ PIECEWISE_STATIC_COVARIATE_COLUMNS = (
     "insulin_type_basal",
     "insulin_type_bolus",
     "subject_split_across_traintest",
-    "weight",
 )
 
 
@@ -709,6 +708,7 @@ class MetabonetDataLoader(DatasetBase):
                     "start_datetime",
                     "end_datetime",
                     "value",
+                    "value_type",
                 ]
             )
         else:
