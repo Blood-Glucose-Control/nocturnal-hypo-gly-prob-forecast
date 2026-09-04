@@ -24,6 +24,9 @@ def _write_metabonet_split_files(raw_path: Path) -> None:
             "age": [30, 30, 40],
             "age_of_diagnosis": [12, 12, 20],
             "source_file": ["cohort_a.csv", "cohort_a.csv", "cohort_b.csv"],
+            "treatment_group": ["A", "A", "B"],
+            "ethnicity": ["eth_a", "eth_a", "eth_b"],
+            "is_test": [False, False, False],
         }
     )
     test_df = pd.DataFrame(
@@ -89,8 +92,10 @@ def test_metabonet_loader_processes_train_cache_without_load_all(
         }
     )
     assert static_patient_id_prefixes == ["101", "202"]
-    assert "age" in static_covariates_df.columns
-    assert "age_of_diagnosis" in static_covariates_df.columns
+    assert "age" not in static_covariates_df.columns
+    assert "treatment_group" in static_covariates_df.columns
+    assert "ethnicity" in static_covariates_df.columns
+    assert "is_test" in static_covariates_df.columns
 
 
 def test_metabonet_loader_load_all_materializes_processed_data(
@@ -120,7 +125,8 @@ def test_metabonet_loader_load_all_materializes_processed_data(
         if patient_id.split("_", 1)[0] == "101"
     )
     assert "bg_mM" in loader.processed_data[patient_101_id].columns
-    assert "age" not in loader.processed_data[patient_101_id].columns
+    assert "age" in loader.processed_data[patient_101_id].columns
+    assert "treatment_group" not in loader.processed_data[patient_101_id].columns
 
 
 def test_metabonet_loader_load_test_data_returns_nested_segments(
@@ -173,6 +179,7 @@ def test_metabonet_loader_keeps_varying_covariates_in_timeseries(
             "age": [30, 31, 40],
             "age_of_diagnosis": [12, 12, 20],
             "source_file": ["cohort_a.csv", "cohort_a.csv", "cohort_b.csv"],
+            "treatment_group": ["A", "A", "B"],
         }
     )
     test_df = pd.DataFrame(
@@ -200,7 +207,10 @@ def test_metabonet_loader_keeps_varying_covariates_in_timeseries(
         for patient_id in loader.processed_data
         if patient_id.split("_", 1)[0] == "101"
     )
-    assert "age" in loader.processed_data[patient_101_id].columns
+    patient_df = loader.processed_data[patient_101_id]
+    assert "age" in patient_df.columns
+    assert "age_of_diagnosis" in patient_df.columns
+    assert "treatment_group" not in patient_df.columns
     static_covariates_df = pd.read_csv(
         cache_manager.get_absolute_path_by_type("metabonet", "processed")
         / metabonet_module.STATIC_COVARIATES_FILE
@@ -208,8 +218,7 @@ def test_metabonet_loader_keeps_varying_covariates_in_timeseries(
     patient_101_static = static_covariates_df.loc[
         static_covariates_df["patient_id"].astype(str) == patient_101_id
     ]
-    assert patient_101_static["age"].isna().all()
-    assert patient_101_static["age_of_diagnosis"].iloc[0] == 12
+    assert patient_101_static["treatment_group"].iloc[0] == "A"
 
 
 def test_metabonet_loader_keep_columns_always_includes_required_fields(
