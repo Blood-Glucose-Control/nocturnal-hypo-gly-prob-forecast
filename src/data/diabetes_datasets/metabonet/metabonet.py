@@ -641,9 +641,41 @@ class MetabonetDataLoader(DatasetBase):
         for key, value in new_row.items():
             if key == "patient_id":
                 continue
-            if key not in merged_row or merged_row[key] is None:
-                merged_row[key] = value
-        return merged_row
+
+            non_null_values = pd.unique(patient_df[column].dropna())
+            column_state = patient_tracking.setdefault(
+                column,
+                {
+                    "value": non_null_values[0] if len(non_null_values) > 0 else None,
+                    "varied": False,
+                },
+            )
+            if len(non_null_values) == 0:
+                continue
+            if len(non_null_values) > 1:
+                column_state["varied"] = True
+                continue
+
+            if column_state["value"] is None:
+                column_state["value"] = non_null_values[0]
+                continue
+
+            if column_state["value"] != non_null_values[0]:
+                column_state["varied"] = True
+
+    def _build_static_covariate_rows(
+        self,
+        static_tracking: dict[str, dict[str, StaticColumnState]],
+    ) -> list[dict[str, object]]:
+        static_rows: list[dict[str, object]] = []
+        for patient_id, patient_tracking in static_tracking.items():
+            static_row: dict[str, object] = {"patient_id": patient_id}
+            for column, state in patient_tracking.items():
+                if state["varied"]:
+                    continue
+                static_row[column] = state["value"]
+            static_rows.append(static_row)
+        return static_rows
 
     def _configure_pyarrow_threads(self) -> int:
         import pyarrow as pa

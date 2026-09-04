@@ -251,6 +251,69 @@ def test_metabonet_loader_keep_columns_always_includes_required_fields(
     assert isinstance(patient_df.index, pd.DatetimeIndex)
 
 
+def test_metabonet_loader_drops_all_null_static_columns_and_is_test(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    cache_manager = CacheManager(cache_root=str(tmp_path))
+    raw_path = cache_manager.get_absolute_path_by_type("metabonet", "raw")
+    raw_path.mkdir(parents=True, exist_ok=True)
+
+    train_df = pd.DataFrame(
+        {
+            "id": [101, 101, 202],
+            "date": [
+                "2024-01-01 00:00:00",
+                "2024-01-01 00:05:00",
+                "2024-01-02 00:00:00",
+            ],
+            "CGM": [180, 181, 190],
+            "source_file": ["cohort_a.csv", "cohort_a.csv", "cohort_b.csv"],
+            "is_test": [False, False, False],
+            "ethnicity": [None, None, None],
+            "treatment_group": [None, None, None],
+        }
+    )
+    test_df = pd.DataFrame(
+        {
+            "id": [101, 202],
+            "date": ["2024-02-01 00:00:00", "2024-02-02 00:00:00"],
+            "CGM": [175, 188],
+            "row_id": ["seg_a", "seg_b"],
+            "source_file": ["cohort_a.csv", "cohort_b.csv"],
+        }
+    )
+    train_df.to_parquet(raw_path / "train.parquet", index=False)
+    test_df.to_parquet(raw_path / "test.parquet", index=False)
+
+    monkeypatch.setattr(metabonet_module, "get_cache_manager", lambda: cache_manager)
+    loader = MetabonetDataLoader(
+        use_cached=False,
+        load_all=True,
+        eager_load_test_data=False,
+    )
+
+    patient_101_id = next(
+        patient_id
+        for patient_id in loader.processed_data
+        if patient_id.split("_", 1)[0] == "101"
+    )
+    patient_df = loader.processed_data[patient_101_id]
+    assert "is_test" not in patient_df.columns
+    assert "ethnicity" not in patient_df.columns
+    assert "treatment_group" not in patient_df.columns
+
+    static_covariates_df = pd.read_csv(
+        cache_manager.get_absolute_path_by_type("metabonet", "processed")
+        / metabonet_module.STATIC_COVARIATES_FILE
+    )
+    patient_static = static_covariates_df.loc[
+        static_covariates_df["patient_id"].astype(str) == patient_101_id
+    ]
+    assert str(patient_static["is_test"].iloc[0]).lower() in {"false", "0"}
+    assert patient_static["ethnicity"].isna().all()
+    assert patient_static["treatment_group"].isna().all()
+
+
 def test_metabonet_loader_load_all_cached_path_respects_completion_marker(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
