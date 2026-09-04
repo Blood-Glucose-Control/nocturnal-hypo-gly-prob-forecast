@@ -42,6 +42,7 @@ STATIC_COVARIATE_COLUMNS = (
     "insulin_delivery_modality",
     "insulin_type_basal",
     "insulin_type_bolus",
+    "is_test",
     "is_pregnant",
     "randomization_date",
     "source_file",
@@ -797,15 +798,21 @@ class MetabonetDataLoader(DatasetBase):
                 continue
 
             non_null_values = pd.unique(patient_df[column].dropna())
-            if len(non_null_values) == 0:
-                continue
-
             column_state = patient_tracking.setdefault(
                 column,
-                {"value": non_null_values[0], "varied": False},
+                {
+                    "value": non_null_values[0] if len(non_null_values) > 0 else None,
+                    "varied": False,
+                },
             )
+            if len(non_null_values) == 0:
+                continue
             if len(non_null_values) > 1:
                 column_state["varied"] = True
+                continue
+
+            if column_state["value"] is None:
+                column_state["value"] = non_null_values[0]
                 continue
 
             if column_state["value"] != non_null_values[0]:
