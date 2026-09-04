@@ -27,6 +27,8 @@ def _write_metabonet_split_files(raw_path: Path) -> None:
             "treatment_group": ["A", "A", "B"],
             "ethnicity": ["eth_a", "eth_a", "eth_b"],
             "is_test": [False, False, False],
+            "cgm_device": ["dexcom_g6", "dexcom_g6", "libre_2"],
+            "subject_split_across_traintest": [False, False, True],
         }
     )
     test_df = pd.DataFrame(
@@ -84,6 +86,9 @@ def test_metabonet_loader_processes_train_cache_without_load_all(
     static_covariates_df = pd.read_csv(
         processed_path / metabonet_module.STATIC_COVARIATES_FILE
     )
+    piecewise_covariates_df = pd.read_parquet(
+        processed_path / metabonet_module.PIECEWISE_STATIC_COVARIATES_FILE
+    )
     assert not (processed_path / "540_static_covariates.csv").exists()
     static_patient_id_prefixes = sorted(
         {
@@ -93,9 +98,16 @@ def test_metabonet_loader_processes_train_cache_without_load_all(
     )
     assert static_patient_id_prefixes == ["101", "202"]
     assert "age" in static_covariates_df.columns
+    assert "cgm_device" not in static_covariates_df.columns
     assert "treatment_group" in static_covariates_df.columns
     assert "ethnicity" in static_covariates_df.columns
     assert "is_test" in static_covariates_df.columns
+    assert set(piecewise_covariates_df["covariate"]) == {
+        "cgm_device",
+        "subject_split_across_traintest",
+    }
+    assert "value_type" in piecewise_covariates_df.columns
+    assert loader.piecewise_static_covariates is not None
 
 
 def test_metabonet_loader_load_all_materializes_processed_data(
@@ -127,6 +139,7 @@ def test_metabonet_loader_load_all_materializes_processed_data(
     assert "bg_mM" in loader.processed_data[patient_101_id].columns
     assert "age" not in loader.processed_data[patient_101_id].columns
     assert "treatment_group" not in loader.processed_data[patient_101_id].columns
+    assert "cgm_device" not in loader.processed_data[patient_101_id].columns
 
 
 def test_metabonet_loader_load_test_data_returns_nested_segments(
@@ -180,6 +193,7 @@ def test_metabonet_loader_uses_fixed_static_covariate_column_policy(
             "age_of_diagnosis": [12, 12, 20],
             "source_file": ["cohort_a.csv", "cohort_a.csv", "cohort_b.csv"],
             "treatment_group": ["A", "A", "B"],
+            "cgm_device": ["dexcom_g6", "dexcom_g7", "libre_2"],
         }
     )
     test_df = pd.DataFrame(
@@ -211,9 +225,14 @@ def test_metabonet_loader_uses_fixed_static_covariate_column_policy(
     assert "age" not in patient_df.columns
     assert "age_of_diagnosis" not in patient_df.columns
     assert "treatment_group" not in patient_df.columns
+    assert "cgm_device" not in patient_df.columns
     static_covariates_df = pd.read_csv(
         cache_manager.get_absolute_path_by_type("metabonet", "processed")
         / metabonet_module.STATIC_COVARIATES_FILE
+    )
+    piecewise_covariates_df = pd.read_parquet(
+        cache_manager.get_absolute_path_by_type("metabonet", "processed")
+        / metabonet_module.PIECEWISE_STATIC_COVARIATES_FILE
     )
     patient_101_static = static_covariates_df.loc[
         static_covariates_df["patient_id"].astype(str) == patient_101_id
@@ -221,6 +240,13 @@ def test_metabonet_loader_uses_fixed_static_covariate_column_policy(
     assert patient_101_static["age"].iloc[0] == 30
     assert patient_101_static["age_of_diagnosis"].iloc[0] == 12
     assert patient_101_static["treatment_group"].iloc[0] == "A"
+
+    patient_101_piecewise = piecewise_covariates_df.loc[
+        (piecewise_covariates_df["patient_id"].astype(str) == patient_101_id)
+        & (piecewise_covariates_df["covariate"] == "cgm_device")
+    ].sort_values("start_datetime")
+    assert patient_101_piecewise["value"].tolist() == ["dexcom_g6", "dexcom_g7"]
+    assert patient_101_piecewise["end_datetime"].isna().sum() == 1
 
 
 def test_metabonet_loader_keep_columns_always_includes_required_fields(
@@ -375,6 +401,9 @@ def test_reset_processed_patient_cache_removes_legacy_static_files(tmp_path: Pat
     (processed_path / metabonet_module.STATIC_COVARIATES_FILE).write_text(
         "patient_id\n", encoding="utf-8"
     )
+    (processed_path / metabonet_module.PIECEWISE_STATIC_COVARIATES_FILE).write_bytes(
+        b"parquet"
+    )
     (processed_path / "540_static_covariates.csv").write_text(
         "patient_id\n", encoding="utf-8"
     )
@@ -393,8 +422,130 @@ def test_reset_processed_patient_cache_removes_legacy_static_files(tmp_path: Pat
 
     assert not (processed_path / metabonet_module.PROCESSED_COMPLETE_MARKER).exists()
     assert not (processed_path / metabonet_module.STATIC_COVARIATES_FILE).exists()
+    assert not (
+        processed_path / metabonet_module.PIECEWISE_STATIC_COVARIATES_FILE
+    ).exists()
     assert not (processed_path / "540_static_covariates.csv").exists()
     assert not (processed_path / "123_static_covariates.csv").exists()
     assert not (processed_path / "101_full.csv").exists()
     assert not (processed_path / "101_full.parquet").exists()
     assert not partitions_path.exists()
+
+
+def test_save_piecewise_static_covariates_empty_keeps_value_type_column(
+    tmp_path: Path,
+):
+    loader = object.__new__(MetabonetDataLoader)
+    loader.cache_manager = CacheManager(cache_root=str(tmp_path))
+
+    loader._save_piecewise_static_covariates([])
+
+    assert loader.piecewise_static_covariates is not None
+    assert "value_type" in loader.piecewise_static_covariates.columns
+
+    piecewise_path = (
+        loader.cache_manager.get_absolute_path_by_type("metabonet", "processed")
+        / metabonet_module.PIECEWISE_STATIC_COVARIATES_FILE
+    )
+    saved_piecewise = pd.read_parquet(piecewise_path)
+    assert "value_type" in saved_piecewise.columns
+    assert saved_piecewise.empty
+
+
+def test_finalize_piecewise_segments_handles_out_of_order_batch_arrival():
+    loader = object.__new__(MetabonetDataLoader)
+    loader.split_static_covariates = True
+
+    observation_map: dict[tuple[str, str], list[tuple[pd.Timestamp, object]]] = {}
+    completed_rows: list[dict[str, object]] = []
+
+    patient_id = "4_ctr3-98898d528d"
+    later_chunk = pd.DataFrame(
+        {"weight": [71.0]},
+        index=pd.DatetimeIndex(
+            pd.to_datetime(["2024-01-03 00:00:00"]), name="datetime"
+        ),
+    )
+    earlier_chunk = pd.DataFrame(
+        {"weight": [69.0, 70.0]},
+        index=pd.DatetimeIndex(
+            pd.to_datetime(["2024-01-01 00:00:00", "2024-01-02 00:00:00"]),
+            name="datetime",
+        ),
+    )
+
+    loader._update_piecewise_covariate_segments(
+        patient_df=later_chunk,
+        patient_id=patient_id,
+        observation_map=observation_map,
+    )
+    loader._update_piecewise_covariate_segments(
+        patient_df=earlier_chunk,
+        patient_id=patient_id,
+        observation_map=observation_map,
+    )
+    loader._finalize_piecewise_covariate_segments(
+        observation_map=observation_map,
+        completed_rows=completed_rows,
+    )
+
+    weight_segments = [
+        row
+        for row in completed_rows
+        if row["patient_id"] == patient_id and row["covariate"] == "weight"
+    ]
+    assert len(weight_segments) == 3
+    assert [row["value"] for row in weight_segments] == [69.0, 70.0, 71.0]
+    assert weight_segments[-1]["end_datetime"] is None
+
+
+def test_finalize_piecewise_segments_preserves_chunk_spanning_reversion():
+    loader = object.__new__(MetabonetDataLoader)
+    loader.split_static_covariates = True
+
+    observation_map: dict[tuple[str, str], list[tuple[pd.Timestamp, object]]] = {}
+    completed_rows: list[dict[str, object]] = []
+
+    patient_id = "77_ctr1-1f7f7f7f7f"
+    first_chunk = pd.DataFrame(
+        {"cgm_device": ["dexcom_g6", "dexcom_g6"]},
+        index=pd.DatetimeIndex(
+            pd.to_datetime(["2024-01-01 00:00:00", "2024-01-03 00:00:00"]),
+            name="datetime",
+        ),
+    )
+    second_chunk = pd.DataFrame(
+        {"cgm_device": ["dexcom_g7"]},
+        index=pd.DatetimeIndex(
+            pd.to_datetime(["2024-01-02 00:00:00"]),
+            name="datetime",
+        ),
+    )
+
+    loader._update_piecewise_covariate_segments(
+        patient_df=first_chunk,
+        patient_id=patient_id,
+        observation_map=observation_map,
+    )
+    loader._update_piecewise_covariate_segments(
+        patient_df=second_chunk,
+        patient_id=patient_id,
+        observation_map=observation_map,
+    )
+    loader._finalize_piecewise_covariate_segments(
+        observation_map=observation_map,
+        completed_rows=completed_rows,
+    )
+
+    cgm_segments = [
+        row
+        for row in completed_rows
+        if row["patient_id"] == patient_id and row["covariate"] == "cgm_device"
+    ]
+    assert len(cgm_segments) == 3
+    assert [row["value"] for row in cgm_segments] == [
+        "dexcom_g6",
+        "dexcom_g7",
+        "dexcom_g6",
+    ]
+    assert cgm_segments[-1]["end_datetime"] is None
