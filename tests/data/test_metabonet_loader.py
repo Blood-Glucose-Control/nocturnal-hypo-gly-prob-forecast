@@ -549,3 +549,70 @@ def test_finalize_piecewise_segments_preserves_chunk_spanning_reversion():
         "dexcom_g6",
     ]
     assert cgm_segments[-1]["end_datetime"] is None
+
+
+def test_finalize_piecewise_segments_captures_end_of_chunk_and_next_chunk_change():
+    loader = object.__new__(MetabonetDataLoader)
+    loader.split_static_covariates = True
+
+    observation_map: dict[tuple[str, str], list[tuple[pd.Timestamp, object]]] = {}
+    completed_rows: list[dict[str, object]] = []
+
+    patient_id = "88_ctr2-abcd123456"
+    first_chunk = pd.DataFrame(
+        {"cgm_device": ["dexcom_g6", "dexcom_g6", "dexcom_g7", "libre_2"]},
+        index=pd.DatetimeIndex(
+            pd.to_datetime(
+                [
+                    "2024-01-01 00:00:00",
+                    "2024-01-01 00:05:00",
+                    "2024-01-01 00:10:00",
+                    "2024-01-01 00:15:00",
+                ]
+            ),
+            name="datetime",
+        ),
+    )
+    second_chunk = pd.DataFrame(
+        {"cgm_device": ["medtronic_guardian", "medtronic_guardian"]},
+        index=pd.DatetimeIndex(
+            pd.to_datetime(["2024-01-01 00:20:00", "2024-01-01 00:25:00"]),
+            name="datetime",
+        ),
+    )
+
+    loader._update_piecewise_covariate_segments(
+        patient_df=first_chunk,
+        patient_id=patient_id,
+        observation_map=observation_map,
+    )
+    loader._update_piecewise_covariate_segments(
+        patient_df=second_chunk,
+        patient_id=patient_id,
+        observation_map=observation_map,
+    )
+    loader._finalize_piecewise_covariate_segments(
+        observation_map=observation_map,
+        completed_rows=completed_rows,
+    )
+
+    cgm_segments = [
+        row
+        for row in completed_rows
+        if row["patient_id"] == patient_id and row["covariate"] == "cgm_device"
+    ]
+    assert len(cgm_segments) == 4
+    assert [row["value"] for row in cgm_segments] == [
+        "dexcom_g6",
+        "dexcom_g7",
+        "libre_2",
+        "medtronic_guardian",
+    ]
+    assert cgm_segments[0]["start_datetime"] == pd.Timestamp("2024-01-01 00:00:00")
+    assert cgm_segments[0]["end_datetime"] == pd.Timestamp("2024-01-01 00:10:00")
+    assert cgm_segments[1]["start_datetime"] == pd.Timestamp("2024-01-01 00:10:00")
+    assert cgm_segments[1]["end_datetime"] == pd.Timestamp("2024-01-01 00:15:00")
+    assert cgm_segments[2]["start_datetime"] == pd.Timestamp("2024-01-01 00:15:00")
+    assert cgm_segments[2]["end_datetime"] == pd.Timestamp("2024-01-01 00:20:00")
+    assert cgm_segments[3]["start_datetime"] == pd.Timestamp("2024-01-01 00:20:00")
+    assert cgm_segments[3]["end_datetime"] is None
