@@ -66,3 +66,13 @@ python agent_notes/diagrams/render_glucofoundry_workflow.py
 The Mermaid source (`glucofoundry_workflow.mmd`) is the same diagram in a form
 that renders natively on GitHub and can be exported with `mmdc` if the Mermaid
 CLI is installed.
+
+## See also — conceptual illustrations
+
+- **Correlation vs causation around insulin**
+  ([SVG](./insulin_correlation_not_causation.svg) ·
+  [PNG](./insulin_correlation_not_causation.png)) — a synthetic example showing a
+  model forecasting a BG *spike* after an insulin bolus (learned correlation,
+  since insulin co-occurs with meals) versus the true causal effect (insulin
+  lowers BG). Regenerate with
+  `python agent_notes/diagrams/render_insulin_correlation_not_causation.py`.
