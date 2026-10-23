@@ -1,0 +1,27 @@
+%% GlucoFoundry high-level research workflow (general audience).
+%% Render options:
+%%   - GitHub renders this natively when embedded in a ```mermaid block (see README.md).
+%%   - CLI: mmdc -i glucofoundry_workflow.mmd -o glucofoundry_workflow.png
+flowchart LR
+    classDef io fill:#CFF3EE,stroke:#2C7A7B,color:#1D4044,stroke-width:1.5px;
+    classDef core fill:#D6E4FF,stroke:#2B6CB0,color:#1A365D,stroke-width:1.5px;
+    classDef model fill:#D7F5DD,stroke:#2F855A,color:#1C4532,stroke-width:1.5px;
+    classDef ext fill:#FFF4D6,stroke:#D69E2E,color:#744210,stroke-width:1.5px,stroke-dasharray:6 4;
+
+    D[("Datasets<br/>CGM / glucose time series")]:::io
+    P["Preprocessing &<br/>Feature Engineering"]:::core
+    T["Training /<br/>Fine-tuning"]:::core
+    H["Hyperparameter Optimization<br/>Optuna + MLflow tracking"]:::core
+    E["Evaluation &<br/>Metrics"]:::core
+    R[("Experiments &<br/>Reproducible Results")]:::io
+    M["Models<br/>foundation models via<br/>the ModelAdapter protocol"]:::model
+
+    D --> P --> T --> E --> R
+    M --> T
+    T -- tune --> H
+    H -- best config --> E
+
+    xD(["+ Add a dataset"]):::ext -.-> D
+    xM(["+ Add a model"]):::ext -.-> M
+    xT(["+ Add an experiment / task"]):::ext -.-> T
+    xE(["+ Add a metric"]):::ext -.-> E

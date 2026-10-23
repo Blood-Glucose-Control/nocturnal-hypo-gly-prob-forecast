@@ -8,6 +8,8 @@ This folder is now ordered by project priority using `P#-##` prefixes.
   GlucoFoundry toolkit + 3 experiment forks; reframes the single-repo cleanup as
   toolkit extraction). Supersedes the scope framing of
   `00_P0-P3_MASTER_REORG_PLAN.md`.
+- `diagrams/` (general-audience GlucoFoundry workflow flowchart: Mermaid source,
+  matplotlib render script, and exported PNG/SVG).
 
 ## Active Notes (Priority-Ordered)
 
