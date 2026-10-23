@@ -49,6 +49,14 @@ def main() -> None:
     s_dn = 1.0 - np.exp(-np.clip(t, 0, None) / 40.0)
     bg_causal = bg_now - (bg_now - 84.0) * s_dn
 
+    # convert mg/dL -> mmol/L for display
+    mg_to_mmol = 1.0 / 18.0182
+    bg_hist = bg_hist * mg_to_mmol
+    bg_fcst = bg_fcst * mg_to_mmol
+    bg_causal = bg_causal * mg_to_mmol
+    band = band * mg_to_mmol
+    bg_now = bg_now * mg_to_mmol
+
     hist_mask = t <= now
     fcst_mask = t >= now
 
@@ -59,7 +67,7 @@ def main() -> None:
     ax.axvline(now, color=C_NOW, ls="--", lw=1.6, zorder=1)
     ax.text(
         now + 3,
-        70,
+        3.8,
         "forecast  \u2192",
         color=C_NOW,
         fontsize=11,
@@ -68,7 +76,7 @@ def main() -> None:
     )
     ax.text(
         now - 3,
-        70,
+        3.8,
         "\u2190  observed",
         color=C_NOW,
         fontsize=11,
@@ -119,11 +127,11 @@ def main() -> None:
 
     # insulin bolus marker
     t_bolus = -12.0
-    bg_at_bolus = 112.0 + 0.5 * (t_bolus + 45)
+    bg_at_bolus = (112.0 + 0.5 * (t_bolus + 45)) * mg_to_mmol
     ax.annotate(
         "Insulin bolus\n(given with meal carbs)",
         xy=(t_bolus, bg_at_bolus),
-        xytext=(t_bolus - 46, 182),
+        xytext=(t_bolus - 46, 10.3),
         fontsize=11,
         color=C_INSULIN,
         fontweight="bold",
@@ -140,7 +148,7 @@ def main() -> None:
         "Model predicts a BG spike after insulin\n"
         "(insulin co-occurs with meals \u2192 confounded correlation)",
         xy=(70, np.interp(70, t, bg_fcst)),
-        xytext=(18, 150),
+        xytext=(18, 8.3),
         fontsize=10.5,
         color=C_FCST,
         arrowprops=dict(arrowstyle="-|>", color=C_FCST, lw=1.6),
@@ -150,7 +158,7 @@ def main() -> None:
     ax.annotate(
         "Physiology: insulin actually\nlowers blood glucose",
         xy=(78, np.interp(78, t, bg_causal)),
-        xytext=(40, 58),
+        xytext=(40, 3.2),
         fontsize=10.5,
         color=C_CAUSAL,
         arrowprops=dict(arrowstyle="-|>", color=C_CAUSAL, lw=1.6),
@@ -168,8 +176,8 @@ def main() -> None:
         pad=14,
     )
     ax.set_xlabel("Time relative to forecast origin (minutes)", fontsize=12)
-    ax.set_ylabel("Blood glucose (mg/dL)", fontsize=12)
-    ax.set_ylim(50, 220)
+    ax.set_ylabel("Blood glucose (mmol/L)", fontsize=12)
+    ax.set_ylim(2.5, 12.5)
     ax.set_xlim(t.min(), t.max())
     ax.grid(True, ls=":", lw=0.7, color="#CBD5E0", alpha=0.7)
     ax.legend(loc="upper left", fontsize=10.5, framealpha=0.95)
