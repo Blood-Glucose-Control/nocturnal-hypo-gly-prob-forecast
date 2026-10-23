@@ -76,3 +76,11 @@ CLI is installed.
   since insulin co-occurs with meals) versus the true causal effect (insulin
   lowers BG). Regenerate with
   `python agent_notes/diagrams/render_insulin_correlation_not_causation.py`.
+- **Why shape metrics matter**
+  ([SVG](./shape_metrics_matter.svg) · [PNG](./shape_metrics_matter.png)) — a
+  synthetic nocturnal hypo curve with a flat/mean forecast (low RMSE/MAE but
+  misses the hypo) versus a shape-correct, time-shifted forecast (worse pointwise
+  error but far lower DTW). Pointwise metrics pick the useless flat line; the
+  shape metric (DTW / DILATE's shape term) picks the clinically useful forecast.
+  Metric values in the figure are computed from the synthetic data. Regenerate
+  with `python agent_notes/diagrams/render_shape_metrics_matter.py`.
