@@ -2,6 +2,13 @@
 
 This folder is now ordered by project priority using `P#-##` prefixes.
 
+## Current Roadmap
+
+- `00_GLUCOFOUNDRY_FOUR_REPO_ROADMAP.md` (active cross-repo roadmap: extract the
+  GlucoFoundry toolkit + 3 experiment forks; reframes the single-repo cleanup as
+  toolkit extraction). Supersedes the scope framing of
+  `00_P0-P3_MASTER_REORG_PLAN.md`.
+
 ## Active Notes (Priority-Ordered)
 
 ### P0
