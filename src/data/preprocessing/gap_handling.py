@@ -364,7 +364,9 @@ def interpolate_small_gaps(
     # limit_area="inside" = only fill NaN between two valid values;
     # leading/trailing NaN with no anchor on one side stay untouched.
     interpolated = s.interpolate(method="linear", limit_area="inside")
-    interpolated.values[large_gap_mask] = np.nan
+    # Assign through the Series (not the underlying `.values` buffer, which
+    # NumPy 2.x exposes as read-only) so large gaps are restored to NaN.
+    interpolated[large_gap_mask] = np.nan
 
     df[bg_col] = interpolated
 
