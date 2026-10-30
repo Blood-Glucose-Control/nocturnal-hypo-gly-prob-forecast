@@ -60,7 +60,7 @@ that need a land-or-exclude decision before the merge.
 
 - `a1-land-feature-commits` - Decide fate of the 4 unmerged `feat/moirai2-moe-lora-sweep` commits (land into `private/main` or exclude).
 - `a2-premerge-safety-audit` - PII/PHI, secrets, local-path, raw-data, large-file audit on the 96-commit delta (reuse `pii-secrets-audit` tooling). Gate before public exposure.
-- `a3-merge-mechanism-decision` - Choose history-preserving single reviewed PR (recommended for a record repo) vs squash.
+- `a3-merge-mechanism-decision` - DECIDED: history-preserving merge commit (no squash). Squash merging is being disabled repo-wide (public + private) because it poisons merge-base tracking across the toolkit/fork topology and destroys the granular record. Rebase optional for small linear PRs.
 - `a4-merge-private-to-public` - Open `private/main -> origin/main` PR, run CI, merge, fast-forward public `main`.
 
 ### Phase B - Extract GlucoFoundry (risk-free)
@@ -92,7 +92,8 @@ that need a land-or-exclude decision before the merge.
   task is `a1-land-feature-commits`, which gates the whole merge.
 - Open decisions to confirm during execution:
   1. Land vs exclude the 4 `feat/moirai2-moe-lora-sweep` commits.
-  2. History-preserving vs squash for the private -> public merge.
+  2. (DECIDED) Private -> public merge uses a history-preserving merge commit,
+     not squash. Squash merging is being disabled repo-wide.
   3. GlucoFoundry: carry full history vs clean `init`.
 
 ---
