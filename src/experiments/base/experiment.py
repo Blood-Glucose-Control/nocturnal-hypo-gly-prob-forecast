@@ -223,15 +223,19 @@ class ExperimentSummarizer(ABC):
             )
             return {"by_model_dataset": pd.DataFrame(), "by_model": pd.DataFrame()}
 
-        # Best per (model × dataset) — dropna guards against groups where the
-        # chosen metric is entirely NaN (e.g. nocturnal runs have no overall MAE).
-        by_md_idx = df.groupby(["model", "dataset"])[metric].idxmin().dropna()
+        # Best per (model × dataset). Drop rows whose metric is NaN before
+        # ranking so groups that are entirely NaN (e.g. nocturnal runs have no
+        # overall MAE) are simply excluded. pandas >= 2.1 raises from
+        # groupby().idxmin() when a group is all-NA, so we cannot rely on a
+        # trailing dropna() anymore.
+        rankable = df.dropna(subset=[metric])
+        by_md_idx = rankable.groupby(["model", "dataset"])[metric].idxmin()
         by_md = (
             df.loc[by_md_idx].sort_values(["model", "dataset"]).reset_index(drop=True)
         )
 
         # Global best per model
-        by_m_idx = df.groupby("model")[metric].idxmin().dropna()
+        by_m_idx = rankable.groupby("model")[metric].idxmin()
         by_m = df.loc[by_m_idx].sort_values("model").reset_index(drop=True)
 
         out_dir = self.experiment_dir
