@@ -1,0 +1,182 @@
+{
+  "additionalProperties": false,
+  "description": "Schema contract for standalone TimesFM 3.0 model YAML configs.\n\nSeparate from :class:`TimesFMModelConfigSchema` (the published HF-Transformers\nTimesFM family); TimesFM 3.0 runs on the native ``timesfm3`` package and\nsupports native past-only covariates plus LoRA fine-tuning.",
+  "properties": {
+    "batch_size": {
+      "default": 32,
+      "exclusiveMinimum": 0,
+      "title": "Batch Size",
+      "type": "integer"
+    },
+    "context_length": {
+      "default": 512,
+      "exclusiveMinimum": 0,
+      "title": "Context Length",
+      "type": "integer"
+    },
+    "covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Covariate Cols",
+      "type": "array"
+    },
+    "covariate_jitter": {
+      "default": 0.001,
+      "minimum": 0.0,
+      "title": "Covariate Jitter",
+      "type": "number"
+    },
+    "device": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Device"
+    },
+    "early_stopping_patience": {
+      "default": 3,
+      "minimum": 0,
+      "title": "Early Stopping Patience",
+      "type": "integer"
+    },
+    "forecast_length": {
+      "default": 96,
+      "exclusiveMinimum": 0,
+      "title": "Forecast Length",
+      "type": "integer"
+    },
+    "fp16": {
+      "default": true,
+      "title": "Fp16",
+      "type": "boolean"
+    },
+    "freeze_backbone": {
+      "default": false,
+      "title": "Freeze Backbone",
+      "type": "boolean"
+    },
+    "grad_clip_norm": {
+      "default": 1.0,
+      "minimum": 0.0,
+      "title": "Grad Clip Norm",
+      "type": "number"
+    },
+    "learning_rate": {
+      "default": 0.0001,
+      "exclusiveMinimum": 0.0,
+      "title": "Learning Rate",
+      "type": "number"
+    },
+    "lora_alpha": {
+      "default": 16,
+      "exclusiveMinimum": 0,
+      "title": "Lora Alpha",
+      "type": "integer"
+    },
+    "lora_dropout": {
+      "default": 0.0,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Lora Dropout",
+      "type": "number"
+    },
+    "lora_r": {
+      "default": 8,
+      "exclusiveMinimum": 0,
+      "title": "Lora R",
+      "type": "integer"
+    },
+    "lora_target_modules": {
+      "default": "all-linear",
+      "minLength": 1,
+      "title": "Lora Target Modules",
+      "type": "string"
+    },
+    "make_positive": {
+      "default": true,
+      "title": "Make Positive",
+      "type": "boolean"
+    },
+    "max_train_windows": {
+      "default": 2048,
+      "exclusiveMinimum": 0,
+      "title": "Max Train Windows",
+      "type": "integer"
+    },
+    "model_path": {
+      "default": "google/timesfm-3.0-pytorch",
+      "minLength": 1,
+      "title": "Model Path",
+      "type": "string"
+    },
+    "model_type": {
+      "const": "timesfm3",
+      "default": "timesfm3",
+      "title": "Model Type",
+      "type": "string"
+    },
+    "num_epochs": {
+      "default": 10,
+      "minimum": 0,
+      "title": "Num Epochs",
+      "type": "integer"
+    },
+    "quantiles": {
+      "items": {
+        "type": "number"
+      },
+      "title": "Quantiles",
+      "type": "array"
+    },
+    "target_col": {
+      "default": "bg_mM",
+      "minLength": 1,
+      "title": "Target Col",
+      "type": "string"
+    },
+    "training_mode": {
+      "default": "fine_tune",
+      "title": "Training Mode",
+      "type": "string"
+    },
+    "use_cpu": {
+      "default": false,
+      "title": "Use Cpu",
+      "type": "boolean"
+    },
+    "val_fraction": {
+      "default": 0.2,
+      "exclusiveMaximum": 1.0,
+      "minimum": 0.0,
+      "title": "Val Fraction",
+      "type": "number"
+    },
+    "weight_decay": {
+      "default": 0.01,
+      "minimum": 0.0,
+      "title": "Weight Decay",
+      "type": "number"
+    },
+    "window_stride": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Window Stride"
+    }
+  },
+  "title": "TimesFM3ModelConfigSchema",
+  "type": "object"
+}

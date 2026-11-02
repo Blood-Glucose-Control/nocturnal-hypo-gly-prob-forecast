@@ -26,6 +26,12 @@ class Chronos2Config(ModelConfig):
     Attributes:
         fine_tune_steps: Number of fine-tuning gradient steps.
         fine_tune_lr: Learning rate for fine-tuning.
+        fine_tune_mode: "lora" (Low-Rank Adaptation, default) or "full".
+        fine_tune_lora_config: Optional dict of LoRA hyperparameters (r,
+            lora_alpha, lora_dropout, target_modules) used when
+            fine_tune_mode == "lora". None uses AutoGluon LoRA defaults.
+        fine_tune_context_length: Max context length during fine-tuning
+            (AutoGluon default 2048 when None).
         fine_tune_batch_size: Per-device training batch size passed to the
             HuggingFace Trainer via AutoGluon. Defaults to AutoGluon's
             default of 32 when None. Reducing this helps with GPU OOM;
@@ -58,6 +64,22 @@ class Chronos2Config(ModelConfig):
     # Chronos-2 / AutoGluon specific training
     fine_tune_steps: int = 15000
     fine_tune_lr: float = 1e-5
+    # Fine-tuning strategy passed to AutoGluon's Chronos2Model:
+    #   "lora" — Low-Rank Adaptation (default; small trainable adapter)
+    #   "full" — full-parameter fine-tuning
+    fine_tune_mode: str = "lora"
+    # LoRA adapter configuration forwarded to AutoGluon as
+    # fine_tune_lora_config when fine_tune_mode == "lora". None uses
+    # AutoGluon's built-in LoRA defaults. Typical keys: r, lora_alpha,
+    # lora_dropout, target_modules.
+    fine_tune_lora_config: Optional[Dict] = None
+    # Maximum context length used during fine-tuning (AutoGluon default 2048).
+    # None leaves AutoGluon's default in place.
+    fine_tune_context_length: Optional[int] = None
+    # Extra keyword arguments merged into the HuggingFace Trainer config via
+    # AutoGluon's fine_tune_trainer_kwargs (e.g. weight_decay, warmup_ratio,
+    # lr_scheduler_type, gradient_accumulation_steps). None = no extras.
+    extra_fine_tune_trainer_kwargs: Optional[Dict] = None
     # None = use AutoGluon defaults (fine_tune_batch_size=32, batch_size=256)
     fine_tune_batch_size: Optional[int] = None
     batch_size: Optional[int] = None  # type: ignore[assignment]
@@ -97,6 +119,20 @@ class Chronos2Config(ModelConfig):
     # AutoGluon training settings
     eval_metric: str = "WQL"
     enable_ensemble: bool = False
+    # Whether Chronos-2 predicts each item jointly across the panel
+    # (cross_learning=True) or independently (False). Nocturnal single-night
+    # episodes are unrelated, so the default is False; MetaboNet-style panels
+    # with many related patient series may benefit from True.
+    cross_learning: bool = False
+    # Cap on the number of items AutoGluon uses when evaluating during
+    # fine-tuning (fine_tune_eval_max_items). None = AutoGluon default (256).
+    fine_tune_eval_max_items: Optional[int] = None
+    # Target normalization applied by AutoGluon before the model sees the series
+    # ("standard", "robust", "mean_abs", "min_max"). None = no scaling.
+    target_scaler: Optional[str] = None
+    # AutoGluon covariate scaler applied to covariate columns before the model
+    # ("local" = per-series stats, "global" = dataset-wide). None = no scaling.
+    covariate_scaler: Optional[str] = None
     # When True and tuning_data is provided, AutoGluon evaluates on the
     # validation set during fine-tuning and loads the best checkpoint.
     eval_during_fine_tune: bool = True
@@ -144,16 +180,26 @@ class Chronos2Config(ModelConfig):
             "Chronos2": {
                 "model_path": self.model_path,
                 "fine_tune": self.training_mode == "fine_tune",
+                "fine_tune_mode": self.fine_tune_mode,
                 "fine_tune_steps": self.fine_tune_steps,
                 "fine_tune_lr": self.fine_tune_lr,
                 "context_length": self.context_length,
                 "eval_during_fine_tune": self.eval_during_fine_tune,
-                # Disable cross_learning so each time series is predicted
-                # independently.  Our episodes are unrelated patient-nights;
-                # joint prediction across items is wrong.
-                "cross_learning": False,
+                # cross_learning controls whether items are predicted jointly
+                # (True) or independently (False). See config attribute above.
+                "cross_learning": self.cross_learning,
             }
         }
+        if self.fine_tune_eval_max_items is not None:
+            hp["Chronos2"]["fine_tune_eval_max_items"] = self.fine_tune_eval_max_items
+        if self.target_scaler is not None:
+            hp["Chronos2"]["target_scaler"] = self.target_scaler
+        if self.covariate_scaler is not None:
+            hp["Chronos2"]["covariate_scaler"] = self.covariate_scaler
+        if self.fine_tune_mode == "lora" and self.fine_tune_lora_config is not None:
+            hp["Chronos2"]["fine_tune_lora_config"] = self.fine_tune_lora_config
+        if self.fine_tune_context_length is not None:
+            hp["Chronos2"]["fine_tune_context_length"] = self.fine_tune_context_length
         if self.fine_tune_batch_size is not None:
             hp["Chronos2"]["fine_tune_batch_size"] = self.fine_tune_batch_size
         if self.batch_size is not None:
@@ -182,6 +228,8 @@ class Chronos2Config(ModelConfig):
                     "save_total_limit": None,
                 }
             )
+        if self.extra_fine_tune_trainer_kwargs:
+            trainer_kwargs.update(self.extra_fine_tune_trainer_kwargs)
         if trainer_kwargs:
             hp["Chronos2"]["fine_tune_trainer_kwargs"] = trainer_kwargs
         return hp

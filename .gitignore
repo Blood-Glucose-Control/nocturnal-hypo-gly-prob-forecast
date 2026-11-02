@@ -236,3 +236,9 @@ mlflow_experiments/README.md
 scratch.md
 .stash-backups/
 logs/*.txt
+
+# Competition-private Chronos-2 x Optuna search configs, studies, and results.
+# Keep tuned search spaces / winning configs OFF the public remote.
+/private/
+results/optuna/
+optuna_chronos2_*.db

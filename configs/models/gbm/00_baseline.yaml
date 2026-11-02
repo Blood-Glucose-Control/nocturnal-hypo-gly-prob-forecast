@@ -1,0 +1,32 @@
+# =============================================================================
+# GBM Config 00: baseline (BG-only)
+# =============================================================================
+# Gradient-boosted tree forecaster via AutoGluon's tabular reduction
+# (RecursiveTabular) with a LightGBM backend. The tabular reductions support
+# static + known-future covariates only (not past covariates), so this baseline
+# is BG-only. Swap `backend` to catboost/xgboost or `strategy` to direct to
+# explore the family; the optuna_gbm sweep searches these knobs.
+# =============================================================================
+
+model_type: "gbm"
+training_mode: "from_scratch"
+context_length: 288
+forecast_length: 24
+
+strategy: "recursive"
+backend: "lightgbm"
+lags: [1, 2, 3, 6, 12]
+target_scaler: "standard"
+model_hyperparameters:
+  num_boost_round: 300
+  learning_rate: 0.05
+
+covariate_cols: []
+target_col: "bg_mM"
+patient_col: "patient_id"
+time_col: "datetime"
+interval_mins: 5
+
+eval_metric: "WQL"
+enable_ensemble: false
+imputation_threshold_mins: 45

@@ -8,6 +8,20 @@
       "title": "Batch Size",
       "type": "integer"
     },
+    "beta1": {
+      "default": 0.9,
+      "exclusiveMaximum": 1.0,
+      "exclusiveMinimum": 0.0,
+      "title": "Beta1",
+      "type": "number"
+    },
+    "beta2": {
+      "default": 0.98,
+      "exclusiveMaximum": 1.0,
+      "exclusiveMinimum": 0.0,
+      "title": "Beta2",
+      "type": "number"
+    },
     "checkpoint_path": {
       "anyOf": [
         {
@@ -65,10 +79,37 @@
       "title": "Interval Mins",
       "type": "integer"
     },
+    "known_covariate_cols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Known Covariate Cols",
+      "type": "array"
+    },
+    "known_covariate_dim": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Known Covariate Dim",
+      "type": "integer"
+    },
     "learning_rate": {
       "default": 0.0001,
       "exclusiveMinimum": 0.0,
       "title": "Learning Rate",
+      "type": "number"
+    },
+    "max_mask_ratio": {
+      "default": 0.5,
+      "exclusiveMinimum": 0.0,
+      "maximum": 1.0,
+      "title": "Max Mask Ratio",
+      "type": "number"
+    },
+    "min_mask_ratio": {
+      "default": 0.15,
+      "exclusiveMaximum": 1.0,
+      "minimum": 0.0,
+      "title": "Min Mask Ratio",
       "type": "number"
     },
     "model_path": {

@@ -31,8 +31,10 @@ jobs:
       - name: Install review tooling
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
-          pip install pre-commit pyright
+          # The review environment only needs lint/type/test tooling. Avoid
+          # `pip install -e .`, whose core deps pull torch/CUDA/datasets and
+          # exhaust the runner disk (No space left on device).
+          pip install pre-commit pyright ruff pytest pytest-mock
 
       - name: Baseline review environment checks
         run: |

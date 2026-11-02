@@ -41,6 +41,11 @@
       "title": "Covariate Cols",
       "type": "array"
     },
+    "cross_learning": {
+      "default": false,
+      "title": "Cross Learning",
+      "type": "boolean"
+    },
     "enable_ensemble": {
       "default": false,
       "title": "Enable Ensemble",
@@ -57,6 +62,19 @@
       "title": "Eval Metric",
       "type": "string"
     },
+    "extra_fine_tune_trainer_kwargs": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Extra Fine Tune Trainer Kwargs"
+    },
     "fine_tune_batch_size": {
       "anyOf": [
         {
@@ -69,6 +87,32 @@
       ],
       "default": null,
       "title": "Fine Tune Batch Size"
+    },
+    "fine_tune_context_length": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fine Tune Context Length"
+    },
+    "fine_tune_eval_max_items": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fine Tune Eval Max Items"
     },
     "fine_tune_logging_steps": {
       "anyOf": [
@@ -83,11 +127,33 @@
       "default": null,
       "title": "Fine Tune Logging Steps"
     },
+    "fine_tune_lora_config": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fine Tune Lora Config"
+    },
     "fine_tune_lr": {
       "default": 1e-05,
       "exclusiveMinimum": 0.0,
       "title": "Fine Tune Lr",
       "type": "number"
+    },
+    "fine_tune_mode": {
+      "default": "lora",
+      "enum": [
+        "lora",
+        "full"
+      ],
+      "title": "Fine Tune Mode",
+      "type": "string"
     },
     "fine_tune_steps": {
       "default": 15000,
@@ -206,6 +272,18 @@
       "minLength": 1,
       "title": "Target Col",
       "type": "string"
+    },
+    "target_scaler": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Target Scaler"
     },
     "time_col": {
       "default": "datetime",

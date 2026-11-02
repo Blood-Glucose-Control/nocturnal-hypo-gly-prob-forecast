@@ -85,6 +85,13 @@ moment = [
 timesfm = [
     "transformers>=5.2.0",
 ]
+# TimesFM 3.0 (separate `timesfm3` package + PyTorch backend) with LoRA
+# fine-tuning support. Kept fully separate from the published `timesfm`
+# (HF-Transformers) model above so the papers' model stays reproducible.
+timesfm3 = [
+    "timesfm[torch]>=3.0.2",
+    "peft>=0.21.0",
+]
 tide = [
     "autogluon.timeseries==1.5.0",
 ]

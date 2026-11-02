@@ -53,6 +53,11 @@ MODEL_FAMILY_CLASS_CONTRACT: dict[str, dict[str, object]] = {
         "model_class": "TimesFMForecaster",
         "allowed_model_bases": {"BaseTimeSeriesFoundationModel"},
     },
+    "timesfm3": {
+        "config_class": "TimesFM3Config",
+        "model_class": "TimesFM3Forecaster",
+        "allowed_model_bases": {"BaseTimeSeriesFoundationModel"},
+    },
     "tide": {
         "config_class": "TiDEConfig",
         "model_class": "TiDEForecaster",
@@ -71,6 +76,11 @@ MODEL_FAMILY_CLASS_CONTRACT: dict[str, dict[str, object]] = {
     "deepar": {
         "config_class": "DeepARConfig",
         "model_class": "DeepARForecaster",
+        "allowed_model_bases": {"AutoGluonBaseModel"},
+    },
+    "gbm": {
+        "config_class": "GBMConfig",
+        "model_class": "GBMForecaster",
         "allowed_model_bases": {"AutoGluonBaseModel"},
     },
     "patchtst": {
@@ -96,6 +106,7 @@ SCHEMA_ROUTED_FAMILIES = set(get_registered_model_config_types())
 SCHEMA_ROUTED_METHOD_ORDER_EXEMPT_FAMILIES = {"moment", "timegrad", "timesfm", "toto"}
 AUTOGLUON_THIN_WRAPPER_FAMILIES = {
     "deepar",
+    "gbm",
     "naive_baseline",
     "patchtst",
     "statistical",

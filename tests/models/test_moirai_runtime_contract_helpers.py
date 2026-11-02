@@ -41,6 +41,66 @@ def _build_forecaster(monkeypatch) -> Any:
     )
 
 
+def _build_known_future_forecaster(monkeypatch) -> Any:
+    from src.models.moirai.config import (  # pyright: ignore[reportMissingImports]
+        MoiraiConfig,
+    )
+    from src.models.moirai.model import (  # pyright: ignore[reportMissingImports]
+        MoiraiForecaster,
+    )
+
+    monkeypatch.setattr(MoiraiForecaster, "_initialize_model", _stub_initialize_model)
+    return MoiraiForecaster(
+        MoiraiConfig(
+            context_length=4,
+            forecast_length=2,
+            batch_size=2,
+            patch_size=4,
+            target_col="bg_mM",
+            covariate_cols=["iob"],
+            past_covariate_dim=1,
+            known_covariate_cols=["total_insulin"],
+            known_covariate_dim=1,
+        )
+    )
+
+
+def test_prepare_training_tensors_builds_full_window_known_future_covariates(
+    monkeypatch,
+):
+    model = _build_known_future_forecaster(monkeypatch)
+
+    index = pd.date_range("2024-01-01", periods=6, freq="5min")
+    frame = pd.DataFrame(
+        {
+            "patient_id": ["p1"] * 6,
+            "datetime": index,
+            "bg_mM": [5.0, 5.5, 6.0, 6.5, 6.8, 7.1],
+            "iob": [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            "total_insulin": [1.0, 0.0, 0.0, 2.0, 0.0, 0.0],
+        }
+    )
+
+    tensors = model._prepare_training_tensors(frame)
+
+    past_covariates = tensors[6]
+    known_covariates = tensors[8]
+    known_observed = tensors[9]
+
+    assert past_covariates is not None
+    assert past_covariates.shape == (1, 4, 1)  # context-length past covariate
+
+    assert known_covariates is not None
+    # Known-future covariate spans the full context+horizon window.
+    assert known_covariates.shape == (1, 6, 1)
+    assert known_observed is not None
+    assert known_observed.shape == (1, 6, 1)
+    torch.testing.assert_close(
+        known_covariates[0, :, 0],
+        torch.tensor([1.0, 0.0, 0.0, 2.0, 0.0, 0.0]),
+    )
+
+
 def test_prepare_training_tensors_normalizes_dict_and_list_episode_inputs(monkeypatch):
     model = _build_forecaster(monkeypatch)
 
@@ -79,13 +139,17 @@ def test_prepare_training_data_builds_patched_loader_from_tensor_contract(monkey
             future_target,
             future_observed_target,
             future_is_pad,
-            past_feat_dynamic_real,
-            past_observed_feat_dynamic_real,
+            feat_dynamic_real=None,
+            observed_feat_dynamic_real=None,
+            past_feat_dynamic_real=None,
+            past_observed_feat_dynamic_real=None,
         ):
             _ = (
                 patch_size,
                 past_is_pad,
                 future_is_pad,
+                feat_dynamic_real,
+                observed_feat_dynamic_real,
                 past_feat_dynamic_real,
                 past_observed_feat_dynamic_real,
             )
@@ -118,6 +182,8 @@ def test_prepare_training_data_builds_patched_loader_from_tensor_contract(monkey
         torch.ones(3, 2, 1, dtype=torch.bool),
         torch.zeros(3, 4, dtype=torch.long),
         torch.zeros(3, 2, dtype=torch.long),
+        None,
+        None,
         None,
         None,
     )

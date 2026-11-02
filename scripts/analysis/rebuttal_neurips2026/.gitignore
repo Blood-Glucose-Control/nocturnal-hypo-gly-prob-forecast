@@ -1,0 +1,5 @@
+# Generated artifacts and private rebuttal narrative material
+outputs/
+responses/
+_table_backups/
+__pycache__/

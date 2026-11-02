@@ -23,6 +23,7 @@ ZERO_SHOT_INFERENCE_MODEL_TYPES = {
     "chronos2",
     "moment",
     "timesfm",
+    "timesfm3",
     "toto",
     "moirai",
 }
@@ -236,6 +237,7 @@ class ModelFactory:
             "chronos2": "autogluon/chronos-2",
             "moment": "AutonLab/MOMENT-1-small",
             "timesfm": "google/timesfm-2.0-500m-pytorch",
+            "timesfm3": "google/timesfm-3.0-pytorch",
             "timegrad": "",
             "tide": "",
             "toto": "Datadog/Toto-Open-Base-1.0",
@@ -375,6 +377,35 @@ class ModelFactory:
                 },
             )
             return TimesFMForecaster(TimesFMConfig(**runtime_config))
+        if model_type == "timesfm3":
+            try:
+                from ...models.timesfm3 import TimesFM3Config, TimesFM3Forecaster
+            except ImportError as e:
+                raise ImportError(
+                    "TimesFM 3.0 model not available. Install the timesfm3 "
+                    f"environment (.venvs/timesfm3 with timesfm3 + peft): {e}"
+                ) from e
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "timesfm3",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
+            )
+            return TimesFM3Forecaster(TimesFM3Config(**runtime_config))
         if model_type == "timegrad":
             try:
                 from ...models.timegrad import TimeGradConfig, TimeGradForecaster
@@ -568,6 +599,21 @@ class ModelFactory:
                 },
             )
             return TFTForecaster(TFTConfig(**runtime_config))
+        if model_type == "gbm":
+            from ...models.gbm import GBMConfig, GBMForecaster
+
+            extra = dict(config.extra_config) if config.extra_config else {}
+            runtime_config = build_model_runtime_config(
+                model_type=model_type,
+                config_data={
+                    "model_type": "gbm",
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "covariate_cols": extra.pop("covariate_cols", []),
+                    **extra,
+                },
+            )
+            return GBMForecaster(GBMConfig(**runtime_config))
         if model_type == "tsmixer":
             try:
                 from ...models.tsmixer import TSMixerConfig, TSMixerForecaster
@@ -601,7 +647,7 @@ class ModelFactory:
             return TSMixerForecaster(TSMixerConfig(**runtime_config))
         raise ValueError(
             f"Unsupported model type: {model_type}. "
-            "Supported types: sundial, ttm, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
+            "Supported types: sundial, ttm, chronos2, moment, timesfm, timesfm3, timegrad, tide, toto, moirai, "
             "naive_baseline, statistical, deepar, patchtst, tft, tsmixer"
         )
 
@@ -838,6 +884,33 @@ class ModelFactory:
                 model_path,
                 TimesFMConfig(**runtime_config),
             )
+        if model_type_lower == "timesfm3":
+            from ...models.timesfm3 import TimesFM3Config, TimesFM3Forecaster
+
+            extra = dict(config.extra_config) if config.extra_config else {}
+            if "lr" in extra and "learning_rate" not in extra:
+                extra["learning_rate"] = extra.pop("lr")
+            runtime_config = build_model_runtime_config(
+                model_type=model_type_lower,
+                config_data={
+                    "model_type": "timesfm3",
+                    "model_path": config.model_path,
+                    "context_length": config.context_length,
+                    "forecast_length": config.forecast_length,
+                    "batch_size": config.batch_size,
+                    "num_epochs": config.num_epochs,
+                    "training_mode": config.training_mode,
+                    "freeze_backbone": config.freeze_backbone,
+                    "use_cpu": config.use_cpu,
+                    "fp16": config.fp16,
+                    "learning_rate": config.learning_rate,
+                    **extra,
+                },
+            )
+            return TimesFM3Forecaster.load(
+                model_path,
+                TimesFM3Config(**runtime_config),
+            )
         if model_type_lower == "timegrad":
             from ...models.timegrad import TimeGradConfig, TimeGradForecaster
 
@@ -920,12 +993,16 @@ class ModelFactory:
             from ...models.tft import TFTForecaster
 
             return TFTForecaster.load(model_path)
+        if model_type_lower == "gbm":
+            from ...models.gbm import GBMForecaster
+
+            return GBMForecaster.load(model_path)
         if model_type_lower == "tsmixer":
             from ...models.tsmixer import TSMixerForecaster
 
             return TSMixerForecaster.load(model_path)
         raise ValueError(
             f"Unsupported model type for loading: {model_type}. "
-            "Supported types: sundial, ttm, chronos2, moment, timesfm, timegrad, tide, toto, moirai, "
-            "naive_baseline, statistical, deepar, patchtst, tft, tsmixer"
+            "Supported types: sundial, ttm, chronos2, moment, timesfm, timesfm3, timegrad, tide, toto, moirai, "
+            "naive_baseline, statistical, deepar, patchtst, tft, gbm, tsmixer"
         )
