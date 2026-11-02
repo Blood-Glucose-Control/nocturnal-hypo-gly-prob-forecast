@@ -11,6 +11,7 @@ from .data_configs import HoldoutConfigSchema
 from .model_configs import (
     Chronos2ModelConfigSchema,
     DeepARModelConfigSchema,
+    GBMModelConfigSchema,
     MoiraiModelConfigSchema,
     MomentModelConfigSchema,
     NaiveBaselineModelConfigSchema,
@@ -20,6 +21,7 @@ from .model_configs import (
     TFTModelConfigSchema,
     TiDEModelConfigSchema,
     TimeGradModelConfigSchema,
+    TimesFM3ModelConfigSchema,
     TimesFMModelConfigSchema,
     TotoModelConfigSchema,
     TSMixerModelConfigSchema,
@@ -49,6 +51,11 @@ SCHEMA_ARTIFACT_SPECS: tuple[SchemaArtifactSpec, ...] = (
         filename="model_configs.deepar.schema.json",
         schema_type=DeepARModelConfigSchema,
         source_symbol="src.config.schemas.model_configs.DeepARModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.gbm.schema.json",
+        schema_type=GBMModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.GBMModelConfigSchema",
     ),
     SchemaArtifactSpec(
         filename="model_configs.moirai.schema.json",
@@ -99,6 +106,11 @@ SCHEMA_ARTIFACT_SPECS: tuple[SchemaArtifactSpec, ...] = (
         filename="model_configs.timesfm.schema.json",
         schema_type=TimesFMModelConfigSchema,
         source_symbol="src.config.schemas.model_configs.TimesFMModelConfigSchema",
+    ),
+    SchemaArtifactSpec(
+        filename="model_configs.timesfm3.schema.json",
+        schema_type=TimesFM3ModelConfigSchema,
+        source_symbol="src.config.schemas.model_configs.TimesFM3ModelConfigSchema",
     ),
     SchemaArtifactSpec(
         filename="model_configs.toto.schema.json",

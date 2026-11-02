@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, cast
+from typing import Any, Callable, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -192,6 +192,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             module = MoiraiModule.from_pretrained(self.config.model_path)
 
         info_print(f"  past_feat_dynamic_real_dim = {self.config.past_covariate_dim}")
+        info_print(f"  feat_dynamic_real_dim = {self.config.known_covariate_dim}")
 
         self.model = MoiraiForecast(
             module=module,
@@ -200,7 +201,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             patch_size=self.config.patch_size,
             num_samples=self.config.num_samples,
             target_dim=1,
-            feat_dynamic_real_dim=0,
+            feat_dynamic_real_dim=self.config.known_covariate_dim,
             past_feat_dynamic_real_dim=self.config.past_covariate_dim,
         )
 
@@ -320,7 +321,11 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         return loader, None, None
 
     def _train_model(
-        self, train_data: Any, output_dir: str, **kwargs
+        self,
+        train_data: Any,
+        output_dir: str,
+        epoch_callback: Optional[Callable[[int, float], None]] = None,
+        **kwargs,
     ) -> dict[str, Any]:
         """Fine-tune Moirai using its native ``MoiraiFinetune`` Lightning module.
 
@@ -342,6 +347,11 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 * ``list[dict]`` — flat list of episode dicts.
 
             output_dir: Directory for training outputs and checkpoints.
+            epoch_callback: Optional ``(epoch_index, avg_train_loss) -> None``
+                hook invoked after each epoch (0-based ``epoch_index``). Used by
+                the Optuna sweep to report the per-epoch training loss as an
+                intermediate value and prune unpromising trials; it may raise to
+                abort fine-tuning early (the exception propagates to the caller).
             **kwargs: Unused; accepted for forward-compatibility.
 
         Returns:
@@ -386,13 +396,15 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         finetune_module = MoiraiFinetune(
             module=model.module,
             min_patches=2,
-            min_mask_ratio=0.15,
-            max_mask_ratio=0.5,
+            min_mask_ratio=self.config.min_mask_ratio,
+            max_mask_ratio=self.config.max_mask_ratio,
             max_dim=128,
             num_training_steps=total_steps,
             num_warmup_steps=warmup_steps,
             lr=self.config.learning_rate,
             weight_decay=self.config.weight_decay,
+            beta1=self.config.beta1,
+            beta2=self.config.beta2,
             finetune_pattern=self.config.finetune_pattern,
             context_length=self.config.context_length,
             prediction_length=self.config.forecast_length,
@@ -461,6 +473,9 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                     for k, v in finetune_module.module.state_dict().items()
                 }
 
+            if epoch_callback is not None:
+                epoch_callback(epoch, avg_loss)
+
         # ------------------------------------------------------------------
         # Step 4: Reload best weights and rebuild MoiraiForecast
         # ------------------------------------------------------------------
@@ -474,7 +489,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             patch_size=self.config.patch_size,
             num_samples=self.config.num_samples,
             target_dim=1,
-            feat_dynamic_real_dim=0,
+            feat_dynamic_real_dim=self.config.known_covariate_dim,
             past_feat_dynamic_real_dim=self.config.past_covariate_dim,
         )
         self.predictor = None  # Force predictor rebuild
@@ -563,7 +578,7 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 patch_size=self.config.patch_size,
                 num_samples=self.config.num_samples,
                 target_dim=1,
-                feat_dynamic_real_dim=0,
+                feat_dynamic_real_dim=self.config.known_covariate_dim,
                 past_feat_dynamic_real_dim=self.config.past_covariate_dim,
             )
         else:
@@ -746,6 +761,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         torch.Tensor,
         torch.Tensor | None,
         torch.Tensor | None,
+        torch.Tensor | None,
+        torch.Tensor | None,
     ]:
         return (
             torch.empty(0),
@@ -754,6 +771,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             torch.empty(0),
             torch.empty(0),
             torch.empty(0),
+            None,
+            None,
             None,
             None,
         )
@@ -771,6 +790,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             torch.Tensor,
             torch.Tensor | None,
             torch.Tensor | None,
+            torch.Tensor | None,
+            torch.Tensor | None,
         ],
         patch_size: int,
     ) -> _MoiraiPatchedDataset:
@@ -783,6 +804,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             future_is_pad,
             past_covariates,
             past_observed_covariates,
+            known_covariates,
+            known_observed_covariates,
         ) = tensors
 
         sample_count = len(past_target)
@@ -803,6 +826,12 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 if past_observed_covariates is not None
                 else None
             )
+            kcov = known_covariates[sl] if known_covariates is not None else None
+            kcov_obs = (
+                known_observed_covariates[sl]
+                if known_observed_covariates is not None
+                else None
+            )
             tgt, obs, sid, tid, vid, pmask = model._convert(
                 patch_size,
                 past_target=past_target[sl],
@@ -811,6 +840,8 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 future_target=future_target[sl],
                 future_observed_target=future_observed[sl],
                 future_is_pad=future_is_pad[sl],
+                feat_dynamic_real=kcov,
+                observed_feat_dynamic_real=kcov_obs,
                 past_feat_dynamic_real=cov,
                 past_observed_feat_dynamic_real=cov_obs,
             )  # type: ignore MoiraiForecast is not a torch.nn.Module. Harmless because at runtime self.model is actually a MoiraiForecast instance.
@@ -842,26 +873,32 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
         torch.Tensor,
         torch.Tensor | None,
         torch.Tensor | None,
+        torch.Tensor | None,
+        torch.Tensor | None,
     ]:
         """Convert training data to aligned tensor batches on CPU.
 
         Returns:
             Tuple of ``(past_target, future_target, past_observed,
             future_observed, past_is_pad, future_is_pad, past_covariates,
-            past_observed_covariates)``.
+            past_observed_covariates, known_covariates,
+            known_observed_covariates)``.
             Each target/observed tensor has shape ``(N, length, dim)``;
-            ``past_covariates`` and ``past_observed_covariates`` are ``None``
-            when no covariates are configured.
+            ``past_covariates`` (context-length) and ``known_covariates``
+            (full context+horizon length) are ``None`` when the corresponding
+            covariate set is not configured.
         """
         ctx_len = self.config.context_length
         fh_len = self.config.forecast_length
         total_len = ctx_len + fh_len
         target_col = self.config.target_col
         cov_cols = self.config.covariate_cols or []
+        known_cols = self.config.known_covariate_cols or []
 
         contexts: list[np.ndarray] = []
         targets: list[np.ndarray] = []
         covariates: list[np.ndarray] = []
+        known_covariates: list[np.ndarray] = []
 
         if isinstance(train_data, pd.DataFrame):
             if cov_cols:
@@ -869,6 +906,12 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                     available_columns=list(train_data.columns),
                     covariate_cols=cov_cols,
                     source_name="training DataFrame",
+                )
+            if known_cols:
+                self._validate_covariate_columns(
+                    available_columns=list(train_data.columns),
+                    covariate_cols=known_cols,
+                    source_name="training DataFrame (known-future)",
                 )
             for _, pat_df in train_data.groupby("patient_id"):
                 if "datetime" in pat_df.columns:
@@ -878,11 +921,20 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
                 pat_df = pat_df.dropna(subset=[target_col])
                 bg = pat_df[target_col].to_numpy(dtype=np.float32)
                 cov = pat_df[cov_cols].to_numpy(dtype=np.float32) if cov_cols else None
+                kcov = (
+                    pat_df[known_cols].to_numpy(dtype=np.float32)
+                    if known_cols
+                    else None
+                )
                 for s in range(0, len(bg) - total_len + 1, total_len):
                     contexts.append(bg[s : s + ctx_len])
                     targets.append(bg[s + ctx_len : s + total_len])
                     if cov is not None:
                         covariates.append(cov[s : s + ctx_len])
+                    if kcov is not None:
+                        # Known-future covariates span the FULL context+horizon
+                        # window (their future values are known at forecast time).
+                        known_covariates.append(kcov[s : s + total_len])
 
         elif isinstance(train_data, (dict, list)):
             for ep in self._iter_episode_dicts(train_data):
@@ -932,6 +984,13 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             past_observed_covariates = ~torch.isnan(past_covariates)
             past_covariates = torch.nan_to_num(past_covariates, nan=0.0)
 
+        known_cov_t: torch.Tensor | None = None
+        known_observed_cov_t: torch.Tensor | None = None
+        if known_covariates and len(known_covariates) == len(contexts):
+            known_cov_t = torch.tensor(np.stack(known_covariates), dtype=torch.float32)
+            known_observed_cov_t = ~torch.isnan(known_cov_t)
+            known_cov_t = torch.nan_to_num(known_cov_t, nan=0.0)
+
         return (
             past_target,
             future_target,
@@ -941,4 +1000,6 @@ class MoiraiForecaster(BaseTimeSeriesFoundationModel):
             future_is_pad,
             past_covariates,
             past_observed_covariates,
+            known_cov_t,
+            known_observed_cov_t,
         )

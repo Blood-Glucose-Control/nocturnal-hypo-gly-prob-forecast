@@ -45,6 +45,7 @@ TIMESFM_SMOKE_CONFIG_PATH = (
 AUTOGLUON_SCHEMA_SMOKE_CONFIGS = {
     "chronos2": REPO_ROOT / "configs" / "models" / "chronos2" / "00_bg_only.yaml",
     "deepar": REPO_ROOT / "configs" / "models" / "deepar" / "00_baseline.yaml",
+    "gbm": REPO_ROOT / "configs" / "models" / "gbm" / "00_baseline.yaml",
     "naive_baseline": REPO_ROOT
     / "configs"
     / "models"
@@ -201,6 +202,44 @@ def test_autogluon_model_configs_validate_via_schema_loader(
     assert loaded["model_type"] == model_type
     assert loaded["context_length"] > 0
     assert loaded["forecast_length"] > 0
+
+
+def test_gbm_model_config_routes_strategy_and_backend() -> None:
+    loaded = load_model_config_from_yaml(
+        str(AUTOGLUON_SCHEMA_SMOKE_CONFIGS["gbm"]),
+        model_type="gbm",
+    )
+
+    assert loaded["model_type"] == "gbm"
+    assert loaded["strategy"] == "recursive"
+    assert loaded["backend"] == "lightgbm"
+    assert loaded["lags"] == [1, 2, 3, 6, 12]
+    assert loaded["model_hyperparameters"]["num_boost_round"] == 300
+
+
+def test_gbm_schema_context_length_default_matches_dataclass() -> None:
+    from src.config.schemas.model_configs import GBMModelConfigSchema
+    from src.models.gbm.config import GBMConfig
+
+    # A GBM YAML that omits context_length must validate to the dataclass
+    # default (288), not the AutoGluon base default (512).
+    assert GBMModelConfigSchema().context_length == GBMConfig().context_length == 288
+
+
+def test_gbm_model_config_rejects_unknown_backend(tmp_path: Path) -> None:
+    config_path = _write(
+        tmp_path / "gbm_bad_backend.yaml",
+        """
+model_type: gbm
+context_length: 288
+forecast_length: 24
+strategy: recursive
+backend: not_a_real_backend
+""".strip(),
+    )
+
+    with pytest.raises(ValueError):
+        load_model_config_from_yaml(config_path, model_type="gbm")
 
 
 def test_tsmixer_model_config_normalizes_lr_alias(tmp_path: Path) -> None:

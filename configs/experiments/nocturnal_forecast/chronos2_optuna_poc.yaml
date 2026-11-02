@@ -1,0 +1,59 @@
+# =============================================================================
+# Chronos-2 x Optuna proof of concept — MetaboNet Glucose Prediction Challenge
+# =============================================================================
+# Hyperparameter search over Chronos-2 LoRA fine-tuning aligned to the challenge
+# submission shape: context in [24, 288] steps -> 24-step (+120 min) forecast.
+#
+# Objective: minimise RMSE (mg/dL) at the +120-minute horizon on an internal
+# temporal validation split (last `val_days` days per patient held out).
+# RMSE / MARD / DTS at +30/+60/+90/+120 are also recorded per trial.
+#
+# A shared SQLite study lets multiple GPU-pinned tmux workers cooperate.
+# Launch with scripts/orchestration/sweeps/optuna/launch_optuna_tmux.sh
+# =============================================================================
+
+study_name: "chronos2_metabonet_poc"
+storage: "sqlite:///optuna_chronos2_poc.db"
+direction: "minimize"
+
+processed_path: "cache/data/metabonet/processed"
+output_root: "trained_models/optuna_chronos2_poc"
+
+# Per-trial AutoGluon fit time cap (seconds); null = no cap.
+time_limit: null
+# Keep each trial's fitted predictor on disk (large). Default discards them.
+keep_models: false
+
+data:
+  forecast_length: 24          # +120 min at 5-minute sampling
+  max_context: 288             # 24 h — the challenge's guaranteed history window
+  min_context: 48              # minimum history to admit a validation window
+  val_days: 2                  # per-patient held-out validation region
+  interval_mins: 5
+  imputation_threshold_mins: 30  # max CGM gap interpolated inside a context
+  eval_stride_steps: 3         # 15-min stride between validation anchors
+  max_val_windows_per_patient: 8
+  max_val_windows_total: 2000
+  patient_limit: null          # null = all usable patients
+  seed: 42
+
+# Search-space bounds (see search_space.SearchSpaceBounds). Empty = defaults.
+search_space:
+  context_min: 24
+  context_max: 288
+  context_step: 12
+  lr_min: 1.0e-6
+  lr_max: 1.0e-3
+  steps_choices: [500, 1000, 2000, 4000]
+  batch_size_choices: [64, 128, 256, 512]
+  lora_r_choices: [4, 8, 16, 32, 64]
+  lora_alpha_choices: [8, 16, 32, 64, 128]
+  lora_dropout_max: 0.2
+  lora_target_modules_choices: ["auto", "attn_qv", "attn_qkvo", "full"]
+  weight_decay_max: 0.1
+  warmup_ratio_max: 0.2
+  lr_scheduler_choices: ["constant_with_warmup", "linear", "cosine"]
+  grad_accum_choices: [1, 2, 4]
+  cross_learning_choices: [false, true]
+  target_scaler_choices: [null, "standard", "robust", "mean_abs"]
+  eval_metric_choices: ["RMSE", "WQL", "MASE"]

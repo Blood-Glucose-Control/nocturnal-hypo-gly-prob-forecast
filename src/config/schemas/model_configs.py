@@ -104,11 +104,17 @@ class MoiraiModelConfigSchema(BaseConfigSchema):
     patch_size: int | Literal["auto"] = Field(default="auto")
     num_samples: int = Field(default=100, gt=0)
     past_covariate_dim: int = Field(default=0, ge=0)
+    known_covariate_dim: int = Field(default=0, ge=0)
     checkpoint_path: Optional[str] = Field(default=None)
     finetune_pattern: Literal["full", "freeze_ffn", "head_only"] = Field(default="full")
+    beta1: float = Field(default=0.9, gt=0.0, lt=1.0)
+    beta2: float = Field(default=0.98, gt=0.0, lt=1.0)
+    min_mask_ratio: float = Field(default=0.15, ge=0.0, lt=1.0)
+    max_mask_ratio: float = Field(default=0.5, gt=0.0, le=1.0)
     interval_mins: int = Field(default=5, gt=0)
     target_col: str = Field(default="bg_mM", min_length=1)
     covariate_cols: list[str] = Field(default_factory=list)
+    known_covariate_cols: list[str] = Field(default_factory=list)
 
     @field_validator("learning_rate", mode="before")
     @classmethod
@@ -121,6 +127,16 @@ class MoiraiModelConfigSchema(BaseConfigSchema):
             raise ValueError(
                 f"len(covariate_cols)={len(self.covariate_cols)} does not match "
                 f"past_covariate_dim={self.past_covariate_dim}"
+            )
+        if len(self.known_covariate_cols) != self.known_covariate_dim:
+            raise ValueError(
+                f"len(known_covariate_cols)={len(self.known_covariate_cols)} does "
+                f"not match known_covariate_dim={self.known_covariate_dim}"
+            )
+        if self.min_mask_ratio >= self.max_mask_ratio:
+            raise ValueError(
+                f"min_mask_ratio={self.min_mask_ratio} must be < "
+                f"max_mask_ratio={self.max_mask_ratio}"
             )
         return self
 
@@ -356,6 +372,82 @@ class TimesFMModelConfigSchema(BaseConfigSchema):
         return levels
 
 
+class TimesFM3ModelConfigSchema(BaseConfigSchema):
+    """Schema contract for standalone TimesFM 3.0 model YAML configs.
+
+    Separate from :class:`TimesFMModelConfigSchema` (the published HF-Transformers
+    TimesFM family); TimesFM 3.0 runs on the native ``timesfm3`` package and
+    supports native past-only covariates plus LoRA fine-tuning.
+    """
+
+    model_type: Literal["timesfm3"] = Field(default="timesfm3")
+    model_path: str = Field(default="google/timesfm-3.0-pytorch", min_length=1)
+
+    training_mode: str = Field(default="fine_tune")
+    freeze_backbone: bool = Field(default=False)
+    use_cpu: bool = Field(default=False)
+    fp16: bool = Field(default=True)
+    device: Optional[str] = Field(default=None)
+
+    context_length: int = Field(default=512, gt=0)
+    forecast_length: int = Field(default=96, gt=0)
+
+    batch_size: int = Field(default=32, gt=0)
+    num_epochs: int = Field(default=10, ge=0)
+    learning_rate: float = Field(
+        default=1e-4,
+        gt=0.0,
+        validation_alias=AliasChoices("learning_rate", "lr"),
+    )
+    weight_decay: float = Field(default=0.01, ge=0.0)
+    grad_clip_norm: float = Field(default=1.0, ge=0.0)
+    early_stopping_patience: int = Field(default=3, ge=0)
+    val_fraction: float = Field(default=0.2, ge=0.0, lt=1.0)
+    window_stride: Optional[int] = Field(default=None, gt=0)
+    max_train_windows: int = Field(default=2048, gt=0)
+    covariate_jitter: float = Field(default=1e-3, ge=0.0)
+
+    target_col: str = Field(default="bg_mM", min_length=1)
+    covariate_cols: list[str] = Field(default_factory=lambda: ["iob"])
+    make_positive: bool = Field(default=True)
+    quantiles: list[float] = Field(
+        default_factory=lambda: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    )
+
+    lora_r: int = Field(default=8, gt=0)
+    lora_alpha: int = Field(default=16, gt=0)
+    lora_dropout: float = Field(default=0.0, ge=0.0, le=1.0)
+    lora_target_modules: str = Field(default="all-linear", min_length=1)
+
+    @field_validator(
+        "learning_rate",
+        "weight_decay",
+        "grad_clip_norm",
+        "val_fraction",
+        "covariate_jitter",
+        "lora_dropout",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_numeric_fields(cls, value: Any, info: ValidationInfo) -> Any:
+        field_name = info.field_name or "numeric_field"
+        return _coerce_numeric_string(value, field_name)
+
+    @field_validator("quantiles")
+    @classmethod
+    def _validate_quantiles(cls, levels: list[float]) -> list[float]:
+        if not levels:
+            raise ValueError("quantiles must not be empty")
+        if levels != sorted(levels):
+            raise ValueError("quantiles must be sorted in ascending order")
+        if len(set(levels)) != len(levels):
+            raise ValueError("quantiles must not contain duplicates")
+        for level in levels:
+            if level <= 0.0 or level >= 1.0:
+                raise ValueError(f"quantiles entries must be in (0, 1), got {level}")
+        return levels
+
+
 class AutoGluonModelConfigSchema(BaseConfigSchema):
     """Shared schema surface for AutoGluon-backed model families."""
 
@@ -411,10 +503,17 @@ class Chronos2ModelConfigSchema(AutoGluonModelConfigSchema):
 
     fine_tune_steps: int = Field(default=15000, gt=0)
     fine_tune_lr: float = Field(default=1e-5, gt=0.0)
+    fine_tune_mode: Literal["lora", "full"] = Field(default="lora")
+    fine_tune_lora_config: Optional[dict[str, Any]] = Field(default=None)
+    fine_tune_context_length: Optional[int] = Field(default=None, gt=0)
+    extra_fine_tune_trainer_kwargs: Optional[dict[str, Any]] = Field(default=None)
     fine_tune_batch_size: Optional[int] = Field(default=None, gt=0)
     batch_size: Optional[int] = Field(default=None, gt=0)
     fine_tune_logging_steps: Optional[int] = Field(default=None, gt=0)
     eval_during_fine_tune: bool = Field(default=True)
+    cross_learning: bool = Field(default=False)
+    fine_tune_eval_max_items: Optional[int] = Field(default=None, gt=0)
+    target_scaler: Optional[str] = Field(default=None)
     min_past: int = Field(default=1, gt=0)
     checkpoint_save_steps: Optional[int] = Field(default=None, gt=0)
     covariate_cols: list[str] = Field(default_factory=lambda: ["iob"])
@@ -592,6 +691,41 @@ class TiDEModelConfigSchema(AutoGluonModelConfigSchema):
         if self.training_mode != "from_scratch":
             raise ValueError("training_mode must be 'from_scratch' for TiDE")
         return self
+
+
+class GBMModelConfigSchema(AutoGluonModelConfigSchema):
+    """Schema contract for GBM tabular (AutoGluon backend) YAML configs.
+
+    Wraps AutoGluon's RecursiveTabular / DirectTabular reductions with a
+    gradient-boosting backend (LightGBM / CatBoost / XGBoost).
+    """
+
+    model_type: Literal["gbm"] = Field(default="gbm")
+    training_mode: str = Field(default="from_scratch")
+    context_length: int = Field(default=288, gt=0)
+    forecast_length: int = Field(default=24, gt=0)
+
+    strategy: Literal["recursive", "direct"] = Field(default="recursive")
+    backend: Literal["lightgbm", "catboost", "xgboost"] = Field(default="lightgbm")
+
+    lags: Optional[list[int]] = Field(default=None)
+    differences: Optional[list[int]] = Field(default=None)
+    target_scaler: Optional[str] = Field(default=None)
+    max_num_items: Optional[int] = Field(default=None, gt=0)
+    max_num_samples: Optional[int] = Field(default=None, gt=0)
+    model_hyperparameters: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("lags", "differences")
+    @classmethod
+    def _validate_positive_int_lists(
+        cls, values: Optional[list[int]]
+    ) -> Optional[list[int]]:
+        if values is None:
+            return None
+        for value in values:
+            if value <= 0:
+                raise ValueError("lags/differences entries must be positive integers")
+        return values
 
 
 class TTMSplitConfigSchema(BaseConfigSchema):
@@ -781,6 +915,11 @@ def build_timesfm_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     return runtime
 
 
+def build_timesfm3_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize standalone TimesFM 3.0 runtime config values."""
+    return _build_runtime_config("timesfm3", TimesFM3ModelConfigSchema, config_data)
+
+
 def build_chronos2_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize Chronos-2 runtime config values."""
     return _build_runtime_config("chronos2", Chronos2ModelConfigSchema, config_data)
@@ -822,6 +961,11 @@ def build_tide_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     return _build_runtime_config("tide", TiDEModelConfigSchema, config_data)
 
 
+def build_gbm_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize GBM tabular runtime config values."""
+    return _build_runtime_config("gbm", GBMModelConfigSchema, config_data)
+
+
 def build_ttm_runtime_config(config_data: dict[str, Any]) -> dict[str, Any]:
     """Validate and normalize TTM runtime config values."""
     return _build_runtime_config("ttm", TTMModelConfigSchema, config_data)
@@ -835,6 +979,10 @@ MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
     "deepar": ModelConfigRoute(
         schema_type=DeepARModelConfigSchema,
         runtime_adapter=build_deepar_runtime_config,
+    ),
+    "gbm": ModelConfigRoute(
+        schema_type=GBMModelConfigSchema,
+        runtime_adapter=build_gbm_runtime_config,
     ),
     "naive_baseline": ModelConfigRoute(
         schema_type=NaiveBaselineModelConfigSchema,
@@ -851,6 +999,10 @@ MODEL_CONFIG_ROUTES: dict[str, ModelConfigRoute] = {
     "timesfm": ModelConfigRoute(
         schema_type=TimesFMModelConfigSchema,
         runtime_adapter=build_timesfm_runtime_config,
+    ),
+    "timesfm3": ModelConfigRoute(
+        schema_type=TimesFM3ModelConfigSchema,
+        runtime_adapter=build_timesfm3_runtime_config,
     ),
     "patchtst": ModelConfigRoute(
         schema_type=PatchTSTModelConfigSchema,

@@ -132,11 +132,17 @@ class MoiraiConfig(ModelConfig):
             "patch_size",
             "num_samples",
             "past_covariate_dim",
+            "known_covariate_dim",
             "checkpoint_path",
             "finetune_pattern",
+            "beta1",
+            "beta2",
+            "min_mask_ratio",
+            "max_mask_ratio",
             "interval_mins",
             "target_col",
             "covariate_cols",
+            "known_covariate_cols",
             "d_model",
             "n_heads",
             "n_layers",
@@ -159,13 +165,26 @@ class MoiraiConfig(ModelConfig):
         self.patch_size = kwargs.get("patch_size", "auto")
         self.num_samples: int = kwargs.get("num_samples", 100)
         self.past_covariate_dim: int = kwargs.get("past_covariate_dim", 0)
+        # Known-future covariates: passed as ``feat_dynamic_real`` (span the full
+        # context+horizon window because their future values are known at forecast
+        # time, e.g. planned insulin). 0 disables them.
+        self.known_covariate_dim: int = kwargs.get("known_covariate_dim", 0)
         self.checkpoint_path: Optional[str] = kwargs.get("checkpoint_path", None)
         self.finetune_pattern: str = kwargs.get("finetune_pattern", "full")
+        # Fine-tune optimizer/augmentation knobs passed to uni2ts MoiraiFinetune.
+        # beta1/beta2 are the AdamW momentum terms; min/max_mask_ratio bound the
+        # masked-reconstruction augmentation ratio sampled per training step.
+        self.beta1: float = kwargs.get("beta1", 0.9)
+        self.beta2: float = kwargs.get("beta2", 0.98)
+        self.min_mask_ratio: float = kwargs.get("min_mask_ratio", 0.15)
+        self.max_mask_ratio: float = kwargs.get("max_mask_ratio", 0.5)
 
         # Data helpers
         self.interval_mins: int = kwargs.get("interval_mins", 5)
         self.target_col: str = kwargs.get("target_col", "bg_mM")
         self.covariate_cols: List[str] = kwargs.get("covariate_cols", [])
+        # Ordered known-future covariate column names (len == known_covariate_dim).
+        self.known_covariate_cols: List[str] = kwargs.get("known_covariate_cols", [])
 
         # Architecture (informational — actual values are in the HF checkpoint)
         self.d_model: int = kwargs.get("d_model", 768)
@@ -214,11 +233,17 @@ class MoiraiConfig(ModelConfig):
                 "patch_size": self.patch_size,
                 "num_samples": self.num_samples,
                 "past_covariate_dim": self.past_covariate_dim,
+                "known_covariate_dim": self.known_covariate_dim,
                 "checkpoint_path": self.checkpoint_path,
                 "finetune_pattern": self.finetune_pattern,
+                "beta1": self.beta1,
+                "beta2": self.beta2,
+                "min_mask_ratio": self.min_mask_ratio,
+                "max_mask_ratio": self.max_mask_ratio,
                 "interval_mins": self.interval_mins,
                 "target_col": self.target_col,
                 "covariate_cols": self.covariate_cols,
+                "known_covariate_cols": self.known_covariate_cols,
                 "d_model": self.d_model,
                 "n_heads": self.n_heads,
                 "n_layers": self.n_layers,

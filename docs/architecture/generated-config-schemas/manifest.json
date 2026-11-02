@@ -9,6 +9,10 @@
       "source_symbol": "src.config.schemas.model_configs.DeepARModelConfigSchema"
     },
     {
+      "file": "model_configs.gbm.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.GBMModelConfigSchema"
+    },
+    {
       "file": "model_configs.moirai.schema.json",
       "source_symbol": "src.config.schemas.model_configs.MoiraiModelConfigSchema"
     },
@@ -47,6 +51,10 @@
     {
       "file": "model_configs.timesfm.schema.json",
       "source_symbol": "src.config.schemas.model_configs.TimesFMModelConfigSchema"
+    },
+    {
+      "file": "model_configs.timesfm3.schema.json",
+      "source_symbol": "src.config.schemas.model_configs.TimesFM3ModelConfigSchema"
     },
     {
       "file": "model_configs.toto.schema.json",

@@ -20,11 +20,15 @@ repos:
     hooks:
       # PR-R3 temporary policy: keep Ruff scoped to Python sources, excluding notebooks.
       # Revisit via project_tracking task `notebook-ruff-policy-restore` (P4).
+      # `private/` is gitignored scratch/competition tooling; when it is force-added
+      # for backup it must not be held to repo lint standards (it never ships).
       - id: ruff
         args: ["--fix", "--select=E4,E7,E9,F,I"]
         types_or: [python, pyi]
+        exclude: "^private/"
       - id: ruff-format
         types_or: [python, pyi]
+        exclude: "^private/"
 
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.411

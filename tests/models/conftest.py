@@ -27,6 +27,9 @@ _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")
 _MODEL_VENV_MAP: dict[str, tuple[str, str]] = {
     "ttm": ("ttm", ".venvs/ttm"),
     "sundial": ("sundial", ".venvs/sundial"),
+    # timesfm3 must precede timesfm because "timesfm" is a substring of
+    # "timesfm3" and the first matching keyword wins.
+    "timesfm3": ("timesfm3", ".venvs/timesfm3"),
     "timesfm": ("timesfm", ".venvs/timesfm"),
     "chronos2": ("autogluon", ".venvs/autogluon"),
     "autogluon_base": ("autogluon", ".venvs/autogluon"),
