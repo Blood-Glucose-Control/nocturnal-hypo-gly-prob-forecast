@@ -33,22 +33,26 @@ doesn't**, runs the pipelines, and accumulates its own artifacts.
 
 ### 3.1 Consistent per-experiment layout
 
-Every experiment is a **self-contained, droppable subdirectory** under a uniform
-`<domain>/<experiment>/` convention:
+Each experiment is a **single self-contained, droppable directory** at the top
+level, importing the pure `src/` core (which never imports experiments). The
+installed library (`src/`) stays experiment-agnostic; experiments are runnable
+**recipes**, not installed package weight — the standard library+examples pattern
+used by mature ML projects.
 
 ```
-src/experiments/<experiment>/<experiment>.py
-src/evaluation/<experiment>/<experiment>.py
-src/visualization/<experiment>/<experiment>.py
-configs/experiments/<experiment>/...
+experiments/<experiment>/
+    eval.py          # experiment-specific evaluation / metrics / anchoring
+    viz.py           # experiment-specific visualization
+    configs/         # experiment-tuned sweep/eval configs
+    run.py           # entrypoint
+    register.py      # registration hook (auto-discovered)
+    README.md        # how to reproduce this experiment
 ```
 
-For example: `src/evaluation/nocturnal/nocturnal.py`,
-`src/evaluation/metabonet/metabonet.py`. Flat files such as the current
-`src/evaluation/nocturnal.py` are restructured into this form.
-
-Goal: cloning GlucoFoundry and deleting, say, `*/metabonet/` directories should
-remove that experiment cleanly, with no dangling imports or broken package load.
+For example: `experiments/nocturnal/`, `experiments/metabonet/`. Cloning
+GlucoFoundry and deleting `experiments/metabonet/` removes that experiment
+cleanly, with no dangling imports. The repo's existing top-level `experiments/`
+directory is **repurposed** as the home for these recipes (not stripped).
 
 ### 3.2 Core must never import experiments (the key enabler)
 
@@ -75,15 +79,18 @@ experiment package. Dependency direction is one-way: experiment → core.
 
 ### 3.3 Registration: auto-discovery
 
-Experiments self-register via **auto-discovery**: the core scans
-`src/experiments/*/` (and parallel evaluation/visualization experiment packages)
-for a registration hook at import/startup, so dropping a directory simply removes
-that experiment with no edits elsewhere. This mirrors the existing data-loader
-registry pattern already used in `src/data`, kept consistent across the codebase.
+Experiments self-register via **auto-discovery**: the core scans the top-level
+`experiments/*/` directories for a registration hook (`register.py`) at
+startup, so dropping a directory simply removes that experiment with no edits
+elsewhere. This mirrors the existing data-loader registry pattern already used in
+`src/data`, kept consistent across the codebase.
 
 A registration hook per experiment declares its summarizer, evaluation entry
-point, visualization surfaces, and any config schema, so the rest of the system
-can resolve experiments by name without importing them directly.
+point, visualization surfaces, and any config schema, so generic core
+(including `workflows`) can resolve experiments by name without importing them
+directly. In particular, `workflows/` stays generic core and calls the
+registered experiment's evaluation/anchoring through this interface rather than
+importing experiment modules.
 
 ### 3.4 Empty artifact scaffolding
 
@@ -107,13 +114,17 @@ Artifact directories ship **empty but structured**:
 - `docs/` toolkit usage; root infra (`pyproject`, `Makefile`, `.pre-commit`,
   `mkdocs`, `LICENSE`, `CONTRIBUTING`, `pyrightconfig`, README)
 
-### B. Example experiments — KEEP as runnable pipelines (no artifacts)
-Restructured into the per-experiment layout and decoupled via registration:
-- nocturnal: `src/experiments/nocturnal/`, `src/evaluation/nocturnal/`,
-  `src/visualization/nocturnal/`, nocturnal `configs/experiments/`, tests
+### B. Example experiments — KEEP as runnable recipes (no artifacts)
+Consolidated into top-level `experiments/<experiment>/` recipes that import the
+pure `src/` core and self-register via auto-discovery:
+- nocturnal: `experiments/nocturnal/` (`eval.py`, `viz.py`, `configs/`, `run.py`,
+  `register.py`, `README.md`) + its tests
 - (future) metabonet and others follow the same shape
 
-These are the reproducibility recipes: code only, run to produce artifacts.
+These are the reproducibility recipes: code only, run to produce artifacts. The
+experiment-specific logic currently in `src/evaluation/nocturnal.py`,
+`src/visualization/nocturnal.py`, `src/experiments/nocturnal/`, and
+`src/workflows/evaluation/nocturnal_hypo_eval.py` moves here.
 
 ### C. Artifacts / record / meta — STRIP from GlucoFoundry
 - `results/`, `trained_models/` → empty scaffolds only (see 3.4)
@@ -124,11 +135,16 @@ These are the reproducibility recipes: code only, run to produce artifacts.
 
 ## 5. Ratified nuanced decisions
 
-- **Sweep configs:** keep the sweep *framework*; **strip experiment-tuned search
-  spaces** to the forks.
-- **Top-level `experiments/`:** strip entirely (`standard_forecasting`,
-  `gpu_optimization`) — `experiments/` is experiment-only, not toolkit material.
+- **Sweep configs:** keep the sweep *framework*; **move experiment-tuned search
+  spaces** into the owning `experiments/<experiment>/configs/`.
+- **Top-level `experiments/`:** **repurpose** as the home for droppable
+  experiment recipes (not stripped). The current experiment-output dirs
+  (`nocturnal_forecasting*`, `standard_forecasting`, `gpu_optimization`) are
+  removed/replaced by the clean recipe structure.
 - **`results/`, `trained_models/`:** ship as empty scaffolded directories.
+- **`workflows/` stays generic core:** experiments plug in their
+  evaluation/anchoring via the registration interface; `workflows` never imports
+  experiment modules.
 
 ## 6. Reproducibility model
 
@@ -142,9 +158,15 @@ GlucoFoundry = toolkit + **example pipelines that were never run here**. A user:
 
 ## 7. Derived Phase B workstreams
 
+All executed on the **GlucoFoundry** fork (the old nocturnal repo stays a frozen
+record and is not refactored):
+
 1. **Decouple + register** (`b3a`) — remove the 6 core→experiment imports; add
-   auto-discovery registration. *Central enabler.*
-2. **Per-experiment layout** (`b3b`) — restructure to `<domain>/<experiment>/`.
+   auto-discovery registration scanning `experiments/*/register.py`. *Central
+   enabler.*
+2. **Per-experiment recipes** (`b3b`) — move nocturnal's eval/viz/experiment/
+   workflow-eval logic into a self-contained top-level `experiments/nocturnal/`
+   recipe importing the pure `src/` core.
 3. **Scaffold artifact dirs** (`b3c`) — empty `results/`, `trained_models/`.
-4. **Strip experiment configs/dirs** (`b3d`) — experiment-tuned sweeps and
-   top-level `experiments/`.
+4. **Strip artifacts + experiment-tuned configs** (`b3d`) — move experiment-tuned
+   sweep search spaces into the owning recipe; remove artifact/record/meta dirs.
