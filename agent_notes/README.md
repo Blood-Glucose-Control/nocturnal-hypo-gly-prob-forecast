@@ -8,6 +8,9 @@ This folder is now ordered by project priority using `P#-##` prefixes.
   GlucoFoundry toolkit + 3 experiment forks; reframes the single-repo cleanup as
   toolkit extraction). Supersedes the scope framing of
   `00_P0-P3_MASTER_REORG_PLAN.md`.
+- `01_GLUCOFOUNDRY_TOOLKIT_CHARTER.md` (ratified Phase B design: toolkit core +
+  droppable per-experiment modules + empty artifact scaffolding; auto-discovery
+  registration; core-vs-experiment-vs-artifact classification).
 - `diagrams/` (general-audience GlucoFoundry workflow flowchart: Mermaid source,
   matplotlib render script, and exported PNG/SVG).
 
